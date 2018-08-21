@@ -1,0 +1,3 @@
+apiVersion: dockerregistry.operator.openshift.io/v1alpha1
+kind: OpenShiftDockerRegistry
+projectName: cluster-image-registry-operator

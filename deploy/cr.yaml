@@ -1,0 +1,4 @@
+apiVersion: "dockerregistry.operator.openshift.io/v1alpha1"
+kind: "OpenShiftDockerRegistry"
+metadata:
+  name: "example"
