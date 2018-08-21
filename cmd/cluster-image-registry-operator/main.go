@@ -4,7 +4,7 @@ import (
 	"context"
 	"runtime"
 
-	stub "github.com/openshift/cluster-image-registry-operator/pkg/stub"
+	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -33,6 +33,6 @@ func main() {
 	resyncPeriod := 5
 	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
 	sdk.Watch(resource, kind, namespace, resyncPeriod)
-	sdk.Handle(stub.NewHandler())
+	sdk.Handle(operator.NewHandler())
 	sdk.Run(context.TODO())
 }
