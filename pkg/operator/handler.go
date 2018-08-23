@@ -12,6 +12,7 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 	authapi "github.com/openshift/api/authorization/v1"
+	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 
@@ -42,8 +43,26 @@ func NewHandler() sdk.Handler {
 type Handler struct {
 }
 
-func setErrorStatus(cr *v1alpha1.OpenShiftDockerRegistry) error {
-	return nil
+func conditionReourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+	cr.Status.Conditions = append(cr.Status.Conditions,
+		operatorapi.OperatorCondition{
+			Type:    operatorapi.OperatorStatusTypeAvailable,
+			Status:  status,
+			Reason:  "ResourceValidation",
+			Message: m,
+		},
+	)
+}
+
+func conditionProgressing(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+	cr.Status.Conditions = append(cr.Status.Conditions,
+		operatorapi.OperatorCondition{
+			Type:    operatorapi.OperatorStatusTypeAvailable,
+			Status:  status,
+			Reason:  "Progressing",
+			Message: m,
+		},
+	)
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
@@ -55,16 +74,33 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		newDC, err := makeDeploymentConfig(o)
+		if o.Spec.ManagementState != operatorapi.Managed {
+			return nil
+		}
+
+		o.Status.Conditions = []operatorapi.OperatorCondition{}
+
+		newDC, err := generateDeploymentConfig(o)
 		if err != nil {
-			return err
+			msg := fmt.Sprintf("unable to make deployment config: %s", err)
+
+			logrus.Error(msg)
+			conditionReourceValid(o, operatorapi.ConditionFalse, msg)
+
+			return nil
 		}
 
 		dgst, err := checksum(o)
 		if err != nil {
-			logrus.Infof("unable to generate CR checksum: %s", err)
+			msg := fmt.Sprintf("unable to generate CR checksum: %s", err)
+
+			logrus.Error(msg)
+			conditionReourceValid(o, operatorapi.ConditionFalse, msg)
+
 			return nil
 		}
+
+		conditionReourceValid(o, operatorapi.ConditionTrue, "")
 
 		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 			curDC := &appsapi.DeploymentConfig{
@@ -84,16 +120,11 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 					return fmt.Errorf("failed to get deployment config: %v", err)
 				}
 
-				saList, err := makeServiceAccount(o)
-				if err != nil {
-					return err
-				}
-
-				for _, sa := range saList {
-					err = sdk.Create(sa)
+				for _, obj := range generateRequiredResources(o, newDC) {
+					err = sdk.Create(obj)
 
 					if err != nil && !errors.IsAlreadyExists(err) {
-						logrus.Errorf("failed to create service account: %s", err)
+						logrus.Errorf("failed to create %s: %s", obj.GetObjectKind(), err)
 						return err
 					}
 				}
@@ -128,10 +159,16 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		})
 
 		if err != nil {
-			logrus.Errorf("failed to update registry deployment config: %s", err)
-			return err
+			msg := fmt.Sprintf("failed to process registry deployment config: %s", err)
+
+			logrus.Error(msg)
+			conditionProgressing(o, operatorapi.ConditionFalse, msg)
+
+			return nil
 		}
-		logrus.Infof("registry deployment config updated")
+		conditionProgressing(o, operatorapi.ConditionTrue, "registry deployment config changed")
+
+		// TODO update status
 	}
 	return nil
 }
@@ -202,7 +239,7 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry) *corev1.PodSe
 	return result
 }
 
-func makeServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry) ([]runtime.Object, error) {
+func generateRequiredResources(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) []runtime.Object {
 	sa := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -210,7 +247,7 @@ func makeServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry) ([]runtime.Object,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceAccountName,
-			Namespace: cr.Namespace,
+			Namespace: dc.Namespace,
 		},
 	}
 
@@ -228,7 +265,7 @@ func makeServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry) ([]runtime.Object,
 			{
 				Kind:      "ServiceAccount",
 				Name:      serviceAccountName,
-				Namespace: cr.Namespace,
+				Namespace: dc.Namespace,
 			},
 		},
 		RoleRef: corev1.ObjectReference{
@@ -239,12 +276,37 @@ func makeServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry) ([]runtime.Object,
 
 	addOwnerRefToObject(crb, asOwner(cr))
 
-	return []runtime.Object{sa, crb}, nil
+	svc := &corev1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dc.Name,
+			Namespace: dc.Namespace,
+			Labels:    dc.Labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: dc.Labels,
+			Ports: []corev1.ServicePort{
+				{
+					Name:       fmt.Sprintf("%d-tcp", defaultPort),
+					Port:       defaultPort,
+					Protocol:   "TCP",
+					TargetPort: intstr.FromInt(defaultPort),
+				},
+			},
+		},
+	}
+
+	addOwnerRefToObject(svc, asOwner(cr))
+
+	return []runtime.Object{sa, crb, svc}
 }
 
-func makeDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.DeploymentConfig, error) {
+func generateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.DeploymentConfig, error) {
 	storageType := ""
-	tls := true
+	tls := false
 	label := map[string]string{
 		"docker-registry": "default",
 	}
