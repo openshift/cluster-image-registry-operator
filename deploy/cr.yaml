@@ -1,4 +1,14 @@
-apiVersion: "dockerregistry.operator.openshift.io/v1alpha1"
-kind: "OpenShiftDockerRegistry"
+apiVersion: dockerregistry.operator.openshift.io/v1alpha1
+kind: OpenShiftDockerRegistry
 metadata:
-  name: "example"
+  name: image-registry
+spec:
+  managementState: Managed
+  version: 3.10.0
+  imagePullSpec: docker.io/openshift/origin-docker-registry:latest
+  httpSecret: secret-enough-for-local-development
+  storage:
+    filesystem:
+      volumeSource:
+        emptyDir: {}
+  replicas: 1

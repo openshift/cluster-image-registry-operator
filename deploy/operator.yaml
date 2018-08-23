@@ -14,13 +14,13 @@ spec:
     spec:
       containers:
         - name: cluster-image-registry-operator
-          image: docker.io/openshift/cluster-image-registry-operator
-          imagePullPolicy: IfNotPresent
+          image: docker.io/openshift/cluster-image-registry-operator:latest
           ports:
           - containerPort: 60000
             name: metrics
           command:
           - cluster-image-registry-operator
+          imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
               valueFrom:
