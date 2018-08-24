@@ -98,6 +98,16 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
 		return true, nil
 	}
 
+	err = ApplyClusterRole(GenerateClusterRole(o), &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to apply cluster role: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
 	err = ApplyClusterRoleBinding(GenerateClusterRoleBinding(o, dc), &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply cluster role binding: %s", err)

@@ -106,6 +106,67 @@ func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.De
 	return sa
 }
 
+func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) *authapi.ClusterRole {
+	role := &authapi.ClusterRole{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "rbac.authorization.k8s.io/v1",
+			Kind:       "ClusterRole",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "system:registry",
+		},
+		Rules: []authapi.PolicyRule{
+			{
+				Verbs:     []string{"list"},
+				APIGroups: []string{""},
+				Resources: []string{
+					"limitranges",
+					"resourcequotas",
+				},
+			},
+			{
+				Verbs:     []string{"get"},
+				APIGroups: []string{ /* "", */ "image.openshift.io"},
+				Resources: []string{
+					"imagestreamimages",
+					/* "imagestreams/layers", */
+					"imagestreams/secrets",
+				},
+			},
+			{
+				Verbs:     []string{ /* "list", */ "get", "update"},
+				APIGroups: []string{ /* "", */ "image.openshift.io"},
+				Resources: []string{
+					"imagestreams",
+				},
+			},
+			{
+				Verbs:     []string{ /* "get", */ "delete"},
+				APIGroups: []string{ /* "", */ "image.openshift.io"},
+				Resources: []string{
+					"imagestreamtags",
+				},
+			},
+			{
+				Verbs:     []string{"get", "update" /*, "delete" */},
+				APIGroups: []string{ /* "", */ "image.openshift.io"},
+				Resources: []string{
+					"images",
+				},
+			},
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{ /* "", */ "image.openshift.io"},
+				Resources: []string{
+					"imagestreammappings",
+				},
+			},
+		},
+	}
+	addOwnerRefToObject(role, asOwner(cr))
+	return role
+}
+
 func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) *authapi.ClusterRoleBinding {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{

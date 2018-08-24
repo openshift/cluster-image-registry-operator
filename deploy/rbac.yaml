@@ -1,3 +1,4 @@
+---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
@@ -46,12 +47,24 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
+  - clusterroles
   - clusterrolebindings
   verbs:
   - "*"
-
+- apiGroups:
+  - ""
+  resources:
+  - limitranges
+  - resourcequotas
+  verbs:
+  - list
+- apiGroups:
+  - image.openshift.io
+  resources:
+  - "*"
+  verbs:
+  - "*"
 ---
-
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
@@ -63,19 +76,4 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: cluster-image-registry-operator
-  apiGroup: rbac.authorization.k8s.io
-
----
-
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
-metadata:
-  name: default-account-cluster-image-registry-operator2
-subjects:
-- kind: ServiceAccount
-  name: default
-  namespace: image-registry
-roleRef:
-  kind: ClusterRole
-  name: system:registry
   apiGroup: rbac.authorization.k8s.io

@@ -75,6 +75,47 @@ func ApplyServiceAccount(expect *corev1.ServiceAccount, modified *bool) error {
 	})
 }
 
+func ApplyClusterRole(expect *authapi.ClusterRole, modified *bool) error {
+	dgst, err := checksum(expect)
+	if err != nil {
+		return fmt.Errorf("unable to generate CR checksum: %s", err)
+	}
+
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		current := &authapi.ClusterRole{
+			TypeMeta:   expect.TypeMeta,
+			ObjectMeta: expect.ObjectMeta,
+		}
+
+		err := sdk.Get(current)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get cluster role %s: %v", expect.GetName(), err)
+			}
+			*modified = err == nil
+			return sdk.Create(expect)
+		}
+
+		curdgst, ok := current.ObjectMeta.Annotations[checksumOperatorAnnotation]
+		if ok && dgst == curdgst {
+			return nil
+		}
+
+		if expect.ObjectMeta.Annotations == nil {
+			expect.ObjectMeta.Annotations = map[string]string{}
+		}
+		expect.ObjectMeta.Annotations[checksumOperatorAnnotation] = dgst
+
+		mergeObjectMeta(&current.ObjectMeta, &expect.ObjectMeta)
+		current.Rules = expect.Rules
+		current.AggregationRule = expect.AggregationRule
+
+		err = sdk.Update(current)
+		*modified = err == nil
+		return err
+	})
+}
+
 func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding, modified *bool) error {
 	dgst, err := checksum(expect)
 	if err != nil {
