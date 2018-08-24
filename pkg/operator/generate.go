@@ -2,16 +2,21 @@ package operator
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
-	appsapi "github.com/openshift/api/apps/v1"
-	authapi "github.com/openshift/api/authorization/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	appsapi "github.com/openshift/api/apps/v1"
+	authapi "github.com/openshift/api/authorization/v1"
+	projectapi "github.com/openshift/api/project/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 )
 
 const (
@@ -23,6 +28,8 @@ const (
 
 	checksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/checksum"
 	storageTypeOperatorAnnotation = "dockerregistry.operator.openshift.io/storagetype"
+
+	supplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
 )
 
 // addOwnerRefToObject appends the desired OwnerReference to the object
@@ -70,25 +77,39 @@ func generateProbeConfig(port int, https bool) *corev1.Probe {
 	}
 }
 
-func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry) *corev1.PodSecurityContext {
-	result := &corev1.PodSecurityContext{}
-	/*
-		if len(conf.SupplementalGroups) > 0 {
-			result.SupplementalGroups = []int64{}
-			for _, val := range conf.SupplementalGroups {
-				// The errors are handled by Complete()
-				if groupID, err := strconv.ParseInt(val, 10, 64); err == nil {
-					result.SupplementalGroups = append(result.SupplementalGroups, groupID)
-				}
-			}
-		}
-		if len(conf.FSGroup) > 0 {
-			if groupID, err := strconv.ParseInt(conf.FSGroup, 10, 64); err == nil {
-				result.FSGroup = &groupID
-			}
-		}
-	*/
-	return result
+func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+	ns := &projectapi.Project{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "project.openshift.io/v1",
+			Kind:       "Project",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}
+	err := sdk.Get(ns)
+	if err != nil {
+		return nil, err
+	}
+
+	sgrange, ok := ns.Annotations[supplementalGroupsAnnotation]
+	if !ok {
+		return nil, fmt.Errorf("namespace %q doesn't have annotation %s", namespace, supplementalGroupsAnnotation)
+	}
+
+	idx := strings.Index(sgrange, "/")
+	if idx == -1 {
+		return nil, fmt.Errorf("annotation %s in namespace %q doesn't contain '/'", supplementalGroupsAnnotation, namespace)
+	}
+
+	gid, err := strconv.ParseInt(sgrange[:idx], 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", supplementalGroupsAnnotation, namespace, err)
+	}
+
+	return &corev1.PodSecurityContext{
+		FSGroup: &gid,
+	}, nil
 }
 
 func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) *corev1.ServiceAccount {
@@ -312,6 +333,13 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 		return nil, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
+	namespace := cr.Namespace
+
+	securityContext, err := generateSecurityContext(cr, namespace)
+	if err != nil {
+		return nil, fmt.Errorf("generate security context for deployment config: %s", err)
+	}
+
 	dc := &appsapi.DeploymentConfig{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps.openshift.io/v1",
@@ -319,7 +347,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "docker-registry",
-			Namespace: cr.Namespace,
+			Namespace: namespace,
 			Labels:    label,
 			Annotations: map[string]string{
 				storageTypeOperatorAnnotation: storageType,
@@ -363,7 +391,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 					},
 					Volumes:            volumes,
 					ServiceAccountName: serviceAccountName,
-					SecurityContext:    generateSecurityContext(cr),
+					SecurityContext:    securityContext,
 				},
 			},
 		},

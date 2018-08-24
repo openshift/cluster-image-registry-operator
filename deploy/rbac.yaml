@@ -52,6 +52,12 @@ rules:
   verbs:
   - "*"
 - apiGroups:
+  - project.openshift.io
+  resources:
+  - projects
+  verbs:
+  - get
+- apiGroups:
   - ""
   resources:
   - limitranges
