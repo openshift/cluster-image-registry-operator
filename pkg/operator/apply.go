@@ -7,13 +7,13 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	authapi "github.com/openshift/api/authorization/v1"
 	appsapi "github.com/openshift/api/apps/v1"
+	authapi "github.com/openshift/api/authorization/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/util/retry"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 func checksum(o interface{}) (string, error) {
@@ -32,7 +32,7 @@ func mergeObjectMeta(existing, required *metav1.ObjectMeta) {
 	existing.OwnerReferences = required.OwnerReferences
 }
 
-func ApplyServiceAccount(expect *corev1.ServiceAccount) error {
+func ApplyServiceAccount(expect *corev1.ServiceAccount, modified *bool) error {
 	dgst, err := checksum(expect)
 	if err != nil {
 		return fmt.Errorf("unable to generate CR checksum: %s", err)
@@ -40,7 +40,7 @@ func ApplyServiceAccount(expect *corev1.ServiceAccount) error {
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &corev1.ServiceAccount{
-			TypeMeta: expect.TypeMeta,
+			TypeMeta:   expect.TypeMeta,
 			ObjectMeta: expect.ObjectMeta,
 		}
 
@@ -49,7 +49,9 @@ func ApplyServiceAccount(expect *corev1.ServiceAccount) error {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get service account %s: %v", expect.GetName(), err)
 			}
-			return sdk.Create(expect)
+			err = sdk.Create(expect)
+			*modified = err == nil
+			return err
 		}
 
 		curdgst, ok := current.ObjectMeta.Annotations[checksumOperatorAnnotation]
@@ -67,11 +69,13 @@ func ApplyServiceAccount(expect *corev1.ServiceAccount) error {
 		current.ImagePullSecrets = expect.ImagePullSecrets
 		current.AutomountServiceAccountToken = expect.AutomountServiceAccountToken
 
-		return sdk.Update(current)
+		err = sdk.Update(current)
+		*modified = err == nil
+		return err
 	})
 }
 
-func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding) error {
+func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding, modified *bool) error {
 	dgst, err := checksum(expect)
 	if err != nil {
 		return fmt.Errorf("unable to generate CR checksum: %s", err)
@@ -79,7 +83,7 @@ func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding) error {
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &authapi.ClusterRoleBinding{
-			TypeMeta: expect.TypeMeta,
+			TypeMeta:   expect.TypeMeta,
 			ObjectMeta: expect.ObjectMeta,
 		}
 
@@ -88,7 +92,9 @@ func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding) error {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get deployment config %s: %v", expect.GetName(), err)
 			}
-			return sdk.Create(expect)
+			err = sdk.Create(expect)
+			*modified = err == nil
+			return err
 		}
 
 		curdgst, ok := current.ObjectMeta.Annotations[checksumOperatorAnnotation]
@@ -105,11 +111,13 @@ func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding) error {
 		current.Subjects = expect.Subjects
 		current.RoleRef = expect.RoleRef
 
-		return sdk.Update(current)
+		err = sdk.Update(current)
+		*modified = err == nil
+		return err
 	})
 }
 
-func ApplyService(expect *corev1.Service) error {
+func ApplyService(expect *corev1.Service, modified *bool) error {
 	dgst, err := checksum(expect)
 	if err != nil {
 		return fmt.Errorf("unable to generate CR checksum: %s", err)
@@ -117,7 +125,7 @@ func ApplyService(expect *corev1.Service) error {
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &corev1.Service{
-			TypeMeta: expect.TypeMeta,
+			TypeMeta:   expect.TypeMeta,
 			ObjectMeta: expect.ObjectMeta,
 		}
 
@@ -126,7 +134,9 @@ func ApplyService(expect *corev1.Service) error {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get service %s: %v", expect.GetName(), err)
 			}
-			return sdk.Create(expect)
+			err = sdk.Create(expect)
+			*modified = err == nil
+			return err
 		}
 
 		curdgst, ok := current.ObjectMeta.Annotations[checksumOperatorAnnotation]
@@ -144,11 +154,13 @@ func ApplyService(expect *corev1.Service) error {
 		current.Spec.Type = expect.Spec.Type
 		current.Spec.Ports = expect.Spec.Ports
 
-		return sdk.Update(current)
+		err = sdk.Update(current)
+		*modified = err == nil
+		return err
 	})
 }
 
-func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig) error {
+func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig, modified *bool) error {
 	dgst, err := checksum(expect)
 	if err != nil {
 		return fmt.Errorf("unable to generate CR checksum: %s", err)
@@ -156,7 +168,7 @@ func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig) error {
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		current := &appsapi.DeploymentConfig{
-			TypeMeta: expect.TypeMeta,
+			TypeMeta:   expect.TypeMeta,
 			ObjectMeta: expect.ObjectMeta,
 		}
 
@@ -165,7 +177,9 @@ func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig) error {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get deployment config %s: %v", expect.GetName(), err)
 			}
-			return sdk.Create(expect)
+			err = sdk.Create(expect)
+			*modified = err == nil
+			return err
 		}
 
 		curdgst, ok := current.ObjectMeta.Annotations[checksumOperatorAnnotation]
@@ -181,6 +195,8 @@ func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig) error {
 		mergeObjectMeta(&current.ObjectMeta, &expect.ObjectMeta)
 		current.Spec = expect.Spec
 
-		return sdk.Update(current)
+		err = sdk.Update(current)
+		*modified = err == nil
+		return err
 	})
 }
