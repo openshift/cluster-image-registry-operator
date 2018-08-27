@@ -47,7 +47,7 @@ func ApplyServiceAccount(expect *corev1.ServiceAccount, modified *bool) error {
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get service account %s: %v", expect.GetName(), err)
+				return fmt.Errorf("failed to get service account %s: %s", expect.GetName(), err)
 			}
 			err = sdk.Create(expect)
 			*modified = err == nil
@@ -90,7 +90,7 @@ func ApplyClusterRole(expect *authapi.ClusterRole, modified *bool) error {
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get cluster role %s: %v", expect.GetName(), err)
+				return fmt.Errorf("failed to get cluster role %s: %s", expect.GetName(), err)
 			}
 			*modified = err == nil
 			return sdk.Create(expect)
@@ -131,7 +131,7 @@ func ApplyClusterRoleBinding(expect *authapi.ClusterRoleBinding, modified *bool)
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get deployment config %s: %v", expect.GetName(), err)
+				return fmt.Errorf("failed to get deployment config %s: %s", expect.GetName(), err)
 			}
 			err = sdk.Create(expect)
 			*modified = err == nil
@@ -173,7 +173,7 @@ func ApplyService(expect *corev1.Service, modified *bool) error {
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get service %s: %v", expect.GetName(), err)
+				return fmt.Errorf("failed to get service %s: %s", expect.GetName(), err)
 			}
 			err = sdk.Create(expect)
 			*modified = err == nil
@@ -216,7 +216,7 @@ func ApplyDeploymentConfig(expect *appsapi.DeploymentConfig, modified *bool) err
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get deployment config %s: %v", expect.GetName(), err)
+				return fmt.Errorf("failed to get deployment config %s: %s", expect.GetName(), err)
 			}
 			err = sdk.Create(expect)
 			*modified = err == nil

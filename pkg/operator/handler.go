@@ -8,17 +8,55 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
+	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type Parameters struct {
+	Deployment struct {
+		Name      string
+		Namespace string
+		Labels    map[string]string
+	}
+	Pod struct {
+		ServiceAccount string
+	}
+	Container struct {
+		UseTLS bool
+		Name   string
+		Port   int
+	}
+	Healthz struct {
+		Route          string
+		TimeoutSeconds int
+	}
+}
+
 func NewHandler() sdk.Handler {
-	return &Handler{}
+	p := Parameters{}
+
+	p.Deployment.Name = "docker-registry"
+	p.Deployment.Namespace = "image-registry"
+	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
+
+	p.Pod.ServiceAccount = "registry"
+
+	p.Container.Name = "registry"
+	p.Container.Port = 5000
+	p.Container.UseTLS = false
+
+	p.Healthz.Route = "/healthz"
+	p.Healthz.TimeoutSeconds = 5
+
+	return &Handler{params: p}
 }
 
 type Handler struct {
+	params Parameters
 }
 
 func conditionResourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
@@ -58,7 +96,28 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		statusChanged, err := applyResource(o)
+		legacyDC := &appsapi.DeploymentConfig{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "apps.openshift.io/v1",
+				Kind:       "DeploymentConfig",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "docker-registry",
+				Namespace: "default",
+			},
+		}
+
+		err := sdk.Get(legacyDC)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get legacy deployment config: %s", err)
+			}
+		} else {
+			h.params.Deployment.Name = legacyDC.ObjectMeta.Name
+			h.params.Deployment.Namespace = legacyDC.ObjectMeta.Namespace
+		}
+
+		statusChanged, err := applyResource(o, &h.params)
 		if err != nil {
 			return err
 		}
@@ -73,10 +132,10 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	return nil
 }
 
-func applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
+func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, error) {
 	o.Status.Conditions = []operatorapi.OperatorCondition{}
 
-	dc, err := GenerateDeploymentConfig(o)
+	dc, err := GenerateDeploymentConfig(o, p)
 	if err != nil {
 		msg := fmt.Sprintf("unable to make deployment config: %s", err)
 
@@ -88,7 +147,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
 
 	modified := false
 
-	err = ApplyServiceAccount(GenerateServiceAccount(o, dc), &modified)
+	err = ApplyServiceAccount(GenerateServiceAccount(o, p), &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply service account: %s", err)
 
@@ -108,7 +167,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
 		return true, nil
 	}
 
-	err = ApplyClusterRoleBinding(GenerateClusterRoleBinding(o, dc), &modified)
+	err = ApplyClusterRoleBinding(GenerateClusterRoleBinding(o, p), &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply cluster role binding: %s", err)
 
@@ -118,7 +177,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
 		return true, nil
 	}
 
-	err = ApplyService(GenerateService(o, dc), &modified)
+	err = ApplyService(GenerateService(o, p), &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply service: %s", err)
 

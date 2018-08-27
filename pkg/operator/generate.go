@@ -20,12 +20,6 @@ import (
 )
 
 const (
-	defaultName                = "registry"
-	defaultPort                = 5000
-	healthzRoute               = "/healthz"
-	healthzRouteTimeoutSeconds = 5
-	serviceAccountName         = "registry"
-
 	checksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/checksum"
 	storageTypeOperatorAnnotation = "dockerregistry.operator.openshift.io/storagetype"
 
@@ -49,29 +43,29 @@ func asOwner(cr *v1alpha1.OpenShiftDockerRegistry) metav1.OwnerReference {
 	}
 }
 
-func generateLivenessProbeConfig(port int, https bool) *corev1.Probe {
-	probeConfig := generateProbeConfig(port, https)
+func generateLivenessProbeConfig(p *Parameters) *corev1.Probe {
+	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(port int, https bool) *corev1.Probe {
-	return generateProbeConfig(port, https)
+func generateReadinessProbeConfig(p *Parameters) *corev1.Probe {
+	return generateProbeConfig(p)
 }
 
-func generateProbeConfig(port int, https bool) *corev1.Probe {
+func generateProbeConfig(p *Parameters) *corev1.Probe {
 	var scheme corev1.URIScheme
-	if https {
+	if p.Container.UseTLS {
 		scheme = corev1.URISchemeHTTPS
 	}
 	return &corev1.Probe{
-		TimeoutSeconds: healthzRouteTimeoutSeconds,
+		TimeoutSeconds: int32(p.Healthz.TimeoutSeconds),
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme: scheme,
-				Path:   healthzRoute,
-				Port:   intstr.FromInt(port),
+				Path:   p.Healthz.Route,
+				Port:   intstr.FromInt(p.Container.Port),
 			},
 		},
 	}
@@ -112,15 +106,15 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 	}, nil
 }
 
-func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) *corev1.ServiceAccount {
+func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *corev1.ServiceAccount {
 	sa := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "ServiceAccount",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceAccountName,
-			Namespace: dc.Namespace,
+			Name:      p.Pod.ServiceAccount,
+			Namespace: p.Deployment.Namespace,
 		},
 	}
 	addOwnerRefToObject(sa, asOwner(cr))
@@ -188,20 +182,20 @@ func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) *authapi.ClusterR
 	return role
 }
 
-func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) *authapi.ClusterRoleBinding {
+func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *authapi.ClusterRoleBinding {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("registry-%s-role", defaultName),
+			Name: fmt.Sprintf("registry-%s-role", p.Container.Name),
 		},
 		Subjects: []corev1.ObjectReference{
 			{
 				Kind:      "ServiceAccount",
-				Name:      serviceAccountName,
-				Namespace: dc.Namespace,
+				Name:      p.Pod.ServiceAccount,
+				Namespace: p.Deployment.Namespace,
 			},
 		},
 		RoleRef: corev1.ObjectReference{
@@ -213,25 +207,25 @@ func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsap
 	return crb
 }
 
-func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.DeploymentConfig) *corev1.Service {
+func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *corev1.Service {
 	svc := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dc.Name,
-			Namespace: dc.Namespace,
-			Labels:    dc.Labels,
+			Name:      p.Deployment.Name,
+			Namespace: p.Deployment.Namespace,
+			Labels:    p.Deployment.Labels,
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: dc.Labels,
+			Selector: p.Deployment.Labels,
 			Ports: []corev1.ServicePort{
 				{
-					Name:       fmt.Sprintf("%d-tcp", defaultPort),
-					Port:       defaultPort,
+					Name:       fmt.Sprintf("%d-tcp", p.Container.Port),
+					Port:       int32(p.Container.Port),
 					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(defaultPort),
+					TargetPort: intstr.FromInt(p.Container.Port),
 				},
 			},
 		},
@@ -240,12 +234,8 @@ func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, dc *appsapi.Deploymen
 	return svc
 }
 
-func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.DeploymentConfig, error) {
+func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (*appsapi.DeploymentConfig, error) {
 	storageType := ""
-	tls := false
-	label := map[string]string{
-		"docker-registry": "default",
-	}
 
 	var (
 		storageConfigured int
@@ -255,7 +245,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 	)
 
 	env = append(env,
-		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", defaultPort)},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
@@ -346,16 +336,16 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 			Kind:       "DeploymentConfig",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "docker-registry",
-			Namespace: namespace,
-			Labels:    label,
+			Name:      p.Deployment.Name,
+			Namespace: p.Deployment.Namespace,
+			Labels:    p.Deployment.Labels,
 			Annotations: map[string]string{
 				storageTypeOperatorAnnotation: storageType,
 			},
 		},
 		Spec: appsapi.DeploymentConfigSpec{
 			Replicas: cr.Spec.Replicas,
-			Selector: label,
+			Selector: p.Deployment.Labels,
 			Triggers: []appsapi.DeploymentTriggerPolicy{
 				{
 					Type: appsapi.DeploymentTriggerOnConfigChange,
@@ -363,24 +353,24 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 			},
 			Template: &corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: label,
+					Labels: p.Deployment.Labels,
 				},
 				Spec: corev1.PodSpec{
 					NodeSelector: cr.Spec.NodeSelector,
 					Containers: []corev1.Container{
 						{
-							Name:  defaultName,
+							Name:  p.Container.Name,
 							Image: cr.Spec.ImagePullSpec,
 							Ports: []corev1.ContainerPort{
 								{
-									ContainerPort: defaultPort,
+									ContainerPort: int32(p.Container.Port),
 									Protocol:      "TCP",
 								},
 							},
 							Env:            env,
 							VolumeMounts:   mounts,
-							LivenessProbe:  generateLivenessProbeConfig(defaultPort, tls),
-							ReadinessProbe: generateReadinessProbeConfig(defaultPort, tls),
+							LivenessProbe:  generateLivenessProbeConfig(p),
+							ReadinessProbe: generateReadinessProbeConfig(p),
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
 									corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -390,7 +380,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry) (*appsapi.De
 						},
 					},
 					Volumes:            volumes,
-					ServiceAccountName: serviceAccountName,
+					ServiceAccountName: p.Pod.ServiceAccount,
 					SecurityContext:    securityContext,
 				},
 			},
