@@ -337,6 +337,34 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 		return Template{}, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
+	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
+		if cr.Spec.Requests.Read.MaxRunning < 0 {
+			return Template{}, fmt.Errorf("Requests.Read.MaxRunning must be positive number")
+		}
+		if cr.Spec.Requests.Read.MaxInQueue < 0 {
+			return Template{}, fmt.Errorf("Requests.Read.MaxInQueue must be positive number")
+		}
+		env = append(env,
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Read.MaxRunning)},
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXINQUEUE", Value: fmt.Sprintf("%d", cr.Spec.Requests.Read.MaxInQueue)},
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXWAITINQUEUE", Value: fmt.Sprintf("%s", cr.Spec.Requests.Read.MaxWaitInQueue)},
+		)
+	}
+
+	if cr.Spec.Requests.Write.MaxRunning != 0 || cr.Spec.Requests.Write.MaxInQueue != 0 {
+		if cr.Spec.Requests.Write.MaxRunning < 0 {
+			return Template{}, fmt.Errorf("Requests.Write.MaxRunning must be positive number")
+		}
+		if cr.Spec.Requests.Write.MaxInQueue < 0 {
+			return Template{}, fmt.Errorf("Requests.Write.MaxInQueue must be positive number")
+		}
+		env = append(env,
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Write.MaxRunning)},
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXINQUEUE", Value: fmt.Sprintf("%d", cr.Spec.Requests.Write.MaxInQueue)},
+			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXWAITINQUEUE", Value: fmt.Sprintf("%s", cr.Spec.Requests.Write.MaxWaitInQueue)},
+		)
+	}
+
 	securityContext, err := generateSecurityContext(cr, p.Deployment.Namespace)
 	if err != nil {
 		return Template{}, fmt.Errorf("generate security context for deployment config: %s", err)
