@@ -17,6 +17,7 @@ import (
 	projectapi "github.com/openshift/api/project/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/operator/strategy"
 )
 
 const (
@@ -106,7 +107,7 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 	}, nil
 }
 
-func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *corev1.ServiceAccount {
+func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
 	sa := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -118,10 +119,13 @@ func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters)
 		},
 	}
 	addOwnerRefToObject(sa, asOwner(cr))
-	return sa
+	return Template{
+		Object:   sa,
+		Strategy: strategy.Override{},
+	}
 }
 
-func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) *authapi.ClusterRole {
+func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) Template {
 	role := &authapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -179,10 +183,13 @@ func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) *authapi.ClusterR
 		},
 	}
 	addOwnerRefToObject(role, asOwner(cr))
-	return role
+	return Template{
+		Object:   role,
+		Strategy: strategy.Override{},
+	}
 }
 
-func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *authapi.ClusterRoleBinding {
+func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -204,10 +211,13 @@ func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *Paramet
 		},
 	}
 	addOwnerRefToObject(crb, asOwner(cr))
-	return crb
+	return Template{
+		Object:   crb,
+		Strategy: strategy.Override{},
+	}
 }
 
-func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *corev1.Service {
+func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
 	svc := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -231,10 +241,13 @@ func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) *corev
 		},
 	}
 	addOwnerRefToObject(svc, asOwner(cr))
-	return svc
+	return Template{
+		Object:   svc,
+		Strategy: strategy.Service{},
+	}
 }
 
-func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (*appsapi.DeploymentConfig, error) {
+func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
 	storageType := ""
 
 	var (
@@ -254,7 +267,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 
 	if cr.Spec.Storage.Filesystem != nil {
 		if cr.Spec.Storage.Filesystem.VolumeSource.HostPath != nil {
-			return nil, fmt.Errorf("HostPath is not supported")
+			return Template{}, fmt.Errorf("HostPath is not supported")
 		}
 
 		env = append(env,
@@ -320,14 +333,14 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 	}
 
 	if storageConfigured != 1 {
-		return nil, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
+		return Template{}, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
 	namespace := cr.Namespace
 
 	securityContext, err := generateSecurityContext(cr, namespace)
 	if err != nil {
-		return nil, fmt.Errorf("generate security context for deployment config: %s", err)
+		return Template{}, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
 	dc := &appsapi.DeploymentConfig{
@@ -389,5 +402,8 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 
 	addOwnerRefToObject(dc, asOwner(cr))
 
-	return dc, nil
+	return Template{
+		Object:   dc,
+		Strategy: strategy.DeploymentConfig{},
+	}, nil
 }

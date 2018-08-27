@@ -135,6 +135,48 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, error) {
 	o.Status.Conditions = []operatorapi.OperatorCondition{}
 
+	modified := false
+
+	err := ApplyTemplate(GenerateServiceAccount(o, p), &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to apply service account: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
+	err = ApplyTemplate(GenerateClusterRole(o), &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to apply cluster role: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
+	err = ApplyTemplate(GenerateClusterRoleBinding(o, p), &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to apply cluster role binding: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
+	err = ApplyTemplate(GenerateService(o, p), &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to apply service: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
 	dc, err := GenerateDeploymentConfig(o, p)
 	if err != nil {
 		msg := fmt.Sprintf("unable to make deployment config: %s", err)
@@ -145,49 +187,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 		return true, nil
 	}
 
-	modified := false
-
-	err = ApplyServiceAccount(GenerateServiceAccount(o, p), &modified)
-	if err != nil {
-		msg := fmt.Sprintf("unable to apply service account: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
-		return true, nil
-	}
-
-	err = ApplyClusterRole(GenerateClusterRole(o), &modified)
-	if err != nil {
-		msg := fmt.Sprintf("unable to apply cluster role: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
-		return true, nil
-	}
-
-	err = ApplyClusterRoleBinding(GenerateClusterRoleBinding(o, p), &modified)
-	if err != nil {
-		msg := fmt.Sprintf("unable to apply cluster role binding: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
-		return true, nil
-	}
-
-	err = ApplyService(GenerateService(o, p), &modified)
-	if err != nil {
-		msg := fmt.Sprintf("unable to apply service: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
-		return true, nil
-	}
-
-	err = ApplyDeploymentConfig(dc, &modified)
+	err = ApplyTemplate(dc, &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply deployment config: %s", err)
 
