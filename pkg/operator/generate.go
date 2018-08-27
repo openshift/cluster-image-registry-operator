@@ -260,6 +260,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 	env = append(env,
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},

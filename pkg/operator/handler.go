@@ -137,7 +137,27 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 
 	modified := false
 
-	err := ApplyTemplate(GenerateServiceAccount(o, p), &modified)
+	err := completeResource(o, &modified)
+	if err != nil {
+		msg := fmt.Sprintf("unable to complete resource: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceValid(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
+	dc, err := GenerateDeploymentConfig(o, p)
+	if err != nil {
+		msg := fmt.Sprintf("unable to make deployment config: %s", err)
+
+		logrus.Error(msg)
+		conditionResourceValid(o, operatorapi.ConditionFalse, msg)
+
+		return true, nil
+	}
+
+	err = ApplyTemplate(GenerateServiceAccount(o, p), &modified)
 	if err != nil {
 		msg := fmt.Sprintf("unable to apply service account: %s", err)
 
@@ -173,16 +193,6 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 
 		logrus.Error(msg)
 		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
-		return true, nil
-	}
-
-	dc, err := GenerateDeploymentConfig(o, p)
-	if err != nil {
-		msg := fmt.Sprintf("unable to make deployment config: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceValid(o, operatorapi.ConditionFalse, msg)
 
 		return true, nil
 	}
