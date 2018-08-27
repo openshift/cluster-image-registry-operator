@@ -40,7 +40,7 @@ func NewHandler() sdk.Handler {
 	p := Parameters{}
 
 	p.Deployment.Name = "docker-registry"
-	p.Deployment.Namespace = "image-registry"
+	p.Deployment.Namespace = ""
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
 
 	p.Pod.ServiceAccount = "registry"
@@ -112,6 +112,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get legacy deployment config: %s", err)
 			}
+			h.params.Deployment.Namespace = o.Namespace
 		} else {
 			h.params.Deployment.Name = legacyDC.ObjectMeta.Name
 			h.params.Deployment.Namespace = legacyDC.ObjectMeta.Namespace

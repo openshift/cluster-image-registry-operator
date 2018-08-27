@@ -337,9 +337,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 		return Template{}, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
-	namespace := cr.Namespace
-
-	securityContext, err := generateSecurityContext(cr, namespace)
+	securityContext, err := generateSecurityContext(cr, p.Deployment.Namespace)
 	if err != nil {
 		return Template{}, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
