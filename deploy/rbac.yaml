@@ -78,7 +78,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: default
-  namespace: image-registry
+  namespace: openshift-image-registry
 roleRef:
   kind: ClusterRole
   name: cluster-image-registry-operator

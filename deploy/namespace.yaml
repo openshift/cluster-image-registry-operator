@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: image-registry
+  name: openshift-image-registry
 spec:
   finalizers:
   - kubernetes
