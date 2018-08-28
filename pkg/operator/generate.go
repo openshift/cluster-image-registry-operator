@@ -7,6 +7,7 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
+	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,6 +27,8 @@ const (
 
 	supplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
 )
+
+type Generator func(*v1alpha1.OpenShiftDockerRegistry, *Parameters) (Template, error)
 
 // addOwnerRefToObject appends the desired OwnerReference to the object
 func addOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
@@ -259,7 +262,7 @@ func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Templa
 	}
 }
 
-func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
+func generatePodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (corev1.PodTemplateSpec, map[string]string, error) {
 	storageType := ""
 
 	var (
@@ -281,7 +284,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 
 	if cr.Spec.Storage.Filesystem != nil {
 		if cr.Spec.Storage.Filesystem.VolumeSource.HostPath != nil {
-			return Template{}, fmt.Errorf("HostPath is not supported")
+			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("HostPath is not supported")
 		}
 
 		env = append(env,
@@ -347,15 +350,15 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 	}
 
 	if storageConfigured != 1 {
-		return Template{}, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
+		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
 		if cr.Spec.Requests.Read.MaxRunning < 0 {
-			return Template{}, fmt.Errorf("Requests.Read.MaxRunning must be positive number")
+			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Read.MaxRunning must be positive number")
 		}
 		if cr.Spec.Requests.Read.MaxInQueue < 0 {
-			return Template{}, fmt.Errorf("Requests.Read.MaxInQueue must be positive number")
+			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Read.MaxInQueue must be positive number")
 		}
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Read.MaxRunning)},
@@ -366,10 +369,10 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 
 	if cr.Spec.Requests.Write.MaxRunning != 0 || cr.Spec.Requests.Write.MaxInQueue != 0 {
 		if cr.Spec.Requests.Write.MaxRunning < 0 {
-			return Template{}, fmt.Errorf("Requests.Write.MaxRunning must be positive number")
+			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Write.MaxRunning must be positive number")
 		}
 		if cr.Spec.Requests.Write.MaxInQueue < 0 {
-			return Template{}, fmt.Errorf("Requests.Write.MaxInQueue must be positive number")
+			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Write.MaxInQueue must be positive number")
 		}
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Write.MaxRunning)},
@@ -380,7 +383,54 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 
 	securityContext, err := generateSecurityContext(cr, p.Deployment.Namespace)
 	if err != nil {
-		return Template{}, fmt.Errorf("generate security context for deployment config: %s", err)
+		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
+	}
+
+	spec := corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: p.Deployment.Labels,
+		},
+		Spec: corev1.PodSpec{
+			NodeSelector: cr.Spec.NodeSelector,
+			Containers: []corev1.Container{
+				{
+					Name:  p.Container.Name,
+					Image: cr.Spec.ImagePullSpec,
+					Ports: []corev1.ContainerPort{
+						{
+							ContainerPort: int32(p.Container.Port),
+							Protocol:      "TCP",
+						},
+					},
+					Env:            env,
+					VolumeMounts:   mounts,
+					LivenessProbe:  generateLivenessProbeConfig(p),
+					ReadinessProbe: generateReadinessProbeConfig(p),
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("100m"),
+							corev1.ResourceMemory: resource.MustParse("256Mi"),
+						},
+					},
+				},
+			},
+			Volumes:            volumes,
+			ServiceAccountName: p.Pod.ServiceAccount,
+			SecurityContext:    securityContext,
+		},
+	}
+
+	annotations := map[string]string{
+		storageTypeOperatorAnnotation: storageType,
+	}
+
+	return spec, annotations, nil
+}
+
+func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
+	podTemplateSpec, annotations, err := generatePodTemplateSpec(cr, p)
+	if err != nil {
+		return Template{}, err
 	}
 
 	dc := &appsapi.DeploymentConfig{
@@ -389,12 +439,10 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 			Kind:       "DeploymentConfig",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Deployment.Name,
-			Namespace: p.Deployment.Namespace,
-			Labels:    p.Deployment.Labels,
-			Annotations: map[string]string{
-				storageTypeOperatorAnnotation: storageType,
-			},
+			Name:        p.Deployment.Name,
+			Namespace:   p.Deployment.Namespace,
+			Labels:      p.Deployment.Labels,
+			Annotations: annotations,
 		},
 		Spec: appsapi.DeploymentConfigSpec{
 			Replicas: cr.Spec.Replicas,
@@ -404,39 +452,7 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 					Type: appsapi.DeploymentTriggerOnConfigChange,
 				},
 			},
-			Template: &corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: p.Deployment.Labels,
-				},
-				Spec: corev1.PodSpec{
-					NodeSelector: cr.Spec.NodeSelector,
-					Containers: []corev1.Container{
-						{
-							Name:  p.Container.Name,
-							Image: cr.Spec.ImagePullSpec,
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: int32(p.Container.Port),
-									Protocol:      "TCP",
-								},
-							},
-							Env:            env,
-							VolumeMounts:   mounts,
-							LivenessProbe:  generateLivenessProbeConfig(p),
-							ReadinessProbe: generateReadinessProbeConfig(p),
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    resource.MustParse("100m"),
-									corev1.ResourceMemory: resource.MustParse("256Mi"),
-								},
-							},
-						},
-					},
-					Volumes:            volumes,
-					ServiceAccountName: p.Pod.ServiceAccount,
-					SecurityContext:    securityContext,
-				},
-			},
+			Template: &podTemplateSpec,
 		},
 	}
 
@@ -445,5 +461,39 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 	return Template{
 		Object:   dc,
 		Strategy: strategy.DeploymentConfig{},
+	}, nil
+}
+
+func GenerateDeployment(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
+	podTemplateSpec, annotations, err := generatePodTemplateSpec(cr, p)
+	if err != nil {
+		return Template{}, err
+	}
+
+	dc := &kappsapi.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        p.Deployment.Name,
+			Namespace:   p.Deployment.Namespace,
+			Labels:      p.Deployment.Labels,
+			Annotations: annotations,
+		},
+		Spec: kappsapi.DeploymentSpec{
+			Replicas: &cr.Spec.Replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: p.Deployment.Labels,
+			},
+			Template: podTemplateSpec,
+		},
+	}
+
+	addOwnerRefToObject(dc, asOwner(cr))
+
+	return Template{
+		Object:   dc,
+		Strategy: strategy.Deployment{},
 	}, nil
 }

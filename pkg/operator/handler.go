@@ -58,7 +58,8 @@ func NewHandler() sdk.Handler {
 }
 
 type Handler struct {
-	params Parameters
+	params             Parameters
+	generateDeployment Generator
 }
 
 func conditionResourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
@@ -130,6 +131,8 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			},
 		}
 
+		h.generateDeployment = GenerateDeploymentConfig
+
 		err := sdk.Get(legacyDC)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -141,7 +144,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			h.params.Deployment.Namespace = legacyDC.ObjectMeta.Namespace
 		}
 
-		statusChanged, err := applyResource(o, &h.params)
+		statusChanged, err := h.applyResource(o)
 		if err != nil {
 			return err
 		}
@@ -187,7 +190,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	return nil
 }
 
-func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, error) {
+func (h *Handler) applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
 	o.Status.Conditions = []operatorapi.OperatorCondition{}
 
 	modified := false
@@ -198,7 +201,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 		return true, nil
 	}
 
-	dc, err := GenerateDeploymentConfig(o, p)
+	dc, err := h.generateDeployment(o,&h.params)
 	if err != nil {
 		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment config: %s", err))
 		return true, nil
@@ -206,7 +209,7 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 
 	conditionResourceValid(o, operatorapi.ConditionTrue, "resource is valid")
 
-	err = ApplyTemplate(GenerateServiceAccount(o, p), &modified)
+	err = ApplyTemplate(GenerateServiceAccount(o,&h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err))
 		return true, nil
@@ -218,13 +221,13 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 		return true, nil
 	}
 
-	err = ApplyTemplate(GenerateClusterRoleBinding(o, p), &modified)
+	err = ApplyTemplate(GenerateClusterRoleBinding(o,&h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err))
 		return true, nil
 	}
 
-	err = ApplyTemplate(GenerateService(o, p), &modified)
+	err = ApplyTemplate(GenerateService(o,&h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err))
 		return true, nil
