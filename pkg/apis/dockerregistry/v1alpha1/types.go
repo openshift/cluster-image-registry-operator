@@ -100,7 +100,7 @@ type OpenShiftDockerRegistryConfigRoute struct {
 type OpenShiftDockerRegistrySpec struct {
 	operatorsv1alpha1api.OperatorSpec `json:",inline"`
 
-	HTTPSecret   string
+	HTTPSecret   string                                `json:"HTTPSecret"`
 	Proxy        OpenShiftDockerRegistryConfigProxy    `json:"proxy"`
 	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage"`
 	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests"`

@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -14,6 +15,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 type Parameters struct {
@@ -60,6 +62,9 @@ type Handler struct {
 }
 
 func conditionResourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+	if status == operatorapi.ConditionFalse {
+		logrus.Error(m)
+	}
 	cr.Status.Conditions = append(cr.Status.Conditions,
 		operatorapi.OperatorCondition{
 			Type:               operatorapi.OperatorStatusTypeAvailable,
@@ -72,12 +77,30 @@ func conditionResourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operato
 }
 
 func conditionResourceApply(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+	if status == operatorapi.ConditionFalse {
+		logrus.Error(m)
+	}
 	cr.Status.Conditions = append(cr.Status.Conditions,
 		operatorapi.OperatorCondition{
 			Type:               operatorapi.OperatorStatusTypeAvailable,
 			Status:             status,
 			LastTransitionTime: metav1.Now(),
 			Reason:             "ResourceApply",
+			Message:            m,
+		},
+	)
+}
+
+func conditionDeployment(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+	if status == operatorapi.ConditionFalse {
+		logrus.Error(m)
+	}
+	cr.Status.Conditions = append(cr.Status.Conditions,
+		operatorapi.OperatorCondition{
+			Type:               operatorapi.OperatorStatusTypeSyncSuccessful,
+			Status:             status,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "DeploymentProgress",
 			Message:            m,
 		},
 	)
@@ -124,7 +147,38 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 		if statusChanged {
-			err := sdk.Update(o)
+			err = wait.Poll(5*time.Second, 5*time.Minute, func() (bool, error) {
+				dc := &appsapi.DeploymentConfig{
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: "apps.openshift.io/v1",
+						Kind:       "DeploymentConfig",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      h.params.Deployment.Name,
+						Namespace: h.params.Deployment.Namespace,
+					},
+				}
+
+				err := sdk.Get(dc)
+				if err != nil {
+					return false, err
+				}
+
+				if o.Spec.Replicas == dc.Status.ReadyReplicas {
+					return true, nil
+				}
+
+				return false, nil
+			})
+			if err != nil {
+				conditionDeployment(o, operatorapi.ConditionFalse, fmt.Sprintf("poll failed: %s", err))
+			} else {
+				conditionDeployment(o, operatorapi.ConditionTrue, "")
+			}
+
+			o.Status.ObservedGeneration = o.Generation
+
+			err = sdk.Update(o)
 			if err != nil {
 				logrus.Errorf("unable to update registry custom resource: %s", err)
 			}
@@ -140,84 +194,51 @@ func applyResource(o *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (bool, er
 
 	err := completeResource(o, &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to complete resource: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceValid(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err))
 		return true, nil
 	}
 
 	dc, err := GenerateDeploymentConfig(o, p)
 	if err != nil {
-		msg := fmt.Sprintf("unable to make deployment config: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceValid(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment config: %s", err))
 		return true, nil
 	}
 
+	conditionResourceValid(o, operatorapi.ConditionTrue, "resource is valid")
+
 	err = ApplyTemplate(GenerateServiceAccount(o, p), &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to apply service account: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err))
 		return true, nil
 	}
 
 	err = ApplyTemplate(GenerateClusterRole(o), &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to apply cluster role: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role: %s", err))
 		return true, nil
 	}
 
 	err = ApplyTemplate(GenerateClusterRoleBinding(o, p), &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to apply cluster role binding: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err))
 		return true, nil
 	}
 
 	err = ApplyTemplate(GenerateService(o, p), &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to apply service: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err))
 		return true, nil
 	}
 
 	err = ApplyTemplate(dc, &modified)
 	if err != nil {
-		msg := fmt.Sprintf("unable to apply deployment config: %s", err)
-
-		logrus.Error(msg)
-		conditionResourceApply(o, operatorapi.ConditionFalse, msg)
-
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err))
 		return true, nil
 	}
 
 	if modified {
 		logrus.Infof("registry resources changed")
-
 		conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied")
-
-		err = sdk.Update(o)
-		if err != nil {
-			logrus.Errorf("unable to update registry custom resource: %s", err)
-			return modified, err
-		}
 	}
 
 	return modified, nil
