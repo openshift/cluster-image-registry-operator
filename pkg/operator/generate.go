@@ -44,6 +44,18 @@ func asOwner(cr *v1alpha1.OpenShiftDockerRegistry) metav1.OwnerReference {
 	}
 }
 
+func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
+	switch cr.Spec.Logging.Level {
+	case 0:
+		return "error"
+	case 1:
+		return "warn"
+	case 2, 3:
+		return "info"
+	}
+	return "debug"
+}
+
 func generateLivenessProbeConfig(p *Parameters) *corev1.Probe {
 	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
@@ -261,9 +273,10 @@ func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameter
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
+		corev1.EnvVar{Name: "REGISTRY_LOG_LEVEL", Value: generateLogLevel(cr)},
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
-		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 	)
 
 	if cr.Spec.Storage.Filesystem != nil {
