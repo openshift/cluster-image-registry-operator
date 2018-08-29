@@ -4,6 +4,9 @@ import (
 	"context"
 	"runtime"
 
+	appsapi "github.com/openshift/api/apps/v1"
+
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
@@ -19,20 +22,33 @@ func printVersion() {
 	logrus.Infof("operator-sdk Version: %v", sdkVersion.Version)
 }
 
+func watch(apiVersion, kind, namespace string, resyncPeriod int) {
+	logrus.Infof("Watching %s, %s, %s, %d", apiVersion, kind, namespace, resyncPeriod)
+	sdk.Watch(apiVersion, kind, namespace, resyncPeriod)
+}
+
 func main() {
 	printVersion()
 
 	sdk.ExposeMetricsPort()
 
-	resource := "dockerregistry.operator.openshift.io/v1alpha1"
-	kind := "OpenShiftDockerRegistry"
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		logrus.Fatalf("failed to get watch namespace: %v", err)
 	}
+
+	useLegacy := false
 	resyncPeriod := 5
-	logrus.Infof("Watching %s, %s, %s, %d", resource, kind, namespace, resyncPeriod)
-	sdk.Watch(resource, kind, namespace, resyncPeriod)
-	sdk.Handle(operator.NewHandler())
+
+	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
+
+	if useLegacy {
+		watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", "default", 0)
+	}
+
+	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
+	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, resyncPeriod)
+
+	sdk.Handle(operator.NewHandler(namespace, useLegacy))
 	sdk.Run(context.TODO())
 }

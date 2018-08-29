@@ -3,7 +3,6 @@ package operator
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 
@@ -11,11 +10,11 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 
+	kappsapi "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 type Parameters struct {
@@ -38,11 +37,11 @@ type Parameters struct {
 	}
 }
 
-func NewHandler() sdk.Handler {
+func NewHandler(namespace string, useLegacy bool) sdk.Handler {
 	p := Parameters{}
 
 	p.Deployment.Name = "docker-registry"
-	p.Deployment.Namespace = ""
+	p.Deployment.Namespace = namespace
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
 
 	p.Pod.ServiceAccount = "registry"
@@ -54,7 +53,18 @@ func NewHandler() sdk.Handler {
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	return &Handler{params: p}
+	h := &Handler{
+		params:             p,
+		generateDeployment: GenerateDeploymentConfig,
+	}
+
+	if useLegacy {
+		p.Deployment.Name = "docker-registry"
+		p.Deployment.Namespace = "default"
+		h.generateDeployment = GenerateDeploymentConfig
+	}
+
+	return h
 }
 
 type Handler struct {
@@ -62,187 +72,233 @@ type Handler struct {
 	generateDeployment Generator
 }
 
-func conditionResourceValid(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
-	if status == operatorapi.ConditionFalse {
-		logrus.Error(m)
+func updateCondition(cr *regopapi.OpenShiftDockerRegistry, condition *operatorapi.OperatorCondition) bool {
+	modified := false
+	found := false
+	conditions := []operatorapi.OperatorCondition{}
+
+	for _, c := range cr.Status.Conditions {
+		if condition.Type != c.Type {
+			conditions = append(conditions, c)
+			continue
+		}
+		if condition.Status != c.Status {
+			modified = true
+		}
+		conditions = append(conditions, *condition)
+		found = true
 	}
-	cr.Status.Conditions = append(cr.Status.Conditions,
-		operatorapi.OperatorCondition{
-			Type:               operatorapi.OperatorStatusTypeAvailable,
-			Status:             status,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ResourceValidation",
-			Message:            m,
-		},
-	)
+
+	if !found {
+		conditions = append(conditions, *condition)
+		modified = true
+	}
+
+	cr.Status.Conditions = conditions
+	return modified
 }
 
-func conditionResourceApply(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+func conditionResourceValid(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Error(m)
 	}
-	cr.Status.Conditions = append(cr.Status.Conditions,
-		operatorapi.OperatorCondition{
-			Type:               operatorapi.OperatorStatusTypeAvailable,
-			Status:             status,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "ResourceApply",
-			Message:            m,
-		},
-	)
+
+	changed := updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeAvailable,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ResourceValid",
+		Message:            m,
+	})
+
+	if changed {
+		*modified = true
+	}
 }
 
-func conditionDeployment(cr *v1alpha1.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string) {
+func conditionResourceApply(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Error(m)
 	}
-	cr.Status.Conditions = append(cr.Status.Conditions,
-		operatorapi.OperatorCondition{
-			Type:               operatorapi.OperatorStatusTypeSyncSuccessful,
-			Status:             status,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "DeploymentProgress",
-			Message:            m,
-		},
-	)
+
+	changed := updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeAvailable,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "ResourceApplied",
+		Message:            m,
+	})
+
+	if changed {
+		*modified = true
+	}
+}
+
+func conditionDeployment(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+	if status == operatorapi.ConditionFalse {
+		logrus.Error(m)
+	}
+
+	changed := updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeSyncSuccessful,
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "Progressing",
+		Message:            m,
+	})
+
+	if changed {
+		*modified = true
+	}
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
+	// Ignore the delete event since the garbage collector will clean up all secondary resources for the CR
+	// All secondary resources must have the CR set as their OwnerReference for this to be the case
+	if event.Deleted {
+		return nil
+	}
+
+	var (
+		statusChanged bool
+		err           error
+		cr            *regopapi.OpenShiftDockerRegistry
+	)
+
 	switch o := event.Object.(type) {
-	case *v1alpha1.OpenShiftDockerRegistry:
-		// Ignore the delete event since the garbage collector will clean up all secondary resources for the CR
-		// All secondary resources must have the CR set as their OwnerReference for this to be the case
-		if event.Deleted {
-			return nil
-		}
+	case *kappsapi.Deployment:
+		logrus.Infof("got event Deployment changed")
 
-		if o.Spec.ManagementState != operatorapi.Managed {
-			return nil
-		}
-
-		legacyDC := &appsapi.DeploymentConfig{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "apps.openshift.io/v1",
-				Kind:       "DeploymentConfig",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "docker-registry",
-				Namespace: "default",
-			},
-		}
-
-		h.generateDeployment = GenerateDeploymentConfig
-
-		err := sdk.Get(legacyDC)
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get legacy deployment config: %s", err)
-			}
-			h.params.Deployment.Namespace = o.Namespace
-		} else {
-			h.params.Deployment.Name = legacyDC.ObjectMeta.Name
-			h.params.Deployment.Namespace = legacyDC.ObjectMeta.Namespace
-		}
-
-		statusChanged, err := h.applyResource(o)
+		cr, err = h.getOpenShiftDockerRegistry()
 		if err != nil {
 			return err
 		}
 
-		if statusChanged {
-			err = wait.Poll(5*time.Second, 5*time.Minute, func() (bool, error) {
-				dc := &appsapi.DeploymentConfig{
-					TypeMeta: metav1.TypeMeta{
-						APIVersion: "apps.openshift.io/v1",
-						Kind:       "DeploymentConfig",
-					},
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      h.params.Deployment.Name,
-						Namespace: h.params.Deployment.Namespace,
-					},
-				}
+		if cr == nil || !metav1.IsControlledBy(o, cr) {
+			return nil
+		}
 
-				err := sdk.Get(dc)
-				if err != nil {
-					return false, err
-				}
+		if cr.Spec.Replicas == o.Status.ReadyReplicas {
+			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
+		} else {
+			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
+		}
 
-				if o.Spec.Replicas == dc.Status.ReadyReplicas {
-					return true, nil
-				}
+	case *appsapi.DeploymentConfig:
+		logrus.Infof("got event DeploymentConfig changed")
 
-				return false, nil
-			})
-			if err != nil {
-				conditionDeployment(o, operatorapi.ConditionFalse, fmt.Sprintf("poll failed: %s", err))
-			} else {
-				conditionDeployment(o, operatorapi.ConditionTrue, "")
-			}
+		cr, err = h.getOpenShiftDockerRegistry()
+		if err != nil {
+			return err
+		}
 
-			o.Status.ObservedGeneration = o.Generation
+		if cr == nil || !metav1.IsControlledBy(o, cr) {
+			return nil
+		}
 
-			err = sdk.Update(o)
-			if err != nil {
-				logrus.Errorf("unable to update registry custom resource: %s", err)
-			}
+		if cr.Spec.Replicas == o.Status.ReadyReplicas {
+			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
+		} else {
+			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
+		}
+
+	case *regopapi.OpenShiftDockerRegistry:
+		cr = o
+
+		if cr.Spec.ManagementState != operatorapi.Managed {
+			return nil
+		}
+
+		statusChanged = h.applyResource(cr)
+	}
+
+	if cr != nil && statusChanged {
+		logrus.Infof("registry resources changed")
+
+		cr.Status.ObservedGeneration = cr.Generation
+
+		err = sdk.Update(cr)
+		if err != nil {
+			logrus.Errorf("unable to update registry custom resource: %s", err)
 		}
 	}
+
 	return nil
 }
 
-func (h *Handler) applyResource(o *v1alpha1.OpenShiftDockerRegistry) (bool, error) {
-	o.Status.Conditions = []operatorapi.OperatorCondition{}
+func (h *Handler) getOpenShiftDockerRegistry() (*regopapi.OpenShiftDockerRegistry, error) {
+	cr := &regopapi.OpenShiftDockerRegistry{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: regopapi.SchemeGroupVersion.String(),
+			Kind:       "OpenShiftDockerRegistry",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "image-registry",
+			Namespace: h.params.Deployment.Namespace,
+		},
+	}
 
+	err := sdk.Get(cr)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to get image-registry custom resource: %s", err)
+		}
+		return nil, nil
+	}
+
+	if cr.Spec.ManagementState != operatorapi.Managed {
+		return nil, nil
+	}
+
+	return cr, nil
+}
+
+func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	modified := false
 
 	err := completeResource(o, &modified)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err))
-		return true, nil
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err), &modified)
+		return true
 	}
 
-	dc, err := h.generateDeployment(o,&h.params)
+	dc, err := h.generateDeployment(o, &h.params)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment config: %s", err))
-		return true, nil
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment config: %s", err), &modified)
+		return true
 	}
 
-	conditionResourceValid(o, operatorapi.ConditionTrue, "resource is valid")
-
-	err = ApplyTemplate(GenerateServiceAccount(o,&h.params), &modified)
+	err = ApplyTemplate(GenerateServiceAccount(o, &h.params), &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err))
-		return true, nil
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err), &modified)
+		return true
 	}
 
 	err = ApplyTemplate(GenerateClusterRole(o), &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role: %s", err))
-		return true, nil
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role: %s", err), &modified)
+		return true
 	}
 
-	err = ApplyTemplate(GenerateClusterRoleBinding(o,&h.params), &modified)
+	err = ApplyTemplate(GenerateClusterRoleBinding(o, &h.params), &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err))
-		return true, nil
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err), &modified)
+		return true
 	}
 
-	err = ApplyTemplate(GenerateService(o,&h.params), &modified)
+	err = ApplyTemplate(GenerateService(o, &h.params), &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err))
-		return true, nil
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
+		return true
 	}
 
 	err = ApplyTemplate(dc, &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err))
-		return true, nil
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err), &modified)
+		return true
 	}
 
-	if modified {
-		logrus.Infof("registry resources changed")
-		conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied")
-	}
+	conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &modified)
 
-	return modified, nil
+	return modified
 }
