@@ -103,6 +103,8 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		volumes           []corev1.Volume
 	)
 
+	annotations := make(map[string]string)
+
 	env = append(env,
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
@@ -180,7 +182,9 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		storageConfigured += 1
 	}
 
-	if storageConfigured != 1 {
+	if storageConfigured == 1 {
+		annotations[parameters.StorageTypeOperatorAnnotation] = storageType
+	} else {
 		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
 	}
 
@@ -217,19 +221,19 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
-	if cr.Spec.CAs != nil {
-		vol := corev1.Volume{
-			Name: "registry-certificates",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: *cr.Spec.CAs,
+	// Certificates
+	vol := corev1.Volume{
+		Name: "registry-certificates",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "image-registry-certificates",
 				},
 			},
-		}
-
-		volumes = append(volumes, vol)
-		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
+		},
 	}
+	volumes = append(volumes, vol)
+	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
 
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
@@ -263,10 +267,6 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 			ServiceAccountName: p.Pod.ServiceAccount,
 			SecurityContext:    securityContext,
 		},
-	}
-
-	annotations := map[string]string{
-		parameters.StorageTypeOperatorAnnotation: storageType,
 	}
 
 	return spec, annotations, nil

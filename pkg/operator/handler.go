@@ -275,6 +275,12 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
+	err = generate.ApplyTemplate(generate.ConfigMap(o, &h.params), &modified)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply config map: %s", err), &modified)
+		return true
+	}
+
 	err = generate.ApplyTemplate(dc, &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err), &modified)

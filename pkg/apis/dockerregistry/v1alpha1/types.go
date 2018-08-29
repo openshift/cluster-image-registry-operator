@@ -105,7 +105,6 @@ type OpenShiftDockerRegistrySpec struct {
 	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage,omitempty"`
 	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests,omitempty"`
 	TLS          OpenShiftDockerRegistryConfigTLS      `json:"tls,omitempty"`
-	CAs          *corev1.LocalObjectReference          `json:"CAs,omitempty"`
 	Route        OpenShiftDockerRegistryConfigRoute    `json:"route,omitempty"`
 	NodeSelector map[string]string                     `json:"nodeSelector,omitempty"`
 	Replicas     int32                                 `json:"replicas,omitempty"`
