@@ -1,4 +1,4 @@
-package operator
+package generate
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/operator/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
 type Template struct {

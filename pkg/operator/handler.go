@@ -8,37 +8,20 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
+	kappsapi "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 
-	kappsapi "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-type Parameters struct {
-	Deployment struct {
-		Name      string
-		Namespace string
-		Labels    map[string]string
-	}
-	Pod struct {
-		ServiceAccount string
-	}
-	Container struct {
-		UseTLS bool
-		Name   string
-		Port   int
-	}
-	Healthz struct {
-		Route          string
-		TimeoutSeconds int
-	}
-}
-
 func NewHandler(namespace string, useLegacy bool) sdk.Handler {
-	p := Parameters{}
+	p := parameters.Globals{}
 
 	p.Deployment.Name = "docker-registry"
 	p.Deployment.Namespace = namespace
@@ -55,21 +38,21 @@ func NewHandler(namespace string, useLegacy bool) sdk.Handler {
 
 	h := &Handler{
 		params:             p,
-		generateDeployment: GenerateDeploymentConfig,
+		generateDeployment: generate.DeploymentConfig,
 	}
 
 	if useLegacy {
 		p.Deployment.Name = "docker-registry"
 		p.Deployment.Namespace = "default"
-		h.generateDeployment = GenerateDeploymentConfig
+		h.generateDeployment = generate.DeploymentConfig
 	}
 
 	return h
 }
 
 type Handler struct {
-	params             Parameters
-	generateDeployment Generator
+	params             parameters.Globals
+	generateDeployment generate.Generator
 }
 
 func updateCondition(cr *regopapi.OpenShiftDockerRegistry, condition *operatorapi.OperatorCondition) bool {
@@ -268,31 +251,31 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
-	err = ApplyTemplate(GenerateServiceAccount(o, &h.params), &modified)
+	err = generate.ApplyTemplate(generate.ServiceAccount(o, &h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err), &modified)
 		return true
 	}
 
-	err = ApplyTemplate(GenerateClusterRole(o), &modified)
+	err = generate.ApplyTemplate(generate.ClusterRole(o), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role: %s", err), &modified)
 		return true
 	}
 
-	err = ApplyTemplate(GenerateClusterRoleBinding(o, &h.params), &modified)
+	err = generate.ApplyTemplate(generate.ClusterRoleBinding(o, &h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err), &modified)
 		return true
 	}
 
-	err = ApplyTemplate(GenerateService(o, &h.params), &modified)
+	err = generate.ApplyTemplate(generate.Service(o, &h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
 		return true
 	}
 
-	err = ApplyTemplate(dc, &modified)
+	err = generate.ApplyTemplate(dc, &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err), &modified)
 		return true

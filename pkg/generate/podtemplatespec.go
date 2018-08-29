@@ -1,4 +1,4 @@
-package operator
+package generate
 
 import (
 	"fmt"
@@ -7,45 +7,16 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	appsapi "github.com/openshift/api/apps/v1"
-	authapi "github.com/openshift/api/authorization/v1"
 	projectapi "github.com/openshift/api/project/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/operator/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
-
-const (
-	checksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/checksum"
-	storageTypeOperatorAnnotation = "dockerregistry.operator.openshift.io/storagetype"
-
-	supplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
-)
-
-type Generator func(*v1alpha1.OpenShiftDockerRegistry, *Parameters) (Template, error)
-
-// addOwnerRefToObject appends the desired OwnerReference to the object
-func addOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
-	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
-}
-
-// asOwner returns an OwnerReference set as the memcached CR
-func asOwner(cr *v1alpha1.OpenShiftDockerRegistry) metav1.OwnerReference {
-	trueVar := true
-	return metav1.OwnerReference{
-		APIVersion: cr.APIVersion,
-		Kind:       cr.Kind,
-		Name:       cr.Name,
-		UID:        cr.UID,
-		Controller: &trueVar,
-	}
-}
 
 func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
 	switch cr.Spec.Logging.Level {
@@ -59,18 +30,18 @@ func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(p *Parameters) *corev1.Probe {
+func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(p *Parameters) *corev1.Probe {
+func generateReadinessProbeConfig(p *parameters.Globals) *corev1.Probe {
 	return generateProbeConfig(p)
 }
 
-func generateProbeConfig(p *Parameters) *corev1.Probe {
+func generateProbeConfig(p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
 	if p.Container.UseTLS {
 		scheme = corev1.URISchemeHTTPS
@@ -90,7 +61,7 @@ func generateProbeConfig(p *Parameters) *corev1.Probe {
 func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace string) (*corev1.PodSecurityContext, error) {
 	ns := &projectapi.Project{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "project.openshift.io/v1",
+			APIVersion: projectapi.SchemeGroupVersion.String(),
 			Kind:       "Project",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -102,19 +73,19 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 		return nil, err
 	}
 
-	sgrange, ok := ns.Annotations[supplementalGroupsAnnotation]
+	sgrange, ok := ns.Annotations[parameters.SupplementalGroupsAnnotation]
 	if !ok {
-		return nil, fmt.Errorf("namespace %q doesn't have annotation %s", namespace, supplementalGroupsAnnotation)
+		return nil, fmt.Errorf("namespace %q doesn't have annotation %s", namespace, parameters.SupplementalGroupsAnnotation)
 	}
 
 	idx := strings.Index(sgrange, "/")
 	if idx == -1 {
-		return nil, fmt.Errorf("annotation %s in namespace %q doesn't contain '/'", supplementalGroupsAnnotation, namespace)
+		return nil, fmt.Errorf("annotation %s in namespace %q doesn't contain '/'", parameters.SupplementalGroupsAnnotation, namespace)
 	}
 
 	gid, err := strconv.ParseInt(sgrange[:idx], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", supplementalGroupsAnnotation, namespace, err)
+		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", parameters.SupplementalGroupsAnnotation, namespace, err)
 	}
 
 	return &corev1.PodSecurityContext{
@@ -122,147 +93,7 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 	}, nil
 }
 
-func GenerateServiceAccount(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
-	sa := &corev1.ServiceAccount{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ServiceAccount",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Pod.ServiceAccount,
-			Namespace: p.Deployment.Namespace,
-		},
-	}
-	addOwnerRefToObject(sa, asOwner(cr))
-	return Template{
-		Object:   sa,
-		Strategy: strategy.Override{},
-	}
-}
-
-func GenerateClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) Template {
-	role := &authapi.ClusterRole{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
-			Kind:       "ClusterRole",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "system:registry",
-		},
-		Rules: []authapi.PolicyRule{
-			{
-				Verbs:     []string{"list"},
-				APIGroups: []string{""},
-				Resources: []string{
-					"limitranges",
-					"resourcequotas",
-				},
-			},
-			{
-				Verbs:     []string{"get"},
-				APIGroups: []string{ /* "", */ "image.openshift.io"},
-				Resources: []string{
-					"imagestreamimages",
-					/* "imagestreams/layers", */
-					"imagestreams/secrets",
-				},
-			},
-			{
-				Verbs:     []string{ /* "list", */ "get", "update"},
-				APIGroups: []string{ /* "", */ "image.openshift.io"},
-				Resources: []string{
-					"imagestreams",
-				},
-			},
-			{
-				Verbs:     []string{ /* "get", */ "delete"},
-				APIGroups: []string{ /* "", */ "image.openshift.io"},
-				Resources: []string{
-					"imagestreamtags",
-				},
-			},
-			{
-				Verbs:     []string{"get", "update" /*, "delete" */},
-				APIGroups: []string{ /* "", */ "image.openshift.io"},
-				Resources: []string{
-					"images",
-				},
-			},
-			{
-				Verbs:     []string{"create"},
-				APIGroups: []string{ /* "", */ "image.openshift.io"},
-				Resources: []string{
-					"imagestreammappings",
-				},
-			},
-		},
-	}
-	addOwnerRefToObject(role, asOwner(cr))
-	return Template{
-		Object:   role,
-		Strategy: strategy.Override{},
-	}
-}
-
-func GenerateClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
-	crb := &authapi.ClusterRoleBinding{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
-			Kind:       "ClusterRoleBinding",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("registry-%s-role", p.Container.Name),
-		},
-		Subjects: []corev1.ObjectReference{
-			{
-				Kind:      "ServiceAccount",
-				Name:      p.Pod.ServiceAccount,
-				Namespace: p.Deployment.Namespace,
-			},
-		},
-		RoleRef: corev1.ObjectReference{
-			Kind: "ClusterRole",
-			Name: "system:registry",
-		},
-	}
-	addOwnerRefToObject(crb, asOwner(cr))
-	return Template{
-		Object:   crb,
-		Strategy: strategy.Override{},
-	}
-}
-
-func GenerateService(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) Template {
-	svc := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Deployment.Name,
-			Namespace: p.Deployment.Namespace,
-			Labels:    p.Deployment.Labels,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: p.Deployment.Labels,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       fmt.Sprintf("%d-tcp", p.Container.Port),
-					Port:       int32(p.Container.Port),
-					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(p.Container.Port),
-				},
-			},
-		},
-	}
-	addOwnerRefToObject(svc, asOwner(cr))
-	return Template{
-		Object:   svc,
-		Strategy: strategy.Service{},
-	}
-}
-
-func generatePodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (corev1.PodTemplateSpec, map[string]string, error) {
+func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
 	storageType := ""
 
 	var (
@@ -386,6 +217,20 @@ func generatePodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters
 		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
+	if cr.Spec.CAs != nil {
+		vol := corev1.Volume{
+			Name: "registry-certificates",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: *cr.Spec.CAs,
+				},
+			},
+		}
+
+		volumes = append(volumes, vol)
+		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
+	}
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: p.Deployment.Labels,
@@ -421,79 +266,8 @@ func generatePodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters
 	}
 
 	annotations := map[string]string{
-		storageTypeOperatorAnnotation: storageType,
+		parameters.StorageTypeOperatorAnnotation: storageType,
 	}
 
 	return spec, annotations, nil
-}
-
-func GenerateDeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
-	podTemplateSpec, annotations, err := generatePodTemplateSpec(cr, p)
-	if err != nil {
-		return Template{}, err
-	}
-
-	dc := &appsapi.DeploymentConfig{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps.openshift.io/v1",
-			Kind:       "DeploymentConfig",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        p.Deployment.Name,
-			Namespace:   p.Deployment.Namespace,
-			Labels:      p.Deployment.Labels,
-			Annotations: annotations,
-		},
-		Spec: appsapi.DeploymentConfigSpec{
-			Replicas: cr.Spec.Replicas,
-			Selector: p.Deployment.Labels,
-			Triggers: []appsapi.DeploymentTriggerPolicy{
-				{
-					Type: appsapi.DeploymentTriggerOnConfigChange,
-				},
-			},
-			Template: &podTemplateSpec,
-		},
-	}
-
-	addOwnerRefToObject(dc, asOwner(cr))
-
-	return Template{
-		Object:   dc,
-		Strategy: strategy.DeploymentConfig{},
-	}, nil
-}
-
-func GenerateDeployment(cr *v1alpha1.OpenShiftDockerRegistry, p *Parameters) (Template, error) {
-	podTemplateSpec, annotations, err := generatePodTemplateSpec(cr, p)
-	if err != nil {
-		return Template{}, err
-	}
-
-	dc := &kappsapi.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        p.Deployment.Name,
-			Namespace:   p.Deployment.Namespace,
-			Labels:      p.Deployment.Labels,
-			Annotations: annotations,
-		},
-		Spec: kappsapi.DeploymentSpec{
-			Replicas: &cr.Spec.Replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: p.Deployment.Labels,
-			},
-			Template: podTemplateSpec,
-		},
-	}
-
-	addOwnerRefToObject(dc, asOwner(cr))
-
-	return Template{
-		Object:   dc,
-		Strategy: strategy.Deployment{},
-	}, nil
 }

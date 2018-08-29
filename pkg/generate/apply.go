@@ -1,4 +1,4 @@
-package operator
+package generate
 
 import (
 	"crypto/sha256"
@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/util/retry"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 func checksum(o interface{}) (string, error) {
@@ -46,7 +48,7 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 			return fmt.Errorf("unable to get meta accessor for current object: %s", err)
 		}
 
-		curdgst, ok := currentMeta.GetAnnotations()[checksumOperatorAnnotation]
+		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if ok && dgst == curdgst {
 			return nil
 		}
@@ -64,7 +66,7 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 		if updatedMeta.GetAnnotations() == nil {
 			updatedMeta.SetAnnotations(map[string]string{})
 		}
-		updatedMeta.GetAnnotations()[checksumOperatorAnnotation] = dgst
+		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
 		err = sdk.Update(updated)
 		*modified = err == nil
