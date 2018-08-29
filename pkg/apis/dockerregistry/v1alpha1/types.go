@@ -27,88 +27,88 @@ type OpenShiftDockerRegistry struct {
 }
 
 type OpenShiftDockerRegistryConfigProxy struct {
-	HTTP  string
-	HTTPS string
+	HTTP  string `json:"http,omitempty"`
+	HTTPS string `json:"https,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageS3 struct {
-	AccessKey      string
-	SecretKey      string
-	Bucket         string
-	Region         string
-	RegionEndpoint string
-	Encrypt        bool
+	AccessKey      string `json:"accessKey,omitempty"`
+	SecretKey      string `json:"secretKey,omitempty"`
+	Bucket         string `json:"bucket,omitempty"`
+	Region         string `json:"region,omitempty"`
+	RegionEndpoint string `json:"regionEndpoint,omitempty"`
+	Encrypt        bool   `json:"encrypt,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageAzure struct {
-	AccountName string
-	AccountKey  string
-	Container   string
+	AccountName string `json:"accountName,omitempty"`
+	AccountKey  string `json:"accountKey,omitempty"`
+	Container   string `json:"container,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageGCS struct {
-	Bucket string
+	Bucket string `json:"bucket,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageSwift struct {
-	AuthURL   string
-	Username  string
-	Password  string
-	Container string
+	AuthURL   string `json:"authURL,omitempty"`
+	Username  string `json:"username,omitempty"`
+	Password  string `json:"password,omitempty"`
+	Container string `json:"container,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageFilesystem struct {
-	VolumeSource corev1.VolumeSource `json:"volumeSource"`
+	VolumeSource corev1.VolumeSource `json:"volumeSource,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorage struct {
-	Azure      *OpenShiftDockerRegistryConfigStorageAzure      `json:"azure"`
-	Filesystem *OpenShiftDockerRegistryConfigStorageFilesystem `json:"filesystem"`
-	GCS        *OpenShiftDockerRegistryConfigStorageGCS        `json:"gcs"`
-	S3         *OpenShiftDockerRegistryConfigStorageS3         `json:"s3"`
-	Swift      *OpenShiftDockerRegistryConfigStorageSwift      `json:"swift"`
+	Azure      *OpenShiftDockerRegistryConfigStorageAzure      `json:"azure,omitempty"`
+	Filesystem *OpenShiftDockerRegistryConfigStorageFilesystem `json:"filesystem,omitempty"`
+	GCS        *OpenShiftDockerRegistryConfigStorageGCS        `json:"gcs,omitempty"`
+	S3         *OpenShiftDockerRegistryConfigStorageS3         `json:"s3,omitempty"`
+	Swift      *OpenShiftDockerRegistryConfigStorageSwift      `json:"swift,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigRequestsLimits struct {
-	MaxRunning     int           `json:"maxrunning"`
-	MaxInQueue     int           `json:"maxinqueue"`
-	MaxWaitInQueue time.Duration `json:"maxwaitinqueue"`
+	MaxRunning     int           `json:"maxrunning,omitempty"`
+	MaxInQueue     int           `json:"maxinqueue,omitempty"`
+	MaxWaitInQueue time.Duration `json:"maxwaitinqueue,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigRequests struct {
-	Read  OpenShiftDockerRegistryConfigRequestsLimits `json:"read"`
-	Write OpenShiftDockerRegistryConfigRequestsLimits `json:"write"`
+	Read  OpenShiftDockerRegistryConfigRequestsLimits `json:"read,omitempty"`
+	Write OpenShiftDockerRegistryConfigRequestsLimits `json:"write,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigTLSCertificate struct {
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef"`
+	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigTLSKey struct {
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef"`
+	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigTLS struct {
-	Certificate OpenShiftDockerRegistryConfigTLSCertificate `json:"certificate"`
-	Key         OpenShiftDockerRegistryConfigTLSKey         `json:"key"`
+	Certificate OpenShiftDockerRegistryConfigTLSCertificate `json:"certificate,omitempty"`
+	Key         OpenShiftDockerRegistryConfigTLSKey         `json:"key,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigRoute struct {
-	Hostname string `json:"hostname"`
+	Hostname string `json:"hostname,omitempty"`
 }
 
 type OpenShiftDockerRegistrySpec struct {
 	operatorsv1alpha1api.OperatorSpec `json:",inline"`
 
-	HTTPSecret   string                                `json:"HTTPSecret"`
-	Proxy        OpenShiftDockerRegistryConfigProxy    `json:"proxy"`
-	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage"`
-	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests"`
-	TLS          OpenShiftDockerRegistryConfigTLS      `json:"tls"`
-	CAs          string                                `json:"CAs"`
-	Route        OpenShiftDockerRegistryConfigRoute    `json:"route"`
-	NodeSelector map[string]string                     `json:"nodeSelector"`
-	Replicas     int32                                 `json:"replicas"`
+	HTTPSecret   string                                `json:"httpSecret,omitempty"`
+	Proxy        OpenShiftDockerRegistryConfigProxy    `json:"proxy,omitempty"`
+	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage,omitempty"`
+	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests,omitempty"`
+	TLS          OpenShiftDockerRegistryConfigTLS      `json:"tls,omitempty"`
+	CAs          string                                `json:"CAs,omitempty"`
+	Route        OpenShiftDockerRegistryConfigRoute    `json:"route,omitempty"`
+	NodeSelector map[string]string                     `json:"nodeSelector,omitempty"`
+	Replicas     int32                                 `json:"replicas,omitempty"`
 }
 type OpenShiftDockerRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
