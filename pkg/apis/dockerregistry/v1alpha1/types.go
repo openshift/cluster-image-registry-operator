@@ -32,8 +32,6 @@ type OpenShiftDockerRegistryConfigProxy struct {
 }
 
 type OpenShiftDockerRegistryConfigStorageS3 struct {
-	AccessKey      string `json:"accessKey,omitempty"`
-	SecretKey      string `json:"secretKey,omitempty"`
 	Bucket         string `json:"bucket,omitempty"`
 	Region         string `json:"region,omitempty"`
 	RegionEndpoint string `json:"regionEndpoint,omitempty"`
@@ -41,9 +39,7 @@ type OpenShiftDockerRegistryConfigStorageS3 struct {
 }
 
 type OpenShiftDockerRegistryConfigStorageAzure struct {
-	AccountName string `json:"accountName,omitempty"`
-	AccountKey  string `json:"accountKey,omitempty"`
-	Container   string `json:"container,omitempty"`
+	Container string `json:"container,omitempty"`
 }
 
 type OpenShiftDockerRegistryConfigStorageGCS struct {
@@ -52,8 +48,6 @@ type OpenShiftDockerRegistryConfigStorageGCS struct {
 
 type OpenShiftDockerRegistryConfigStorageSwift struct {
 	AuthURL   string `json:"authURL,omitempty"`
-	Username  string `json:"username,omitempty"`
-	Password  string `json:"password,omitempty"`
 	Container string `json:"container,omitempty"`
 }
 

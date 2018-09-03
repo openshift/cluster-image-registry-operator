@@ -93,6 +93,46 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 	}, nil
 }
 
+func getSecretChecksum(p *parameters.Globals) (string, error) {
+	o := &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "image-registry-private-configuration",
+			Namespace: p.Deployment.Namespace,
+		},
+	}
+
+	err := sdk.Get(o)
+	if err != nil {
+		return "", err
+	}
+
+	return checksum(o)
+}
+
+func getConfigMapChecksum(p *parameters.Globals) (string, error) {
+	o := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "image-registry-certificates",
+			Namespace: p.Deployment.Namespace,
+		},
+	}
+
+	err := sdk.Get(o)
+	if err != nil {
+		return "", err
+	}
+
+	return checksum(o)
+}
+
 func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
 	storageType := ""
 
@@ -140,9 +180,29 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		storageType = "azure"
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME", Value: cr.Spec.Storage.Azure.AccountName},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: cr.Spec.Storage.Azure.AccountKey},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: cr.Spec.Storage.Azure.Container},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
+					},
+				},
+			},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
+					},
+				},
+			},
 		)
 		storageConfigured += 1
 	}
@@ -160,12 +220,32 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		storageType = "s3"
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: cr.Spec.Storage.S3.AccessKey},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: cr.Spec.Storage.S3.SecretKey},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: cr.Spec.Storage.S3.Bucket},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: cr.Spec.Storage.S3.Region},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: cr.Spec.Storage.S3.RegionEndpoint},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt)},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_S3_ACCESSKEY",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_S3_ACCESSKEY",
+					},
+				},
+			},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_S3_SECRETKEY",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_S3_SECRETKEY",
+					},
+				},
+			},
 		)
 		storageConfigured += 1
 	}
@@ -175,9 +255,29 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: cr.Spec.Storage.Swift.AuthURL},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cr.Spec.Storage.Swift.Username},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cr.Spec.Storage.Swift.Password},
 			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: cr.Spec.Storage.Swift.Container},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_SWIFT_USERNAME",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
+					},
+				},
+			},
+			corev1.EnvVar{
+				Name: "REGISTRY_STORAGE_SWIFT_PASSWORD",
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "image-registry-private-configuration",
+						},
+						Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
+					},
+				},
+			},
 		)
 		storageConfigured += 1
 	}
@@ -235,9 +335,23 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
 
+	secretChecksum, err := getSecretChecksum(p)
+	if err != nil {
+		return corev1.PodTemplateSpec{}, nil, err
+	}
+
+	configmapChecksum, err := getConfigMapChecksum(p)
+	if err != nil {
+		return corev1.PodTemplateSpec{}, nil, err
+	}
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: p.Deployment.Labels,
+			Annotations: map[string]string{
+				parameters.SecretChecksumOperatorAnnotation:    secretChecksum,
+				parameters.ConfigMapChecksumOperatorAnnotation: configmapChecksum,
+			},
 		},
 		Spec: corev1.PodSpec{
 			NodeSelector: cr.Spec.NodeSelector,

@@ -9,6 +9,7 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	kappsapi "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -148,18 +149,20 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		cr            *regopapi.OpenShiftDockerRegistry
 	)
 
-	switch o := event.Object.(type) {
+	switch event.Object.(type) {
 	case *kappsapi.Deployment:
-		logrus.Infof("got event Deployment changed")
-
 		cr, err = h.getOpenShiftDockerRegistry()
 		if err != nil {
 			return err
 		}
 
+		o := event.Object.(*kappsapi.Deployment)
+
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
 			return nil
 		}
+
+		logrus.Infof("got event Deployment changed")
 
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
@@ -168,16 +171,18 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 	case *appsapi.DeploymentConfig:
-		logrus.Infof("got event DeploymentConfig changed")
-
 		cr, err = h.getOpenShiftDockerRegistry()
 		if err != nil {
 			return err
 		}
 
+		o := event.Object.(*appsapi.DeploymentConfig)
+
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
 			return nil
 		}
+
+		logrus.Infof("got event DeploymentConfig changed")
 
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
@@ -185,8 +190,25 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
 		}
 
+	case *corev1.ConfigMap, *corev1.Secret:
+
+		cr, err = h.getOpenShiftDockerRegistry()
+		if err != nil {
+			return err
+		}
+
+		o := event.Object.(metav1.Object)
+
+		if cr == nil || !metav1.IsControlledBy(o, cr) {
+			return nil
+		}
+
+		logrus.Infof("got event %T changed", event.Object)
+
+		statusChanged = h.reRollout(cr)
+
 	case *regopapi.OpenShiftDockerRegistry:
-		cr = o
+		cr := event.Object.(*regopapi.OpenShiftDockerRegistry)
 
 		if cr.Spec.ManagementState != operatorapi.Managed {
 			return nil
@@ -236,6 +258,26 @@ func (h *Handler) getOpenShiftDockerRegistry() (*regopapi.OpenShiftDockerRegistr
 	return cr, nil
 }
 
+func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
+	modified := false
+
+	dc, err := h.generateDeployment(o, &h.params)
+	if err != nil {
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment: %s", err), &modified)
+		return true
+	}
+
+	err = generate.ApplyTemplate(dc, &modified)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
+		return true
+	}
+
+	conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &modified)
+
+	return modified
+}
+
 func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	modified := false
 
@@ -245,9 +287,21 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
+	err = generate.ApplyTemplate(generate.ConfigMap(o, &h.params), &modified)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply config map: %s", err), &modified)
+		return true
+	}
+
+	err = generate.ApplyTemplate(generate.Secret(o, &h.params), &modified)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply secret: %s", err), &modified)
+		return true
+	}
+
 	dc, err := h.generateDeployment(o, &h.params)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment config: %s", err), &modified)
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment: %s", err), &modified)
 		return true
 	}
 
@@ -275,15 +329,9 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
-	err = generate.ApplyTemplate(generate.ConfigMap(o, &h.params), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply config map: %s", err), &modified)
-		return true
-	}
-
 	err = generate.ApplyTemplate(dc, &modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment config: %s", err), &modified)
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
 		return true
 	}
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"runtime"
 
+	corev1 "k8s.io/api/core/v1"
+
 	appsapi "github.com/openshift/api/apps/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
@@ -46,6 +48,8 @@ func main() {
 		watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", "default", 0)
 	}
 
+	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
+	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
 	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, resyncPeriod)
 
