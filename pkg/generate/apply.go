@@ -43,6 +43,13 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 			return err
 		}
 
+		if tmpl.Validator != nil {
+			err = tmpl.Validator(current)
+			if err != nil {
+				return err
+			}
+		}
+
 		currentMeta, err := kmeta.Accessor(current)
 		if err != nil {
 			return fmt.Errorf("unable to get meta accessor for current object: %s", err)

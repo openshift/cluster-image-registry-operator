@@ -9,9 +9,12 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
+type TemplateValidator func(runtime.Object) error
+
 type Template struct {
-	Object   runtime.Object
-	Strategy strategy.Strategy
+	Object    runtime.Object
+	Strategy  strategy.Strategy
+	Validator TemplateValidator
 }
 
 func (t *Template) Name() string {
