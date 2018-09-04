@@ -35,6 +35,13 @@ func Service(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) Templa
 			},
 		},
 	}
+
+	if *cr.Spec.TLS {
+		svc.ObjectMeta.Annotations = map[string]string{
+			"service.alpha.openshift.io/serving-cert-secret-name": "image-registry-tls",
+		}
+	}
+
 	addOwnerRefToObject(svc, asOwner(cr))
 	return Template{
 		Object:   svc,

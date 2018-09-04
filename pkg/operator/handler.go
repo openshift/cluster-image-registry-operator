@@ -162,8 +162,6 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		logrus.Infof("got event Deployment changed")
-
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
 		} else {
@@ -181,8 +179,6 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
 			return nil
 		}
-
-		logrus.Infof("got event DeploymentConfig changed")
 
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
@@ -203,12 +199,10 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		logrus.Infof("got event %T changed", event.Object)
-
 		statusChanged = h.reRollout(cr)
 
 	case *regopapi.OpenShiftDockerRegistry:
-		cr := event.Object.(*regopapi.OpenShiftDockerRegistry)
+		cr = event.Object.(*regopapi.OpenShiftDockerRegistry)
 
 		if cr.Spec.ManagementState != operatorapi.Managed {
 			return nil

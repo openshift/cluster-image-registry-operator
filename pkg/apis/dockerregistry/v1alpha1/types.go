@@ -74,19 +74,6 @@ type OpenShiftDockerRegistryConfigRequests struct {
 	Write OpenShiftDockerRegistryConfigRequestsLimits `json:"write,omitempty"`
 }
 
-type OpenShiftDockerRegistryConfigTLSCertificate struct {
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
-}
-
-type OpenShiftDockerRegistryConfigTLSKey struct {
-	SecretKeyRef *corev1.SecretKeySelector `json:"secretKeyRef,omitempty"`
-}
-
-type OpenShiftDockerRegistryConfigTLS struct {
-	Certificate OpenShiftDockerRegistryConfigTLSCertificate `json:"certificate,omitempty"`
-	Key         OpenShiftDockerRegistryConfigTLSKey         `json:"key,omitempty"`
-}
-
 type OpenShiftDockerRegistryConfigRoute struct {
 	Hostname string `json:"hostname,omitempty"`
 }
@@ -98,7 +85,7 @@ type OpenShiftDockerRegistrySpec struct {
 	Proxy        OpenShiftDockerRegistryConfigProxy    `json:"proxy,omitempty"`
 	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage,omitempty"`
 	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests,omitempty"`
-	TLS          OpenShiftDockerRegistryConfigTLS      `json:"tls,omitempty"`
+	TLS          *bool                                 `json:"tls,omitempty"`
 	Route        OpenShiftDockerRegistryConfigRoute    `json:"route,omitempty"`
 	NodeSelector map[string]string                     `json:"nodeSelector,omitempty"`
 	Replicas     int32                                 `json:"replicas,omitempty"`

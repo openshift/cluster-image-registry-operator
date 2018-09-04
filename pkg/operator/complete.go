@@ -19,9 +19,19 @@ func completeResource(cr *v1alpha1.OpenShiftDockerRegistry, modified *bool) erro
 		if _, err := rand.Read(secretBytes[:]); err != nil {
 			return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
 		}
-		*modified = true
 		cr.Spec.HTTPSecret = string(secretBytes[:])
+
+		*modified = true
 		logrus.Warn("No HTTP secret provided - generated random secret")
 	}
+
+	if cr.Spec.TLS == nil {
+		boolvar := true
+		cr.Spec.TLS = &boolvar
+
+		*modified = true
+		logrus.Warn("No TLS specified - enabled by default")
+	}
+
 	return nil
 }
