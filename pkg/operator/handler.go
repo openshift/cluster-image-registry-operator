@@ -32,7 +32,6 @@ func NewHandler(namespace string, useLegacy bool) sdk.Handler {
 
 	p.Container.Name = "registry"
 	p.Container.Port = 5000
-	p.Container.UseTLS = false
 
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
@@ -321,6 +320,14 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
 		return true
+	}
+
+	if len(o.Spec.Route.Hostname) > 0 {
+		err = generate.ApplyTemplate(generate.Route(o, &h.params), &modified)
+		if err != nil {
+			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
+			return true
+		}
 	}
 
 	err = generate.ApplyTemplate(dc, &modified)

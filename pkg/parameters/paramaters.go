@@ -20,7 +20,6 @@ type Globals struct {
 		ServiceAccount string
 	}
 	Container struct {
-		UseTLS bool
 		Name   string
 		Port   int
 	}

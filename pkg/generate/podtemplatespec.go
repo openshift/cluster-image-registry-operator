@@ -30,20 +30,20 @@ func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
-	probeConfig := generateProbeConfig(p)
+func generateLivenessProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
+	probeConfig := generateProbeConfig(cr, p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(p *parameters.Globals) *corev1.Probe {
-	return generateProbeConfig(p)
+func generateReadinessProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
+	return generateProbeConfig(cr, p)
 }
 
-func generateProbeConfig(p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
-	if p.Container.UseTLS {
+	if *cr.Spec.TLS {
 		scheme = corev1.URISchemeHTTPS
 	}
 	return &corev1.Probe{
@@ -321,6 +321,27 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
+	//TLS
+	if *cr.Spec.TLS {
+		vol := corev1.Volume{
+			Name: "registry-tls",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "image-registry-tls",
+					},
+				},
+			},
+		}
+		volumes = append(volumes, vol)
+		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/secrets"})
+
+		env = append(env,
+			corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},
+			corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
+		)
+	}
+
 	// Certificates
 	vol := corev1.Volume{
 		Name: "registry-certificates",
@@ -367,8 +388,8 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 					},
 					Env:            env,
 					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(p),
-					ReadinessProbe: generateReadinessProbeConfig(p),
+					LivenessProbe:  generateLivenessProbeConfig(cr, p),
+					ReadinessProbe: generateReadinessProbeConfig(cr, p),
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("100m"),
