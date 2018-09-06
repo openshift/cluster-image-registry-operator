@@ -36,23 +36,21 @@ func main() {
 
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
-		logrus.Fatalf("failed to get watch namespace: %v", err)
+		logrus.Fatalf("failed to get watch namespace: %s", err)
 	}
 
-	useLegacy := false
-	resyncPeriod := 5
+	handler, err := operator.NewHandler(namespace)
+	if err != nil {
+		logrus.Fatal(err)
+	}
 
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
-
-	if useLegacy {
-		watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", "default", 0)
-	}
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
-	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, resyncPeriod)
+	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, 5)
 
-	sdk.Handle(operator.NewHandler(namespace, useLegacy))
+	sdk.Handle(handler)
 	sdk.Run(context.TODO())
 }

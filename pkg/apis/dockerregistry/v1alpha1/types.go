@@ -85,7 +85,7 @@ type OpenShiftDockerRegistrySpec struct {
 	Proxy        OpenShiftDockerRegistryConfigProxy    `json:"proxy,omitempty"`
 	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage,omitempty"`
 	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests,omitempty"`
-	TLS          *bool                                 `json:"tls,omitempty"`
+	TLS          bool                                  `json:"tls,omitempty"`
 	Route        OpenShiftDockerRegistryConfigRoute    `json:"route,omitempty"`
 	NodeSelector map[string]string                     `json:"nodeSelector,omitempty"`
 	Replicas     int32                                 `json:"replicas,omitempty"`

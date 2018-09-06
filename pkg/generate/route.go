@@ -28,7 +28,7 @@ func Route(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) Template
 			},
 		},
 	}
-	if *cr.Spec.TLS {
+	if cr.Spec.TLS {
 		r.Spec.TLS = &routeapi.TLSConfig{
 			Termination: routeapi.TLSTerminationPassthrough,
 		}

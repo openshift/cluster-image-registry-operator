@@ -21,7 +21,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func NewHandler(namespace string, useLegacy bool) sdk.Handler {
+func NewHandler(namespace string) (sdk.Handler, error) {
 	p := parameters.Globals{}
 
 	p.Deployment.Name = "docker-registry"
@@ -41,13 +41,12 @@ func NewHandler(namespace string, useLegacy bool) sdk.Handler {
 		generateDeployment: generate.DeploymentConfig,
 	}
 
-	if useLegacy {
-		p.Deployment.Name = "docker-registry"
-		p.Deployment.Namespace = "default"
-		h.generateDeployment = generate.DeploymentConfig
+	err := h.bootstrap()
+	if err != nil {
+		return nil, err
 	}
 
-	return h
+	return h, nil
 }
 
 type Handler struct {

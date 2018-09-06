@@ -43,7 +43,7 @@ func generateReadinessProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *param
 
 func generateProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
-	if *cr.Spec.TLS {
+	if cr.Spec.TLS {
 		scheme = corev1.URISchemeHTTPS
 	}
 	return &corev1.Probe{
@@ -322,7 +322,7 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 	}
 
 	//TLS
-	if *cr.Spec.TLS {
+	if cr.Spec.TLS {
 		vol := corev1.Volume{
 			Name: "registry-tls",
 			VolumeSource: corev1.VolumeSource{
