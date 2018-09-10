@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cluster-image-registry-operator
+  namespace: openshift-image-registry
 spec:
   replicas: 1
   selector:
@@ -14,7 +15,7 @@ spec:
     spec:
       containers:
         - name: cluster-image-registry-operator
-          image: docker.io/openshift/cluster-image-registry-operator:latest
+          image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           ports:
           - containerPort: 60000
             name: metrics
