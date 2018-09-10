@@ -45,7 +45,9 @@ func (h *Handler) bootstrap() error {
 		Storage: regopapi.OpenShiftDockerRegistryConfigStorage{
 			Filesystem: &regopapi.OpenShiftDockerRegistryConfigStorageFilesystem{
 				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: "image-registry-pvc",
+					},
 				},
 			},
 		},
