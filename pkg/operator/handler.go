@@ -36,6 +36,9 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
+	p.DefaultRoute.Name = "image-registry-default-route"
+	p.DefaultRoute.Host = fmt.Sprintf("%s.%s.svc.cluster.local", p.Deployment.Name, p.Deployment.Namespace)
+
 	h := &Handler{
 		params:             p,
 		generateDeployment: generate.DeploymentConfig,
@@ -273,7 +276,7 @@ func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
 func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	modified := false
 
-	err := completeResource(o, &modified)
+	err := completeResource(o, &h.params, &modified)
 	if err != nil {
 		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err), &modified)
 		return true
@@ -321,12 +324,31 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
-	if len(o.Spec.Route.Hostname) > 0 {
-		err = generate.ApplyTemplate(generate.Route(o, &h.params), &modified)
+	if o.Spec.DefaultRoute {
+		err = generate.ApplyTemplate(generate.DefaultRoute(o, &h.params), &modified)
 		if err != nil {
-			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
+			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply default route: %s", err), &modified)
 			return true
 		}
+	}
+
+	for _, routeSpec := range o.Spec.Routes {
+		route, err := generate.Route(o, &routeSpec, &h.params)
+		if err != nil {
+			conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make additional route %s: %s", routeSpec.Name, err), &modified)
+			return true
+		}
+		err = generate.ApplyTemplate(route, &modified)
+		if err != nil {
+			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply additional route: %s", err), &modified)
+			return true
+		}
+	}
+
+	err = syncRoutes(o, &h.params, &modified)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to sync routes: %s", err), &modified)
+		return true
 	}
 
 	err = generate.ApplyTemplate(dc, &modified)

@@ -75,7 +75,9 @@ type OpenShiftDockerRegistryConfigRequests struct {
 }
 
 type OpenShiftDockerRegistryConfigRoute struct {
-	Hostname string `json:"hostname,omitempty"`
+	Name       string `json:"name"`
+	Hostname   string `json:"hostname"`
+	SecretName string `json:"secretName"`
 }
 
 type OpenShiftDockerRegistrySpec struct {
@@ -86,7 +88,8 @@ type OpenShiftDockerRegistrySpec struct {
 	Storage      OpenShiftDockerRegistryConfigStorage  `json:"storage,omitempty"`
 	Requests     OpenShiftDockerRegistryConfigRequests `json:"requests,omitempty"`
 	TLS          bool                                  `json:"tls,omitempty"`
-	Route        OpenShiftDockerRegistryConfigRoute    `json:"route,omitempty"`
+	DefaultRoute bool                                  `json:"defaultRoute,omitempty"`
+	Routes       []OpenShiftDockerRegistryConfigRoute  `json:"routes,omitempty"`
 	NodeSelector map[string]string                     `json:"nodeSelector,omitempty"`
 	Replicas     int32                                 `json:"replicas,omitempty"`
 }

@@ -6,14 +6,15 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 // randomSecretSize is the number of random bytes to generate if no secret
 // was specified.
 const randomSecretSize = 64
 
-func completeResource(cr *v1alpha1.OpenShiftDockerRegistry, modified *bool) error {
+func completeResource(cr *regopapi.OpenShiftDockerRegistry, p *parameters.Globals, modified *bool) error {
 	if len(cr.Spec.HTTPSecret) == 0 {
 		var secretBytes [randomSecretSize]byte
 		if _, err := rand.Read(secretBytes[:]); err != nil {
@@ -23,6 +24,18 @@ func completeResource(cr *v1alpha1.OpenShiftDockerRegistry, modified *bool) erro
 
 		*modified = true
 		logrus.Warn("No HTTP secret provided - generated random secret")
+	}
+
+	names := map[string]struct{}{
+		p.DefaultRoute.Name: {},
+	}
+
+	for _, routeSpec := range cr.Spec.Routes {
+		_, found := names[routeSpec.Name]
+		if found {
+			return fmt.Errorf("duplication of names has been detected in the additional routes")
+		}
+		names[routeSpec.Name] = struct{}{}
 	}
 
 	return nil

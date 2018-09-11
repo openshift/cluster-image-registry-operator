@@ -94,18 +94,7 @@ func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace str
 }
 
 func getSecretChecksum(p *parameters.Globals) (string, error) {
-	o := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry-private-configuration",
-			Namespace: p.Deployment.Namespace,
-		},
-	}
-
-	err := sdk.Get(o)
+	o, err := getSecret("image-registry-private-configuration", p.Deployment.Namespace)
 	if err != nil {
 		return "", err
 	}

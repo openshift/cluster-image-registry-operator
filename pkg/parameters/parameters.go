@@ -20,11 +20,15 @@ type Globals struct {
 		ServiceAccount string
 	}
 	Container struct {
-		Name   string
-		Port   int
+		Name string
+		Port int
 	}
 	Healthz struct {
 		Route          string
 		TimeoutSeconds int
+	}
+	DefaultRoute struct {
+		Name string
+		Host string
 	}
 }
