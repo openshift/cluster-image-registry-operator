@@ -5,4 +5,4 @@ spec:
   - name: cluster-image-registry-operator
     from:
       kind: DockerImage
-      Name: docker.io/openshift/origin-cluster-image-registry-operator:latest
+      name: docker.io/openshift/origin-cluster-image-registry-operator:latest
