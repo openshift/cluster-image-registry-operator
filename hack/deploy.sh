@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 CURRENT_CONTEXT=$(oc config current-context)
 SYSTEM_ADMIN_CONTEXT=${CURRENT_CONTEXT%/*}/system:admin
 
-operator-sdk build docker.io/openshift/cluster-image-registry-operator:latest
+make build-image
 
 NAMESPACE=$(
     oc --context="$SYSTEM_ADMIN_CONTEXT" apply \
