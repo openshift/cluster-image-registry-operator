@@ -315,9 +315,15 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		vol := corev1.Volume{
 			Name: "registry-tls",
 			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "image-registry-tls",
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{
+						{
+							Secret: &corev1.SecretProjection{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "image-registry-tls",
+								},
+							},
+						},
 					},
 				},
 			},
