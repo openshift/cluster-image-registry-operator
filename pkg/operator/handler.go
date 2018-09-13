@@ -37,7 +37,6 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 	p.Healthz.TimeoutSeconds = 5
 
 	p.DefaultRoute.Name = "image-registry-default-route"
-	p.DefaultRoute.Host = fmt.Sprintf("%s.%s.svc.cluster.local", p.Deployment.Name, p.Deployment.Namespace)
 
 	h := &Handler{
 		params:             p,

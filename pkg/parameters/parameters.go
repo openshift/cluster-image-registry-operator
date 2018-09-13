@@ -29,6 +29,5 @@ type Globals struct {
 	}
 	DefaultRoute struct {
 		Name string
-		Host string
 	}
 }

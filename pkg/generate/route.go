@@ -21,7 +21,6 @@ func DefaultRoute(cr *regopapi.OpenShiftDockerRegistry, p *parameters.Globals) T
 			Namespace: p.Deployment.Namespace,
 		},
 		Spec: routeapi.RouteSpec{
-			Host: p.DefaultRoute.Host,
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
 				Name: p.Deployment.Name,
