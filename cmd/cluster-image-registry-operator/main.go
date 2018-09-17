@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
@@ -48,6 +49,7 @@ func main() {
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
+	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
 	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, 5)
 
