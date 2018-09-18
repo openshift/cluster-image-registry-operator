@@ -20,38 +20,36 @@ type Driver interface {
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
 }
 
-func NewDriver(cfg *opapi.OpenShiftDockerRegistryConfigStorage) (drv Driver, err error) {
-	storageConfigured := 0
+func NewDriver(cfg *opapi.OpenShiftDockerRegistryConfigStorage) (Driver, error) {
+	var drivers []Driver
 
 	if cfg.Azure != nil {
-		drv = azure.NewDriver(cfg.Azure)
-		storageConfigured += 1
+		drivers = append(drivers, azure.NewDriver(cfg.Azure))
 	}
 
 	if cfg.Filesystem != nil {
-		drv = filesystem.NewDriver(cfg.Filesystem)
-		storageConfigured += 1
+		drivers = append(drivers, filesystem.NewDriver(cfg.Filesystem))
 	}
 
 	if cfg.GCS != nil {
-		drv = gcs.NewDriver(cfg.GCS)
-		storageConfigured += 1
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS))
 	}
 
 	if cfg.S3 != nil {
-		drv = s3.NewDriver(cfg.S3)
-		storageConfigured += 1
+		drivers = append(drivers, s3.NewDriver(cfg.S3))
 	}
 
 	if cfg.Swift != nil {
-		drv = swift.NewDriver(cfg.Swift)
-		storageConfigured += 1
+		drivers = append(drivers, swift.NewDriver(cfg.Swift))
 	}
 
-	if storageConfigured != 1 {
-		err = fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
-		drv = nil
+	if len(drivers) != 1 {
+		var names []string
+		for _, drv := range drivers {
+			names = append(names, drv.GetName())
+		}
+		return nil, fmt.Errorf("exactly one storage backend should be configured at the same time, got %d: %v", len(drivers), names)
 	}
 
-	return
+	return drivers[0], nil
 }
