@@ -8,6 +8,7 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 // randomSecretSize is the number of random bytes to generate if no secret
@@ -36,6 +37,16 @@ func completeResource(cr *regopapi.OpenShiftDockerRegistry, p *parameters.Global
 			return fmt.Errorf("duplication of names has been detected in the additional routes")
 		}
 		names[routeSpec.Name] = struct{}{}
+	}
+
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
+	if err != nil {
+		return err
+	}
+
+	err = driver.CompleteConfiguration()
+	if err != nil {
+		return err
 	}
 
 	return nil

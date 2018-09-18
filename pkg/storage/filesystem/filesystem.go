@@ -46,3 +46,7 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
+
+func (d *driver) CompleteConfiguration() error {
+	return nil
+}

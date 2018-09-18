@@ -31,3 +31,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
+
+func (d *driver) CompleteConfiguration() error {
+	return nil
+}

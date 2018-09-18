@@ -18,6 +18,7 @@ type Driver interface {
 	GetName() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
+	CompleteConfiguration() error
 }
 
 func NewDriver(cfg *opapi.OpenShiftDockerRegistryConfigStorage) (Driver, error) {
