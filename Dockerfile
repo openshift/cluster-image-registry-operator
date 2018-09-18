@@ -9,5 +9,5 @@ RUN useradd cluster-image-registry-operator
 USER cluster-image-registry-operator
 
 COPY --from=0 /go/src/github.com/openshift/cluster-image-registry-operator /usr/bin
-COPY deploy/image-references deploy/00-crd.yaml deploy/01-namespace.yaml deploy/03-operator.yaml deploy/02-rbac.yaml /manifests/
+COPY deploy/image-references deploy/crd.yaml deploy/namespace.yaml deploy/operator.yaml deploy/rbac.yaml /manifests/
 LABEL io.openshift.release.operator true
