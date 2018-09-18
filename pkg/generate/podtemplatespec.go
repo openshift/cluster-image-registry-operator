@@ -16,6 +16,7 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
@@ -122,17 +123,38 @@ func getConfigMapChecksum(p *parameters.Globals) (string, error) {
 	return checksum(o)
 }
 
+func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (name string, envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+	var driver storage.Driver
+
+	driver, err = storage.NewDriver(cfg)
+	if err != nil {
+		return
+	}
+
+	name = driver.GetName()
+
+	envs, err = driver.ConfigEnv()
+	if err != nil {
+		return
+	}
+
+	volumes, mounts, err = driver.Volumes()
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
-	storageType := ""
+	storageType, env, volumes, mounts, err := storageConfigure(&cr.Spec.Storage)
+	if err != nil {
+			return corev1.PodTemplateSpec{}, nil, err
+	}
 
-	var (
-		storageConfigured int
-		env               []corev1.EnvVar
-		mounts            []corev1.VolumeMount
-		volumes           []corev1.Volume
-	)
-
-	annotations := make(map[string]string)
+	annotations := map[string]string{
+		parameters.StorageTypeOperatorAnnotation: storageType,
+	}
 
 	env = append(env,
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
@@ -143,139 +165,6 @@ func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
 	)
-
-	if cr.Spec.Storage.Filesystem != nil {
-		if cr.Spec.Storage.Filesystem.VolumeSource.HostPath != nil {
-			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("HostPath is not supported")
-		}
-
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "filesystem"},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY", Value: "/registry"},
-		)
-
-		vol := corev1.Volume{
-			Name:         "registry-storage",
-			VolumeSource: cr.Spec.Storage.Filesystem.VolumeSource,
-		}
-
-		volumes = append(volumes, vol)
-		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/registry"})
-
-		storageConfigured += 1
-	}
-
-	if cr.Spec.Storage.Azure != nil {
-		storageType = "azure"
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: cr.Spec.Storage.Azure.Container},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
-					},
-				},
-			},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
-					},
-				},
-			},
-		)
-		storageConfigured += 1
-	}
-
-	if cr.Spec.Storage.GCS != nil {
-		storageType = "gcs"
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: cr.Spec.Storage.GCS.Bucket},
-		)
-		storageConfigured += 1
-	}
-
-	if cr.Spec.Storage.S3 != nil {
-		storageType = "s3"
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: cr.Spec.Storage.S3.Bucket},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: cr.Spec.Storage.S3.Region},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: cr.Spec.Storage.S3.RegionEndpoint},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt)},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_S3_ACCESSKEY",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_S3_ACCESSKEY",
-					},
-				},
-			},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_S3_SECRETKEY",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_S3_SECRETKEY",
-					},
-				},
-			},
-		)
-		storageConfigured += 1
-	}
-
-	if cr.Spec.Storage.Swift != nil {
-		storageType = "swift"
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: storageType},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: cr.Spec.Storage.Swift.AuthURL},
-			corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: cr.Spec.Storage.Swift.Container},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_SWIFT_USERNAME",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
-					},
-				},
-			},
-			corev1.EnvVar{
-				Name: "REGISTRY_STORAGE_SWIFT_PASSWORD",
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: "image-registry-private-configuration",
-						},
-						Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
-					},
-				},
-			},
-		)
-		storageConfigured += 1
-	}
-
-	if storageConfigured == 1 {
-		annotations[parameters.StorageTypeOperatorAnnotation] = storageType
-	} else {
-		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("it is not possible to initialize more than one storage backend at the same time")
-	}
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
 		if cr.Spec.Requests.Read.MaxRunning < 0 {
