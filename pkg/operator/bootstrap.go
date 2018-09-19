@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"crypto/rand"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -11,7 +12,12 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
+
+// randomSecretSize is the number of random bytes to generate if no secret
+// was specified.
+const randomSecretSize = 64
 
 func (h *Handler) bootstrap() error {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
@@ -52,6 +58,24 @@ func (h *Handler) bootstrap() error {
 			},
 		},
 		Replicas: 1,
+	}
+
+	if len(cr.Spec.HTTPSecret) == 0 {
+		var secretBytes [randomSecretSize]byte
+		if _, err := rand.Read(secretBytes[:]); err != nil {
+			return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
+		}
+		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
+	}
+
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
+	if err != nil {
+		return err
+	}
+
+	err = driver.CompleteConfiguration()
+	if err != nil {
+		return err
 	}
 
 	return sdk.Create(cr)
