@@ -1,6 +1,11 @@
 package gcs
 
 import (
+	"context"
+
+	"cloud.google.com/go/compute/metadata"
+	"cloud.google.com/go/storage"
+
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
@@ -33,5 +38,25 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 }
 
 func (d *driver) CompleteConfiguration() error {
+	if len(d.Config.Bucket) == 0 {
+		d.Config.Bucket = "image-registry"
+
+		projectID, err := metadata.NewClient(nil).ProjectID()
+		if err != nil {
+			return err
+		}
+
+		ctx := context.Background()
+
+		client, err := storage.NewClient(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }

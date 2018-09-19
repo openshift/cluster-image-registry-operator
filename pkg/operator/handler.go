@@ -275,7 +275,7 @@ func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
 func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	modified := false
 
-	err := completeResource(o, &h.params, &modified)
+	err := verifyResource(o, &h.params)
 	if err != nil {
 		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err), &modified)
 		return true
