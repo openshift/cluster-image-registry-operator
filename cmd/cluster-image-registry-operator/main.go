@@ -11,6 +11,7 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
+	"github.com/openshift/cluster-image-registry-operator/version"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -20,6 +21,7 @@ import (
 )
 
 func printVersion() {
+	logrus.Infof("Cluster Image Registry Operator Version: %s", version.Version)
 	logrus.Infof("Go Version: %s", runtime.Version())
 	logrus.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
 	logrus.Infof("operator-sdk Version: %v", sdkVersion.Version)
