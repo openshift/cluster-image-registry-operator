@@ -9,7 +9,7 @@ generate:
 	operator-sdk generate k8s
 
 build:
-	go build "./cmd/$(PROG)"
+	go build -ldflags "-X github.com/openshift/cluster-image-registry-operator/version.Version=$$(git describe --tags --always --dirty)" "./cmd/$(PROG)"
 
 build-image:
 	docker build -t "$(IMAGE)" .
