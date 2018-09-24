@@ -2,7 +2,6 @@ package parameters
 
 const (
 	ChecksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/checksum"
-	StorageTypeOperatorAnnotation = "dockerregistry.operator.openshift.io/storagetype"
 
 	SecretChecksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/secret-checksum"
 	ConfigMapChecksumOperatorAnnotation = "dockerregistry.operator.openshift.io/configmap-checksum"

@@ -123,15 +123,13 @@ func getConfigMapChecksum(p *parameters.Globals) (string, error) {
 	return checksum(o)
 }
 
-func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (name string, envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
 	driver, err = storage.NewDriver(cfg)
 	if err != nil {
 		return
 	}
-
-	name = driver.GetName()
 
 	envs, err = driver.ConfigEnv()
 	if err != nil {
@@ -147,14 +145,12 @@ func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (name 
 }
 
 func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
-	storageType, env, volumes, mounts, err := storageConfigure(&cr.Spec.Storage)
+	env, volumes, mounts, err := storageConfigure(&cr.Spec.Storage)
 	if err != nil {
-			return corev1.PodTemplateSpec{}, nil, err
+		return corev1.PodTemplateSpec{}, nil, err
 	}
 
-	annotations := map[string]string{
-		parameters.StorageTypeOperatorAnnotation: storageType,
-	}
+	annotations := map[string]string{}
 
 	env = append(env,
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},

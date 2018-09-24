@@ -19,6 +19,7 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 func NewHandler(namespace string) (sdk.Handler, error) {
@@ -281,6 +282,24 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
+	configState, err := generate.GetConfigState(h.params.Deployment.Namespace)
+	if err != nil {
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to get previous config state: %s", err), &modified)
+		return true
+	}
+
+	driver, err := storage.NewDriver(&o.Spec.Storage)
+	if err != nil {
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to create storage driver: %s", err), &modified)
+		return true
+	}
+
+	err = driver.ValidateConfiguration(configState)
+	if err != nil {
+		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("bad custom resource: %s", err), &modified)
+		return true
+	}
+
 	err = generate.ApplyTemplate(generate.ConfigMap(o, &h.params), &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply config map: %s", err), &modified)
@@ -353,6 +372,12 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	err = generate.ApplyTemplate(dc, &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
+		return true
+	}
+
+	err = generate.SetConfigState(o, configState)
+	if err != nil {
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to write current config state: %s", err), &modified)
 		return true
 	}
 
