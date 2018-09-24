@@ -1,10 +1,7 @@
 package generate
 
 import (
-	"fmt"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	appsapi "github.com/openshift/api/apps/v1"
 
@@ -47,20 +44,5 @@ func DeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Global
 	return Template{
 		Object:   dc,
 		Strategy: strategy.DeploymentConfig{},
-		Validator: func(obj runtime.Object) error {
-			o, ok := obj.(*appsapi.DeploymentConfig)
-			if !ok {
-				return fmt.Errorf("bad object: got %T, want *appsv1.DeploymentConfig", obj)
-			}
-			if annotations != nil && o.ObjectMeta.Annotations != nil {
-				curStorage, curOK := annotations[parameters.StorageTypeOperatorAnnotation]
-				newStorage, newOK := o.ObjectMeta.Annotations[parameters.StorageTypeOperatorAnnotation]
-
-				if curOK && newOK && curStorage != newStorage {
-					return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", curStorage, newStorage)
-				}
-			}
-			return nil
-		},
 	}, nil
 }

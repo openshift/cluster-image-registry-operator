@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"context"
+	"fmt"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
@@ -58,5 +59,25 @@ func (d *driver) CompleteConfiguration() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
+	if v, ok := prevState.Data["storagetype"]; ok {
+		if v != d.GetName() {
+			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
+		}
+	} else {
+		prevState.Data["storagetype"] = d.GetName()
+	}
+
+	if v, ok := prevState.Data["gcs-bucket"]; ok {
+		if v != d.Config.Bucket {
+			return fmt.Errorf("GCS bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
+		}
+	} else {
+		prevState.Data["gcs-bucket"] = d.Config.Bucket
+	}
+
 	return nil
 }
