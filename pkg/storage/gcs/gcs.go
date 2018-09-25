@@ -3,9 +3,11 @@ package gcs
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/googleapi"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -40,8 +42,6 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 
 func (d *driver) CompleteConfiguration() error {
 	if len(d.Config.Bucket) == 0 {
-		d.Config.Bucket = "image-registry"
-
 		projectID, err := metadata.NewClient(nil).ProjectID()
 		if err != nil {
 			return err
@@ -54,9 +54,22 @@ func (d *driver) CompleteConfiguration() error {
 			return err
 		}
 
-		err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
-		if err != nil {
-			return err
+		d.Config.Bucket = fmt.Sprintf("image-registry-%d", time.Now().UnixNano())
+
+		for {
+			err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
+
+			switch e := err.(type) {
+			case nil:
+				break
+			case *googleapi.Error:
+				// Code 429 has already been processed.
+				if e.Code >= 400 && e.Code < 500 {
+					return err
+				}
+			}
+
+			d.Config.Bucket = fmt.Sprintf("image-registry-%d", time.Now().UnixNano())
 		}
 	}
 	return nil
