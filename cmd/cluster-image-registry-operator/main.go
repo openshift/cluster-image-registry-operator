@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"runtime"
+	"time"
 
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,7 @@ func printVersion() {
 	logrus.Infof("operator-sdk Version: %v", sdkVersion.Version)
 }
 
-func watch(apiVersion, kind, namespace string, resyncPeriod int) {
+func watch(apiVersion, kind, namespace string, resyncPeriod time.Duration) {
 	logrus.Infof("Watching %s, %s, %s, %d", apiVersion, kind, namespace, resyncPeriod)
 	sdk.Watch(apiVersion, kind, namespace, resyncPeriod)
 }
@@ -53,7 +54,7 @@ func main() {
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
-	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 5)
+	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 10*time.Minute)
 
 	sdk.Handle(handler)
 	sdk.Run(context.TODO())

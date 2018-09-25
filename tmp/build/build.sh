@@ -14,5 +14,7 @@ mkdir -p ${BIN_DIR}
 PROJECT_NAME="cluster-image-registry-operator"
 REPO_PATH="github.com/openshift/cluster-image-registry-operator"
 BUILD_PATH="${REPO_PATH}/cmd/${PROJECT_NAME}"
-echo "building "${PROJECT_NAME}"..."
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ${BIN_DIR}/${PROJECT_NAME} $BUILD_PATH
+VERSION="$(git describe --tags --always --dirty)"
+GO_LDFLAGS="-X ${REPO_PATH}/version.Version=${VERSION}"
+echo "building ${PROJECT_NAME}..."
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o ${BIN_DIR}/${PROJECT_NAME} -ldflags "${GO_LDFLAGS}" $BUILD_PATH
