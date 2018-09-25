@@ -166,8 +166,8 @@
 [[projects]]
   branch = "master"
   name = "github.com/operator-framework/operator-sdk"
-  packages = ["pkg/k8sclient","pkg/sdk","pkg/sdk/internal/metrics","pkg/util/k8sutil","version"]
-  revision = "9314564aede3cf664a49fe670d6f3efdc84dd7e7"
+  packages = ["pkg/k8sclient","pkg/sdk","pkg/sdk/internal/metrics","pkg/test","pkg/util/k8sutil","version"]
+  revision = "d23344453ec6124f1555fafc2e66230f98410bbb"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -295,6 +295,11 @@
   revision = "73d903622b7391f3312dcbac6483fed484e185f8"
 
 [[projects]]
+  name = "k8s.io/apiextensions-apiserver"
+  packages = ["pkg/apis/apiextensions","pkg/apis/apiextensions/v1beta1","pkg/client/clientset/clientset","pkg/client/clientset/clientset/scheme","pkg/client/clientset/clientset/typed/apiextensions/v1beta1"]
+  revision = "4347b330d0ff094db860f2f75fa725b4f4b53618"
+
+[[projects]]
   name = "k8s.io/apimachinery"
   packages = ["pkg/api/errors","pkg/api/meta","pkg/api/resource","pkg/apis/meta/internalversion","pkg/apis/meta/v1","pkg/apis/meta/v1/unstructured","pkg/apis/meta/v1beta1","pkg/conversion","pkg/conversion/queryparams","pkg/fields","pkg/labels","pkg/runtime","pkg/runtime/schema","pkg/runtime/serializer","pkg/runtime/serializer/json","pkg/runtime/serializer/protobuf","pkg/runtime/serializer/recognizer","pkg/runtime/serializer/streaming","pkg/runtime/serializer/versioning","pkg/selection","pkg/types","pkg/util/cache","pkg/util/clock","pkg/util/diff","pkg/util/errors","pkg/util/framer","pkg/util/intstr","pkg/util/json","pkg/util/net","pkg/util/runtime","pkg/util/sets","pkg/util/validation","pkg/util/validation/field","pkg/util/wait","pkg/util/yaml","pkg/version","pkg/watch","third_party/forked/golang/reflect"]
   revision = "302974c03f7e50f16561ba237db776ab93594ef6"
@@ -321,9 +326,14 @@
   packages = ["cmd/openapi-gen/args","pkg/common","pkg/generators","pkg/generators/rules","pkg/util/sets"]
   revision = "e3762e86a74c878ffed47484592986685639c2cd"
 
+[[projects]]
+  name = "sigs.k8s.io/controller-runtime"
+  packages = ["pkg/client","pkg/client/apiutil"]
+  revision = "60bb251ad86f9b313653618aad0c2c53f41a6625"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a888ebde17be5ef2702fa752b59b6eeff272607470f250b19638d0407d06c475"
+  inputs-digest = "a2ea6f276fe6e81f93648e5c4fc45a5fc8d7518abaf5243a3ff694546640d7e5"
   solver-name = "gps-cdcl"
   solver-version = 1
