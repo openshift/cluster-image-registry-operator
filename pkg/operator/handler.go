@@ -209,7 +209,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		statusChanged = h.applyResource(cr)
+		statusChanged = h.ResyncResources(cr)
 	}
 
 	if cr != nil && statusChanged {
@@ -273,7 +273,38 @@ func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
 	return modified
 }
 
-func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
+func (h *Handler) GenerateTemplates(o *regopapi.OpenShiftDockerRegistry, p *parameters.Globals) ([]generate.Template, error) {
+	var ret []generate.Template
+
+	ret = append(ret, generate.ConfigMap(o, p))
+	ret = append(ret, generate.Secret(o, p))
+	ret = append(ret, generate.ServiceAccount(o, p))
+	ret = append(ret, generate.ClusterRole(o))
+	ret = append(ret, generate.ClusterRoleBinding(o, p))
+	ret = append(ret, generate.Service(o, p))
+
+	if o.Spec.DefaultRoute {
+		ret = append(ret, generate.DefaultRoute(o, p))
+	}
+
+	for _, routeSpec := range o.Spec.Routes {
+		route, err := generate.Route(o, &routeSpec, p)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, route)
+	}
+
+	dc, err := h.generateDeployment(o, p)
+	if err != nil {
+		return nil, err
+	}
+	ret = append(ret, dc)
+
+	return ret, nil
+}
+
+func (h *Handler) ResyncResources(o *regopapi.OpenShiftDockerRegistry) bool {
 	modified := false
 
 	err := verifyResource(o, &h.params)
@@ -300,65 +331,16 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 		return true
 	}
 
-	err = generate.ApplyTemplate(generate.ConfigMap(o, &h.params), &modified)
+	templetes, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply config map: %s", err), &modified)
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to genetate templates %s", err), &modified)
 		return true
 	}
 
-	err = generate.ApplyTemplate(generate.Secret(o, &h.params), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply secret: %s", err), &modified)
-		return true
-	}
-
-	dc, err := h.generateDeployment(o, &h.params)
-	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(generate.ServiceAccount(o, &h.params), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service account: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(generate.ClusterRole(o), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(generate.ClusterRoleBinding(o, &h.params), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply cluster role binding: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(generate.Service(o, &h.params), &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply service: %s", err), &modified)
-		return true
-	}
-
-	if o.Spec.DefaultRoute {
-		err = generate.ApplyTemplate(generate.DefaultRoute(o, &h.params), &modified)
+	for _, tpl := range templetes {
+		err = generate.ApplyTemplate(tpl, &modified)
 		if err != nil {
-			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply default route: %s", err), &modified)
-			return true
-		}
-	}
-
-	for _, routeSpec := range o.Spec.Routes {
-		route, err := generate.Route(o, &routeSpec, &h.params)
-		if err != nil {
-			conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make additional route %s: %s", routeSpec.Name, err), &modified)
-			return true
-		}
-		err = generate.ApplyTemplate(route, &modified)
-		if err != nil {
-			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply additional route: %s", err), &modified)
+			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply objects: %s", err), &modified)
 			return true
 		}
 	}
@@ -366,12 +348,6 @@ func (h *Handler) applyResource(o *regopapi.OpenShiftDockerRegistry) bool {
 	err = syncRoutes(o, &h.params, &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to sync routes: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(dc, &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
 		return true
 	}
 
