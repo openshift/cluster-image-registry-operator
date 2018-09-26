@@ -1,9 +1,0 @@
-FROM docker.io/library/centos:7
-
-RUN useradd cluster-image-registry-operator
-USER cluster-image-registry-operator
-
-COPY cluster-image-registry-operator /usr/bin
-COPY deploy/image-references deploy/*.yaml /manifests/
-
-LABEL io.openshift.release.operator true
