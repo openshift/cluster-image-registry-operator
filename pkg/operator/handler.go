@@ -333,7 +333,7 @@ func (h *Handler) ResyncResources(o *regopapi.ImageRegistry) bool {
 
 	templetes, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to genetate templates %s", err), &modified)
+		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to genetate templates: %s", err), &modified)
 		return true
 	}
 
