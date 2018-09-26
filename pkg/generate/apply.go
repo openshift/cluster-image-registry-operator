@@ -22,7 +22,7 @@ func checksum(o interface{}) (string, error) {
 	return fmt.Sprintf("sha256:%x", sha256.Sum256(data)), nil
 }
 
-func ApplyTemplate(tmpl Template, modified *bool) error {
+func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 	expected := tmpl.Expected()
 
 	dgst, err := checksum(expected)
@@ -39,7 +39,9 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 				return fmt.Errorf("failed to get %s: %s", tmpl.Name(), err)
 			}
 			err = sdk.Create(expected)
-			*modified = err == nil
+			if err == nil {
+				*modified = true
+			}
 			return err
 		}
 
@@ -56,7 +58,7 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 		}
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-		if ok && dgst == curdgst {
+		if !force && ok && dgst == curdgst {
 			return nil
 		}
 
@@ -75,8 +77,14 @@ func ApplyTemplate(tmpl Template, modified *bool) error {
 		}
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
+		if force {
+			updatedMeta.SetGeneration(currentMeta.GetGeneration()+1)
+		}
+
 		err = sdk.Update(updated)
-		*modified = err == nil
+		if err == nil {
+			*modified = true
+		}
 		return err
 	})
 }

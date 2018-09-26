@@ -262,7 +262,7 @@ func (h *Handler) reRollout(o *regopapi.ImageRegistry) bool {
 		return true
 	}
 
-	err = generate.ApplyTemplate(dc, &modified)
+	err = generate.ApplyTemplate(dc, true, &modified)
 	if err != nil {
 		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
 		return true
@@ -338,7 +338,7 @@ func (h *Handler) ResyncResources(o *regopapi.ImageRegistry) bool {
 	}
 
 	for _, tpl := range templetes {
-		err = generate.ApplyTemplate(tpl, &modified)
+		err = generate.ApplyTemplate(tpl, false, &modified)
 		if err != nil {
 			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply objects: %s", err), &modified)
 			return true
