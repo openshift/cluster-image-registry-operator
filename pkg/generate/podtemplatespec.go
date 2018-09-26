@@ -94,35 +94,6 @@ func generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*cor
 	}, nil
 }
 
-func getSecretChecksum(p *parameters.Globals) (string, error) {
-	o, err := getSecret("image-registry-private-configuration", p.Deployment.Namespace)
-	if err != nil {
-		return "", err
-	}
-
-	return checksum(o)
-}
-
-func getConfigMapChecksum(p *parameters.Globals) (string, error) {
-	o := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry-certificates",
-			Namespace: p.Deployment.Namespace,
-		},
-	}
-
-	err := sdk.Get(o)
-	if err != nil {
-		return "", err
-	}
-
-	return checksum(o)
-}
-
 func storageConfigure(cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
@@ -236,23 +207,9 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
 
-	secretChecksum, err := getSecretChecksum(p)
-	if err != nil {
-		return corev1.PodTemplateSpec{}, nil, err
-	}
-
-	configmapChecksum, err := getConfigMapChecksum(p)
-	if err != nil {
-		return corev1.PodTemplateSpec{}, nil, err
-	}
-
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: p.Deployment.Labels,
-			Annotations: map[string]string{
-				parameters.SecretChecksumOperatorAnnotation:    secretChecksum,
-				parameters.ConfigMapChecksumOperatorAnnotation: configmapChecksum,
-			},
 		},
 		Spec: corev1.PodSpec{
 			NodeSelector: cr.Spec.NodeSelector,

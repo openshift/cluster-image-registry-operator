@@ -3,9 +3,6 @@ package parameters
 const (
 	ChecksumOperatorAnnotation = "imageregistry.operator.openshift.io/checksum"
 
-	SecretChecksumOperatorAnnotation    = "imageregistry.operator.openshift.io/secret-checksum"
-	ConfigMapChecksumOperatorAnnotation = "imageregistry.operator.openshift.io/configmap-checksum"
-
 	SupplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
 )
 
