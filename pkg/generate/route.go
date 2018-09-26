@@ -5,12 +5,12 @@ import (
 
 	routeapi "github.com/openshift/api/route/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func DefaultRoute(cr *regopapi.OpenShiftDockerRegistry, p *parameters.Globals) Template {
+func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) Template {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -41,7 +41,7 @@ func DefaultRoute(cr *regopapi.OpenShiftDockerRegistry, p *parameters.Globals) T
 	}
 }
 
-func Route(cr *regopapi.OpenShiftDockerRegistry, route *regopapi.OpenShiftDockerRegistryConfigRoute, p *parameters.Globals) (Template, error) {
+func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute, p *parameters.Globals) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),

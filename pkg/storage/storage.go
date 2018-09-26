@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/filesystem"
@@ -22,7 +22,7 @@ type Driver interface {
 	ValidateConfiguration(*corev1.ConfigMap) error
 }
 
-func NewDriver(cfg *opapi.OpenShiftDockerRegistryConfigStorage) (Driver, error) {
+func NewDriver(cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
 	var drivers []Driver
 
 	if cfg.Azure != nil {

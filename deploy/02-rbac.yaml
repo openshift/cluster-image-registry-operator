@@ -5,7 +5,7 @@ metadata:
   name: cluster-image-registry-operator
 rules:
 - apiGroups:
-  - dockerregistry.operator.openshift.io
+  - imageregistry.operator.openshift.io
   resources:
   - "*"
   verbs:

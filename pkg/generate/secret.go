@@ -6,7 +6,7 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
@@ -31,7 +31,7 @@ func getSecret(name, namespace string) (*corev1.Secret, error) {
 	return o, nil
 }
 
-func Secret(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) Template {
+func Secret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
 	s := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),

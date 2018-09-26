@@ -8,12 +8,12 @@ import (
 
 	authapi "github.com/openshift/api/authorization/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ClusterRoleBinding(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) Template {
+func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
