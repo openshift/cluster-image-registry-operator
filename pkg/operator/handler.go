@@ -85,7 +85,7 @@ func updateCondition(cr *regopapi.OpenShiftDockerRegistry, condition *operatorap
 
 func conditionResourceValid(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
-		logrus.Error(m)
+		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
 
 	changed := updateCondition(cr, &operatorapi.OperatorCondition{
@@ -103,7 +103,7 @@ func conditionResourceValid(cr *regopapi.OpenShiftDockerRegistry, status operato
 
 func conditionResourceApply(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
-		logrus.Error(m)
+		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
 
 	changed := updateCondition(cr, &operatorapi.OperatorCondition{
@@ -121,7 +121,7 @@ func conditionResourceApply(cr *regopapi.OpenShiftDockerRegistry, status operato
 
 func conditionDeployment(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
-		logrus.Error(m)
+		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
 
 	changed := updateCondition(cr, &operatorapi.OperatorCondition{
