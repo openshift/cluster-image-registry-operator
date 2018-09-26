@@ -9,7 +9,7 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/version"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
@@ -53,7 +53,7 @@ func main() {
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
-	watch(regopapi.SchemeGroupVersion.String(), "OpenShiftDockerRegistry", namespace, 5)
+	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 5)
 
 	sdk.Handle(handler)
 	sdk.Run(context.TODO())

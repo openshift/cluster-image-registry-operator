@@ -10,7 +10,7 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 )
 
 func GetConfigState(namespace string) (*corev1.ConfigMap, error) {
@@ -35,7 +35,7 @@ func GetConfigState(namespace string) (*corev1.ConfigMap, error) {
 	return cm, nil
 }
 
-func SetConfigState(cr *v1alpha1.OpenShiftDockerRegistry, cm *corev1.ConfigMap) error {
+func SetConfigState(cr *v1alpha1.ImageRegistry, cm *corev1.ConfigMap) error {
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		cur := &corev1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{

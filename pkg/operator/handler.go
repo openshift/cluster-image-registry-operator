@@ -15,7 +15,7 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -57,7 +57,7 @@ type Handler struct {
 	generateDeployment generate.Generator
 }
 
-func updateCondition(cr *regopapi.OpenShiftDockerRegistry, condition *operatorapi.OperatorCondition) bool {
+func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition) bool {
 	modified := false
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
@@ -83,7 +83,7 @@ func updateCondition(cr *regopapi.OpenShiftDockerRegistry, condition *operatorap
 	return modified
 }
 
-func conditionResourceValid(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+func conditionResourceValid(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
@@ -101,7 +101,7 @@ func conditionResourceValid(cr *regopapi.OpenShiftDockerRegistry, status operato
 	}
 }
 
-func conditionResourceApply(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+func conditionResourceApply(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
@@ -119,7 +119,7 @@ func conditionResourceApply(cr *regopapi.OpenShiftDockerRegistry, status operato
 	}
 }
 
-func conditionDeployment(cr *regopapi.OpenShiftDockerRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+func conditionDeployment(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
 	}
@@ -147,12 +147,12 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	var (
 		statusChanged bool
 		err           error
-		cr            *regopapi.OpenShiftDockerRegistry
+		cr            *regopapi.ImageRegistry
 	)
 
 	switch event.Object.(type) {
 	case *kappsapi.Deployment:
-		cr, err = h.getOpenShiftDockerRegistry()
+		cr, err = h.getImageRegistry()
 		if err != nil {
 			return err
 		}
@@ -170,7 +170,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 	case *appsapi.DeploymentConfig:
-		cr, err = h.getOpenShiftDockerRegistry()
+		cr, err = h.getImageRegistry()
 		if err != nil {
 			return err
 		}
@@ -189,7 +189,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 	case *corev1.ConfigMap, *corev1.Secret:
 
-		cr, err = h.getOpenShiftDockerRegistry()
+		cr, err = h.getImageRegistry()
 		if err != nil {
 			return err
 		}
@@ -202,8 +202,8 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 		statusChanged = h.reRollout(cr)
 
-	case *regopapi.OpenShiftDockerRegistry:
-		cr = event.Object.(*regopapi.OpenShiftDockerRegistry)
+	case *regopapi.ImageRegistry:
+		cr = event.Object.(*regopapi.ImageRegistry)
 
 		if cr.Spec.ManagementState != operatorapi.Managed {
 			return nil
@@ -226,11 +226,11 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	return nil
 }
 
-func (h *Handler) getOpenShiftDockerRegistry() (*regopapi.OpenShiftDockerRegistry, error) {
-	cr := &regopapi.OpenShiftDockerRegistry{
+func (h *Handler) getImageRegistry() (*regopapi.ImageRegistry, error) {
+	cr := &regopapi.ImageRegistry{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: regopapi.SchemeGroupVersion.String(),
-			Kind:       "OpenShiftDockerRegistry",
+			Kind:       "ImageRegistry",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "image-registry",
@@ -253,7 +253,7 @@ func (h *Handler) getOpenShiftDockerRegistry() (*regopapi.OpenShiftDockerRegistr
 	return cr, nil
 }
 
-func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
+func (h *Handler) reRollout(o *regopapi.ImageRegistry) bool {
 	modified := false
 
 	dc, err := h.generateDeployment(o, &h.params)
@@ -273,7 +273,7 @@ func (h *Handler) reRollout(o *regopapi.OpenShiftDockerRegistry) bool {
 	return modified
 }
 
-func (h *Handler) GenerateTemplates(o *regopapi.OpenShiftDockerRegistry, p *parameters.Globals) ([]generate.Template, error) {
+func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) ([]generate.Template, error) {
 	var ret []generate.Template
 
 	ret = append(ret, generate.ConfigMap(o, p))
@@ -304,7 +304,7 @@ func (h *Handler) GenerateTemplates(o *regopapi.OpenShiftDockerRegistry, p *para
 	return ret, nil
 }
 
-func (h *Handler) ResyncResources(o *regopapi.OpenShiftDockerRegistry) bool {
+func (h *Handler) ResyncResources(o *regopapi.ImageRegistry) bool {
 	modified := false
 
 	err := verifyResource(o, &h.params)

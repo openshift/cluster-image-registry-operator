@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 )
 
 const (
@@ -13,10 +13,10 @@ const (
 )
 
 type driver struct {
-	Config *opapi.OpenShiftDockerRegistryConfigStorageFilesystem
+	Config *opapi.ImageRegistryConfigStorageFilesystem
 }
 
-func NewDriver(c *opapi.OpenShiftDockerRegistryConfigStorageFilesystem) *driver {
+func NewDriver(c *opapi.ImageRegistryConfigStorageFilesystem) *driver {
 	return &driver{
 		Config: c,
 	}

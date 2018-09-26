@@ -1,10 +1,10 @@
 package parameters
 
 const (
-	ChecksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/checksum"
+	ChecksumOperatorAnnotation = "imageregistry.operator.openshift.io/checksum"
 
-	SecretChecksumOperatorAnnotation    = "dockerregistry.operator.openshift.io/secret-checksum"
-	ConfigMapChecksumOperatorAnnotation = "dockerregistry.operator.openshift.io/configmap-checksum"
+	SecretChecksumOperatorAnnotation    = "imageregistry.operator.openshift.io/secret-checksum"
+	ConfigMapChecksumOperatorAnnotation = "imageregistry.operator.openshift.io/configmap-checksum"
 
 	SupplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
 )

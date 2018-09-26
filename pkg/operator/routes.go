@@ -9,11 +9,11 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func syncRoutes(o *regopapi.OpenShiftDockerRegistry, p *parameters.Globals, modified *bool) error {
+func syncRoutes(o *regopapi.ImageRegistry, p *parameters.Globals, modified *bool) error {
 	routeList := &routeapi.RouteList{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),

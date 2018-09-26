@@ -5,11 +5,11 @@ import (
 
 	authapi "github.com/openshift/api/authorization/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ClusterRole(cr *v1alpha1.OpenShiftDockerRegistry) Template {
+func ClusterRole(cr *v1alpha1.ImageRegistry) Template {
 	role := &authapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",

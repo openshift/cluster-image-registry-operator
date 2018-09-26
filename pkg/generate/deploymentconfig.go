@@ -5,12 +5,12 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func DeploymentConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (Template, error) {
+func DeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	podTemplateSpec, annotations, err := PodTemplateSpec(cr, p)
 	if err != nil {
 		return Template{}, err

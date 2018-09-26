@@ -14,12 +14,12 @@ import (
 
 	projectapi "github.com/openshift/api/project/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
-func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
+func generateLogLevel(cr *v1alpha1.ImageRegistry) string {
 	switch cr.Spec.Logging.Level {
 	case 0:
 		return "error"
@@ -31,18 +31,18 @@ func generateLogLevel(cr *v1alpha1.OpenShiftDockerRegistry) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
+func generateLivenessProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(cr, p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
+func generateReadinessProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	return generateProbeConfig(cr, p)
 }
 
-func generateProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
 	if cr.Spec.TLS {
 		scheme = corev1.URISchemeHTTPS
@@ -59,7 +59,7 @@ func generateProbeConfig(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Glo
 	}
 }
 
-func generateSecurityContext(cr *v1alpha1.OpenShiftDockerRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+func generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
 	ns := &projectapi.Project{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: projectapi.SchemeGroupVersion.String(),
@@ -123,7 +123,7 @@ func getConfigMapChecksum(p *parameters.Globals) (string, error) {
 	return checksum(o)
 }
 
-func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func storageConfigure(cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
 	driver, err = storage.NewDriver(cfg)
@@ -144,7 +144,7 @@ func storageConfigure(cfg *v1alpha1.OpenShiftDockerRegistryConfigStorage) (envs 
 	return
 }
 
-func PodTemplateSpec(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
+func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
 	env, volumes, mounts, err := storageConfigure(&cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err

@@ -4,12 +4,12 @@ import (
 	kappsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/dockerregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func Deployment(cr *v1alpha1.OpenShiftDockerRegistry, p *parameters.Globals) (Template, error) {
+func Deployment(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	podTemplateSpec, annotations, err := PodTemplateSpec(cr, p)
 	if err != nil {
 		return Template{}, err

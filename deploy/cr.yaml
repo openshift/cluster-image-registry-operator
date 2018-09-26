@@ -1,5 +1,5 @@
-apiVersion: dockerregistry.operator.openshift.io/v1alpha1
-kind: OpenShiftDockerRegistry
+apiVersion: imageregistry.operator.openshift.io/v1alpha1
+kind: ImageRegistry
 metadata:
   name: image-registry
 spec:
