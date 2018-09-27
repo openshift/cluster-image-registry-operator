@@ -12,7 +12,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func Service(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
+func Service(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	svc := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -46,5 +46,5 @@ func Service(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
 	return Template{
 		Object:   svc,
 		Strategy: strategy.Service{},
-	}
+	}, nil
 }

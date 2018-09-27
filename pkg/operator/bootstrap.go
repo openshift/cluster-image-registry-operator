@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +21,7 @@ import (
 // was specified.
 const randomSecretSize = 64
 
-func (h *Handler) bootstrap() error {
+func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 
 	cr := &regopapi.ImageRegistry{
@@ -36,11 +38,13 @@ func (h *Handler) bootstrap() error {
 	err := sdk.Get(cr)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get image-registry custom resource: %s", err)
+			return nil, fmt.Errorf("failed to get image-registry custom resource: %s", err)
 		}
 	} else {
-		return nil
+		return cr, nil
 	}
+
+	logrus.Infof("generating registry custom resource")
 
 	cr.Spec = regopapi.ImageRegistrySpec{
 		OperatorSpec: operatorapi.OperatorSpec{
@@ -63,20 +67,20 @@ func (h *Handler) bootstrap() error {
 	if len(cr.Spec.HTTPSecret) == 0 {
 		var secretBytes [randomSecretSize]byte
 		if _, err := rand.Read(secretBytes[:]); err != nil {
-			return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
+			return nil, fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
 		}
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
 
 	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = driver.CompleteConfiguration()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return sdk.Create(cr)
+	return cr, sdk.Create(cr)
 }

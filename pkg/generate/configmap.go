@@ -9,7 +9,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ConfigMap(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
+func ConfigMap(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	cm := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -24,5 +24,5 @@ func ConfigMap(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
 	return Template{
 		Object:   cm,
 		Strategy: strategy.ConfigMap{},
-	}
+	}, nil
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ServiceAccount(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
+func ServiceAccount(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	sa := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -24,5 +24,5 @@ func ServiceAccount(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template 
 	return Template{
 		Object:   sa,
 		Strategy: strategy.Override{},
-	}
+	}, nil
 }

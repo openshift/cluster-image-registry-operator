@@ -11,7 +11,7 @@ func addOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
 	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
 }
 
-// asOwner returns an OwnerReference set as the memcached CR
+// asOwner returns an OwnerReference set as the CR
 func asOwner(cr *v1alpha1.ImageRegistry) metav1.OwnerReference {
 	trueVar := true
 	return metav1.OwnerReference{

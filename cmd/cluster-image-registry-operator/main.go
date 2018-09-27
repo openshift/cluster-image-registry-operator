@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"runtime"
 	"time"
 
@@ -34,6 +35,8 @@ func watch(apiVersion, kind, namespace string, resyncPeriod time.Duration) {
 }
 
 func main() {
+	flag.Parse()
+
 	printVersion()
 
 	sdk.ExposeMetricsPort()

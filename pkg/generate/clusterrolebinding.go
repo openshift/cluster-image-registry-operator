@@ -13,7 +13,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
+func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "rbac.authorization.k8s.io/v1",
@@ -38,5 +38,5 @@ func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Templ
 	return Template{
 		Object:   crb,
 		Strategy: strategy.Override{},
-	}
+	}, nil
 }
