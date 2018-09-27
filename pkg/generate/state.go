@@ -59,3 +59,11 @@ func SetConfigState(cr *v1alpha1.ImageRegistry, cm *corev1.ConfigMap) error {
 		return sdk.Update(cur)
 	})
 }
+
+func RemoveConfigState(cm *corev1.ConfigMap) error {
+	err := sdk.Delete(cm)
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("failed to delete state configmap: %s", err)
+	}
+	return nil
+}

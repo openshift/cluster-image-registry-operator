@@ -78,7 +78,7 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
 		if force {
-			updatedMeta.SetGeneration(currentMeta.GetGeneration()+1)
+			updatedMeta.SetGeneration(currentMeta.GetGeneration() + 1)
 		}
 
 		err = sdk.Update(updated)
@@ -87,4 +87,16 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		}
 		return err
 	})
+}
+
+func RemoveByTemplate(tmpl Template, modified *bool) error {
+	err := sdk.Delete(tmpl.Expected())
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete %s: %s", tmpl.Name(), err)
+		}
+		return nil
+	}
+	*modified = true
+	return nil
 }

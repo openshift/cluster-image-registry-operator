@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +21,7 @@ import (
 // was specified.
 const randomSecretSize = 64
 
-func (h *Handler) bootstrap() (*regopapi.ImageRegistry, error) {
+func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 
 	cr := &regopapi.ImageRegistry{
@@ -41,6 +43,8 @@ func (h *Handler) bootstrap() (*regopapi.ImageRegistry, error) {
 	} else {
 		return cr, nil
 	}
+
+	logrus.Infof("generating registry custom resource")
 
 	cr.Spec = regopapi.ImageRegistrySpec{
 		OperatorSpec: operatorapi.OperatorSpec{
