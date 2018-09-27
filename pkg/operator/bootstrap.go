@@ -24,6 +24,31 @@ const randomSecretSize = 64
 func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 
+	crList := &regopapi.ImageRegistryList{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: regopapi.SchemeGroupVersion.String(),
+			Kind:       "ImageRegistry",
+		},
+	}
+
+	err := sdk.List(h.params.Deployment.Namespace, crList)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, fmt.Errorf("failed to list registry custom resources: %s", err)
+		}
+	}
+
+	switch len(crList.Items) {
+	case 0:
+		// let's create it.
+	case 1:
+		return &crList.Items[0], nil
+	default:
+		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", h.params.Deployment.Namespace, len(crList.Items))
+	}
+
+	logrus.Infof("generating registry custom resource")
+
 	cr := &regopapi.ImageRegistry{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: regopapi.SchemeGroupVersion.String(),
@@ -33,35 +58,23 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 			Name:      "image-registry",
 			Namespace: h.params.Deployment.Namespace,
 		},
-	}
-
-	err := sdk.Get(cr)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get image-registry custom resource: %s", err)
-		}
-	} else {
-		return cr, nil
-	}
-
-	logrus.Infof("generating registry custom resource")
-
-	cr.Spec = regopapi.ImageRegistrySpec{
-		OperatorSpec: operatorapi.OperatorSpec{
-			ManagementState: operatorapi.Managed,
-			Version:         "none",
-			ImagePullSpec:   "docker.io/openshift/origin-docker-registry",
-		},
-		Storage: regopapi.ImageRegistryConfigStorage{
-			Filesystem: &regopapi.ImageRegistryConfigStorageFilesystem{
-				VolumeSource: corev1.VolumeSource{
-					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-						ClaimName: "image-registry-pvc",
+		Spec: regopapi.ImageRegistrySpec{
+			OperatorSpec: operatorapi.OperatorSpec{
+				ManagementState: operatorapi.Managed,
+				Version:         "none",
+				ImagePullSpec:   "docker.io/openshift/origin-docker-registry",
+			},
+			Storage: regopapi.ImageRegistryConfigStorage{
+				Filesystem: &regopapi.ImageRegistryConfigStorageFilesystem{
+					VolumeSource: corev1.VolumeSource{
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "image-registry-pvc",
+						},
 					},
 				},
 			},
+			Replicas: 1,
 		},
-		Replicas: 1,
 	}
 
 	if len(cr.Spec.HTTPSecret) == 0 {
