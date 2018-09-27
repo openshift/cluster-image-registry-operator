@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 	"runtime"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
+var logLevel = flag.String("loglevel", "", "sets the sensitivity of logging output.")
+
 func printVersion() {
 	logrus.Infof("Cluster Image Registry Operator Version: %s", version.Version)
 	logrus.Infof("Go Version: %s", runtime.Version())
@@ -36,6 +39,21 @@ func watch(apiVersion, kind, namespace string, resyncPeriod time.Duration) {
 
 func main() {
 	flag.Parse()
+
+	if len(*logLevel) == 0 {
+		envval := os.Getenv("LOG_LEVEL")
+		if len(envval) > 0 {
+			*logLevel = envval
+		} else {
+			*logLevel = "info"
+		}
+	}
+	lvl, err := logrus.ParseLevel(*logLevel)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	logrus.SetLevel(lvl)
 
 	printVersion()
 

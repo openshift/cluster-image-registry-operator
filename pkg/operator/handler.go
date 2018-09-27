@@ -160,6 +160,7 @@ func (h *Handler) reRollEvent(event sdk.Event, gen generate.Generator) (bool, er
 		if err != nil {
 			return false, err
 		}
+		logrus.Debugf("resource %s is recreated", tmpl.Name())
 		return statusChanged, nil
 	}
 
@@ -195,6 +196,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				return err
 			}
 
+			logrus.Debugf("resource %s is recreated", tmpl.Name())
 			break
 		}
 
@@ -225,6 +227,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				return err
 			}
 
+			logrus.Debugf("resource %s is recreated", tmpl.Name())
 			break
 		}
 
@@ -299,7 +302,7 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 	}
 
 	if ownerRef == nil {
-		logrus.Debugf("unable to find custom resource in object: %#+v", o)
+		logrus.Debugf("unable to find custom resource in object %T %s/%s", o, o.GetNamespace(), o.GetName())
 		return nil, nil
 	}
 
