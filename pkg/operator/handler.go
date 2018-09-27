@@ -138,12 +138,12 @@ func conditionDeployment(cr *regopapi.ImageRegistry, status operatorapi.Conditio
 }
 
 func (h *Handler) reRollEvent(event sdk.Event, gen generate.Generator) (bool, error) {
-	cr, err := h.getImageRegistry()
+	o := event.Object.(metav1.Object)
+
+	cr, err := h.getImageRegistryForResource(o)
 	if err != nil {
 		return false, err
 	}
-
-	o := event.Object.(metav1.Object)
 
 	if cr == nil || !metav1.IsControlledBy(o, cr) {
 		return false, nil
@@ -175,7 +175,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 	switch o := event.Object.(type) {
 	case *kappsapi.Deployment:
-		cr, err = h.getImageRegistry()
+		cr, err = h.getImageRegistryForResource(o)
 		if err != nil {
 			return err
 		}
@@ -205,7 +205,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 	case *appsapi.DeploymentConfig:
-		cr, err = h.getImageRegistry()
+		cr, err = h.getImageRegistryForResource(&o.ObjectMeta)
 		if err != nil {
 			return err
 		}
@@ -288,22 +288,36 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	return nil
 }
 
-func (h *Handler) getImageRegistry() (*regopapi.ImageRegistry, error) {
+func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageRegistry, error) {
+	var ownerRef *metav1.OwnerReference
+
+	for _, ref := range o.GetOwnerReferences() {
+		if ref.Kind == "ImageRegistry" && ref.APIVersion == regopapi.SchemeGroupVersion.String() {
+			ownerRef = &ref
+			break
+		}
+	}
+
+	if ownerRef == nil {
+		logrus.Debugf("unable to find custom resource in object: %#+v", o)
+		return nil, nil
+	}
+
 	cr := &regopapi.ImageRegistry{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: regopapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
+			APIVersion: ownerRef.APIVersion,
+			Kind:       ownerRef.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry",
-			Namespace: h.params.Deployment.Namespace,
+			Name:      ownerRef.Name,
+			Namespace: o.GetNamespace(),
 		},
 	}
 
 	err := sdk.Get(cr)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get image-registry custom resource: %s", err)
+			return nil, fmt.Errorf("failed to get %q custom resource: %s", ownerRef.Name, err)
 		}
 		return nil, nil
 	}
