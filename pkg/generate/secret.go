@@ -31,7 +31,7 @@ func getSecret(name, namespace string) (*corev1.Secret, error) {
 	return o, nil
 }
 
-func Secret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
+func Secret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	s := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -46,5 +46,5 @@ func Secret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) Template {
 	return Template{
 		Object:   s,
 		Strategy: strategy.Secret{},
-	}
+	}, nil
 }

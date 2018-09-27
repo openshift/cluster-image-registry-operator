@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) Template {
+func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -38,7 +38,7 @@ func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) Template {
 	return Template{
 		Object:   r,
 		Strategy: strategy.Override{},
-	}
+	}, nil
 }
 
 func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute, p *parameters.Globals) (Template, error) {
@@ -60,12 +60,12 @@ func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute,
 		},
 	}
 	if cr.Spec.TLS {
+		r.Spec.TLS = &routeapi.TLSConfig{
+			Termination: routeapi.TLSTerminationReencrypt,
+		}
 		secret, err := getSecret(route.SecretName, p.Deployment.Name)
 		if err != nil {
 			return Template{}, err
-		}
-		r.Spec.TLS = &routeapi.TLSConfig{
-			Termination: routeapi.TLSTerminationReencrypt,
 		}
 		if v, ok := secret.StringData["tls.crt"]; ok {
 			r.Spec.TLS.Certificate = v

@@ -44,7 +44,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 		generateDeployment: generate.DeploymentConfig,
 	}
 
-	err := h.bootstrap()
+	_, err := h.bootstrap()
 	if err != nil {
 		return nil, err
 	}
@@ -137,30 +137,65 @@ func conditionDeployment(cr *regopapi.ImageRegistry, status operatorapi.Conditio
 	}
 }
 
-func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
-	// Ignore the delete event since the garbage collector will clean up all secondary resources for the CR
-	// All secondary resources must have the CR set as their OwnerReference for this to be the case
-	if event.Deleted {
-		return nil
-	}
+func (h *Handler) reRollEvent(event sdk.Event, gen generate.Generator) (bool, error) {
+		cr, err := h.getImageRegistry()
+		if err != nil {
+			return false, err
+		}
 
+		o := event.Object.(metav1.Object)
+
+		if cr == nil || !metav1.IsControlledBy(o, cr) {
+			return false, nil
+		}
+
+		statusChanged := false
+
+		if event.Deleted {
+			tmpl, err := gen(cr, &h.params)
+			if err != nil {
+				return false, err
+			}
+			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			if err != nil {
+				return false, err
+			}
+			return statusChanged, nil
+		}
+
+		return h.reRollout(cr), nil
+}
+
+func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	var (
 		statusChanged bool
 		err           error
 		cr            *regopapi.ImageRegistry
 	)
 
-	switch event.Object.(type) {
+	switch o := event.Object.(type) {
 	case *kappsapi.Deployment:
 		cr, err = h.getImageRegistry()
 		if err != nil {
 			return err
 		}
 
-		o := event.Object.(*kappsapi.Deployment)
-
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
 			return nil
+		}
+
+		if event.Deleted {
+			tmpl, err := generate.Deployment(cr, &h.params)
+			if err != nil {
+				return err
+			}
+
+			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			if err != nil {
+				return err
+			}
+
+			break
 		}
 
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
@@ -175,10 +210,22 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return err
 		}
 
-		o := event.Object.(*appsapi.DeploymentConfig)
-
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
 			return nil
+		}
+
+		if event.Deleted {
+			tmpl, err := generate.DeploymentConfig(cr, &h.params)
+			if err != nil {
+				return err
+			}
+
+			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			if err != nil {
+				return err
+			}
+
+			break
 		}
 
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
@@ -187,23 +234,33 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
 		}
 
-	case *corev1.ConfigMap, *corev1.Secret:
-
-		cr, err = h.getImageRegistry()
+	case *corev1.ServiceAccount:
+		statusChanged, err = h.reRollEvent(event, generate.ServiceAccount)
 		if err != nil {
 			return err
 		}
 
-		o := event.Object.(metav1.Object)
-
-		if cr == nil || !metav1.IsControlledBy(o, cr) {
-			return nil
+	case *corev1.ConfigMap:
+		statusChanged, err = h.reRollEvent(event, generate.ConfigMap)
+		if err != nil {
+			return err
 		}
 
-		statusChanged = h.reRollout(cr)
+	case *corev1.Secret:
+		statusChanged, err = h.reRollEvent(event, generate.Secret)
+		if err != nil {
+			return err
+		}
 
 	case *regopapi.ImageRegistry:
-		cr = event.Object.(*regopapi.ImageRegistry)
+		if event.Deleted {
+			cr, err = h.bootstrap()
+			if err != nil {
+				return err
+			}
+		} else {
+			cr = event.Object.(*regopapi.ImageRegistry)
+		}
 
 		if cr.Spec.ManagementState != operatorapi.Managed {
 			return nil
@@ -273,35 +330,38 @@ func (h *Handler) reRollout(o *regopapi.ImageRegistry) bool {
 	return modified
 }
 
-func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) ([]generate.Template, error) {
-	var ret []generate.Template
-
-	ret = append(ret, generate.ConfigMap(o, p))
-	ret = append(ret, generate.Secret(o, p))
-	ret = append(ret, generate.ServiceAccount(o, p))
-	ret = append(ret, generate.ClusterRole(o))
-	ret = append(ret, generate.ClusterRoleBinding(o, p))
-	ret = append(ret, generate.Service(o, p))
+func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) (ret []generate.Template, err error) {
+	generators := []generate.Generator{
+		generate.ClusterRole,
+		generate.ClusterRoleBinding,
+		generate.ServiceAccount,
+		generate.ConfigMap,
+		generate.Secret,
+		generate.Service,
+	}
 
 	if o.Spec.DefaultRoute {
-		ret = append(ret, generate.DefaultRoute(o, p))
+		generators = append(generators, generate.DefaultRoute)
 	}
 
-	for _, routeSpec := range o.Spec.Routes {
-		route, err := generate.Route(o, &routeSpec, p)
+	for i := range o.Spec.Routes {
+		generators = append(generators, func(cr *regopapi.ImageRegistry, p *parameters.Globals) (generate.Template, error) {
+			return generate.Route(o, &o.Spec.Routes[i], p)
+		})
+	}
+
+	generators = append(generators, h.generateDeployment)
+
+	ret = make([]generate.Template, len(generators))
+
+	for i, gen := range generators {
+		ret[i], err = gen(o, p)
 		if err != nil {
-			return nil, err
+			return
 		}
-		ret = append(ret, route)
 	}
 
-	dc, err := h.generateDeployment(o, p)
-	if err != nil {
-		return nil, err
-	}
-	ret = append(ret, dc)
-
-	return ret, nil
+	return
 }
 
 func (h *Handler) ResyncResources(o *regopapi.ImageRegistry) bool {
