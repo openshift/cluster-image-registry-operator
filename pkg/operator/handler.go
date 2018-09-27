@@ -280,7 +280,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		cr.Status.ObservedGeneration = cr.Generation
 
 		err = sdk.Update(cr)
-		if err != nil {
+		if err != nil && !errors.IsConflict(err) {
 			logrus.Errorf("unable to update registry custom resource: %s", err)
 		}
 	}
