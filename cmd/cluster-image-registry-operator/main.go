@@ -74,8 +74,8 @@ func main() {
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
 	k8sutil.AddToSDKScheme(authapi.AddToScheme)
 
-	watch(authapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
-	watch(authapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)
+	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRole", "", 0)
+	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRoleBinding", "", 0)
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)

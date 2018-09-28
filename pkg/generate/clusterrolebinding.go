@@ -16,7 +16,7 @@ import (
 func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	crb := &authapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
+			APIVersion: authapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
