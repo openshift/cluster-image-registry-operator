@@ -83,3 +83,19 @@ func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute,
 		Strategy: strategy.Override{},
 	}, nil
 }
+
+func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[string]Generator {
+	ret := map[string]Generator{}
+
+	if cr.Spec.DefaultRoute {
+		ret[p.DefaultRoute.Name] = DefaultRoute
+	}
+
+	for i := range cr.Spec.Routes {
+		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
+			return Route(o, &o.Spec.Routes[i], p)
+		}
+	}
+
+	return ret
+}

@@ -11,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
+	authapi "github.com/openshift/api/authorization/v1"
+	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
@@ -70,9 +72,15 @@ func main() {
 	}
 
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
+	k8sutil.AddToSDKScheme(authapi.AddToScheme)
+
+	watch(authapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
+	watch(authapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
+	watch(corev1.SchemeGroupVersion.String(), "ServiceAccount", namespace, 0)
+	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
 	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 10*time.Minute)
