@@ -17,9 +17,6 @@ func verifyResource(cr *regopapi.ImageRegistry, p *parameters.Globals) error {
 		if found {
 			return fmt.Errorf("duplication of names has been detected in the additional routes")
 		}
-		if len(routeSpec.SecretName) == 0 {
-			return fmt.Errorf("secretname must be specified for route: %s", routeSpec.Name)
-		}
 		names[routeSpec.Name] = struct{}{}
 	}
 
