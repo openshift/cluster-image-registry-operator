@@ -17,13 +17,13 @@ func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, 
 			Kind:       "Route",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.DefaultRoute.Name,
+			Name:      cr.ObjectMeta.Name + "-default-route",
 			Namespace: p.Deployment.Namespace,
 		},
 		Spec: routeapi.RouteSpec{
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Deployment.Name,
+				Name: p.Service.Name,
 			},
 		},
 	}
@@ -59,7 +59,7 @@ func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute,
 			Host: route.Hostname,
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Deployment.Name,
+				Name: p.Service.Name,
 			},
 		},
 	}
@@ -99,7 +99,7 @@ func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[s
 	ret := map[string]Generator{}
 
 	if cr.Spec.DefaultRoute {
-		ret[p.DefaultRoute.Name] = DefaultRoute
+		ret[cr.ObjectMeta.Name + "-default-route"] = DefaultRoute
 	}
 
 	for i := range cr.Spec.Routes {

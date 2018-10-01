@@ -29,19 +29,16 @@ import (
 func NewHandler(namespace string) (sdk.Handler, error) {
 	p := parameters.Globals{}
 
-	p.Deployment.Name = "docker-registry"
 	p.Deployment.Namespace = namespace
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
 
 	p.Pod.ServiceAccount = "registry"
-
-	p.Container.Name = "registry"
 	p.Container.Port = 5000
 
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.DefaultRoute.Name = "image-registry-default-route"
+	p.Service.Name = "image-registry"
 
 	h := &Handler{
 		params:             p,

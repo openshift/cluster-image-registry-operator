@@ -1,8 +1,6 @@
 package generate
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -20,7 +18,7 @@ func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Temp
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("registry-%s-role", p.Container.Name),
+			Name: "registry-registry-role",
 		},
 		Subjects: []corev1.ObjectReference{
 			{

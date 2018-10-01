@@ -9,7 +9,7 @@ import (
 
 func verifyResource(cr *regopapi.ImageRegistry, p *parameters.Globals) error {
 	names := map[string]struct{}{
-		p.DefaultRoute.Name: {},
+		cr.ObjectMeta.Name + "-default-route": {},
 	}
 
 	for _, routeSpec := range cr.Spec.Routes {
