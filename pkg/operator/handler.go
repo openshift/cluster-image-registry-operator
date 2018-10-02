@@ -11,11 +11,11 @@ import (
 
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacapi "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
-	authapi "github.com/openshift/api/authorization/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	routeapi "github.com/openshift/api/route/v1"
 
@@ -219,13 +219,13 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	)
 
 	switch o := event.Object.(type) {
-	case *authapi.ClusterRole:
+	case *rbacapi.ClusterRole:
 		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRole)
 		if err != nil {
 			return err
 		}
 
-	case *authapi.ClusterRoleBinding:
+	case *rbacapi.ClusterRoleBinding:
 		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRoleBinding)
 		if err != nil {
 			return err
