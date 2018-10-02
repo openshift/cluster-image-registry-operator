@@ -9,9 +9,9 @@ import (
 
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacapi "k8s.io/api/rbac/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
-	authapi "github.com/openshift/api/authorization/v1"
 	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -72,10 +72,9 @@ func main() {
 	}
 
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
-	k8sutil.AddToSDKScheme(authapi.AddToScheme)
 
-	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRole", "", 0)
-	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRoleBinding", "", 0)
+	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
+	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)

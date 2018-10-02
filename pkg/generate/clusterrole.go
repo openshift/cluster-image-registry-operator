@@ -1,9 +1,8 @@
 package generate
 
 import (
+	rbacapi "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	authapi "github.com/openshift/api/authorization/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -11,15 +10,15 @@ import (
 )
 
 func ClusterRole(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
-	role := &authapi.ClusterRole{
+	role := &rbacapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: authapi.SchemeGroupVersion.String(),
+			APIVersion: rbacapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterRole",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "system:registry",
 		},
-		Rules: []authapi.PolicyRule{
+		Rules: []rbacapi.PolicyRule{
 			{
 				Verbs:     []string{"list"},
 				APIGroups: []string{""},

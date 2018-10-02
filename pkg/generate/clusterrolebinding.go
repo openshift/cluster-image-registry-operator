@@ -1,10 +1,8 @@
 package generate
 
 import (
-	corev1 "k8s.io/api/core/v1"
+	rbacapi "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	authapi "github.com/openshift/api/authorization/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -12,22 +10,22 @@ import (
 )
 
 func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
-	crb := &authapi.ClusterRoleBinding{
+	crb := &rbacapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: authapi.SchemeGroupVersion.String(),
+			APIVersion: rbacapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterRoleBinding",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "registry-registry-role",
 		},
-		Subjects: []corev1.ObjectReference{
+		Subjects: []rbacapi.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      p.Pod.ServiceAccount,
 				Namespace: p.Deployment.Namespace,
 			},
 		},
-		RoleRef: corev1.ObjectReference{
+		RoleRef: rbacapi.RoleRef{
 			Kind: "ClusterRole",
 			Name: "system:registry",
 		},
