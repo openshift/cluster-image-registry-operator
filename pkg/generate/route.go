@@ -17,23 +17,27 @@ func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, 
 			Kind:       "Route",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.DefaultRoute.Name,
+			Name:      cr.ObjectMeta.Name + "-default-route",
 			Namespace: p.Deployment.Namespace,
 		},
 		Spec: routeapi.RouteSpec{
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Deployment.Name,
+				Name: p.Service.Name,
 			},
 		},
 	}
+
+	r.Spec.TLS = &routeapi.TLSConfig{}
+
+	// TLS certificates are served by the front end of the router, so they must be configured into the route,
+	// otherwise the router's default certificate will be used for TLS termination.
 	if cr.Spec.TLS {
-		// TLS certificates are served by the front end of the router, so they must be configured into the route,
-		// otherwise the router's default certificate will be used for TLS termination.
-		r.Spec.TLS = &routeapi.TLSConfig{
-			Termination: routeapi.TLSTerminationReencrypt,
-		}
+		r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
+	} else {
+		r.Spec.TLS.Termination = routeapi.TLSTerminationEdge
 	}
+
 	addOwnerRefToObject(r, asOwner(cr))
 	return Template{
 		Object:   r,
@@ -55,15 +59,21 @@ func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute,
 			Host: route.Hostname,
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Deployment.Name,
+				Name: p.Service.Name,
 			},
 		},
 	}
+
+	r.Spec.TLS = &routeapi.TLSConfig{}
+
 	if cr.Spec.TLS {
-		r.Spec.TLS = &routeapi.TLSConfig{
-			Termination: routeapi.TLSTerminationReencrypt,
-		}
-		secret, err := getSecret(route.SecretName, p.Deployment.Name)
+		r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
+	} else {
+		r.Spec.TLS.Termination = routeapi.TLSTerminationEdge
+	}
+
+	if len(route.SecretName) > 0 {
+		secret, err := getSecret(route.SecretName, p.Deployment.Namespace)
 		if err != nil {
 			return Template{}, err
 		}
@@ -77,9 +87,26 @@ func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute,
 			r.Spec.TLS.CACertificate = v
 		}
 	}
+
 	addOwnerRefToObject(r, asOwner(cr))
 	return Template{
 		Object:   r,
 		Strategy: strategy.Override{},
 	}, nil
+}
+
+func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[string]Generator {
+	ret := map[string]Generator{}
+
+	if cr.Spec.DefaultRoute {
+		ret[cr.ObjectMeta.Name + "-default-route"] = DefaultRoute
+	}
+
+	for i := range cr.Spec.Routes {
+		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
+			return Route(o, &o.Spec.Routes[i], p)
+		}
+	}
+
+	return ret
 }

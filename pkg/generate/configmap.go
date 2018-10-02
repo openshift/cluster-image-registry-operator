@@ -16,7 +16,7 @@ func ConfigMap(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, err
 			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry-certificates",
+			Name:      cr.ObjectMeta.Name + "-certificates",
 			Namespace: p.Deployment.Namespace,
 		},
 	}

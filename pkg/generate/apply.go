@@ -36,13 +36,14 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get %s: %s", tmpl.Name(), err)
+				return fmt.Errorf("failed to get object %s: %s", tmpl.Name(), err)
 			}
 			err = sdk.Create(expected)
 			if err == nil {
 				*modified = true
+				return nil
 			}
-			return err
+			return fmt.Errorf("failed to create object %s: %s", tmpl.Name(), err)
 		}
 
 		if tmpl.Validator != nil {
@@ -54,7 +55,7 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 
 		currentMeta, err := kmeta.Accessor(current)
 		if err != nil {
-			return fmt.Errorf("unable to get meta accessor for current object: %s", err)
+			return fmt.Errorf("unable to get meta accessor for current object %s: %s", tmpl.Name(), err)
 		}
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
@@ -69,7 +70,7 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 
 		updatedMeta, err := kmeta.Accessor(updated)
 		if err != nil {
-			return fmt.Errorf("unable to get meta accessor for updated object: %s", err)
+			return fmt.Errorf("unable to get meta accessor for updated object %s: %s", tmpl.Name(), err)
 		}
 
 		if updatedMeta.GetAnnotations() == nil {
@@ -84,8 +85,9 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		err = sdk.Update(updated)
 		if err == nil {
 			*modified = true
+			return nil
 		}
-		return err
+		return fmt.Errorf("failed to update object %s: %s", tmpl.Name(), err)
 	})
 }
 

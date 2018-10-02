@@ -13,7 +13,7 @@ import (
 func ClusterRole(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	role := &authapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "rbac.authorization.k8s.io/v1",
+			APIVersion: authapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterRole",
 		},
 		ObjectMeta: metav1.ObjectMeta{

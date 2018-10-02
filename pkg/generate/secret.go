@@ -38,7 +38,7 @@ func Secret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error)
 			Kind:       "Secret",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry-private-configuration",
+			Name:      cr.ObjectMeta.Name + "-private-configuration",
 			Namespace: p.Deployment.Namespace,
 		},
 	}

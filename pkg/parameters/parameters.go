@@ -8,7 +8,6 @@ const (
 
 type Globals struct {
 	Deployment struct {
-		Name      string
 		Namespace string
 		Labels    map[string]string
 	}
@@ -16,14 +15,13 @@ type Globals struct {
 		ServiceAccount string
 	}
 	Container struct {
-		Name string
 		Port int
 	}
 	Healthz struct {
 		Route          string
 		TimeoutSeconds int
 	}
-	DefaultRoute struct {
+	Service struct {
 		Name string
 	}
 }

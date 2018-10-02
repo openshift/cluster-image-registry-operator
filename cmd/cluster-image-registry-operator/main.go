@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 	"runtime"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
+	authapi "github.com/openshift/api/authorization/v1"
+	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
@@ -21,6 +24,8 @@ import (
 	"github.com/sirupsen/logrus"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
+
+var logLevel = flag.String("loglevel", "", "sets the sensitivity of logging output.")
 
 func printVersion() {
 	logrus.Infof("Cluster Image Registry Operator Version: %s", version.Version)
@@ -37,6 +42,21 @@ func watch(apiVersion, kind, namespace string, resyncPeriod time.Duration) {
 func main() {
 	flag.Parse()
 
+	if len(*logLevel) == 0 {
+		envval := os.Getenv("LOG_LEVEL")
+		if len(envval) > 0 {
+			*logLevel = envval
+		} else {
+			*logLevel = "info"
+		}
+	}
+	lvl, err := logrus.ParseLevel(*logLevel)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+
+	logrus.SetLevel(lvl)
+
 	printVersion()
 
 	sdk.ExposeMetricsPort()
@@ -52,9 +72,15 @@ func main() {
 	}
 
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
+	k8sutil.AddToSDKScheme(authapi.AddToScheme)
+
+	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRole", "", 0)
+	watch("rbac.authorization.k8s.io/v1beta1", "ClusterRoleBinding", "", 0)
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
+	watch(corev1.SchemeGroupVersion.String(), "ServiceAccount", namespace, 0)
+	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
 	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 10*time.Minute)

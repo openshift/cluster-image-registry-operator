@@ -19,7 +19,7 @@ func Service(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Deployment.Name,
+			Name:      p.Service.Name,
 			Namespace: p.Deployment.Namespace,
 			Labels:    p.Deployment.Labels,
 		},

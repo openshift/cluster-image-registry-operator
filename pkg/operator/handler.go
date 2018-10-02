@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/sirupsen/logrus"
 
@@ -14,7 +15,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
+	authapi "github.com/openshift/api/authorization/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	routeapi "github.com/openshift/api/route/v1"
+
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
@@ -25,19 +29,16 @@ import (
 func NewHandler(namespace string) (sdk.Handler, error) {
 	p := parameters.Globals{}
 
-	p.Deployment.Name = "docker-registry"
 	p.Deployment.Namespace = namespace
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
 
 	p.Pod.ServiceAccount = "registry"
-
-	p.Container.Name = "registry"
 	p.Container.Port = 5000
 
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.DefaultRoute.Name = "image-registry-default-route"
+	p.Service.Name = "image-registry"
 
 	h := &Handler{
 		params:             p,
@@ -137,33 +138,77 @@ func conditionDeployment(cr *regopapi.ImageRegistry, status operatorapi.Conditio
 	}
 }
 
-func (h *Handler) reRollEvent(event sdk.Event, gen generate.Generator) (bool, error) {
+func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*regopapi.ImageRegistry, bool, error) {
 	o := event.Object.(metav1.Object)
 
 	cr, err := h.getImageRegistryForResource(o)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
 
 	if cr == nil || !metav1.IsControlledBy(o, cr) {
-		return false, nil
+		return cr, false, nil
 	}
 
 	statusChanged := false
 
-	if event.Deleted {
-		tmpl, err := gen(cr, &h.params)
-		if err != nil {
-			return false, err
-		}
-		err = generate.ApplyTemplate(tmpl, false, &statusChanged)
-		if err != nil {
-			return false, err
-		}
-		return statusChanged, nil
+	tmpl, err := gen(cr, &h.params)
+	if err != nil {
+		conditionResourceValid(cr, operatorapi.ConditionFalse,
+			fmt.Sprintf("unable to make template for %T %s/%s: %s", o, o.GetNamespace(), o.GetName(), err),
+			&statusChanged,
+		)
+		return cr, statusChanged, nil
 	}
 
-	return h.reRollout(cr), nil
+	err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+	if err != nil {
+		conditionResourceValid(cr, operatorapi.ConditionFalse,
+			fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
+			&statusChanged,
+		)
+		return cr, statusChanged, nil
+	}
+
+	if statusChanged {
+		logrus.Debugf("resource %s is recreated", tmpl.Name())
+		conditionResourceApply(cr, operatorapi.ConditionTrue, "all resources applied", &statusChanged)
+	}
+
+	return cr, statusChanged, nil
+}
+
+func (h *Handler) reDeployByEvent(event sdk.Event, gen generate.Generator) (*regopapi.ImageRegistry, bool, error) {
+	cr, statusChanged, err := h.reCreateByEvent(event, gen)
+	if err != nil {
+		return cr, statusChanged, err
+	}
+
+	if !statusChanged {
+		return cr, false, nil
+	}
+
+	tmpl, err := h.generateDeployment(cr, &h.params)
+	if err != nil {
+		conditionResourceValid(cr, operatorapi.ConditionFalse,
+			fmt.Sprintf("unable to make template for %T: %s", event.Object, err),
+			&statusChanged,
+		)
+		return cr, statusChanged, nil
+	}
+
+	err = generate.ApplyTemplate(tmpl, true, &statusChanged)
+	if err != nil {
+		conditionResourceApply(cr, operatorapi.ConditionFalse,
+			fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
+			&statusChanged,
+		)
+		return cr, statusChanged, nil
+	}
+
+	conditionResourceApply(cr, operatorapi.ConditionTrue, "all resources applied", &statusChanged)
+
+	return cr, statusChanged, nil
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
@@ -174,6 +219,74 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	)
 
 	switch o := event.Object.(type) {
+	case *authapi.ClusterRole:
+		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRole)
+		if err != nil {
+			return err
+		}
+
+	case *authapi.ClusterRoleBinding:
+		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRoleBinding)
+		if err != nil {
+			return err
+		}
+
+	case *corev1.Service:
+		cr, statusChanged, err = h.reCreateByEvent(event, generate.Service)
+		if err != nil {
+			return err
+		}
+
+	case *corev1.ServiceAccount:
+		cr, statusChanged, err = h.reDeployByEvent(event, generate.ServiceAccount)
+		if err != nil {
+			return err
+		}
+
+	case *corev1.ConfigMap:
+		cr, statusChanged, err = h.reDeployByEvent(event, generate.ConfigMap)
+		if err != nil {
+			return err
+		}
+
+	case *corev1.Secret:
+		cr, statusChanged, err = h.reDeployByEvent(event, generate.Secret)
+		if err != nil {
+			return err
+		}
+
+	case *routeapi.Route:
+		cr, err = h.getImageRegistryForResource(&o.ObjectMeta)
+		if err != nil {
+			return err
+		}
+
+		if cr == nil || !metav1.IsControlledBy(o, cr) {
+			return nil
+		}
+
+		routes := generate.GetRouteGenerators(cr, &h.params)
+
+		if gen, found := routes[o.ObjectMeta.Name]; found {
+			tmpl, err := gen(cr, &h.params)
+			if err != nil {
+				conditionResourceValid(cr, operatorapi.ConditionFalse,
+					fmt.Sprintf("unable to make template for %T %s/%s: %s", o, o.GetNamespace(), o.GetName(), err),
+					&statusChanged,
+				)
+				break
+			}
+
+			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			if err != nil {
+				conditionResourceValid(cr, operatorapi.ConditionFalse,
+					fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
+					&statusChanged,
+				)
+				break
+			}
+		}
+
 	case *kappsapi.Deployment:
 		cr, err = h.getImageRegistryForResource(o)
 		if err != nil {
@@ -195,6 +308,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				return err
 			}
 
+			logrus.Debugf("resource %s is recreated", tmpl.Name())
 			break
 		}
 
@@ -225,6 +339,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				return err
 			}
 
+			logrus.Debugf("resource %s is recreated", tmpl.Name())
 			break
 		}
 
@@ -232,24 +347,6 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
 		} else {
 			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
-		}
-
-	case *corev1.ServiceAccount:
-		statusChanged, err = h.reRollEvent(event, generate.ServiceAccount)
-		if err != nil {
-			return err
-		}
-
-	case *corev1.ConfigMap:
-		statusChanged, err = h.reRollEvent(event, generate.ConfigMap)
-		if err != nil {
-			return err
-		}
-
-	case *corev1.Secret:
-		statusChanged, err = h.reRollEvent(event, generate.Secret)
-		if err != nil {
-			return err
 		}
 
 	case *regopapi.ImageRegistry:
@@ -289,18 +386,16 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 }
 
 func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageRegistry, error) {
-	var ownerRef *metav1.OwnerReference
+	ownerRef := metav1.GetControllerOf(o)
 
-	for _, ref := range o.GetOwnerReferences() {
-		if ref.Kind == "ImageRegistry" && ref.APIVersion == regopapi.SchemeGroupVersion.String() {
-			ownerRef = &ref
-			break
-		}
+	if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
+		return nil, nil
 	}
 
-	if ownerRef == nil {
-		logrus.Debugf("unable to find custom resource in object: %#+v", o)
-		return nil, nil
+	namespace := o.GetNamespace()
+	if len(namespace) == 0 {
+		// FIXME
+		namespace = os.Getenv("WATCH_NAMESPACE")
 	}
 
 	cr := &regopapi.ImageRegistry{
@@ -310,7 +405,7 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      ownerRef.Name,
-			Namespace: o.GetNamespace(),
+			Namespace: namespace,
 		},
 	}
 
@@ -329,26 +424,6 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 	return cr, nil
 }
 
-func (h *Handler) reRollout(o *regopapi.ImageRegistry) bool {
-	modified := false
-
-	dc, err := h.generateDeployment(o, &h.params)
-	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to make deployment: %s", err), &modified)
-		return true
-	}
-
-	err = generate.ApplyTemplate(dc, true, &modified)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply deployment: %s", err), &modified)
-		return true
-	}
-
-	conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &modified)
-
-	return modified
-}
-
 func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) (ret []generate.Template, err error) {
 	generators := []generate.Generator{
 		generate.ClusterRole,
@@ -359,14 +434,9 @@ func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Glo
 		generate.Service,
 	}
 
-	if o.Spec.DefaultRoute {
-		generators = append(generators, generate.DefaultRoute)
-	}
-
-	for i := range o.Spec.Routes {
-		generators = append(generators, func(cr *regopapi.ImageRegistry, p *parameters.Globals) (generate.Template, error) {
-			return generate.Route(o, &o.Spec.Routes[i], p)
-		})
+	routes := generate.GetRouteGenerators(o, p)
+	for i := range routes {
+		generators = append(generators, routes[i])
 	}
 
 	generators = append(generators, h.generateDeployment)

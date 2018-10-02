@@ -176,7 +176,7 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 						{
 							Secret: &corev1.SecretProjection{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: "image-registry-tls",
+									Name: cr.ObjectMeta.Name + "-tls",
 								},
 							},
 						},
@@ -199,7 +199,7 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "image-registry-certificates",
+					Name: cr.ObjectMeta.Name + "-certificates",
 				},
 			},
 		},
@@ -215,7 +215,7 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 			NodeSelector: cr.Spec.NodeSelector,
 			Containers: []corev1.Container{
 				{
-					Name:  p.Container.Name,
+					Name:  "registry",
 					Image: cr.Spec.ImagePullSpec,
 					Ports: []corev1.ContainerPort{
 						{

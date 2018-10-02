@@ -22,7 +22,7 @@ func DeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Templa
 			Kind:       "DeploymentConfig",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        p.Deployment.Name,
+			Name:        cr.ObjectMeta.Name,
 			Namespace:   p.Deployment.Namespace,
 			Labels:      p.Deployment.Labels,
 			Annotations: annotations,
