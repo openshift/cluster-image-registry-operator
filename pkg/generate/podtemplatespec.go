@@ -131,6 +131,8 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
+		// TODO(dmage): sync with InternalRegistryHostname in origin
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", p.Service.Name, p.Deployment.Namespace, p.Container.Port)},
 	)
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
