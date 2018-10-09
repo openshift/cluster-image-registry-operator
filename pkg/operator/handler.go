@@ -352,9 +352,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	case *regopapi.ImageRegistry:
 		cr = event.Object.(*regopapi.ImageRegistry)
 
-		if event.Deleted {
-			statusChanged = h.RemoveResources(cr)
-
+		if cr.ObjectMeta.DeletionTimestamp != nil {
 			cr, err = h.Bootstrap()
 			if err != nil {
 				return err
@@ -363,7 +361,10 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 		switch cr.Spec.ManagementState {
 		case operatorapi.Removed:
-			statusChanged = h.RemoveResources(cr)
+			err = h.RemoveResources(cr)
+			if err != nil {
+				conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
+			}
 		case operatorapi.Managed:
 			statusChanged = h.CreateOrUpdateResources(cr)
 		case operatorapi.Unmanaged:
@@ -372,13 +373,13 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 
 	if cr != nil && statusChanged {
-		logrus.Infof("registry resources changed")
+		logrus.Infof("%s %s/%s changed", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name)
 
 		cr.Status.ObservedGeneration = cr.Generation
 
 		err = sdk.Update(cr)
 		if err != nil && !errors.IsConflict(err) {
-			logrus.Errorf("unable to update registry custom resource: %s", err)
+			logrus.Errorf("unable to update %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, err)
 		}
 	}
 
@@ -456,6 +457,8 @@ func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Glo
 func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry) bool {
 	modified := false
 
+	appendFinalizer(o, &modified)
+
 	err := verifyResource(o, &h.params)
 	if err != nil {
 		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err), &modified)
@@ -507,39 +510,6 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry) bool {
 	}
 
 	conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &modified)
-
-	return modified
-}
-
-func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) bool {
-	modified := false
-
-	templetes, err := h.GenerateTemplates(o, &h.params)
-	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to genetate templates: %s", err), &modified)
-		return true
-	}
-
-	for _, tmpl := range templetes {
-		err = generate.RemoveByTemplate(tmpl, &modified)
-		if err != nil {
-			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &modified)
-			return true
-		}
-		logrus.Infof("resource %s removed", tmpl.Name())
-	}
-
-	configState, err := generate.GetConfigState(h.params.Deployment.Namespace)
-	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to get previous config state: %s", err), &modified)
-		return true
-	}
-
-	err = generate.RemoveConfigState(configState)
-	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove previous config state: %s", err), &modified)
-		return true
-	}
 
 	return modified
 }

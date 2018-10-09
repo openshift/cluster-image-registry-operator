@@ -14,6 +14,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -22,8 +23,6 @@ import (
 const randomSecretSize = 64
 
 func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
-	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
-
 	crList := &regopapi.ImageRegistryList{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: regopapi.SchemeGroupVersion.String(),
@@ -42,21 +41,30 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 	case 0:
 		// let's create it.
 	case 1:
-		return &crList.Items[0], nil
+		if crList.Items[0].ObjectMeta.DeletionTimestamp != nil {
+			err = h.finalizeResources(&crList.Items[0])
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return &crList.Items[0], nil
+		}
 	default:
 		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", h.params.Deployment.Namespace, len(crList.Items))
 	}
 
 	logrus.Infof("generating registry custom resource")
 
+	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 	cr := &regopapi.ImageRegistry{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: regopapi.SchemeGroupVersion.String(),
 			Kind:       "ImageRegistry",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry",
-			Namespace: h.params.Deployment.Namespace,
+			Name:       "image-registry",
+			Namespace:  h.params.Deployment.Namespace,
+			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec: regopapi.ImageRegistrySpec{
 			OperatorSpec: operatorapi.OperatorSpec{

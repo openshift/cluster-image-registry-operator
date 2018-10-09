@@ -7,6 +7,17 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
+func appendFinalizer(cr *regopapi.ImageRegistry, modified *bool) {
+	for i := range cr.ObjectMeta.Finalizers {
+		if cr.ObjectMeta.Finalizers[i] == parameters.ImageRegistryOperatorResourceFinalizer {
+			return
+		}
+	}
+
+	cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, parameters.ImageRegistryOperatorResourceFinalizer)
+	*modified = true
+}
+
 func verifyResource(cr *regopapi.ImageRegistry, p *parameters.Globals) error {
 	names := map[string]struct{}{
 		cr.ObjectMeta.Name + "-default-route": {},
