@@ -84,24 +84,6 @@ func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.Operator
 	return modified
 }
 
-func conditionResourceValid(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	if status == operatorapi.ConditionFalse {
-		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
-	}
-
-	changed := updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeAvailable,
-		Status:             status,
-		LastTransitionTime: metav1.Now(),
-		Reason:             "ResourceValid",
-		Message:            m,
-	})
-
-	if changed {
-		*modified = true
-	}
-}
-
 func conditionResourceApply(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
 		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
@@ -154,7 +136,7 @@ func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*reg
 
 	tmpl, err := gen(cr, &h.params)
 	if err != nil {
-		conditionResourceValid(cr, operatorapi.ConditionFalse,
+		conditionResourceApply(cr, operatorapi.ConditionFalse,
 			fmt.Sprintf("unable to make template for %T %s/%s: %s", o, o.GetNamespace(), o.GetName(), err),
 			&statusChanged,
 		)
@@ -163,7 +145,7 @@ func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*reg
 
 	err = generate.ApplyTemplate(tmpl, false, &statusChanged)
 	if err != nil {
-		conditionResourceValid(cr, operatorapi.ConditionFalse,
+		conditionResourceApply(cr, operatorapi.ConditionFalse,
 			fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
 			&statusChanged,
 		)
@@ -190,7 +172,7 @@ func (h *Handler) reDeployByEvent(event sdk.Event, gen generate.Generator) (*reg
 
 	tmpl, err := h.generateDeployment(cr, &h.params)
 	if err != nil {
-		conditionResourceValid(cr, operatorapi.ConditionFalse,
+		conditionResourceApply(cr, operatorapi.ConditionFalse,
 			fmt.Sprintf("unable to make template for %T: %s", event.Object, err),
 			&statusChanged,
 		)
@@ -270,7 +252,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		if gen, found := routes[o.ObjectMeta.Name]; found {
 			tmpl, err := gen(cr, &h.params)
 			if err != nil {
-				conditionResourceValid(cr, operatorapi.ConditionFalse,
+				conditionResourceApply(cr, operatorapi.ConditionFalse,
 					fmt.Sprintf("unable to make template for %T %s/%s: %s", o, o.GetNamespace(), o.GetName(), err),
 					&statusChanged,
 				)
@@ -279,7 +261,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
 			if err != nil {
-				conditionResourceValid(cr, operatorapi.ConditionFalse,
+				conditionResourceApply(cr, operatorapi.ConditionFalse,
 					fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
 					&statusChanged,
 				)
@@ -366,7 +348,12 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 			}
 		case operatorapi.Managed:
-			statusChanged = h.CreateOrUpdateResources(cr)
+			err = h.CreateOrUpdateResources(cr, &statusChanged)
+			if err != nil {
+				conditionResourceApply(o, operatorapi.ConditionFalse, err.Error(), &statusChanged)
+			} else {
+				conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &statusChanged)
+			}
 		case operatorapi.Unmanaged:
 			// ignore
 		}
@@ -454,62 +441,50 @@ func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Glo
 	return
 }
 
-func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry) bool {
-	modified := false
-
-	appendFinalizer(o, &modified)
+func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *bool) error {
+	appendFinalizer(o, modified)
 
 	err := verifyResource(o, &h.params)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to complete resource: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to complete resource: %s", err)
 	}
 
 	configState, err := generate.GetConfigState(h.params.Deployment.Namespace)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to get previous config state: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to get previous config state: %s", err)
 	}
 
 	driver, err := storage.NewDriver(&o.Spec.Storage)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to create storage driver: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to create storage driver: %s", err)
 	}
 
 	err = driver.ValidateConfiguration(configState)
 	if err != nil {
-		conditionResourceValid(o, operatorapi.ConditionFalse, fmt.Sprintf("bad custom resource: %s", err), &modified)
-		return true
+		return fmt.Errorf("bad custom resource: %s", err)
 	}
 
 	templetes, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to genetate templates: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to genetate templates: %s", err)
 	}
 
 	for _, tpl := range templetes {
-		err = generate.ApplyTemplate(tpl, false, &modified)
+		err = generate.ApplyTemplate(tpl, false, modified)
 		if err != nil {
-			conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to apply objects: %s", err), &modified)
-			return true
+			return fmt.Errorf("unable to apply objects: %s", err)
 		}
 	}
 
-	err = syncRoutes(o, &h.params, &modified)
+	err = syncRoutes(o, &h.params, modified)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to sync routes: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to sync routes: %s", err)
 	}
 
 	err = generate.SetConfigState(o, configState)
 	if err != nil {
-		conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to write current config state: %s", err), &modified)
-		return true
+		return fmt.Errorf("unable to write current config state: %s", err)
 	}
 
-	conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &modified)
-
-	return modified
+	return nil
 }
