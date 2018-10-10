@@ -1,6 +1,8 @@
 package parameters
 
 const (
+	ImageRegistryOperatorResourceFinalizer = "imageregistry.operator.openshift.io/finalizer"
+
 	ChecksumOperatorAnnotation = "imageregistry.operator.openshift.io/checksum"
 
 	SupplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
