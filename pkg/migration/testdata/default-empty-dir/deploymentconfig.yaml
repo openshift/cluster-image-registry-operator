@@ -1,0 +1,62 @@
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  creationTimestamp: null
+  labels:
+    docker-registry: default
+  name: docker-registry
+spec:
+  replicas: 1
+  selector:
+    docker-registry: default
+  strategy:
+    resources: {}
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        docker-registry: default
+    spec:
+      containers:
+      - env:
+        - name: REGISTRY_HTTP_ADDR
+          value: :5000
+        - name: REGISTRY_HTTP_NET
+          value: tcp
+        - name: REGISTRY_HTTP_SECRET
+          value: this-is-an-http-/secret/-for-the-registry
+        - name: REGISTRY_MIDDLEWARE_REPOSITORY_OPENSHIFT_ENFORCEQUOTA
+          value: "false"
+        image: openshift/origin-docker-registry:v3.11.0
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        name: registry
+        ports:
+        - containerPort: 5000
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 5000
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          privileged: false
+        volumeMounts:
+        - mountPath: /registry
+          name: registry-storage
+      securityContext: {}
+      serviceAccount: registry
+      serviceAccountName: registry
+      volumes:
+      - emptyDir: {}
+        name: registry-storage
+  test: false
+  triggers:
+  - type: ConfigChange

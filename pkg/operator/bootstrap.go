@@ -4,15 +4,19 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	"github.com/sirupsen/logrus"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-
+	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+
+	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
+	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -21,10 +25,19 @@ import (
 // was specified.
 const randomSecretSize = 64
 
-func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
-	crList := &regopapi.ImageRegistryList{
+func resourceName(namespace string) string {
+	if namespace == "default" {
+		return "docker-registry"
+	}
+	return "image-registry"
+}
+
+func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
+	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
+
+	crList := &imageregistryapi.ImageRegistryList{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: regopapi.SchemeGroupVersion.String(),
+			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
 			Kind:       "ImageRegistry",
 		},
 	}
@@ -52,28 +65,69 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", h.params.Deployment.Namespace, len(crList.Items))
 	}
 
-	logrus.Infof("generating registry custom resource")
+	var spec imageregistryapi.ImageRegistrySpec
 
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
-	cr := &regopapi.ImageRegistry{
+	dc := &appsapi.DeploymentConfig{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: regopapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
+			APIVersion: appsapi.SchemeGroupVersion.String(),
+			Kind:       "DeploymentConfig",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "image-registry",
-			Namespace:  h.params.Deployment.Namespace,
-			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
+			Name:      resourceName(h.params.Deployment.Namespace),
+			Namespace: h.params.Deployment.Namespace,
 		},
-		Spec: regopapi.ImageRegistrySpec{
+	}
+	err = sdk.Get(dc)
+	if errors.IsNotFound(err) {
+		spec = imageregistryapi.ImageRegistrySpec{
 			OperatorSpec: operatorapi.OperatorSpec{
 				ManagementState: operatorapi.Managed,
 				Version:         "none",
 			},
-			Storage:  regopapi.ImageRegistryConfigStorage{},
+			Storage:  imageregistryapi.ImageRegistryConfigStorage{},
 			Replicas: 1,
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("unable to check if the deployment already exists: %s", err)
+	} else {
+		logrus.Infof("adapting the existing deployment config...")
+		var tlsSecret *corev1.Secret
+		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(dc.ObjectMeta.Namespace))
+		if err != nil {
+			return nil, fmt.Errorf("unable to adapt the existing deployment config: %s", err)
+		}
+		if tlsSecret != nil {
+			tlsSecret.TypeMeta = metav1.TypeMeta{
+				APIVersion: corev1.SchemeGroupVersion.String(),
+				Kind:       "Secret",
+			}
+			tlsSecret.ObjectMeta = metav1.ObjectMeta{
+				Name:      dc.ObjectMeta.Name + "-tls",
+				Namespace: dc.ObjectMeta.Namespace,
+			}
+			err = sdk.Create(tlsSecret)
+			// TODO: it might already exist
+			if err != nil {
+				return nil, fmt.Errorf("unable to create the tls secret: %s", err)
+			}
+		}
+	}
+
+	logrus.Infof("generating registry custom resource")
+
+	cr := &imageregistryapi.ImageRegistry{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
+			Kind:       "ImageRegistry",
 		},
-		Status: regopapi.ImageRegistryStatus{},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       resourceName(h.params.Deployment.Namespace),
+			Namespace:  h.params.Deployment.Namespace,
+			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
+		},
+		Spec:   spec,
+		Status: imageregistryapi.ImageRegistryStatus{},
 	}
 
 	if len(cr.Spec.HTTPSecret) == 0 {
