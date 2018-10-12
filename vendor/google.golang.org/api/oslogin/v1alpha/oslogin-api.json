@@ -313,7 +313,7 @@
       }
     }
   },
-  "revision": "20180617",
+  "revision": "20181008",
   "rootUrl": "https://oslogin.googleapis.com/",
   "schemas": {
     "Empty": {

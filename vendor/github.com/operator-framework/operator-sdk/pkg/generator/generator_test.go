@@ -16,8 +16,6 @@ package generator
 
 import (
 	"bytes"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -139,7 +137,7 @@ func newbusyBoxPod(cr *v1alpha1.AppService) *corev1.Pod {
 			Containers: []corev1.Container{
 				{
 					Name:    "busybox",
-					Image:   "docker.io/busybox",
+					Image:   "busybox",
 					Command: []string{"sleep", "3600"},
 				},
 			},
@@ -199,7 +197,6 @@ spec:
       labels:
         name: app-operator
     spec:
-      serviceAccountName: app-operator
       containers:
         - name: app-operator
           image: quay.io/example-inc/app-operator:0.0.1
@@ -256,20 +253,14 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
-  name: app-operator
+  name: default-account-app-operator
 subjects:
 - kind: ServiceAccount
-  name: app-operator
+  name: default
 roleRef:
   kind: Role
   name: app-operator
   apiGroup: rbac.authorization.k8s.io
-`
-
-const saYamlExp = `apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: app-operator
 `
 
 func TestGenDeploy(t *testing.T) {
@@ -314,16 +305,6 @@ func TestGenDeploy(t *testing.T) {
 	if rbacYamlExp != buf.String() {
 		dmp := diffmatchpatch.New()
 		diffs := dmp.DiffMain(rbacYamlExp, buf.String(), false)
-		t.Errorf("\nTest failed. Below is the diff of the expected vs actual results.\nRed text is missing and green text is extra.\n\n" + dmp.DiffPrettyText(diffs))
-	}
-
-	buf = &bytes.Buffer{}
-	if err := renderFile(buf, saTmplName, saYamlTmpl, tmplData{ProjectName: appProjectName}); err != nil {
-		t.Error(err)
-	}
-	if saYamlExp != buf.String() {
-		dmp := diffmatchpatch.New()
-		diffs := dmp.DiffMain(saYamlExp, buf.String(), false)
 		t.Errorf("\nTest failed. Below is the diff of the expected vs actual results.\nRed text is missing and green text is extra.\n\n" + dmp.DiffPrettyText(diffs))
 	}
 }
@@ -562,22 +543,5 @@ func TestGenBuild(t *testing.T) {
 		dmp := diffmatchpatch.New()
 		diffs := dmp.DiffMain(dockerFileExp, buf.String(), false)
 		t.Errorf("\nTest failed. Below is the diff of the expected vs actual results.\nRed text is missing and green text is extra.\n\n" + dmp.DiffPrettyText(diffs))
-	}
-}
-
-func TestWriteFileAndPrint(t *testing.T) {
-	deployDir, err := ioutil.TempDir("", "test-write-file-and-print")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer os.RemoveAll(deployDir)
-
-	olmCatalogPackagePath := filepath.Join(deployDir, olmCatalogDir, catalogPackageYaml)
-	if err = writeFileAndPrint(olmCatalogPackagePath, []byte("sometext"), defaultFileMode); err != nil {
-		t.Fatalf("\nTest failed. Failed to write file and print: %v", err)
-	}
-	if _, err := os.Stat(olmCatalogPackagePath); os.IsNotExist(err) {
-		t.Errorf("\nTest failed. Failed to create %s", olmCatalogPackagePath)
 	}
 }

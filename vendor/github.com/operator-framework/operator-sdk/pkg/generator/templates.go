@@ -42,8 +42,8 @@ spec:
   version: {{.Version}}
 `
 
-const catalogCSVTmpl = `apiVersion: operators.coreos.com/v1alpha1
-kind: ClusterServiceVersion
+const catalogCSVTmpl = `apiVersion: app.coreos.com/v1alpha1
+kind: ClusterServiceVersion-v1
 metadata:
   name: {{.CSVName}}
   namespace: placeholder
@@ -230,7 +230,7 @@ func newbusyBoxPod(cr *{{.Version}}.{{.Kind}}) *corev1.Pod {
 			Containers: []corev1.Container{
 				{
 					Name:    "busybox",
-					Image:   "docker.io/busybox",
+					Image:   "busybox",
 					Command: []string{"sleep", "3600"},
 				},
 			},
@@ -295,8 +295,8 @@ required = [
 [[constraint]]
   name = "github.com/operator-framework/operator-sdk"
   # The version rule is used for a specific release and the master branch for in between releases.
-  branch = "master"
-  # version = "=v0.0.6"
+  # branch = "master"
+  version = "=v0.0.6"
 `
 
 const projectGitignoreTmpl = `
@@ -438,7 +438,6 @@ spec:
       labels:
         name: {{.ProjectName}}
     spec:
-      serviceAccountName: {{.ProjectName}}
       containers:
         - name: {{.ProjectName}}
           image: {{.Image}}
@@ -495,20 +494,14 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
-  name: {{.ProjectName}}
+  name: default-account-{{.ProjectName}}
 subjects:
 - kind: ServiceAccount
-  name: {{.ProjectName}}
+  name: default
 roleRef:
   kind: Role
   name: {{.ProjectName}}
   apiGroup: rbac.authorization.k8s.io
-`
-
-const saYamlTmpl = `apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{.ProjectName}}
 `
 
 const crYamlTmpl = `apiVersion: "{{.APIVersion}}"

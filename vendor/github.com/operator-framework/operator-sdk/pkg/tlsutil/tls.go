@@ -19,7 +19,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"strings"
 
 	"k8s.io/api/core/v1"
@@ -139,9 +138,6 @@ type SDKCertGenerator struct {
 	KubeClient kubernetes.Interface
 }
 
-// GenerateCert returns a secret containing the TLS encryption key and cert,
-// a ConfigMap containing the CA Certificate and a Secret containing the CA key or it
-// returns a error incase something goes wrong.
 func (scg *SDKCertGenerator) GenerateCert(cr runtime.Object, service *v1.Service, config *CertConfig) (*v1.Secret, *v1.ConfigMap, *v1.Secret, error) {
 	if err := verifyConfig(config); err != nil {
 		return nil, nil, nil, err
@@ -157,57 +153,19 @@ func (scg *SDKCertGenerator) GenerateCert(cr runtime.Object, service *v1.Service
 		return nil, nil, nil, err
 	}
 	caSecretAndConfigMapName := ToCASecretAndConfigMapName(k, n)
-
-	var (
-		caSecret    *v1.Secret
-		caConfigMap *v1.ConfigMap
-	)
-
-	caSecret, caConfigMap, err = getCASecretAndConfigMapInCluster(scg.KubeClient, caSecretAndConfigMapName, ns)
+	caSecret, caConfigMap, err := getCASecretAndConfigMapInCluster(scg.KubeClient, caSecretAndConfigMapName, ns)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	if config.CAKey != "" && config.CACert != "" {
-		// custom CA provided by the user.
-		customCAKeyData, err := ioutil.ReadFile(config.CAKey)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error reading CA Key from the given file name: %v", err)
-		}
-
-		customCACertData, err := ioutil.ReadFile(config.CACert)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error reading CA Cert from the given file name: %v", err)
-		}
-
-		customCAKey, err := parsePEMEncodedPrivateKey(customCAKeyData)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error parsing CA Key from the given file name: %v", err)
-		}
-
-		customCACert, err := parsePEMEncodedCert(customCACertData)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("error parsing CA Cert from the given file name: %v", err)
-		}
-		caSecret, caConfigMap = toCASecretAndConfigmap(customCAKey, customCACert, caSecretAndConfigMapName)
-	} else if config.CAKey != "" || config.CACert != "" {
-		// if only one of the custom CA Key or Cert is provided
-		return nil, nil, nil, ErrCAKeyAndCACertReq
-	}
-
 	hasAppSecret := appSecret != nil
 	hasCASecretAndConfigMap := caSecret != nil && caConfigMap != nil
-
-	switch {
-	case hasAppSecret && hasCASecretAndConfigMap:
+	// TODO: handle passed in CA
+	if hasAppSecret && hasCASecretAndConfigMap {
 		return appSecret, caConfigMap, caSecret, nil
-
-	case hasAppSecret && !hasCASecretAndConfigMap:
+	} else if hasAppSecret && !hasCASecretAndConfigMap {
 		return nil, nil, nil, ErrCANotFound
-
-	case !hasAppSecret && hasCASecretAndConfigMap:
-		// Note: if a custom CA is passed in my the user it takes preference over an already
-		// generated CA secret and CA configmap that might exist in the cluster
+	} else if !hasAppSecret && hasCASecretAndConfigMap {
 		caKey, err := parsePEMEncodedPrivateKey(caSecret.Data[TLSPrivateCAKeyKey])
 		if err != nil {
 			return nil, nil, nil, err
@@ -229,9 +187,8 @@ func (scg *SDKCertGenerator) GenerateCert(cr runtime.Object, service *v1.Service
 			return nil, nil, nil, err
 		}
 		return appSecret, caConfigMap, caSecret, nil
-
-	case !hasAppSecret && !hasCASecretAndConfigMap:
-		// If no custom CAKey and CACert are provided we have to generate them
+	} else {
+		// case: both CA and Application TLS assets don't exist.
 		caKey, err := newPrivateKey()
 		if err != nil {
 			return nil, nil, nil, err
@@ -240,7 +197,6 @@ func (scg *SDKCertGenerator) GenerateCert(cr runtime.Object, service *v1.Service
 		if err != nil {
 			return nil, nil, nil, err
 		}
-
 		caSecret, caConfigMap := toCASecretAndConfigmap(caKey, caCert, caSecretAndConfigMapName)
 		caSecret, err = scg.KubeClient.CoreV1().Secrets(ns).Create(caSecret)
 		if err != nil {
@@ -263,8 +219,6 @@ func (scg *SDKCertGenerator) GenerateCert(cr runtime.Object, service *v1.Service
 			return nil, nil, nil, err
 		}
 		return appSecret, caConfigMap, caSecret, nil
-	default:
-		return nil, nil, nil, ErrInternal
 	}
 }
 
@@ -298,11 +252,7 @@ func getAppSecretInCluster(kubeClient kubernetes.Interface, name, namespace stri
 }
 
 // getCASecretAndConfigMapInCluster gets CA secret and configmap of the given name and namespace.
-// it only returns both if they are found and nil if both are not found. In the case if only one of them is found,
-// then we error out because we expect either both CA secret and configmap exit or not.
-//
-// NOTE: both the CA secret and configmap have the same name with template `<cr-kind>-<cr-name>-ca` which is what the
-// input parameter `name` refers to.
+// it only returns both if they are found and nil if both are not found. In the case if only one of them is found, then we error out because we expect either both CA secret and configmap exit or not.
 func getCASecretAndConfigMapInCluster(kubeClient kubernetes.Interface, name, namespace string) (*v1.Secret, *v1.ConfigMap, error) {
 	hasConfigMap := true
 	cm, err := kubeClient.CoreV1().ConfigMaps(namespace).Get(name, metav1.GetOptions{})

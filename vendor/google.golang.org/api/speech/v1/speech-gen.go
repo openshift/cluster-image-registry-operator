@@ -468,24 +468,27 @@ type RecognitionConfig struct {
 
 	// UseEnhanced: *Optional* Set to true to use an enhanced model for
 	// speech recognition.
-	// You must also set the `model` field to a valid, enhanced model.
-	// If
-	// `use_enhanced` is set to true and the `model` field is not set,
+	// If `use_enhanced` is set to true and the `model` field is not set,
 	// then
-	// `use_enhanced` is ignored. If `use_enhanced` is true and an
-	// enhanced
-	// version of the specified model does not exist, then the speech
-	// is
-	// recognized using the standard version of the specified
-	// model.
+	// an appropriate enhanced model is chosen if:
+	// 1. project is eligible for requesting enhanced models
+	// 2. an enhanced model exists for the audio
+	//
+	// If `use_enhanced` is true and an enhanced version of the specified
+	// model
+	// does not exist, then the speech is recognized using the standard
+	// version
+	// of the specified model.
 	//
 	// Enhanced speech models require that you opt-in to data logging
 	// using
-	// instructions in the
-	// [documentation](/speech-to-text/enable-data-logging).
-	// If you set `use_enhanced` to true and you have not enabled audio
-	// logging,
-	// then you will receive an error.
+	// instructions in
+	// the
+	// [documentation](/speech-to-text/docs/enable-data-logging). If you
+	// set
+	// `use_enhanced` to true and you have not enabled audio logging, then
+	// you
+	// will receive an error.
 	UseEnhanced bool `json:"useEnhanced,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g.
@@ -973,7 +976,10 @@ func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/operations/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1155,7 +1161,10 @@ func (c *OperationsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/operations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -1321,7 +1330,10 @@ func (c *SpeechLongrunningrecognizeCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/speech:longrunningrecognize")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -1444,7 +1456,10 @@ func (c *SpeechRecognizeCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/speech:recognize")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }

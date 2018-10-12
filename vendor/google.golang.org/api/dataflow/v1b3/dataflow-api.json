@@ -1543,7 +1543,7 @@
       }
     }
   },
-  "revision": "20180828",
+  "revision": "20181016",
   "rootUrl": "https://dataflow.googleapis.com/",
   "schemas": {
     "ApproximateProgress": {
@@ -2837,6 +2837,11 @@
           },
           "type": "array"
         },
+        "startTime": {
+          "description": "The timestamp when the job was started (transitioned to JOB_STATE_PENDING).\nFlexible resource scheduling jobs are started with some delay after job\ncreation, so start_time is unset before start and is updated when the\njob is started by the Cloud Dataflow service. For other jobs, start_time\nalways equals to create_time and is immutable and set by the Cloud Dataflow\nservice.",
+          "format": "google-datetime",
+          "type": "string"
+        },
         "steps": {
           "description": "The top-level steps that constitute the entire job.",
           "items": {
@@ -3201,6 +3206,10 @@
       "description": "MapTask consists of an ordered set of instructions, each of which\ndescribes one particular low-level operation for the worker to\nperform in order to accomplish the MapTask's WorkItem.\n\nEach instruction must appear in the list before any instructions which\ndepends on its output.",
       "id": "MapTask",
       "properties": {
+        "counterPrefix": {
+          "description": "Counter prefix that can be used to prefix counters. Not currently used in\nDataflow.",
+          "type": "string"
+        },
         "instructions": {
           "description": "The instructions in the MapTask.",
           "items": {
@@ -4413,6 +4422,21 @@
       },
       "type": "object"
     },
+    "StreamingApplianceSnapshotConfig": {
+      "description": "Streaming appliance snapshot configuration.",
+      "id": "StreamingApplianceSnapshotConfig",
+      "properties": {
+        "importStateEndpoint": {
+          "description": "Indicates which endpoint is used to import appliance state.",
+          "type": "string"
+        },
+        "snapshotId": {
+          "description": "If set, indicates the snapshot id for the snapshot being performed.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "StreamingComputationConfig": {
       "description": "Configuration information for a single streaming computation.",
       "id": "StreamingComputationConfig",
@@ -4534,6 +4558,10 @@
           "description": "The TCP port on which the worker should listen for messages from\nother streaming computation workers.",
           "format": "int32",
           "type": "integer"
+        },
+        "snapshotConfig": {
+          "$ref": "StreamingApplianceSnapshotConfig",
+          "description": "Configures streaming appliance snapshot."
         },
         "streamingComputationTopology": {
           "$ref": "TopologyConfig",

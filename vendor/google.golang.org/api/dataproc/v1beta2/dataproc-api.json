@@ -263,7 +263,7 @@
                   ],
                   "parameters": {
                     "instanceId": {
-                      "description": "Optional. A tag that prevents multiple concurrent workflow instances with the same tag from running. This mitigates risk of concurrent instances started due to retries.It is recommended to always set this value to a UUID (https://en.wikipedia.org/wiki/Universally_unique_identifier).The tag must contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-). The maximum length is 40 characters.",
+                      "description": "Deprecated. Please use request_id field instead.",
                       "location": "query",
                       "type": "string"
                     },
@@ -272,6 +272,11 @@
                       "location": "path",
                       "pattern": "^projects/[^/]+/locations/[^/]+$",
                       "required": true,
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "description": "Optional. A tag that prevents multiple concurrent workflow instances with the same tag from running. This mitigates risk of concurrent instances started due to retries.It is recommended to always set this value to a UUID (https://en.wikipedia.org/wiki/Universally_unique_identifier).The tag must contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-). The maximum length is 40 characters.",
+                      "location": "query",
                       "type": "string"
                     }
                   },
@@ -1469,7 +1474,7 @@
                   ],
                   "parameters": {
                     "instanceId": {
-                      "description": "Optional. A tag that prevents multiple concurrent workflow instances with the same tag from running. This mitigates risk of concurrent instances started due to retries.It is recommended to always set this value to a UUID (https://en.wikipedia.org/wiki/Universally_unique_identifier).The tag must contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-). The maximum length is 40 characters.",
+                      "description": "Deprecated. Please use request_id field instead.",
                       "location": "query",
                       "type": "string"
                     },
@@ -1478,6 +1483,11 @@
                       "location": "path",
                       "pattern": "^projects/[^/]+/regions/[^/]+$",
                       "required": true,
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "description": "Optional. A tag that prevents multiple concurrent workflow instances with the same tag from running. This mitigates risk of concurrent instances started due to retries.It is recommended to always set this value to a UUID (https://en.wikipedia.org/wiki/Universally_unique_identifier).The tag must contain only letters (a-z, A-Z), numbers (0-9), underscores (_), and hyphens (-). The maximum length is 40 characters.",
+                      "location": "query",
                       "type": "string"
                     }
                   },
@@ -1619,7 +1629,7 @@
       }
     }
   },
-  "revision": "20180824",
+  "revision": "20181019",
   "rootUrl": "https://dataproc.googleapis.com/",
   "schemas": {
     "AcceleratorConfig": {
@@ -2239,7 +2249,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Optional. Map from parameter names to values that should be used for those parameters.",
+          "description": "Optional. Map from parameter names to values that should be used for those parameters. Values may not exceed 100 characters.",
           "type": "object"
         },
         "requestId": {
@@ -2433,7 +2443,7 @@
       "type": "object"
     },
     "LifecycleConfig": {
-      "description": "Specifies the cluster auto delete related schedule configuration.",
+      "description": "Specifies the cluster auto-delete schedule configuration.",
       "id": "LifecycleConfig",
       "properties": {
         "autoDeleteTime": {
@@ -2442,12 +2452,12 @@
           "type": "string"
         },
         "autoDeleteTtl": {
-          "description": "Optional. The life duration of cluster, the cluster will be auto-deleted at the end of this duration.",
+          "description": "Optional. The lifetime duration of cluster. The cluster will be auto-deleted at the end of this period. Valid range: 10m, 14d.Example: \"1d\", to delete the cluster 1 day after its creation..",
           "format": "google-duration",
           "type": "string"
         },
         "idleDeleteTtl": {
-          "description": "Optional. The longest duration that cluster would keep alive while staying  idle; passing this threshold will cause cluster to be auto-deleted.",
+          "description": "Optional. The duration to keep the cluster alive while idling. Passing this threshold will cause the cluster to be deleted. Valid range: 10m, 14d.Example: \"10m\", the minimum value, to delete the cluster when it has had no jobs running for 10 minutes.",
           "format": "google-duration",
           "type": "string"
         }
@@ -2879,6 +2889,27 @@
           "description": "Optional. The version of software inside the cluster. It must be one of the supported Cloud Dataproc Versions, such as \"1.2\" (including a subminor version, such as \"1.2.29\"), or the \"preview\" version. If unspecified, it defaults to the latest version.",
           "type": "string"
         },
+        "optionalComponents": {
+          "description": "The set of optional components to activate on the cluster.",
+          "enumDescriptions": [
+            "Unspecified component.",
+            "The Jupyter Notebook.",
+            "The Hive Web HCatalog (the REST service for accessing HCatalog).",
+            "The Zeppelin notebook.",
+            "The Anaconda python distribution."
+          ],
+          "items": {
+            "enum": [
+              "COMPONENT_UNSPECIFIED",
+              "JUPYTER",
+              "HIVE_WEBHCAT",
+              "ZEPPELIN",
+              "ANACONDA"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
         "properties": {
           "additionalProperties": {
             "type": "string"
@@ -3034,7 +3065,7 @@
           "type": "string"
         },
         "fields": {
-          "description": "Required. Paths to all fields that the parameter replaces. A field is allowed to appear in at most one parameter's list of field paths.A field path is similar in syntax to a google.protobuf.FieldMask. For example, a field path that references the zone field of a workflow template's cluster selector would be specified as \u003ccode\u003eplacement.clusterSelector.zone\u003c/code\u003e.Also, field paths can reference fields using the following syntax:\nValues in maps can be referenced by key. Examples\u003cbr\u003e\nlabels'key'\nplacement.clusterSelector.clusterLabels'key'\nplacement.managedCluster.labels'key'\nplacement.clusterSelector.clusterLabels'key'\njobsstep-id.labels'key'\nJobs in the jobs list can be referenced by step-id. Examples:\u003cbr\u003e\njobsstep-id.hadoopJob.mainJarFileUri\njobsstep-id.hiveJob.queryFileUri\njobsstep-id.pySparkJob.mainPythonFileUri\njobsstep-id.hadoopJob.jarFileUris0\njobsstep-id.hadoopJob.archiveUris0\njobsstep-id.hadoopJob.fileUris0\njobsstep-id.pySparkJob.pythonFileUris0\nItems in repeated fields can be referenced by a zero-based index. Example:\u003cbr\u003e\njobsstep-id.sparkJob.args0\nOther examples:\njobsstep-id.hadoopJob.properties'key'\njobsstep-id.hadoopJob.args0\njobsstep-id.hiveJob.scriptVariables'key'\njobsstep-id.hadoopJob.mainJarFileUri\nplacement.clusterSelector.zoneIt may not be possible to parameterize maps and repeated fields in their entirety since only individual map values and individual items in repeated fields can be referenced. For example, the following field paths are invalid:\nplacement.clusterSelector.clusterLabels\njobsstep-id.sparkJob.args",
+          "description": "Required. Paths to all fields that the parameter replaces. A field is allowed to appear in at most one parameter's list of field paths.A field path is similar in syntax to a google.protobuf.FieldMask. For example, a field path that references the zone field of a workflow template's cluster selector would be specified as placement.clusterSelector.zone.Also, field paths can reference fields using the following syntax:\nValues in maps can be referenced by key:\nlabels'key'\nplacement.clusterSelector.clusterLabels'key'\nplacement.managedCluster.labels'key'\nplacement.clusterSelector.clusterLabels'key'\njobs'step-id'.labels'key'\nJobs in the jobs list can be referenced by step-id:\njobs'step-id'.hadoopJob.mainJarFileUri\njobs'step-id'.hiveJob.queryFileUri\njobs'step-id'.pySparkJob.mainPythonFileUri\njobs'step-id'.hadoopJob.jarFileUris0\njobs'step-id'.hadoopJob.archiveUris0\njobs'step-id'.hadoopJob.fileUris0\njobs'step-id'.pySparkJob.pythonFileUris0\nItems in repeated fields can be referenced by a zero-based index:\njobs'step-id'.sparkJob.args0\nOther examples:\njobs'step-id'.hadoopJob.properties'key'\njobs'step-id'.hadoopJob.args0\njobs'step-id'.hiveJob.scriptVariables'key'\njobs'step-id'.hadoopJob.mainJarFileUri\nplacement.clusterSelector.zoneIt may not be possible to parameterize maps and repeated fields in their entirety since only individual map values and individual items in repeated fields can be referenced. For example, the following field paths are invalid:\nplacement.clusterSelector.clusterLabels\njobs'step-id'.sparkJob.args",
           "items": {
             "type": "string"
           },
@@ -3123,6 +3154,11 @@
           "$ref": "ClusterOperation",
           "description": "Output only. The delete cluster operation metadata."
         },
+        "endTime": {
+          "description": "Output only. Workflow end time.",
+          "format": "google-datetime",
+          "type": "string"
+        },
         "graph": {
           "$ref": "WorkflowGraph",
           "description": "Output only. The workflow graph."
@@ -3133,6 +3169,11 @@
           },
           "description": "Map from parameter names to values that were used for those parameters.",
           "type": "object"
+        },
+        "startTime": {
+          "description": "Output only. Workflow start time.",
+          "format": "google-datetime",
+          "type": "string"
         },
         "state": {
           "description": "Output only. The workflow state.",

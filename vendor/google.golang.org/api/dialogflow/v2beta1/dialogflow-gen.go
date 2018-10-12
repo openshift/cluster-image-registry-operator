@@ -51,6 +51,9 @@ const basePath = "https://dialogflow.googleapis.com/"
 const (
 	// View and manage your data across Google Cloud Platform services
 	CloudPlatformScope = "https://www.googleapis.com/auth/cloud-platform"
+
+	// View, manage and query your Dialogflow agents
+	DialogflowScope = "https://www.googleapis.com/auth/dialogflow"
 )
 
 func New(client *http.Client) (*Service, error) {
@@ -80,7 +83,7 @@ func (s *Service) userAgent() string {
 func NewProjectsService(s *Service) *ProjectsService {
 	rs := &ProjectsService{s: s}
 	rs.Agent = NewProjectsAgentService(s)
-	rs.Conversations = NewProjectsConversationsService(s)
+	rs.Environments = NewProjectsEnvironmentsService(s)
 	rs.KnowledgeBases = NewProjectsKnowledgeBasesService(s)
 	rs.Operations = NewProjectsOperationsService(s)
 	return rs
@@ -91,7 +94,7 @@ type ProjectsService struct {
 
 	Agent *ProjectsAgentService
 
-	Conversations *ProjectsConversationsService
+	Environments *ProjectsEnvironmentsService
 
 	KnowledgeBases *ProjectsKnowledgeBasesService
 
@@ -263,24 +266,48 @@ type ProjectsAgentSessionsEntityTypesService struct {
 	s *Service
 }
 
-func NewProjectsConversationsService(s *Service) *ProjectsConversationsService {
-	rs := &ProjectsConversationsService{s: s}
-	rs.Contexts = NewProjectsConversationsContextsService(s)
+func NewProjectsEnvironmentsService(s *Service) *ProjectsEnvironmentsService {
+	rs := &ProjectsEnvironmentsService{s: s}
+	rs.Users = NewProjectsEnvironmentsUsersService(s)
 	return rs
 }
 
-type ProjectsConversationsService struct {
+type ProjectsEnvironmentsService struct {
 	s *Service
 
-	Contexts *ProjectsConversationsContextsService
+	Users *ProjectsEnvironmentsUsersService
 }
 
-func NewProjectsConversationsContextsService(s *Service) *ProjectsConversationsContextsService {
-	rs := &ProjectsConversationsContextsService{s: s}
+func NewProjectsEnvironmentsUsersService(s *Service) *ProjectsEnvironmentsUsersService {
+	rs := &ProjectsEnvironmentsUsersService{s: s}
+	rs.Conversations = NewProjectsEnvironmentsUsersConversationsService(s)
 	return rs
 }
 
-type ProjectsConversationsContextsService struct {
+type ProjectsEnvironmentsUsersService struct {
+	s *Service
+
+	Conversations *ProjectsEnvironmentsUsersConversationsService
+}
+
+func NewProjectsEnvironmentsUsersConversationsService(s *Service) *ProjectsEnvironmentsUsersConversationsService {
+	rs := &ProjectsEnvironmentsUsersConversationsService{s: s}
+	rs.Contexts = NewProjectsEnvironmentsUsersConversationsContextsService(s)
+	return rs
+}
+
+type ProjectsEnvironmentsUsersConversationsService struct {
+	s *Service
+
+	Contexts *ProjectsEnvironmentsUsersConversationsContextsService
+}
+
+func NewProjectsEnvironmentsUsersConversationsContextsService(s *Service) *ProjectsEnvironmentsUsersConversationsContextsService {
+	rs := &ProjectsEnvironmentsUsersConversationsContextsService{s: s}
+	return rs
+}
+
+type ProjectsEnvironmentsUsersConversationsContextsService struct {
 	s *Service
 }
 
@@ -378,7 +405,7 @@ type GoogleCloudDialogflowV2Context struct {
 	// after which the
 	// context expires. If set to `0` (the default) the context
 	// expires
-	// immediately. Contexts expire automatically after 10 minutes even if
+	// immediately. Contexts expire automatically after 20 minutes even if
 	// there
 	// are no matching queries.
 	LifespanCount int64 `json:"lifespanCount,omitempty"`
@@ -436,7 +463,7 @@ type GoogleCloudDialogflowV2EntityType struct {
 	// listed in the entity.
 	AutoExpansionMode string `json:"autoExpansionMode,omitempty"`
 
-	// DisplayName: Required. The name of the entity.
+	// DisplayName: Required. The name of the entity type.
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Entities: Optional. The collection of entities associated with the
@@ -733,9 +760,10 @@ type GoogleCloudDialogflowV2Intent struct {
 	// intent.
 	Events []string `json:"events,omitempty"`
 
-	// FollowupIntentInfo: Optional. Collection of information about all
-	// followup intents that have
-	// name of this intent as a root_name.
+	// FollowupIntentInfo: Read-only. Information about all followup intents
+	// that have this intent as
+	// a direct or indirect parent. We populate this field only in the
+	// output.
 	FollowupIntentInfo []*GoogleCloudDialogflowV2IntentFollowupIntentInfo `json:"followupIntentInfo,omitempty"`
 
 	// InputContextNames: Optional. The list of context names required for
@@ -784,9 +812,13 @@ type GoogleCloudDialogflowV2Intent struct {
 	// the intent.
 	Parameters []*GoogleCloudDialogflowV2IntentParameter `json:"parameters,omitempty"`
 
-	// ParentFollowupIntentName: The unique identifier of the parent intent
-	// in the chain of followup
-	// intents.
+	// ParentFollowupIntentName: Read-only after creation. The unique
+	// identifier of the parent intent in the
+	// chain of followup intents. You can set this field when creating an
+	// intent,
+	// for example with CreateIntent or BatchUpdateIntents, in order to
+	// make this intent a followup intent.
+	//
 	// It identifies the parent followup intent.
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	ParentFollowupIntentName string `json:"parentFollowupIntentName,omitempty"`
@@ -802,10 +834,12 @@ type GoogleCloudDialogflowV2Intent struct {
 	// session when this intent is matched.
 	ResetContexts bool `json:"resetContexts,omitempty"`
 
-	// RootFollowupIntentName: The unique identifier of the root intent in
-	// the chain of followup intents.
-	// It identifies the correct followup intents chain for this
-	// intent.
+	// RootFollowupIntentName: Read-only. The unique identifier of the root
+	// intent in the chain of
+	// followup intents. It identifies the correct followup intents chain
+	// for
+	// this intent. We populate this field only in the output.
+	//
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	RootFollowupIntentName string `json:"rootFollowupIntentName,omitempty"`
 
@@ -859,7 +893,7 @@ type GoogleCloudDialogflowV2IntentFollowupIntentInfo struct {
 	FollowupIntentName string `json:"followupIntentName,omitempty"`
 
 	// ParentFollowupIntentName: The unique identifier of the followup
-	// intent parent.
+	// intent's parent.
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	ParentFollowupIntentName string `json:"parentFollowupIntentName,omitempty"`
 
@@ -2041,7 +2075,11 @@ type GoogleCloudDialogflowV2WebhookRequest struct {
 	// Session: The unique identifier of detectIntent request session.
 	// Can be used to identify end-user inside webhook
 	// implementation.
-	// Format: `projects/<Project ID>/agent/sessions/<Session ID>`.
+	// Format: `projects/<Project ID>/agent/sessions/<Session ID>`,
+	// or
+	// `projects/<Project ID>/agent/environments/<Environment
+	// ID>/users/<User
+	// ID>/sessions/<Session ID>`.
 	Session string `json:"session,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g.
@@ -2266,7 +2304,7 @@ func (s *GoogleCloudDialogflowV2beta1Agent) UnmarshalJSON(data []byte) error {
 // GoogleCloudDialogflowV2beta1BatchCreateEntitiesRequest: The request
 // message for EntityTypes.BatchCreateEntities.
 type GoogleCloudDialogflowV2beta1BatchCreateEntitiesRequest struct {
-	// Entities: Required. The collection of entities to create.
+	// Entities: Required. The entities to create.
 	Entities []*GoogleCloudDialogflowV2beta1EntityTypeEntity `json:"entities,omitempty"`
 
 	// LanguageCode: Optional. The language of entity synonyms defined in
@@ -2410,11 +2448,10 @@ func (s *GoogleCloudDialogflowV2beta1BatchDeleteIntentsRequest) MarshalJSON() ([
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// GoogleCloudDialogflowV2beta1BatchUpdateEntitiesRequest: The response
-// message for EntityTypes.BatchCreateEntities.
+// GoogleCloudDialogflowV2beta1BatchUpdateEntitiesRequest: The request
+// message for EntityTypes.BatchUpdateEntities.
 type GoogleCloudDialogflowV2beta1BatchUpdateEntitiesRequest struct {
-	// Entities: Required. The collection of new entities to replace the
-	// existing entities.
+	// Entities: Required. The entities to update or create.
 	Entities []*GoogleCloudDialogflowV2beta1EntityTypeEntity `json:"entities,omitempty"`
 
 	// LanguageCode: Optional. The language of entity synonyms defined in
@@ -2457,7 +2494,7 @@ func (s *GoogleCloudDialogflowV2beta1BatchUpdateEntitiesRequest) MarshalJSON() (
 // GoogleCloudDialogflowV2beta1BatchUpdateEntityTypesRequest: The
 // request message for EntityTypes.BatchUpdateEntityTypes.
 type GoogleCloudDialogflowV2beta1BatchUpdateEntityTypesRequest struct {
-	// EntityTypeBatchInline: The collection of entity type to update or
+	// EntityTypeBatchInline: The collection of entity types to update or
 	// create.
 	EntityTypeBatchInline *GoogleCloudDialogflowV2beta1EntityTypeBatch `json:"entityTypeBatchInline,omitempty"`
 
@@ -2688,6 +2725,70 @@ func (s *GoogleCloudDialogflowV2beta1Context) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// GoogleCloudDialogflowV2beta1ConversationEvent: Represents a
+// notification sent to Cloud Pub/Sub subscribers for
+// conversation
+// lifecycle events.
+type GoogleCloudDialogflowV2beta1ConversationEvent struct {
+	// Conversation: Required. The unique identifier of the conversation
+	// this notification
+	// refers to. Format: `projects/<Project ID>/conversations/<Conversation
+	// ID>`.
+	Conversation string `json:"conversation,omitempty"`
+
+	// ErrorStatus: Optional. More detailed information about an error. Only
+	// set for type
+	// UNRECOVERABLE_ERROR_IN_PHONE_CALL.
+	ErrorStatus *GoogleRpcStatus `json:"errorStatus,omitempty"`
+
+	// Type: Required. The type of the event that this notification refers
+	// to.
+	//
+	// Possible values:
+	//   "TYPE_UNSPECIFIED" - Type not set.
+	//   "CONVERSATION_STARTED" - A new conversation has been opened. This
+	// is fired when a telephone call
+	// is answered, or a conversation is created via the API.
+	//   "CONVERSATION_FINISHED" - An existing conversation has closed. This
+	// is fired when a telephone call
+	// is terminated, or a conversation is closed via the API.
+	//   "UNRECOVERABLE_ERROR" - Unrecoverable error during a telephone
+	// call.
+	//
+	// In general non-recoverable errors only occur if something
+	// was
+	// misconfigured in the ConversationProfile corresponding to the call.
+	// After
+	// a non-recoverable error, Dialogflow may stop responding.
+	//
+	// We don't fire this event:
+	// * in an API call because we can directly return the error, or,
+	// * when we can recover from an error.
+	Type string `json:"type,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Conversation") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Conversation") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GoogleCloudDialogflowV2beta1ConversationEvent) MarshalJSON() ([]byte, error) {
+	type NoMethod GoogleCloudDialogflowV2beta1ConversationEvent
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // GoogleCloudDialogflowV2beta1DetectIntentRequest: The request to
 // detect user's intent.
 type GoogleCloudDialogflowV2beta1DetectIntentRequest struct {
@@ -2785,8 +2886,6 @@ type GoogleCloudDialogflowV2beta1DetectIntentResponse struct {
 	ResponseId string `json:"responseId,omitempty"`
 
 	// WebhookStatus: Specifies the status of the webhook request.
-	// `webhook_status`
-	// is never populated in webhook requests.
 	WebhookStatus *GoogleRpcStatus `json:"webhookStatus,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
@@ -2819,6 +2918,10 @@ func (s *GoogleCloudDialogflowV2beta1DetectIntentResponse) MarshalJSON() ([]byte
 }
 
 // GoogleCloudDialogflowV2beta1Document: A document resource.
+//
+// Note: resource `projects.agent.knowledgeBases.documents` is
+// deprecated,
+// please use `projects.knowledgeBases.documents` instead.
 type GoogleCloudDialogflowV2beta1Document struct {
 	// Content: The raw content of the document. This field is only
 	// permitted for
@@ -2929,7 +3032,7 @@ type GoogleCloudDialogflowV2beta1EntityType struct {
 	// listed in the entity.
 	AutoExpansionMode string `json:"autoExpansionMode,omitempty"`
 
-	// DisplayName: Required. The name of the entity.
+	// DisplayName: Required. The name of the entity type.
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Entities: Optional. The collection of entities associated with the
@@ -3184,6 +3287,47 @@ type GoogleCloudDialogflowV2beta1ExportAgentResponse struct {
 
 func (s *GoogleCloudDialogflowV2beta1ExportAgentResponse) MarshalJSON() ([]byte, error) {
 	type NoMethod GoogleCloudDialogflowV2beta1ExportAgentResponse
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// GoogleCloudDialogflowV2beta1HumanAgentAssistantEvent: Represents a
+// notification sent to Cloud Pub/Sub subscribers for
+// agent assistant events in a specific conversation.
+type GoogleCloudDialogflowV2beta1HumanAgentAssistantEvent struct {
+	// Conversation: Required. The conversation this notification refers
+	// to.
+	// Format: `projects/<Project ID>/conversations/<Conversation ID>`.
+	Conversation string `json:"conversation,omitempty"`
+
+	// Type: Required. The type of the event that this notification refers
+	// to.
+	//
+	// Possible values:
+	//   "TYPE_UNSPECIFIED" - Type not set.
+	//   "NEW_SUGGESTION" - A new suggestion has been sent.
+	// This is fired when a suggestion comes from an agent assistant.
+	Type string `json:"type,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Conversation") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Conversation") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GoogleCloudDialogflowV2beta1HumanAgentAssistantEvent) MarshalJSON() ([]byte, error) {
+	type NoMethod GoogleCloudDialogflowV2beta1HumanAgentAssistantEvent
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -3481,9 +3625,10 @@ type GoogleCloudDialogflowV2beta1Intent struct {
 	// intent.
 	Events []string `json:"events,omitempty"`
 
-	// FollowupIntentInfo: Optional. Collection of information about all
-	// followup intents that have
-	// name of this intent as a root_name.
+	// FollowupIntentInfo: Read-only. Information about all followup intents
+	// that have this intent as
+	// a direct or indirect parent. We populate this field only in the
+	// output.
 	FollowupIntentInfo []*GoogleCloudDialogflowV2beta1IntentFollowupIntentInfo `json:"followupIntentInfo,omitempty"`
 
 	// InputContextNames: Optional. The list of context names required for
@@ -3549,9 +3694,13 @@ type GoogleCloudDialogflowV2beta1Intent struct {
 	// the intent.
 	Parameters []*GoogleCloudDialogflowV2beta1IntentParameter `json:"parameters,omitempty"`
 
-	// ParentFollowupIntentName: The unique identifier of the parent intent
-	// in the chain of followup
-	// intents.
+	// ParentFollowupIntentName: Read-only after creation. The unique
+	// identifier of the parent intent in the
+	// chain of followup intents. You can set this field when creating an
+	// intent,
+	// for example with CreateIntent or BatchUpdateIntents, in order to
+	// make this intent a followup intent.
+	//
 	// It identifies the parent followup intent.
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	ParentFollowupIntentName string `json:"parentFollowupIntentName,omitempty"`
@@ -3567,10 +3716,12 @@ type GoogleCloudDialogflowV2beta1Intent struct {
 	// session when this intent is matched.
 	ResetContexts bool `json:"resetContexts,omitempty"`
 
-	// RootFollowupIntentName: The unique identifier of the root intent in
-	// the chain of followup intents.
-	// It identifies the correct followup intents chain for this
-	// intent.
+	// RootFollowupIntentName: Read-only. The unique identifier of the root
+	// intent in the chain of
+	// followup intents. It identifies the correct followup intents chain
+	// for
+	// this intent. We populate this field only in the output.
+	//
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	RootFollowupIntentName string `json:"rootFollowupIntentName,omitempty"`
 
@@ -3657,7 +3808,7 @@ type GoogleCloudDialogflowV2beta1IntentFollowupIntentInfo struct {
 	FollowupIntentName string `json:"followupIntentName,omitempty"`
 
 	// ParentFollowupIntentName: The unique identifier of the followup
-	// intent parent.
+	// intent's parent.
 	// Format: `projects/<Project ID>/agent/intents/<Intent ID>`.
 	ParentFollowupIntentName string `json:"parentFollowupIntentName,omitempty"`
 
@@ -4880,6 +5031,10 @@ func (s *GoogleCloudDialogflowV2beta1KnowledgeAnswersAnswer) UnmarshalJSON(data 
 
 // GoogleCloudDialogflowV2beta1KnowledgeBase: Represents knowledge base
 // resource.
+//
+// Note: resource `projects.agent.knowledgeBases` is deprecated, please
+// use
+// `projects.knowledgeBases` instead.
 type GoogleCloudDialogflowV2beta1KnowledgeBase struct {
 	// DisplayName: Required. The display name of the knowledge base. The
 	// name must be 1024
@@ -5387,11 +5542,11 @@ type GoogleCloudDialogflowV2beta1QueryParameters struct {
 	// agents.
 	SentimentAnalysisRequestConfig *GoogleCloudDialogflowV2beta1SentimentAnalysisRequestConfig `json:"sentimentAnalysisRequestConfig,omitempty"`
 
-	// SessionEntityTypes: Optional. The collection of session entity types
-	// to replace or extend
-	// developer entities with for this query only. The entity synonyms
-	// apply
-	// to all languages.
+	// SessionEntityTypes: Optional. Additional session entity types to
+	// replace or extend developer
+	// entity types with. The entity synonyms apply to all languages and
+	// persist
+	// for the session of this query.
 	SessionEntityTypes []*GoogleCloudDialogflowV2beta1SessionEntityType `json:"sessionEntityTypes,omitempty"`
 
 	// TimeZone: Optional. The time zone of this conversational query from
@@ -5814,13 +5969,18 @@ type GoogleCloudDialogflowV2beta1SessionEntityType struct {
 	//   "ENTITY_OVERRIDE_MODE_SUPPLEMENT" - The collection of session
 	// entities extends the collection of entities in
 	// the corresponding developer entity type.
-	// Calls to `ListSessionEntityTypes`,
-	// `GetSessionEntityType`,
-	// `CreateSessionEntityType` and `UpdateSessionEntityType` return the
-	// full
-	// collection of entities from the developer entity type in the
-	// agent's
-	// default language and the session entity type.
+	//
+	// Note: Even in this override mode calls to
+	// `ListSessionEntityTypes`,
+	// `GetSessionEntityType`, `CreateSessionEntityType`
+	// and
+	// `UpdateSessionEntityType` only return the additional entities added
+	// in
+	// this session entity type. If you want to get the supplemented
+	// list,
+	// please call EntityTypes.GetEntityType on the developer entity
+	// type
+	// and merge.
 	EntityOverrideMode string `json:"entityOverrideMode,omitempty"`
 
 	// Name: Required. The unique identifier of this session entity type.
@@ -5835,6 +5995,10 @@ type GoogleCloudDialogflowV2beta1SessionEntityType struct {
 	// 'draft'
 	// environment. If `User ID` is not specified, we assume default '-'
 	// user.
+	//
+	// `<Entity Type Display Name>` must be the display name of an existing
+	// entity
+	// type in the same agent that will be overridden or supplemented.
 	Name string `json:"name,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
@@ -6073,7 +6237,11 @@ type GoogleCloudDialogflowV2beta1WebhookRequest struct {
 	// Session: The unique identifier of detectIntent request session.
 	// Can be used to identify end-user inside webhook
 	// implementation.
-	// Format: `projects/<Project ID>/agent/sessions/<Session ID>`.
+	// Format: `projects/<Project ID>/agent/sessions/<Session ID>`,
+	// or
+	// `projects/<Project ID>/agent/environments/<Environment
+	// ID>/users/<User
+	// ID>/sessions/<Session ID>`.
 	Session string `json:"session,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g.
@@ -6525,7 +6693,10 @@ func (c *ProjectsGetAgentCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -6593,7 +6764,8 @@ func (c *ProjectsGetAgentCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDia
 	//     "$ref": "GoogleCloudDialogflowV2beta1Agent"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -6663,7 +6835,10 @@ func (c *ProjectsAgentExportCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent:export")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -6733,7 +6908,8 @@ func (c *ProjectsAgentExportCall) Do(opts ...googleapi.CallOption) (*GoogleLongr
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -6809,7 +6985,10 @@ func (c *ProjectsAgentImportCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent:import")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -6879,7 +7058,8 @@ func (c *ProjectsAgentImportCall) Do(opts ...googleapi.CallOption) (*GoogleLongr
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -6953,7 +7133,10 @@ func (c *ProjectsAgentRestoreCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent:restore")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7023,7 +7206,8 @@ func (c *ProjectsAgentRestoreCall) Do(opts ...googleapi.CallOption) (*GoogleLong
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7122,7 +7306,10 @@ func (c *ProjectsAgentSearchCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent:search")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7202,7 +7389,8 @@ func (c *ProjectsAgentSearchCall) Do(opts ...googleapi.CallOption) (*GoogleCloud
 	//     "$ref": "GoogleCloudDialogflowV2beta1SearchAgentsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7293,7 +7481,10 @@ func (c *ProjectsAgentTrainCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/agent:train")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7363,7 +7554,8 @@ func (c *ProjectsAgentTrainCall) Do(opts ...googleapi.CallOption) (*GoogleLongru
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7432,7 +7624,10 @@ func (c *ProjectsAgentEntityTypesBatchDeleteCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes:batchDelete")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7502,7 +7697,8 @@ func (c *ProjectsAgentEntityTypesBatchDeleteCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7572,7 +7768,10 @@ func (c *ProjectsAgentEntityTypesBatchUpdateCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes:batchUpdate")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7642,7 +7841,8 @@ func (c *ProjectsAgentEntityTypesBatchUpdateCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7722,7 +7922,10 @@ func (c *ProjectsAgentEntityTypesCreateCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7798,7 +8001,8 @@ func (c *ProjectsAgentEntityTypesCreateCall) Do(opts ...googleapi.CallOption) (*
 	//     "$ref": "GoogleCloudDialogflowV2beta1EntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -7857,7 +8061,10 @@ func (c *ProjectsAgentEntityTypesDeleteCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -7924,7 +8131,8 @@ func (c *ProjectsAgentEntityTypesDeleteCall) Do(opts ...googleapi.CallOption) (*
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8011,7 +8219,10 @@ func (c *ProjectsAgentEntityTypesGetCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -8084,7 +8295,8 @@ func (c *ProjectsAgentEntityTypesGetCall) Do(opts ...googleapi.CallOption) (*Goo
 	//     "$ref": "GoogleCloudDialogflowV2beta1EntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8186,7 +8398,10 @@ func (c *ProjectsAgentEntityTypesListCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8271,7 +8486,8 @@ func (c *ProjectsAgentEntityTypesListCall) Do(opts ...googleapi.CallOption) (*Go
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListEntityTypesResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8379,7 +8595,10 @@ func (c *ProjectsAgentEntityTypesPatchCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -8461,7 +8680,8 @@ func (c *ProjectsAgentEntityTypesPatchCall) Do(opts ...googleapi.CallOption) (*G
 	//     "$ref": "GoogleCloudDialogflowV2beta1EntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8479,8 +8699,7 @@ type ProjectsAgentEntityTypesEntitiesBatchCreateCall struct {
 }
 
 // BatchCreate: Creates multiple new entities in the specified entity
-// type (extends the
-// existing collection of entries).
+// type.
 //
 // Operation <response: google.protobuf.Empty>
 func (r *ProjectsAgentEntityTypesEntitiesService) BatchCreate(parent string, googleclouddialogflowv2beta1batchcreateentitiesrequest *GoogleCloudDialogflowV2beta1BatchCreateEntitiesRequest) *ProjectsAgentEntityTypesEntitiesBatchCreateCall {
@@ -8531,7 +8750,10 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchCreateCall) doRequest(alt string) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entities:batchCreate")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8577,7 +8799,7 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchCreateCall) Do(opts ...googleapi.C
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates multiple new entities in the specified entity type (extends the\nexisting collection of entries).\n\nOperation \u003cresponse: google.protobuf.Empty\u003e",
+	//   "description": "Creates multiple new entities in the specified entity type.\n\nOperation \u003cresponse: google.protobuf.Empty\u003e",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/entityTypes/{entityTypesId}/entities:batchCreate",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.entityTypes.entities.batchCreate",
@@ -8601,7 +8823,8 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchCreateCall) Do(opts ...googleapi.C
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8671,7 +8894,10 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchDeleteCall) doRequest(alt string) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entities:batchDelete")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8741,7 +8967,8 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchDeleteCall) Do(opts ...googleapi.C
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8758,9 +8985,11 @@ type ProjectsAgentEntityTypesEntitiesBatchUpdateCall struct {
 	header_                                                http.Header
 }
 
-// BatchUpdate: Updates entities in the specified entity type (replaces
-// the existing
-// collection of entries).
+// BatchUpdate: Updates or creates multiple entities in the specified
+// entity type. This
+// method does not affect entities in the entity type that aren't
+// explicitly
+// specified in the request.
 //
 // Operation <response: google.protobuf.Empty,
 //            metadata: google.protobuf.Struct>
@@ -8812,7 +9041,10 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchUpdateCall) doRequest(alt string) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entities:batchUpdate")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8858,7 +9090,7 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchUpdateCall) Do(opts ...googleapi.C
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates entities in the specified entity type (replaces the existing\ncollection of entries).\n\nOperation \u003cresponse: google.protobuf.Empty,\n           metadata: google.protobuf.Struct\u003e",
+	//   "description": "Updates or creates multiple entities in the specified entity type. This\nmethod does not affect entities in the entity type that aren't explicitly\nspecified in the request.\n\nOperation \u003cresponse: google.protobuf.Empty,\n           metadata: google.protobuf.Struct\u003e",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/entityTypes/{entityTypesId}/entities:batchUpdate",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.entityTypes.entities.batchUpdate",
@@ -8867,7 +9099,7 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchUpdateCall) Do(opts ...googleapi.C
 	//   ],
 	//   "parameters": {
 	//     "parent": {
-	//       "description": "Required. The name of the entity type to update the entities in. Format:\n`projects/\u003cProject ID\u003e/agent/entityTypes/\u003cEntity Type ID\u003e`.",
+	//       "description": "Required. The name of the entity type to update or create entities in.\nFormat: `projects/\u003cProject ID\u003e/agent/entityTypes/\u003cEntity Type ID\u003e`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/agent/entityTypes/[^/]+$",
 	//       "required": true,
@@ -8882,7 +9114,8 @@ func (c *ProjectsAgentEntityTypesEntitiesBatchUpdateCall) Do(opts ...googleapi.C
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -8941,7 +9174,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsDeleteContextsCall) doRequest(alt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9008,7 +9244,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsDeleteContextsCall) Do(opts ...go
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9080,7 +9317,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsDetectIntentCall) doRequest(alt s
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+session}:detectIntent")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"session": c.sessionid,
@@ -9152,7 +9392,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsDetectIntentCall) Do(opts ...goog
 	//     "$ref": "GoogleCloudDialogflowV2beta1DetectIntentResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9170,6 +9411,8 @@ type ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall struct {
 }
 
 // Create: Creates a context.
+//
+// If the specified context already exists, overrides the context.
 func (r *ProjectsAgentEnvironmentsUsersSessionsContextsService) Create(parent string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall {
 	c := &ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -9218,7 +9461,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall) doRequest(alt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9265,7 +9511,7 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall) Do(opts ...go
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a context.",
+	//   "description": "Creates a context.\n\nIf the specified context already exists, overrides the context.",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/environments/{environmentsId}/users/{usersId}/sessions/{sessionsId}/contexts",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.environments.users.sessions.contexts.create",
@@ -9289,7 +9535,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsCreateCall) Do(opts ...go
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9348,7 +9595,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsDeleteCall) doRequest(alt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9415,7 +9665,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsDeleteCall) Do(opts ...go
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9488,7 +9739,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsGetCall) doRequest(alt st
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9556,7 +9810,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsGetCall) Do(opts ...googl
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9644,7 +9899,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsListCall) doRequest(alt s
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9724,7 +9982,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsListCall) Do(opts ...goog
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListContextsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9818,7 +10077,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsPatchCall) doRequest(alt 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -9895,7 +10157,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsContextsPatchCall) Do(opts ...goo
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -9913,6 +10176,10 @@ type ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall struct {
 }
 
 // Create: Creates a session entity type.
+//
+// If the specified session entity type already exists, overrides
+// the
+// session entity type.
 func (r *ProjectsAgentEnvironmentsUsersSessionsEntityTypesService) Create(parent string, googleclouddialogflowv2beta1sessionentitytype *GoogleCloudDialogflowV2beta1SessionEntityType) *ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall {
 	c := &ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -9961,7 +10228,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall) doRequest(
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10009,7 +10279,7 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall) Do(opts ..
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a session entity type.",
+	//   "description": "Creates a session entity type.\n\nIf the specified session entity type already exists, overrides the\nsession entity type.",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/environments/{environmentsId}/users/{usersId}/sessions/{sessionsId}/entityTypes",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.environments.users.sessions.entityTypes.create",
@@ -10033,7 +10303,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesCreateCall) Do(opts ..
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10092,7 +10363,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesDeleteCall) doRequest(
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -10159,7 +10433,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesDeleteCall) Do(opts ..
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10232,7 +10507,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesGetCall) doRequest(alt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -10301,7 +10579,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesGetCall) Do(opts ...go
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10390,7 +10669,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesListCall) doRequest(al
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10471,7 +10753,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesListCall) Do(opts ...g
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListSessionEntityTypesResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10565,7 +10848,10 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesPatchCall) doRequest(a
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -10622,7 +10908,7 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesPatchCall) Do(opts ...
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "Required. The unique identifier of this session entity type. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type\nDisplay Name\u003e`, or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type Display Name\u003e`.\nIf `Environment ID` is not specified, we assume default 'draft'\nenvironment. If `User ID` is not specified, we assume default '-' user.",
+	//       "description": "Required. The unique identifier of this session entity type. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type\nDisplay Name\u003e`, or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type Display Name\u003e`.\nIf `Environment ID` is not specified, we assume default 'draft'\nenvironment. If `User ID` is not specified, we assume default '-' user.\n\n`\u003cEntity Type Display Name\u003e` must be the display name of an existing entity\ntype in the same agent that will be overridden or supplemented.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/agent/environments/[^/]+/users/[^/]+/sessions/[^/]+/entityTypes/[^/]+$",
 	//       "required": true,
@@ -10643,7 +10929,8 @@ func (c *ProjectsAgentEnvironmentsUsersSessionsEntityTypesPatchCall) Do(opts ...
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10711,7 +10998,10 @@ func (c *ProjectsAgentIntentsBatchDeleteCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/intents:batchDelete")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10781,7 +11071,8 @@ func (c *ProjectsAgentIntentsBatchDeleteCall) Do(opts ...googleapi.CallOption) (
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -10850,7 +11141,10 @@ func (c *ProjectsAgentIntentsBatchUpdateCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/intents:batchUpdate")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10920,7 +11214,8 @@ func (c *ProjectsAgentIntentsBatchUpdateCall) Do(opts ...googleapi.CallOption) (
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11012,7 +11307,10 @@ func (c *ProjectsAgentIntentsCreateCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/intents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11097,7 +11395,8 @@ func (c *ProjectsAgentIntentsCreateCall) Do(opts ...googleapi.CallOption) (*Goog
 	//     "$ref": "GoogleCloudDialogflowV2beta1Intent"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11113,7 +11412,8 @@ type ProjectsAgentIntentsDeleteCall struct {
 	header_    http.Header
 }
 
-// Delete: Deletes the specified intent.
+// Delete: Deletes the specified intent and its direct or indirect
+// followup intents.
 func (r *ProjectsAgentIntentsService) Delete(name string) *ProjectsAgentIntentsDeleteCall {
 	c := &ProjectsAgentIntentsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -11156,7 +11456,10 @@ func (c *ProjectsAgentIntentsDeleteCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -11202,7 +11505,7 @@ func (c *ProjectsAgentIntentsDeleteCall) Do(opts ...googleapi.CallOption) (*Goog
 	}
 	return ret, nil
 	// {
-	//   "description": "Deletes the specified intent.",
+	//   "description": "Deletes the specified intent and its direct or indirect followup intents.",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/intents/{intentsId}",
 	//   "httpMethod": "DELETE",
 	//   "id": "dialogflow.projects.agent.intents.delete",
@@ -11211,7 +11514,7 @@ func (c *ProjectsAgentIntentsDeleteCall) Do(opts ...googleapi.CallOption) (*Goog
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "Required. The name of the intent to delete.\nFormat: `projects/\u003cProject ID\u003e/agent/intents/\u003cIntent ID\u003e`.",
+	//       "description": "Required. The name of the intent to delete. If this intent has direct or\nindirect followup intents, we also delete them.\n\nFormat: `projects/\u003cProject ID\u003e/agent/intents/\u003cIntent ID\u003e`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/agent/intents/[^/]+$",
 	//       "required": true,
@@ -11223,7 +11526,8 @@ func (c *ProjectsAgentIntentsDeleteCall) Do(opts ...googleapi.CallOption) (*Goog
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11322,7 +11626,10 @@ func (c *ProjectsAgentIntentsGetCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -11404,7 +11711,8 @@ func (c *ProjectsAgentIntentsGetCall) Do(opts ...googleapi.CallOption) (*GoogleC
 	//     "$ref": "GoogleCloudDialogflowV2beta1Intent"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11517,7 +11825,10 @@ func (c *ProjectsAgentIntentsListCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/intents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11611,7 +11922,8 @@ func (c *ProjectsAgentIntentsListCall) Do(opts ...googleapi.CallOption) (*Google
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListIntentsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11731,7 +12043,10 @@ func (c *ProjectsAgentIntentsPatchCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -11822,7 +12137,8 @@ func (c *ProjectsAgentIntentsPatchCall) Do(opts ...googleapi.CallOption) (*Googl
 	//     "$ref": "GoogleCloudDialogflowV2beta1Intent"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -11888,7 +12204,10 @@ func (c *ProjectsAgentKnowledgeBasesCreateCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/knowledgeBases")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11960,7 +12279,8 @@ func (c *ProjectsAgentKnowledgeBasesCreateCall) Do(opts ...googleapi.CallOption)
 	//     "$ref": "GoogleCloudDialogflowV2beta1KnowledgeBase"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12027,7 +12347,10 @@ func (c *ProjectsAgentKnowledgeBasesDeleteCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12099,7 +12422,8 @@ func (c *ProjectsAgentKnowledgeBasesDeleteCall) Do(opts ...googleapi.CallOption)
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12172,7 +12496,10 @@ func (c *ProjectsAgentKnowledgeBasesGetCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12241,7 +12568,8 @@ func (c *ProjectsAgentKnowledgeBasesGetCall) Do(opts ...googleapi.CallOption) (*
 	//     "$ref": "GoogleCloudDialogflowV2beta1KnowledgeBase"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12329,7 +12657,10 @@ func (c *ProjectsAgentKnowledgeBasesListCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/knowledgeBases")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -12410,7 +12741,8 @@ func (c *ProjectsAgentKnowledgeBasesListCall) Do(opts ...googleapi.CallOption) (
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListKnowledgeBasesResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12500,7 +12832,10 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsCreateCall) doRequest(alt string) (
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/documents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -12570,7 +12905,8 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsCreateCall) Do(opts ...googleapi.Ca
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12632,7 +12968,10 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsDeleteCall) doRequest(alt string) (
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12699,7 +13038,8 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsDeleteCall) Do(opts ...googleapi.Ca
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12772,7 +13112,10 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsGetCall) doRequest(alt string) (*ht
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12840,7 +13183,8 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsGetCall) Do(opts ...googleapi.CallO
 	//     "$ref": "GoogleCloudDialogflowV2beta1Document"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -12928,7 +13272,10 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsListCall) doRequest(alt string) (*h
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/documents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13008,7 +13355,8 @@ func (c *ProjectsAgentKnowledgeBasesDocumentsListCall) Do(opts ...googleapi.Call
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListDocumentsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13088,7 +13436,10 @@ func (c *ProjectsAgentSessionsDeleteContextsCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13155,7 +13506,8 @@ func (c *ProjectsAgentSessionsDeleteContextsCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13227,7 +13579,10 @@ func (c *ProjectsAgentSessionsDetectIntentCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+session}:detectIntent")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"session": c.sessionid,
@@ -13299,7 +13654,8 @@ func (c *ProjectsAgentSessionsDetectIntentCall) Do(opts ...googleapi.CallOption)
 	//     "$ref": "GoogleCloudDialogflowV2beta1DetectIntentResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13317,6 +13673,8 @@ type ProjectsAgentSessionsContextsCreateCall struct {
 }
 
 // Create: Creates a context.
+//
+// If the specified context already exists, overrides the context.
 func (r *ProjectsAgentSessionsContextsService) Create(parent string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsAgentSessionsContextsCreateCall {
 	c := &ProjectsAgentSessionsContextsCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -13365,7 +13723,10 @@ func (c *ProjectsAgentSessionsContextsCreateCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13412,7 +13773,7 @@ func (c *ProjectsAgentSessionsContextsCreateCall) Do(opts ...googleapi.CallOptio
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a context.",
+	//   "description": "Creates a context.\n\nIf the specified context already exists, overrides the context.",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/sessions/{sessionsId}/contexts",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.sessions.contexts.create",
@@ -13436,7 +13797,8 @@ func (c *ProjectsAgentSessionsContextsCreateCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13495,7 +13857,10 @@ func (c *ProjectsAgentSessionsContextsDeleteCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13562,7 +13927,8 @@ func (c *ProjectsAgentSessionsContextsDeleteCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13635,7 +14001,10 @@ func (c *ProjectsAgentSessionsContextsGetCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13703,7 +14072,8 @@ func (c *ProjectsAgentSessionsContextsGetCall) Do(opts ...googleapi.CallOption) 
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13791,7 +14161,10 @@ func (c *ProjectsAgentSessionsContextsListCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13871,7 +14244,8 @@ func (c *ProjectsAgentSessionsContextsListCall) Do(opts ...googleapi.CallOption)
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListContextsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -13965,7 +14339,10 @@ func (c *ProjectsAgentSessionsContextsPatchCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -14042,7 +14419,8 @@ func (c *ProjectsAgentSessionsContextsPatchCall) Do(opts ...googleapi.CallOption
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -14060,6 +14438,10 @@ type ProjectsAgentSessionsEntityTypesCreateCall struct {
 }
 
 // Create: Creates a session entity type.
+//
+// If the specified session entity type already exists, overrides
+// the
+// session entity type.
 func (r *ProjectsAgentSessionsEntityTypesService) Create(parent string, googleclouddialogflowv2beta1sessionentitytype *GoogleCloudDialogflowV2beta1SessionEntityType) *ProjectsAgentSessionsEntityTypesCreateCall {
 	c := &ProjectsAgentSessionsEntityTypesCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -14108,7 +14490,10 @@ func (c *ProjectsAgentSessionsEntityTypesCreateCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -14156,7 +14541,7 @@ func (c *ProjectsAgentSessionsEntityTypesCreateCall) Do(opts ...googleapi.CallOp
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a session entity type.",
+	//   "description": "Creates a session entity type.\n\nIf the specified session entity type already exists, overrides the\nsession entity type.",
 	//   "flatPath": "v2beta1/projects/{projectsId}/agent/sessions/{sessionsId}/entityTypes",
 	//   "httpMethod": "POST",
 	//   "id": "dialogflow.projects.agent.sessions.entityTypes.create",
@@ -14180,7 +14565,8 @@ func (c *ProjectsAgentSessionsEntityTypesCreateCall) Do(opts ...googleapi.CallOp
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -14239,7 +14625,10 @@ func (c *ProjectsAgentSessionsEntityTypesDeleteCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -14306,7 +14695,8 @@ func (c *ProjectsAgentSessionsEntityTypesDeleteCall) Do(opts ...googleapi.CallOp
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -14379,7 +14769,10 @@ func (c *ProjectsAgentSessionsEntityTypesGetCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -14448,7 +14841,8 @@ func (c *ProjectsAgentSessionsEntityTypesGetCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -14537,7 +14931,10 @@ func (c *ProjectsAgentSessionsEntityTypesListCall) doRequest(alt string) (*http.
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/entityTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -14618,7 +15015,8 @@ func (c *ProjectsAgentSessionsEntityTypesListCall) Do(opts ...googleapi.CallOpti
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListSessionEntityTypesResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -14712,7 +15110,10 @@ func (c *ProjectsAgentSessionsEntityTypesPatchCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -14769,7 +15170,7 @@ func (c *ProjectsAgentSessionsEntityTypesPatchCall) Do(opts ...googleapi.CallOpt
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "Required. The unique identifier of this session entity type. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type\nDisplay Name\u003e`, or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type Display Name\u003e`.\nIf `Environment ID` is not specified, we assume default 'draft'\nenvironment. If `User ID` is not specified, we assume default '-' user.",
+	//       "description": "Required. The unique identifier of this session entity type. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type\nDisplay Name\u003e`, or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/entityTypes/\u003cEntity Type Display Name\u003e`.\nIf `Environment ID` is not specified, we assume default 'draft'\nenvironment. If `User ID` is not specified, we assume default '-' user.\n\n`\u003cEntity Type Display Name\u003e` must be the display name of an existing entity\ntype in the same agent that will be overridden or supplemented.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/agent/sessions/[^/]+/entityTypes/[^/]+$",
 	//       "required": true,
@@ -14790,15 +15191,16 @@ func (c *ProjectsAgentSessionsEntityTypesPatchCall) Do(opts ...googleapi.CallOpt
 	//     "$ref": "GoogleCloudDialogflowV2beta1SessionEntityType"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
 }
 
-// method id "dialogflow.projects.conversations.deleteContexts":
+// method id "dialogflow.projects.environments.users.conversations.deleteContexts":
 
-type ProjectsConversationsDeleteContextsCall struct {
+type ProjectsEnvironmentsUsersConversationsDeleteContextsCall struct {
 	s          *Service
 	parent     string
 	urlParams_ gensupport.URLParams
@@ -14807,8 +15209,8 @@ type ProjectsConversationsDeleteContextsCall struct {
 }
 
 // DeleteContexts: Deletes all active contexts in the specified session.
-func (r *ProjectsConversationsService) DeleteContexts(parent string) *ProjectsConversationsDeleteContextsCall {
-	c := &ProjectsConversationsDeleteContextsCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+func (r *ProjectsEnvironmentsUsersConversationsService) DeleteContexts(parent string) *ProjectsEnvironmentsUsersConversationsDeleteContextsCall {
+	c := &ProjectsEnvironmentsUsersConversationsDeleteContextsCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
 	return c
 }
@@ -14816,7 +15218,7 @@ func (r *ProjectsConversationsService) DeleteContexts(parent string) *ProjectsCo
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsDeleteContextsCall) Fields(s ...googleapi.Field) *ProjectsConversationsDeleteContextsCall {
+func (c *ProjectsEnvironmentsUsersConversationsDeleteContextsCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsDeleteContextsCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -14824,21 +15226,21 @@ func (c *ProjectsConversationsDeleteContextsCall) Fields(s ...googleapi.Field) *
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsDeleteContextsCall) Context(ctx context.Context) *ProjectsConversationsDeleteContextsCall {
+func (c *ProjectsEnvironmentsUsersConversationsDeleteContextsCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsDeleteContextsCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsDeleteContextsCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsDeleteContextsCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsDeleteContextsCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsDeleteContextsCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -14849,7 +15251,10 @@ func (c *ProjectsConversationsDeleteContextsCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -14857,14 +15262,14 @@ func (c *ProjectsConversationsDeleteContextsCall) doRequest(alt string) (*http.R
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.deleteContexts" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.deleteContexts" call.
 // Exactly one of *GoogleProtobufEmpty or error will be non-nil. Any
 // non-2xx status code is an error. Response headers are in either
 // *GoogleProtobufEmpty.ServerResponse.Header or (if a response was
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *ProjectsConversationsDeleteContextsCall) Do(opts ...googleapi.CallOption) (*GoogleProtobufEmpty, error) {
+func (c *ProjectsEnvironmentsUsersConversationsDeleteContextsCall) Do(opts ...googleapi.CallOption) (*GoogleProtobufEmpty, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -14896,9 +15301,9 @@ func (c *ProjectsConversationsDeleteContextsCall) Do(opts ...googleapi.CallOptio
 	return ret, nil
 	// {
 	//   "description": "Deletes all active contexts in the specified session.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts",
 	//   "httpMethod": "DELETE",
-	//   "id": "dialogflow.projects.conversations.deleteContexts",
+	//   "id": "dialogflow.projects.environments.users.conversations.deleteContexts",
 	//   "parameterOrder": [
 	//     "parent"
 	//   ],
@@ -14906,7 +15311,7 @@ func (c *ProjectsConversationsDeleteContextsCall) Do(opts ...googleapi.CallOptio
 	//     "parent": {
 	//       "description": "Required. The name of the session to delete all contexts from. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e` or `projects/\u003cProject\nID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser ID\u003e/sessions/\u003cSession\nID\u003e`. If `Environment ID` is not specified we assume default 'draft'\nenvironment. If `User ID` is not specified, we assume default '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     }
@@ -14916,15 +15321,16 @@ func (c *ProjectsConversationsDeleteContextsCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
 }
 
-// method id "dialogflow.projects.conversations.contexts.create":
+// method id "dialogflow.projects.environments.users.conversations.contexts.create":
 
-type ProjectsConversationsContextsCreateCall struct {
+type ProjectsEnvironmentsUsersConversationsContextsCreateCall struct {
 	s                                   *Service
 	parent                              string
 	googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context
@@ -14934,8 +15340,10 @@ type ProjectsConversationsContextsCreateCall struct {
 }
 
 // Create: Creates a context.
-func (r *ProjectsConversationsContextsService) Create(parent string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsConversationsContextsCreateCall {
-	c := &ProjectsConversationsContextsCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+//
+// If the specified context already exists, overrides the context.
+func (r *ProjectsEnvironmentsUsersConversationsContextsService) Create(parent string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsEnvironmentsUsersConversationsContextsCreateCall {
+	c := &ProjectsEnvironmentsUsersConversationsContextsCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
 	c.googleclouddialogflowv2beta1context = googleclouddialogflowv2beta1context
 	return c
@@ -14944,7 +15352,7 @@ func (r *ProjectsConversationsContextsService) Create(parent string, googlecloud
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsContextsCreateCall) Fields(s ...googleapi.Field) *ProjectsConversationsContextsCreateCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsCreateCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsContextsCreateCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -14952,21 +15360,21 @@ func (c *ProjectsConversationsContextsCreateCall) Fields(s ...googleapi.Field) *
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsContextsCreateCall) Context(ctx context.Context) *ProjectsConversationsContextsCreateCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsCreateCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsContextsCreateCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsContextsCreateCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsContextsCreateCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsContextsCreateCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsCreateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -14982,7 +15390,10 @@ func (c *ProjectsConversationsContextsCreateCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -14990,7 +15401,7 @@ func (c *ProjectsConversationsContextsCreateCall) doRequest(alt string) (*http.R
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.contexts.create" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.contexts.create" call.
 // Exactly one of *GoogleCloudDialogflowV2beta1Context or error will be
 // non-nil. Any non-2xx status code is an error. Response headers are in
 // either *GoogleCloudDialogflowV2beta1Context.ServerResponse.Header or
@@ -14998,7 +15409,7 @@ func (c *ProjectsConversationsContextsCreateCall) doRequest(alt string) (*http.R
 // error.(*googleapi.Error).Header. Use googleapi.IsNotModified to check
 // whether the returned error was because http.StatusNotModified was
 // returned.
-func (c *ProjectsConversationsContextsCreateCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsCreateCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -15029,10 +15440,10 @@ func (c *ProjectsConversationsContextsCreateCall) Do(opts ...googleapi.CallOptio
 	}
 	return ret, nil
 	// {
-	//   "description": "Creates a context.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts",
+	//   "description": "Creates a context.\n\nIf the specified context already exists, overrides the context.",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts",
 	//   "httpMethod": "POST",
-	//   "id": "dialogflow.projects.conversations.contexts.create",
+	//   "id": "dialogflow.projects.environments.users.conversations.contexts.create",
 	//   "parameterOrder": [
 	//     "parent"
 	//   ],
@@ -15040,7 +15451,7 @@ func (c *ProjectsConversationsContextsCreateCall) Do(opts ...googleapi.CallOptio
 	//     "parent": {
 	//       "description": "Required. The session to create a context for.\nFormat: `projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e` or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e`. If `Environment ID` is not specified, we assume\ndefault 'draft' environment. If `User ID` is not specified, we assume\ndefault '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     }
@@ -15053,15 +15464,16 @@ func (c *ProjectsConversationsContextsCreateCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
 }
 
-// method id "dialogflow.projects.conversations.contexts.delete":
+// method id "dialogflow.projects.environments.users.conversations.contexts.delete":
 
-type ProjectsConversationsContextsDeleteCall struct {
+type ProjectsEnvironmentsUsersConversationsContextsDeleteCall struct {
 	s          *Service
 	name       string
 	urlParams_ gensupport.URLParams
@@ -15070,8 +15482,8 @@ type ProjectsConversationsContextsDeleteCall struct {
 }
 
 // Delete: Deletes the specified context.
-func (r *ProjectsConversationsContextsService) Delete(name string) *ProjectsConversationsContextsDeleteCall {
-	c := &ProjectsConversationsContextsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+func (r *ProjectsEnvironmentsUsersConversationsContextsService) Delete(name string) *ProjectsEnvironmentsUsersConversationsContextsDeleteCall {
+	c := &ProjectsEnvironmentsUsersConversationsContextsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
 	return c
 }
@@ -15079,7 +15491,7 @@ func (r *ProjectsConversationsContextsService) Delete(name string) *ProjectsConv
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsContextsDeleteCall) Fields(s ...googleapi.Field) *ProjectsConversationsContextsDeleteCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsDeleteCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsContextsDeleteCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -15087,21 +15499,21 @@ func (c *ProjectsConversationsContextsDeleteCall) Fields(s ...googleapi.Field) *
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsContextsDeleteCall) Context(ctx context.Context) *ProjectsConversationsContextsDeleteCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsDeleteCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsContextsDeleteCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsContextsDeleteCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsContextsDeleteCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsContextsDeleteCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -15112,7 +15524,10 @@ func (c *ProjectsConversationsContextsDeleteCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -15120,14 +15535,14 @@ func (c *ProjectsConversationsContextsDeleteCall) doRequest(alt string) (*http.R
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.contexts.delete" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.contexts.delete" call.
 // Exactly one of *GoogleProtobufEmpty or error will be non-nil. Any
 // non-2xx status code is an error. Response headers are in either
 // *GoogleProtobufEmpty.ServerResponse.Header or (if a response was
 // returned at all) in error.(*googleapi.Error).Header. Use
 // googleapi.IsNotModified to check whether the returned error was
 // because http.StatusNotModified was returned.
-func (c *ProjectsConversationsContextsDeleteCall) Do(opts ...googleapi.CallOption) (*GoogleProtobufEmpty, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsDeleteCall) Do(opts ...googleapi.CallOption) (*GoogleProtobufEmpty, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -15159,9 +15574,9 @@ func (c *ProjectsConversationsContextsDeleteCall) Do(opts ...googleapi.CallOptio
 	return ret, nil
 	// {
 	//   "description": "Deletes the specified context.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts/{contextsId}",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts/{contextsId}",
 	//   "httpMethod": "DELETE",
-	//   "id": "dialogflow.projects.conversations.contexts.delete",
+	//   "id": "dialogflow.projects.environments.users.conversations.contexts.delete",
 	//   "parameterOrder": [
 	//     "name"
 	//   ],
@@ -15169,7 +15584,7 @@ func (c *ProjectsConversationsContextsDeleteCall) Do(opts ...googleapi.CallOptio
 	//     "name": {
 	//       "description": "Required. The name of the context to delete. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`\nor `projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`. If `Environment ID` is\nnot specified, we assume default 'draft' environment. If `User ID` is not\nspecified, we assume default '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+/contexts/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+/contexts/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     }
@@ -15179,15 +15594,16 @@ func (c *ProjectsConversationsContextsDeleteCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
 }
 
-// method id "dialogflow.projects.conversations.contexts.get":
+// method id "dialogflow.projects.environments.users.conversations.contexts.get":
 
-type ProjectsConversationsContextsGetCall struct {
+type ProjectsEnvironmentsUsersConversationsContextsGetCall struct {
 	s            *Service
 	name         string
 	urlParams_   gensupport.URLParams
@@ -15197,8 +15613,8 @@ type ProjectsConversationsContextsGetCall struct {
 }
 
 // Get: Retrieves the specified context.
-func (r *ProjectsConversationsContextsService) Get(name string) *ProjectsConversationsContextsGetCall {
-	c := &ProjectsConversationsContextsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+func (r *ProjectsEnvironmentsUsersConversationsContextsService) Get(name string) *ProjectsEnvironmentsUsersConversationsContextsGetCall {
+	c := &ProjectsEnvironmentsUsersConversationsContextsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
 	return c
 }
@@ -15206,7 +15622,7 @@ func (r *ProjectsConversationsContextsService) Get(name string) *ProjectsConvers
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsContextsGetCall) Fields(s ...googleapi.Field) *ProjectsConversationsContextsGetCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsContextsGetCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -15216,7 +15632,7 @@ func (c *ProjectsConversationsContextsGetCall) Fields(s ...googleapi.Field) *Pro
 // getting updates only after the object has changed since the last
 // request. Use googleapi.IsNotModified to check whether the response
 // error from Do is the result of In-None-Match.
-func (c *ProjectsConversationsContextsGetCall) IfNoneMatch(entityTag string) *ProjectsConversationsContextsGetCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) IfNoneMatch(entityTag string) *ProjectsEnvironmentsUsersConversationsContextsGetCall {
 	c.ifNoneMatch_ = entityTag
 	return c
 }
@@ -15224,21 +15640,21 @@ func (c *ProjectsConversationsContextsGetCall) IfNoneMatch(entityTag string) *Pr
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsContextsGetCall) Context(ctx context.Context) *ProjectsConversationsContextsGetCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsContextsGetCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsContextsGetCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsContextsGetCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -15252,7 +15668,10 @@ func (c *ProjectsConversationsContextsGetCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -15260,7 +15679,7 @@ func (c *ProjectsConversationsContextsGetCall) doRequest(alt string) (*http.Resp
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.contexts.get" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.contexts.get" call.
 // Exactly one of *GoogleCloudDialogflowV2beta1Context or error will be
 // non-nil. Any non-2xx status code is an error. Response headers are in
 // either *GoogleCloudDialogflowV2beta1Context.ServerResponse.Header or
@@ -15268,7 +15687,7 @@ func (c *ProjectsConversationsContextsGetCall) doRequest(alt string) (*http.Resp
 // error.(*googleapi.Error).Header. Use googleapi.IsNotModified to check
 // whether the returned error was because http.StatusNotModified was
 // returned.
-func (c *ProjectsConversationsContextsGetCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsGetCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -15300,9 +15719,9 @@ func (c *ProjectsConversationsContextsGetCall) Do(opts ...googleapi.CallOption) 
 	return ret, nil
 	// {
 	//   "description": "Retrieves the specified context.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts/{contextsId}",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts/{contextsId}",
 	//   "httpMethod": "GET",
-	//   "id": "dialogflow.projects.conversations.contexts.get",
+	//   "id": "dialogflow.projects.environments.users.conversations.contexts.get",
 	//   "parameterOrder": [
 	//     "name"
 	//   ],
@@ -15310,7 +15729,7 @@ func (c *ProjectsConversationsContextsGetCall) Do(opts ...googleapi.CallOption) 
 	//     "name": {
 	//       "description": "Required. The name of the context. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`\nor `projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`. If `Environment ID` is\nnot specified, we assume default 'draft' environment. If `User ID` is not\nspecified, we assume default '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+/contexts/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+/contexts/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     }
@@ -15320,15 +15739,16 @@ func (c *ProjectsConversationsContextsGetCall) Do(opts ...googleapi.CallOption) 
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
 }
 
-// method id "dialogflow.projects.conversations.contexts.list":
+// method id "dialogflow.projects.environments.users.conversations.contexts.list":
 
-type ProjectsConversationsContextsListCall struct {
+type ProjectsEnvironmentsUsersConversationsContextsListCall struct {
 	s            *Service
 	parent       string
 	urlParams_   gensupport.URLParams
@@ -15338,8 +15758,8 @@ type ProjectsConversationsContextsListCall struct {
 }
 
 // List: Returns the list of all contexts in the specified session.
-func (r *ProjectsConversationsContextsService) List(parent string) *ProjectsConversationsContextsListCall {
-	c := &ProjectsConversationsContextsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+func (r *ProjectsEnvironmentsUsersConversationsContextsService) List(parent string) *ProjectsEnvironmentsUsersConversationsContextsListCall {
+	c := &ProjectsEnvironmentsUsersConversationsContextsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
 	return c
 }
@@ -15347,14 +15767,14 @@ func (r *ProjectsConversationsContextsService) List(parent string) *ProjectsConv
 // PageSize sets the optional parameter "pageSize": The maximum number
 // of items to return in a single page. By
 // default 100 and at most 1000.
-func (c *ProjectsConversationsContextsListCall) PageSize(pageSize int64) *ProjectsConversationsContextsListCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) PageSize(pageSize int64) *ProjectsEnvironmentsUsersConversationsContextsListCall {
 	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
 	return c
 }
 
 // PageToken sets the optional parameter "pageToken": The
 // next_page_token value returned from a previous list request.
-func (c *ProjectsConversationsContextsListCall) PageToken(pageToken string) *ProjectsConversationsContextsListCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) PageToken(pageToken string) *ProjectsEnvironmentsUsersConversationsContextsListCall {
 	c.urlParams_.Set("pageToken", pageToken)
 	return c
 }
@@ -15362,7 +15782,7 @@ func (c *ProjectsConversationsContextsListCall) PageToken(pageToken string) *Pro
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsContextsListCall) Fields(s ...googleapi.Field) *ProjectsConversationsContextsListCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsContextsListCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -15372,7 +15792,7 @@ func (c *ProjectsConversationsContextsListCall) Fields(s ...googleapi.Field) *Pr
 // getting updates only after the object has changed since the last
 // request. Use googleapi.IsNotModified to check whether the response
 // error from Do is the result of In-None-Match.
-func (c *ProjectsConversationsContextsListCall) IfNoneMatch(entityTag string) *ProjectsConversationsContextsListCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) IfNoneMatch(entityTag string) *ProjectsEnvironmentsUsersConversationsContextsListCall {
 	c.ifNoneMatch_ = entityTag
 	return c
 }
@@ -15380,21 +15800,21 @@ func (c *ProjectsConversationsContextsListCall) IfNoneMatch(entityTag string) *P
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsContextsListCall) Context(ctx context.Context) *ProjectsConversationsContextsListCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsContextsListCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsContextsListCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsContextsListCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -15408,7 +15828,10 @@ func (c *ProjectsConversationsContextsListCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/contexts")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -15416,7 +15839,7 @@ func (c *ProjectsConversationsContextsListCall) doRequest(alt string) (*http.Res
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.contexts.list" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.contexts.list" call.
 // Exactly one of *GoogleCloudDialogflowV2beta1ListContextsResponse or
 // error will be non-nil. Any non-2xx status code is an error. Response
 // headers are in either
@@ -15425,7 +15848,7 @@ func (c *ProjectsConversationsContextsListCall) doRequest(alt string) (*http.Res
 // error.(*googleapi.Error).Header. Use googleapi.IsNotModified to check
 // whether the returned error was because http.StatusNotModified was
 // returned.
-func (c *ProjectsConversationsContextsListCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1ListContextsResponse, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1ListContextsResponse, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -15457,9 +15880,9 @@ func (c *ProjectsConversationsContextsListCall) Do(opts ...googleapi.CallOption)
 	return ret, nil
 	// {
 	//   "description": "Returns the list of all contexts in the specified session.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts",
 	//   "httpMethod": "GET",
-	//   "id": "dialogflow.projects.conversations.contexts.list",
+	//   "id": "dialogflow.projects.environments.users.conversations.contexts.list",
 	//   "parameterOrder": [
 	//     "parent"
 	//   ],
@@ -15478,7 +15901,7 @@ func (c *ProjectsConversationsContextsListCall) Do(opts ...googleapi.CallOption)
 	//     "parent": {
 	//       "description": "Required. The session to list all contexts from.\nFormat: `projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e` or\n`projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e`. If `Environment ID` is not specified, we assume\ndefault 'draft' environment. If `User ID` is not specified, we assume\ndefault '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     }
@@ -15488,7 +15911,8 @@ func (c *ProjectsConversationsContextsListCall) Do(opts ...googleapi.CallOption)
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListContextsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -15497,7 +15921,7 @@ func (c *ProjectsConversationsContextsListCall) Do(opts ...googleapi.CallOption)
 // Pages invokes f for each page of results.
 // A non-nil error returned from f will halt the iteration.
 // The provided context supersedes any context provided to the Context method.
-func (c *ProjectsConversationsContextsListCall) Pages(ctx context.Context, f func(*GoogleCloudDialogflowV2beta1ListContextsResponse) error) error {
+func (c *ProjectsEnvironmentsUsersConversationsContextsListCall) Pages(ctx context.Context, f func(*GoogleCloudDialogflowV2beta1ListContextsResponse) error) error {
 	c.ctx_ = ctx
 	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
 	for {
@@ -15515,9 +15939,9 @@ func (c *ProjectsConversationsContextsListCall) Pages(ctx context.Context, f fun
 	}
 }
 
-// method id "dialogflow.projects.conversations.contexts.patch":
+// method id "dialogflow.projects.environments.users.conversations.contexts.patch":
 
-type ProjectsConversationsContextsPatchCall struct {
+type ProjectsEnvironmentsUsersConversationsContextsPatchCall struct {
 	s                                   *Service
 	nameid                              string
 	googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context
@@ -15527,8 +15951,8 @@ type ProjectsConversationsContextsPatchCall struct {
 }
 
 // Patch: Updates the specified context.
-func (r *ProjectsConversationsContextsService) Patch(nameid string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsConversationsContextsPatchCall {
-	c := &ProjectsConversationsContextsPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+func (r *ProjectsEnvironmentsUsersConversationsContextsService) Patch(nameid string, googleclouddialogflowv2beta1context *GoogleCloudDialogflowV2beta1Context) *ProjectsEnvironmentsUsersConversationsContextsPatchCall {
+	c := &ProjectsEnvironmentsUsersConversationsContextsPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.nameid = nameid
 	c.googleclouddialogflowv2beta1context = googleclouddialogflowv2beta1context
 	return c
@@ -15536,7 +15960,7 @@ func (r *ProjectsConversationsContextsService) Patch(nameid string, googlecloudd
 
 // UpdateMask sets the optional parameter "updateMask": The mask to
 // control which fields get updated.
-func (c *ProjectsConversationsContextsPatchCall) UpdateMask(updateMask string) *ProjectsConversationsContextsPatchCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) UpdateMask(updateMask string) *ProjectsEnvironmentsUsersConversationsContextsPatchCall {
 	c.urlParams_.Set("updateMask", updateMask)
 	return c
 }
@@ -15544,7 +15968,7 @@ func (c *ProjectsConversationsContextsPatchCall) UpdateMask(updateMask string) *
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
-func (c *ProjectsConversationsContextsPatchCall) Fields(s ...googleapi.Field) *ProjectsConversationsContextsPatchCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) Fields(s ...googleapi.Field) *ProjectsEnvironmentsUsersConversationsContextsPatchCall {
 	c.urlParams_.Set("fields", googleapi.CombineFields(s))
 	return c
 }
@@ -15552,21 +15976,21 @@ func (c *ProjectsConversationsContextsPatchCall) Fields(s ...googleapi.Field) *P
 // Context sets the context to be used in this call's Do method. Any
 // pending HTTP request will be aborted if the provided context is
 // canceled.
-func (c *ProjectsConversationsContextsPatchCall) Context(ctx context.Context) *ProjectsConversationsContextsPatchCall {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) Context(ctx context.Context) *ProjectsEnvironmentsUsersConversationsContextsPatchCall {
 	c.ctx_ = ctx
 	return c
 }
 
 // Header returns an http.Header that can be modified by the caller to
 // add HTTP headers to the request.
-func (c *ProjectsConversationsContextsPatchCall) Header() http.Header {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) Header() http.Header {
 	if c.header_ == nil {
 		c.header_ = make(http.Header)
 	}
 	return c.header_
 }
 
-func (c *ProjectsConversationsContextsPatchCall) doRequest(alt string) (*http.Response, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
@@ -15582,7 +16006,10 @@ func (c *ProjectsConversationsContextsPatchCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.nameid,
@@ -15590,7 +16017,7 @@ func (c *ProjectsConversationsContextsPatchCall) doRequest(alt string) (*http.Re
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
 
-// Do executes the "dialogflow.projects.conversations.contexts.patch" call.
+// Do executes the "dialogflow.projects.environments.users.conversations.contexts.patch" call.
 // Exactly one of *GoogleCloudDialogflowV2beta1Context or error will be
 // non-nil. Any non-2xx status code is an error. Response headers are in
 // either *GoogleCloudDialogflowV2beta1Context.ServerResponse.Header or
@@ -15598,7 +16025,7 @@ func (c *ProjectsConversationsContextsPatchCall) doRequest(alt string) (*http.Re
 // error.(*googleapi.Error).Header. Use googleapi.IsNotModified to check
 // whether the returned error was because http.StatusNotModified was
 // returned.
-func (c *ProjectsConversationsContextsPatchCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
+func (c *ProjectsEnvironmentsUsersConversationsContextsPatchCall) Do(opts ...googleapi.CallOption) (*GoogleCloudDialogflowV2beta1Context, error) {
 	gensupport.SetOptions(c.urlParams_, opts...)
 	res, err := c.doRequest("json")
 	if res != nil && res.StatusCode == http.StatusNotModified {
@@ -15630,9 +16057,9 @@ func (c *ProjectsConversationsContextsPatchCall) Do(opts ...googleapi.CallOption
 	return ret, nil
 	// {
 	//   "description": "Updates the specified context.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/conversations/{conversationsId}/contexts/{contextsId}",
+	//   "flatPath": "v2beta1/projects/{projectsId}/environments/{environmentsId}/users/{usersId}/conversations/{conversationsId}/contexts/{contextsId}",
 	//   "httpMethod": "PATCH",
-	//   "id": "dialogflow.projects.conversations.contexts.patch",
+	//   "id": "dialogflow.projects.environments.users.conversations.contexts.patch",
 	//   "parameterOrder": [
 	//     "name"
 	//   ],
@@ -15640,7 +16067,7 @@ func (c *ProjectsConversationsContextsPatchCall) Do(opts ...googleapi.CallOption
 	//     "name": {
 	//       "description": "Required. The unique identifier of the context. Format:\n`projects/\u003cProject ID\u003e/agent/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`,\nor `projects/\u003cProject ID\u003e/agent/environments/\u003cEnvironment ID\u003e/users/\u003cUser\nID\u003e/sessions/\u003cSession ID\u003e/contexts/\u003cContext ID\u003e`. The `Context ID` is\nalways converted to lowercase. If `Environment ID` is not specified, we\nassume default 'draft' environment. If `User ID` is not specified, we\nassume default '-' user.",
 	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/conversations/[^/]+/contexts/[^/]+$",
+	//       "pattern": "^projects/[^/]+/environments/[^/]+/users/[^/]+/conversations/[^/]+/contexts/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
@@ -15659,7 +16086,8 @@ func (c *ProjectsConversationsContextsPatchCall) Do(opts ...googleapi.CallOption
 	//     "$ref": "GoogleCloudDialogflowV2beta1Context"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -15725,7 +16153,10 @@ func (c *ProjectsKnowledgeBasesCreateCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/knowledgeBases")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -15797,7 +16228,8 @@ func (c *ProjectsKnowledgeBasesCreateCall) Do(opts ...googleapi.CallOption) (*Go
 	//     "$ref": "GoogleCloudDialogflowV2beta1KnowledgeBase"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -15864,7 +16296,10 @@ func (c *ProjectsKnowledgeBasesDeleteCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -15936,7 +16371,8 @@ func (c *ProjectsKnowledgeBasesDeleteCall) Do(opts ...googleapi.CallOption) (*Go
 	//     "$ref": "GoogleProtobufEmpty"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16009,7 +16445,10 @@ func (c *ProjectsKnowledgeBasesGetCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -16078,7 +16517,8 @@ func (c *ProjectsKnowledgeBasesGetCall) Do(opts ...googleapi.CallOption) (*Googl
 	//     "$ref": "GoogleCloudDialogflowV2beta1KnowledgeBase"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16166,7 +16606,10 @@ func (c *ProjectsKnowledgeBasesListCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/knowledgeBases")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -16247,7 +16690,8 @@ func (c *ProjectsKnowledgeBasesListCall) Do(opts ...googleapi.CallOption) (*Goog
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListKnowledgeBasesResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16337,7 +16781,10 @@ func (c *ProjectsKnowledgeBasesDocumentsCreateCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/documents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -16407,7 +16854,8 @@ func (c *ProjectsKnowledgeBasesDocumentsCreateCall) Do(opts ...googleapi.CallOpt
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16469,7 +16917,10 @@ func (c *ProjectsKnowledgeBasesDocumentsDeleteCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -16536,7 +16987,8 @@ func (c *ProjectsKnowledgeBasesDocumentsDeleteCall) Do(opts ...googleapi.CallOpt
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16609,7 +17061,10 @@ func (c *ProjectsKnowledgeBasesDocumentsGetCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -16677,7 +17132,8 @@ func (c *ProjectsKnowledgeBasesDocumentsGetCall) Do(opts ...googleapi.CallOption
 	//     "$ref": "GoogleCloudDialogflowV2beta1Document"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16765,7 +17221,10 @@ func (c *ProjectsKnowledgeBasesDocumentsListCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/documents")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -16845,7 +17304,8 @@ func (c *ProjectsKnowledgeBasesDocumentsListCall) Do(opts ...googleapi.CallOptio
 	//     "$ref": "GoogleCloudDialogflowV2beta1ListDocumentsResponse"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 
@@ -16943,7 +17403,10 @@ func (c *ProjectsOperationsGetCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -17010,7 +17473,8 @@ func (c *ProjectsOperationsGetCall) Do(opts ...googleapi.CallOption) (*GoogleLon
 	//     "$ref": "GoogleLongrunningOperation"
 	//   },
 	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform"
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/dialogflow"
 	//   ]
 	// }
 

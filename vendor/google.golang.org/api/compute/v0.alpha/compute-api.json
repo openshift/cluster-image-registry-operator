@@ -29,7 +29,7 @@
   "description": "Creates and runs virtual machines on Google Cloud Platform.",
   "discoveryVersion": "v1",
   "documentationLink": "https://developers.google.com/compute/docs/reference/latest/",
-  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/7LFTKICOr3FRwporNcF4ghCt4dg\"",
+  "etag": "\"J3WqvAcMk4eQjJXvfSI4Yr8VouA/ZUowuDtavO6IK65oAdlyg4ocZ38\"",
   "icons": {
     "x16": "https://www.google.com/images/icons/product/compute_engine-16.png",
     "x32": "https://www.google.com/images/icons/product/compute_engine-32.png"
@@ -796,7 +796,7 @@
           },
           "path": "{project}/zones/{zone}/allocations",
           "response": {
-            "$ref": "AllocationsList"
+            "$ref": "AllocationList"
           },
           "scopes": [
             "https://www.googleapis.com/auth/cloud-platform",
@@ -7872,7 +7872,7 @@
             "instance": {
               "description": "Name of the instance resource to return.",
               "location": "path",
-              "pattern": "[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?",
+              "pattern": "[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?|[1-9][0-9]{0,19}",
               "required": true,
               "type": "string"
             },
@@ -7923,6 +7923,11 @@
               "location": "path",
               "pattern": "(?:(?:[-a-z0-9]{1,63}\\.)*(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?):)?(?:[0-9]{1,19}|(?:[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?))",
               "required": true,
+              "type": "string"
+            },
+            "queryPath": {
+              "description": "Specifies the guest attributes path to be queried.",
+              "location": "query",
               "type": "string"
             },
             "variableKey": {
@@ -8047,6 +8052,48 @@
             "https://www.googleapis.com/auth/compute.readonly"
           ]
         },
+        "getShieldedVmIdentity": {
+          "description": "Returns the Shielded VM Identity of an instance",
+          "httpMethod": "GET",
+          "id": "compute.instances.getShieldedVmIdentity",
+          "parameterOrder": [
+            "project",
+            "zone",
+            "instance"
+          ],
+          "parameters": {
+            "instance": {
+              "description": "Name of the instance scoping this request.",
+              "location": "path",
+              "pattern": "[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?",
+              "required": true,
+              "type": "string"
+            },
+            "project": {
+              "description": "Project ID for this request.",
+              "location": "path",
+              "pattern": "(?:(?:[-a-z0-9]{1,63}\\.)*(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?):)?(?:[0-9]{1,19}|(?:[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?))",
+              "required": true,
+              "type": "string"
+            },
+            "zone": {
+              "description": "The name of the zone for this request.",
+              "location": "path",
+              "pattern": "[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?",
+              "required": true,
+              "type": "string"
+            }
+          },
+          "path": "{project}/zones/{zone}/instances/{instance}/getShieldedVmIdentity",
+          "response": {
+            "$ref": "ShieldedVmIdentity"
+          },
+          "scopes": [
+            "https://www.googleapis.com/auth/cloud-platform",
+            "https://www.googleapis.com/auth/compute",
+            "https://www.googleapis.com/auth/compute.readonly"
+          ]
+        },
         "insert": {
           "description": "Creates an instance resource in the specified project using the data included in the request.",
           "httpMethod": "POST",
@@ -8069,7 +8116,7 @@
               "type": "string"
             },
             "sourceInstanceTemplate": {
-              "description": "Specifies instance template to create the instance.\n\nThis field is optional. It can be a full or partial URL. For example, the following are all valid URLs to an instance template:  \n- https://www.googleapis.com/compute/v1/projects/project/global/global/instanceTemplates/instanceTemplate \n- projects/project/global/global/instanceTemplates/instanceTemplate \n- global/instancesTemplates/instanceTemplate",
+              "description": "Specifies instance template to create the instance.\n\nThis field is optional. It can be a full or partial URL. For example, the following are all valid URLs to an instance template:  \n- https://www.googleapis.com/compute/v1/projects/project/global/instanceTemplates/instanceTemplate \n- projects/project/global/instanceTemplates/instanceTemplate \n- global/instanceTemplates/instanceTemplate",
               "location": "query",
               "type": "string"
             },
@@ -10792,7 +10839,7 @@
     "machineImages": {
       "methods": {
         "delete": {
-          "description": "Deletes the specified machine image. If you delete an instance template that is being referenced from another instance group, the instance group will not be able to create or recreate virtual machine instances. Deleting an machine image is permanent and cannot be undone.",
+          "description": "Deletes the specified machine image. Deleting a machine image is permanent and cannot be undone.",
           "httpMethod": "DELETE",
           "id": "compute.machineImages.delete",
           "parameterOrder": [
@@ -10898,7 +10945,7 @@
           ]
         },
         "insert": {
-          "description": "Creates an machine image in the specified project using the data that is included in the request. If you are creating a new template to update an existing instance group, your new machine image must use the same network or, if applicable, the same subnetwork as the original template.",
+          "description": "Creates a machine image in the specified project using the data that is included in the request. If you are creating a new machine image to update an existing instance, your new machine image should use the same network or, if applicable, the same subnetwork as the original instance.",
           "httpMethod": "POST",
           "id": "compute.machineImages.insert",
           "parameterOrder": [
@@ -10918,7 +10965,7 @@
               "type": "string"
             },
             "sourceInstance": {
-              "description": "Optional. Source image to restore onto a disk.",
+              "description": "Required. Source instance that is used to create the machine image from.",
               "location": "query",
               "type": "string"
             }
@@ -25194,7 +25241,7 @@
       }
     }
   },
-  "revision": "20180817",
+  "revision": "20180916",
   "rootUrl": "https://www.googleapis.com/",
   "schemas": {
     "AcceleratorConfig": {
@@ -26177,6 +26224,39 @@
       },
       "type": "object"
     },
+    "AllocationAffinity": {
+      "description": "AllocationAffinity is the configuration of desired allocation which this instance could take capacity from.",
+      "id": "AllocationAffinity",
+      "properties": {
+        "consumeAllocationType": {
+          "enum": [
+            "ANY_ALLOCATION",
+            "NO_ALLOCATION",
+            "SPECIFIC_ALLOCATION",
+            "UNSPECIFIED"
+          ],
+          "enumDescriptions": [
+            "",
+            "",
+            "",
+            ""
+          ],
+          "type": "string"
+        },
+        "key": {
+          "description": "Corresponds to the label key of allocation resource.",
+          "type": "string"
+        },
+        "values": {
+          "description": "Corresponds to the label values of allocation resource.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "AllocationAggregatedList": {
       "description": "Contains a list of allocations.",
       "id": "AllocationAggregatedList",
@@ -26196,6 +26276,117 @@
         "kind": {
           "default": "compute#allocationAggregatedList",
           "description": "Type of resource.",
+          "type": "string"
+        },
+        "nextPageToken": {
+          "description": "[Output Only] This token allows you to get the next page of results for list requests. If the number of results is larger than maxResults, use the nextPageToken as a value for the query parameter pageToken in the next list request. Subsequent list requests will have their own nextPageToken to continue paging through the results.",
+          "type": "string"
+        },
+        "selfLink": {
+          "description": "[Output Only] Server-defined URL for this resource.",
+          "type": "string"
+        },
+        "warning": {
+          "description": "[Output Only] Informational warning message.",
+          "properties": {
+            "code": {
+              "description": "[Output Only] A warning code, if applicable. For example, Compute Engine returns NO_RESULTS_ON_PAGE if there are no results in the response.",
+              "enum": [
+                "CLEANUP_FAILED",
+                "DEPRECATED_RESOURCE_USED",
+                "DEPRECATED_TYPE_USED",
+                "DISK_SIZE_LARGER_THAN_IMAGE_SIZE",
+                "EXPERIMENTAL_TYPE_USED",
+                "EXTERNAL_API_WARNING",
+                "FIELD_VALUE_OVERRIDEN",
+                "INJECTED_KERNELS_DEPRECATED",
+                "MISSING_TYPE_DEPENDENCY",
+                "NEXT_HOP_ADDRESS_NOT_ASSIGNED",
+                "NEXT_HOP_CANNOT_IP_FORWARD",
+                "NEXT_HOP_INSTANCE_NOT_FOUND",
+                "NEXT_HOP_INSTANCE_NOT_ON_NETWORK",
+                "NEXT_HOP_NOT_RUNNING",
+                "NOT_CRITICAL_ERROR",
+                "NO_RESULTS_ON_PAGE",
+                "REQUIRED_TOS_AGREEMENT",
+                "RESOURCE_IN_USE_BY_OTHER_RESOURCE_WARNING",
+                "RESOURCE_NOT_DELETED",
+                "SCHEMA_VALIDATION_IGNORED",
+                "SINGLE_INSTANCE_PROPERTY_TEMPLATE",
+                "UNDECLARED_PROPERTIES",
+                "UNREACHABLE"
+              ],
+              "enumDescriptions": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+              ],
+              "type": "string"
+            },
+            "data": {
+              "description": "[Output Only] Metadata about this warning in key: value format. For example:\n\"data\": [ { \"key\": \"scope\", \"value\": \"zones/us-east1-d\" }",
+              "items": {
+                "properties": {
+                  "key": {
+                    "description": "[Output Only] A key that provides more detail on the warning being returned. For example, for warnings where there are no results in a list request for a particular zone, this key might be scope and the key value might be the zone name. Other examples might be a key indicating a deprecated resource and a suggested replacement, or a warning about invalid network settings (for example, if an instance attempts to perform IP forwarding but is not enabled for IP forwarding).",
+                    "type": "string"
+                  },
+                  "value": {
+                    "description": "[Output Only] A warning data value corresponding to the key.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "message": {
+              "description": "[Output Only] A human-readable description of the warning code.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "AllocationList": {
+      "id": "AllocationList",
+      "properties": {
+        "id": {
+          "description": "[Output Only] The unique identifier for the resource. This identifier is defined by the server.",
+          "type": "string"
+        },
+        "items": {
+          "description": "[Output Only] A list of Allocation resources.",
+          "items": {
+            "$ref": "Allocation"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "default": "compute#allocationList",
+          "description": "[Output Only] Type of resource.Always compute#allocationsList for listsof allocations",
           "type": "string"
         },
         "nextPageToken": {
@@ -26360,117 +26551,6 @@
             ""
           ],
           "type": "string"
-        }
-      },
-      "type": "object"
-    },
-    "AllocationsList": {
-      "id": "AllocationsList",
-      "properties": {
-        "id": {
-          "description": "[Output Only] The unique identifier for the resource. This identifier is defined by the server.",
-          "type": "string"
-        },
-        "items": {
-          "description": "[Output Only] A list of Allocation resources.",
-          "items": {
-            "$ref": "Allocation"
-          },
-          "type": "array"
-        },
-        "kind": {
-          "default": "compute#allocationsList",
-          "description": "[Output Only] Type of resource.Always compute#allocationsList for listsof allocations",
-          "type": "string"
-        },
-        "nextPageToken": {
-          "description": "[Output Only] This token allows you to get the next page of results for list requests. If the number of results is larger than maxResults, use the nextPageToken as a value for the query parameter pageToken in the next list request. Subsequent list requests will have their own nextPageToken to continue paging through the results.",
-          "type": "string"
-        },
-        "selfLink": {
-          "description": "[Output Only] Server-defined URL for this resource.",
-          "type": "string"
-        },
-        "warning": {
-          "description": "[Output Only] Informational warning message.",
-          "properties": {
-            "code": {
-              "description": "[Output Only] A warning code, if applicable. For example, Compute Engine returns NO_RESULTS_ON_PAGE if there are no results in the response.",
-              "enum": [
-                "CLEANUP_FAILED",
-                "DEPRECATED_RESOURCE_USED",
-                "DEPRECATED_TYPE_USED",
-                "DISK_SIZE_LARGER_THAN_IMAGE_SIZE",
-                "EXPERIMENTAL_TYPE_USED",
-                "EXTERNAL_API_WARNING",
-                "FIELD_VALUE_OVERRIDEN",
-                "INJECTED_KERNELS_DEPRECATED",
-                "MISSING_TYPE_DEPENDENCY",
-                "NEXT_HOP_ADDRESS_NOT_ASSIGNED",
-                "NEXT_HOP_CANNOT_IP_FORWARD",
-                "NEXT_HOP_INSTANCE_NOT_FOUND",
-                "NEXT_HOP_INSTANCE_NOT_ON_NETWORK",
-                "NEXT_HOP_NOT_RUNNING",
-                "NOT_CRITICAL_ERROR",
-                "NO_RESULTS_ON_PAGE",
-                "REQUIRED_TOS_AGREEMENT",
-                "RESOURCE_IN_USE_BY_OTHER_RESOURCE_WARNING",
-                "RESOURCE_NOT_DELETED",
-                "SCHEMA_VALIDATION_IGNORED",
-                "SINGLE_INSTANCE_PROPERTY_TEMPLATE",
-                "UNDECLARED_PROPERTIES",
-                "UNREACHABLE"
-              ],
-              "enumDescriptions": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-              ],
-              "type": "string"
-            },
-            "data": {
-              "description": "[Output Only] Metadata about this warning in key: value format. For example:\n\"data\": [ { \"key\": \"scope\", \"value\": \"zones/us-east1-d\" }",
-              "items": {
-                "properties": {
-                  "key": {
-                    "description": "[Output Only] A key that provides more detail on the warning being returned. For example, for warnings where there are no results in a list request for a particular zone, this key might be scope and the key value might be the zone name. Other examples might be a key indicating a deprecated resource and a suggested replacement, or a warning about invalid network settings (for example, if an instance attempts to perform IP forwarding but is not enabled for IP forwarding).",
-                    "type": "string"
-                  },
-                  "value": {
-                    "description": "[Output Only] A warning data value corresponding to the key.",
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              },
-              "type": "array"
-            },
-            "message": {
-              "description": "[Output Only] A human-readable description of the warning code.",
-              "type": "string"
-            }
-          },
-          "type": "object"
         }
       },
       "type": "object"
@@ -30279,7 +30359,7 @@
       "id": "ForwardingRule",
       "properties": {
         "IPAddress": {
-          "description": "The IP address that this forwarding rule is serving on behalf of.\n\nAddresses are restricted based on the forwarding rule's load balancing scheme (EXTERNAL or INTERNAL) and scope (global or regional).\n\nWhen the load balancing scheme is EXTERNAL, for global forwarding rules, the address must be a global IP, and for regional forwarding rules, the address must live in the same region as the forwarding rule. If this field is empty, an ephemeral IPv4 address from the same scope (global or regional) will be assigned. A regional forwarding rule supports IPv4 only. A global forwarding rule supports either IPv4 or IPv6.\n\nWhen the load balancing scheme is INTERNAL_SELF_MANAGED, this must be a URL reference to an existing Address resource ( internal regional static IP address).\n\nWhen the load balancing scheme is INTERNAL, this can only be an RFC 1918 IP address belonging to the network/subnet configured for the forwarding rule. By default, if this field is empty, an ephemeral internal IP address will be automatically allocated from the IP range of the subnet or network configured for this forwarding rule.\n\nAn address can be specified either by a literal IP address or a URL reference to an existing Address resource. The following examples are all valid:  \n- 100.1.2.3 \n- https://www.googleapis.com/compute/v1/projects/project/regions/region/addresses/address \n- projects/project/regions/region/addresses/address \n- regions/region/addresses/address \n- global/addresses/address \n- address",
+          "description": "The IP address that this forwarding rule is serving on behalf of.\n\nAddresses are restricted based on the forwarding rule's load balancing scheme (EXTERNAL or INTERNAL) and scope (global or regional).\n\nWhen the load balancing scheme is EXTERNAL, for global forwarding rules, the address must be a global IP, and for regional forwarding rules, the address must live in the same region as the forwarding rule. If this field is empty, an ephemeral IPv4 address from the same scope (global or regional) will be assigned. A regional forwarding rule supports IPv4 only. A global forwarding rule supports either IPv4 or IPv6.\n\nWhen the load balancing scheme is INTERNAL_SELF_MANAGED, this must be a URL reference to an existing Address resource ( internal regional static IP address), with a purpose of GCE_END_POINT and address_type of INTERNAL.\n\nWhen the load balancing scheme is INTERNAL, this can only be an RFC 1918 IP address belonging to the network/subnet configured for the forwarding rule. By default, if this field is empty, an ephemeral internal IP address will be automatically allocated from the IP range of the subnet or network configured for this forwarding rule.\n\nAn address can be specified either by a literal IP address or a URL reference to an existing Address resource. The following examples are all valid:  \n- 100.1.2.3 \n- https://www.googleapis.com/compute/v1/projects/project/regions/region/addresses/address \n- projects/project/regions/region/addresses/address \n- regions/region/addresses/address \n- global/addresses/address \n- address",
           "type": "string"
         },
         "IPProtocol": {
@@ -30817,6 +30897,14 @@
           "description": "[Output Only] Type of the resource. Always compute#guestAttributes for guest attributes entry.",
           "type": "string"
         },
+        "queryPath": {
+          "description": "The path to be queried. This can be the default namespace ('/') or a nested namespace ('//') or a specified key ('//')",
+          "type": "string"
+        },
+        "queryValue": {
+          "$ref": "GuestAttributesValue",
+          "description": "[Output Only] The value of the requested queried path."
+        },
         "selfLink": {
           "description": "[Output Only] Server-defined URL for this resource.",
           "type": "string"
@@ -30828,6 +30916,38 @@
         "variableValue": {
           "description": "[Output Only] The value found for the requested key.",
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "GuestAttributesEntry": {
+      "description": "A guest attributes namespace/key/value entry.",
+      "id": "GuestAttributesEntry",
+      "properties": {
+        "key": {
+          "description": "Key for the guest attribute entry.",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace for the guest attribute entry.",
+          "type": "string"
+        },
+        "value": {
+          "description": "Value for the guest attribute entry.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "GuestAttributesValue": {
+      "description": "Array of guest attribute namespace/key/value tuples.",
+      "id": "GuestAttributesValue",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "GuestAttributesEntry"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -32192,7 +32312,8 @@
       "id": "Instance",
       "properties": {
         "allocationAffinity": {
-          "$ref": "InstanceAllocationAffinity"
+          "$ref": "AllocationAffinity",
+          "description": "The configuration of desired allocations which this Instance could consume capacity from."
         },
         "canIpForward": {
           "description": "Allows this instance to send and receive packets with non-matching destination or source IPs. This is required if you plan to use this instance to forward routes. For more information, see Enabling IP Forwarding.",
@@ -32479,39 +32600,6 @@
             }
           },
           "type": "object"
-        }
-      },
-      "type": "object"
-    },
-    "InstanceAllocationAffinity": {
-      "description": "AllocationAffinity is the configuration of desired allocation which this instance could take capacity from.",
-      "id": "InstanceAllocationAffinity",
-      "properties": {
-        "consumeAllocationType": {
-          "enum": [
-            "ANY_ALLOCATION",
-            "NO_ALLOCATION",
-            "SPECIFIC_ALLOCATION",
-            "UNSPECIFIED"
-          ],
-          "enumDescriptions": [
-            "",
-            "",
-            "",
-            ""
-          ],
-          "type": "string"
-        },
-        "key": {
-          "description": "Corresponds to the label key of Allocation resource.",
-          "type": "string"
-        },
-        "values": {
-          "description": "Corresponds to the label values of allocation resource.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
         }
       },
       "type": "object"
@@ -33288,6 +33376,20 @@
       "properties": {
         "isStable": {
           "description": "[Output Only] A bit indicating whether the managed instance group is in a stable state. A stable state means that: none of the instances in the managed instance group is currently undergoing any type of change (for example, creation, restart, or deletion); no future changes are scheduled for instances in the managed instance group; and the managed instance group itself is not being modified.",
+          "type": "boolean"
+        },
+        "versionTarget": {
+          "$ref": "InstanceGroupManagerStatusVersionTarget",
+          "description": "[Output Only] A status of consistency of Instances' versions with their target version specified by version field on Instance Group Manager."
+        }
+      },
+      "type": "object"
+    },
+    "InstanceGroupManagerStatusVersionTarget": {
+      "id": "InstanceGroupManagerStatusVersionTarget",
+      "properties": {
+        "isReached": {
+          "description": "[Output Only] A bit indicating whether version target has been reached in this managed instance group, i.e. all instances are in their target version. Instances' target version are specified by version field on Instance Group Manager.",
           "type": "boolean"
         }
       },
@@ -34257,6 +34359,10 @@
       "description": "",
       "id": "InstanceProperties",
       "properties": {
+        "allocationAffinity": {
+          "$ref": "AllocationAffinity",
+          "description": "The configuration of desired allocations which this Instance could consume capacity from."
+        },
         "canIpForward": {
           "description": "Enables instances created based on this template to send packets with source IP addresses other than their own and receive packets with destination IP addresses other than their own. If these instances will be used as an IP gateway or it will be set as the next-hop in a Route resource, specify true. If unsure, leave this set to false. See the Enable IP forwarding documentation for more information.",
           "type": "boolean"
@@ -35822,6 +35928,18 @@
         "selfLink": {
           "description": "[Output Only] Server-defined URL for the resource.",
           "type": "string"
+        },
+        "status": {
+          "description": "[Output Only] The status of this InterconnectLocation. If the status is AVAILABLE, new Interconnects may be provisioned in this InterconnectLocation. Otherwise, no new Interconnects may be provisioned.",
+          "enum": [
+            "AVAILABLE",
+            "CLOSED"
+          ],
+          "enumDescriptions": [
+            "",
+            ""
+          ],
+          "type": "string"
         }
       },
       "type": "object"
@@ -36381,7 +36499,7 @@
               "compute.images.insert"
             ]
           },
-          "description": "[Output Only] Name of the resource. The name is 1-63 characters long and complies with RFC1035.",
+          "description": "Name of the resource. The name must be 1-63 characters long and comply with RFC1035.",
           "pattern": "[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?",
           "type": "string"
         },
@@ -36647,7 +36765,7 @@
       "type": "object"
     },
     "LogConfigCounterOptions": {
-      "description": "Increment a streamz counter with the specified metric and field names.\n\nMetric names should start with a '/', generally be lowercase-only, and end in \"_count\". Field names should not contain an initial slash. The actual exported metric names will have \"/iam/policy\" prepended.\n\nField names correspond to IAM request parameters and field values are their respective values.\n\nAt present the only supported field names are - \"iam_principal\", corresponding to IAMContext.principal; - \"\" (empty string), resulting in one aggretated counter with no field.\n\nExamples: counter { metric: \"/debug_access_count\" field: \"iam_principal\" } ==\u003e increment counter /iam/policy/backend_debug_access_count {iam_principal=[value of IAMContext.principal]}\n\nAt this time we do not support: * multiple field names (though this may be supported in the future) * decrementing the counter * incrementing it by anything other than 1",
+      "description": "Increment a streamz counter with the specified metric and field names.\n\nMetric names should start with a '/', generally be lowercase-only, and end in \"_count\". Field names should not contain an initial slash. The actual exported metric names will have \"/iam/policy\" prepended.\n\nField names correspond to IAM request parameters and field values are their respective values.\n\nSupported field names: - \"authority\", which is \"[token]\" if IAMContext.token is present, otherwise the value of IAMContext.authority_selector if present, and otherwise a representation of IAMContext.principal; or - \"iam_principal\", a representation of IAMContext.principal even if a token or authority selector is present; or - \"\" (empty string), resulting in a counter with no fields.\n\nExamples: counter { metric: \"/debug_access_count\" field: \"iam_principal\" } ==\u003e increment counter /iam/policy/backend_debug_access_count {iam_principal=[value of IAMContext.principal]}\n\nAt this time we do not support multiple field names (though this may be supported in the future).",
       "id": "LogConfigCounterOptions",
       "properties": {
         "field": {
@@ -36717,11 +36835,12 @@
           "type": "string"
         },
         "sourceInstance": {
-          "description": "The source instance used to create the template. You can provide this as a partial or full URL to the resource. For example, the following are valid values:  \n- https://www.googleapis.com/compute/v1/projects/project/zones/zone/instances/instance \n- projects/project/zones/zone/instances/instance",
+          "description": "The source instance used to create the machine image. You can provide this as a partial or full URL to the resource. For example, the following are valid values:  \n- https://www.googleapis.com/compute/v1/projects/project/zones/zone/instances/instance \n- projects/project/zones/zone/instances/instance",
           "type": "string"
         },
         "sourceInstanceProperties": {
-          "$ref": "SourceInstanceProperties"
+          "$ref": "SourceInstanceProperties",
+          "description": "[Output Only] properties of source instance. Currently, input for this field is not supported."
         },
         "status": {
           "description": "[Output Only] The status of disk creation.",
@@ -37529,7 +37648,7 @@
       "type": "object"
     },
     "Network": {
-      "description": "Represents a Network resource. Read Networks and Firewalls for more information. (== resource_for v1.networks ==) (== resource_for beta.networks ==)",
+      "description": "Represents a Network resource. Read Virtual Private Cloud (VPC) Network Overview for more information. (== resource_for v1.networks ==) (== resource_for beta.networks ==)",
       "id": "Network",
       "properties": {
         "IPv4Range": {
@@ -37538,7 +37657,7 @@
           "type": "string"
         },
         "autoCreateSubnetworks": {
-          "description": "When set to true, the network is created in \"auto subnet mode\". When set to false, the network is in \"custom subnet mode\".\n\nIn \"auto subnet mode\", a newly created network is assigned the default CIDR of 10.128.0.0/9 and it automatically creates one subnetwork per region.",
+          "description": "When set to true, the VPC network is created in \"auto\" mode. When set to false, the VPC network is created in \"custom\" mode.\n\nAn auto mode VPC network starts with one subnet per region. Each subnet has a predetermined range as described in Auto mode VPC network IP ranges.",
           "type": "boolean"
         },
         "creationTimestamp": {
@@ -37562,7 +37681,7 @@
           "type": "string"
         },
         "gatewayIPv4": {
-          "description": "A gateway address for default routing to other networks. This value is read only and is selected by the Google Compute Engine, typically as the first usable address in the IPv4Range.",
+          "description": "[Output Only] The gateway address for default routing out of the network. This value is read only and is selected by GCP.",
           "pattern": "[0-9]{1,3}(?:\\.[0-9]{1,3}){3}",
           "type": "string"
         },
@@ -37614,7 +37733,7 @@
           "type": "string"
         },
         "subnetworks": {
-          "description": "[Output Only] Server-defined fully-qualified URLs for all subnetworks in this network.",
+          "description": "[Output Only] Server-defined fully-qualified URLs for all subnetworks in this VPC network.",
           "items": {
             "type": "string"
           },
@@ -37651,6 +37770,11 @@
           "description": "[Output Only] Creation timestamp in RFC3339 text format.",
           "type": "string"
         },
+        "defaultPort": {
+          "description": "The default port used if the port number is not specified in the network endpoint.",
+          "format": "int32",
+          "type": "integer"
+        },
         "description": {
           "description": "An optional description of this resource. Provide this property when you create the resource.",
           "type": "string"
@@ -37667,10 +37791,14 @@
         },
         "loadBalancer": {
           "$ref": "NetworkEndpointGroupLbNetworkEndpointGroup",
-          "description": "This field is only valid when the network endpoint group is used for load balancing."
+          "description": "This field is only valid when the network endpoint group is used for load balancing. [Deprecated] This field is deprecated."
         },
         "name": {
           "description": "Name of the resource; provided by the client when the resource is created. The name must be 1-63 characters long, and comply with RFC1035. Specifically, the name must be 1-63 characters long and match the regular expression `[a-z]([-a-z0-9]*[a-z0-9])?` which means the first character must be a lowercase letter, and all following characters must be a dash, lowercase letter, or digit, except the last character, which cannot be a dash.",
+          "type": "string"
+        },
+        "network": {
+          "description": "The URL of the network to which all network endpoints in the NEG belong. Uses \"default\" project network if unspecified.",
           "type": "string"
         },
         "networkEndpointType": {
@@ -37692,6 +37820,10 @@
           "format": "int32",
           "type": "integer"
         },
+        "subnetwork": {
+          "description": "Optional URL of the subnetwork to which all network endpoints in the NEG belong.",
+          "type": "string"
+        },
         "type": {
           "description": "Specify the type of this network endpoint group. Only LOAD_BALANCING is valid for now.",
           "enum": [
@@ -37700,6 +37832,10 @@
           "enumDescriptions": [
             ""
           ],
+          "type": "string"
+        },
+        "zone": {
+          "description": "[Output Only] The URL of the zone where the network endpoint group is located.",
           "type": "string"
         }
       },
@@ -37822,20 +37958,20 @@
       "id": "NetworkEndpointGroupLbNetworkEndpointGroup",
       "properties": {
         "defaultPort": {
-          "description": "The default port used if the port number is not specified in the network endpoint.",
+          "description": "The default port used if the port number is not specified in the network endpoint. [Deprecated] This field is deprecated.",
           "format": "int32",
           "type": "integer"
         },
         "network": {
-          "description": "The URL of the network to which all network endpoints in the NEG belong. Uses \"default\" project network if unspecified.",
+          "description": "The URL of the network to which all network endpoints in the NEG belong. Uses \"default\" project network if unspecified. [Deprecated] This field is deprecated.",
           "type": "string"
         },
         "subnetwork": {
-          "description": "Optional URL of the subnetwork to which all network endpoints in the NEG belong.",
+          "description": "Optional URL of the subnetwork to which all network endpoints in the NEG belong. [Deprecated] This field is deprecated.",
           "type": "string"
         },
         "zone": {
-          "description": "[Output Only] The URL of the zone where the network endpoint group is located.",
+          "description": "[Output Only] The URL of the zone where the network endpoint group is located. [Deprecated] This field is deprecated.",
           "type": "string"
         }
       },
@@ -38421,7 +38557,7 @@
       "id": "NetworkRoutingConfig",
       "properties": {
         "routingMode": {
-          "description": "The network-wide routing mode to use. If set to REGIONAL, this network's cloud routers will only advertise routes with subnetworks of this network in the same region as the router. If set to GLOBAL, this network's cloud routers will advertise routes with all subnetworks of this network, across regions.",
+          "description": "The network-wide routing mode to use. If set to REGIONAL, this network's cloud routers will only advertise routes with subnets of this network in the same region as the router. If set to GLOBAL, this network's cloud routers will advertise routes with all subnets of this network, across regions.",
           "enum": [
             "GLOBAL",
             "REGIONAL"
@@ -38514,13 +38650,6 @@
         "nodeTemplate": {
           "description": "The URL of the node template to which this node group belongs.",
           "type": "string"
-        },
-        "nodes": {
-          "description": "[Deprecated] Use nodeGroups.listNodes instead. [Output Only] A list of nodes in this node group.",
-          "items": {
-            "$ref": "NodeGroupNode"
-          },
-          "type": "array"
         },
         "selfLink": {
           "description": "[Output Only] Server-defined URL for the resource.",
@@ -40684,6 +40813,7 @@
             "DISKS_TOTAL_GB",
             "FIREWALLS",
             "FORWARDING_RULES",
+            "GLOBAL_INTERNAL_ADDRESSES",
             "GPUS_ALL_REGIONS",
             "HEALTH_CHECKS",
             "IMAGES",
@@ -40740,6 +40870,7 @@
             "VPN_TUNNELS"
           ],
           "enumDescriptions": [
+            "",
             "",
             "",
             "",
@@ -43851,7 +43982,7 @@
         },
         "diskEncryptionKey": {
           "$ref": "CustomerEncryptionKey",
-          "description": "Encrypts or decrypts a disk using a customer-supplied encryption key.\n\nIf you are creating a new disk, this field encrypts the new disk using an encryption key that you provide. If you are attaching an existing disk that is already encrypted, this field decrypts the disk using the customer-supplied encryption key.\n\nIf you encrypt a disk using a customer-supplied key, you must provide the same key again when you attempt to use this resource at a later time. For example, you must provide the key when you create a snapshot or an image from the disk or when you attach the disk to a virtual machine instance.\n\nIf you do not provide an encryption key, then the disk will be encrypted using an automatically generated key and you do not need to provide a key to use the disk later.\n\nInstance templates do not store customer-supplied encryption keys, so you cannot use your own keys to encrypt disks in a managed instance group."
+          "description": "Encrypts or decrypts a disk using a customer-supplied encryption key.\n\nIf you are creating a new disk, this field encrypts the new disk using an encryption key that you provide. If you are attaching an existing disk that is already encrypted, this field decrypts the disk using the customer-supplied encryption key.\n\nIf you encrypt a disk using a customer-supplied key, you must provide the same key again when you attempt to use this resource at a later time. For example, you must provide the key when you create a snapshot or an image from the disk or when you attach the disk to a virtual machine instance.\n\nIf you do not provide an encryption key, then the disk will be encrypted using an automatically generated key and you do not need to provide a key to use the disk later.\n\nMachine Images do not store customer-supplied encryption keys, so you cannot use your own keys to encrypt disks in a managed instance group."
         },
         "diskSizeGb": {
           "description": "The size of the disk in base-2 GB. This supersedes disk_size_gb in InitializeParams.",
@@ -43925,7 +44056,7 @@
           "type": "string"
         },
         "source": {
-          "description": "Specifies a valid partial or full URL to an existing Persistent Disk resource. When creating a new instance, one of initializeParams.sourceImage or disks.source is required except for local SSD.\n\nIf desired, you can also attach existing non-root persistent disks using this property. This field is only applicable for persistent disks.\n\nNote that for InstanceTemplate, specify the disk name, not the URL for the disk.",
+          "description": "Specifies a valid partial or full URL to an existing Persistent Disk resource. When creating a new instance, one of initializeParams.sourceImage or disks.source is required except for local SSD.\n\nIf desired, you can also attach existing non-root persistent disks using this property. This field is only applicable for persistent disks.\n\nNote that for sourceMachineImage, specify the disk name, not the URL for the disk.",
           "type": "string"
         },
         "storageBytes": {
@@ -44382,6 +44513,37 @@
       },
       "type": "object"
     },
+    "ShieldedVmIdentity": {
+      "description": "A shielded VM identity entry.",
+      "id": "ShieldedVmIdentity",
+      "properties": {
+        "encryptionKey": {
+          "$ref": "ShieldedVmIdentityEntry"
+        },
+        "kind": {
+          "default": "compute#shieldedVmIdentity",
+          "description": "[Output Only] Type of the resource. Always compute#shieldedVmIdentity for shielded VM identity entry.",
+          "type": "string"
+        },
+        "signingKey": {
+          "$ref": "ShieldedVmIdentityEntry"
+        }
+      },
+      "type": "object"
+    },
+    "ShieldedVmIdentityEntry": {
+      "description": "A Shielded VM Identity Entry.",
+      "id": "ShieldedVmIdentityEntry",
+      "properties": {
+        "ekCert": {
+          "type": "string"
+        },
+        "ekPub": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "ShieldedVmIntegrityPolicy": {
       "description": "The policy describes the baseline against which VM instance boot integrity is measured.",
       "id": "ShieldedVmIntegrityPolicy",
@@ -44675,26 +44837,26 @@
       "id": "SourceInstanceProperties",
       "properties": {
         "canIpForward": {
-          "description": "Enables instances created based on this template to send packets with source IP addresses other than their own and receive packets with destination IP addresses other than their own. If these instances will be used as an IP gateway or it will be set as the next-hop in a Route resource, specify true. If unsure, leave this set to false. See the Enable IP forwarding documentation for more information.",
+          "description": "Enables instances created based on this machine image to send packets with source IP addresses other than their own and receive packets with destination IP addresses other than their own. If these instances will be used as an IP gateway or it will be set as the next-hop in a Route resource, specify true. If unsure, leave this set to false. See the Enable IP forwarding documentation for more information.",
           "type": "boolean"
         },
         "deletionProtection": {
-          "description": "Whether the resource should be protected against deletion.",
+          "description": "Whether the instance created from the machine image should be protected against deletion.",
           "type": "boolean"
         },
         "description": {
-          "description": "An optional text description for the instances that are created from this instance template.",
+          "description": "An optional text description for the instances that are created from this machine image.",
           "type": "string"
         },
         "disks": {
-          "description": "An array of disks that are associated with the instances that are created from this template.",
+          "description": "An array of disks that are associated with the instances that are created from this machine image.",
           "items": {
             "$ref": "SavedAttachedDisk"
           },
           "type": "array"
         },
         "guestAccelerators": {
-          "description": "A list of guest accelerator cards' type and count to use for instances created from the instance template.",
+          "description": "A list of guest accelerator cards' type and count to use for instances created from the machine image.",
           "items": {
             "$ref": "AcceleratorConfig"
           },
@@ -44704,21 +44866,21 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Labels to apply to instances that are created from this template.",
+          "description": "Labels to apply to instances that are created from this machine image.",
           "type": "object"
         },
         "machineType": {
           "annotations": {
             "required": [
-              "compute.instanceTemplates.insert"
+              "compute.machineImages.insert"
             ]
           },
-          "description": "The machine type to use for instances that are created from this template.",
+          "description": "The machine type to use for instances that are created from this machine image.",
           "type": "string"
         },
         "metadata": {
           "$ref": "Metadata",
-          "description": "The metadata key/value pairs to assign to instances that are created from this template. These pairs can consist of custom metadata or predefined keys. See Project and instance metadata for more information."
+          "description": "The metadata key/value pairs to assign to instances that are created from this machine image. These pairs can consist of custom metadata or predefined keys. See Project and instance metadata for more information."
         },
         "minCpuPlatform": {
           "description": "Minimum cpu/platform to be used by this instance. The instance may be scheduled on the specified or newer cpu/platform. Applicable values are the friendly names of CPU platforms, such as minCpuPlatform: \"Intel Haswell\" or minCpuPlatform: \"Intel Sandy Bridge\". For more information, read Specifying a Minimum CPU Platform.",
@@ -44733,10 +44895,10 @@
         },
         "scheduling": {
           "$ref": "Scheduling",
-          "description": "Specifies the scheduling options for the instances that are created from this template."
+          "description": "Specifies the scheduling options for the instances that are created from this machine image."
         },
         "serviceAccounts": {
-          "description": "A list of service accounts with specified scopes. Access tokens for these service accounts are available to the instances that are created from this template. Use metadata queries to obtain the access tokens for these instances.",
+          "description": "A list of service accounts with specified scopes. Access tokens for these service accounts are available to the instances that are created from this machine image. Use metadata queries to obtain the access tokens for these instances.",
           "items": {
             "$ref": "ServiceAccount"
           },
@@ -44744,7 +44906,7 @@
         },
         "tags": {
           "$ref": "Tags",
-          "description": "A list of tags to apply to the instances that are created from this template. The tags identify valid sources or targets for network firewalls. The setTags method can modify this list of tags. Each tag within the list must comply with RFC1035."
+          "description": "A list of tags to apply to the instances that are created from this machine image. The tags identify valid sources or targets for network firewalls. The setTags method can modify this list of tags. Each tag within the list must comply with RFC1035."
         }
       },
       "type": "object"
@@ -45590,7 +45752,7 @@
           "type": "string"
         },
         "enableFlowLogs": {
-          "description": "Whether to enable flow logging for this subnetwork.",
+          "description": "Whether to enable flow logging for this subnetwork. If this field is not explicitly set, it will not appear in get listings. If not set the default behavior is to disable flow logging.",
           "type": "boolean"
         },
         "enablePrivateV6Access": {
