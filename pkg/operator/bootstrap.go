@@ -6,7 +6,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -72,17 +71,10 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 				Version:         "none",
 				ImagePullSpec:   "docker.io/openshift/origin-docker-registry",
 			},
-			Storage: regopapi.ImageRegistryConfigStorage{
-				Filesystem: &regopapi.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-							ClaimName: "image-registry-pvc",
-						},
-					},
-				},
-			},
+			Storage:  regopapi.ImageRegistryConfigStorage{},
 			Replicas: 1,
 		},
+		Status: regopapi.ImageRegistryStatus{},
 	}
 
 	if len(cr.Spec.HTTPSecret) == 0 {
@@ -95,12 +87,21 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 
 	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
-		return nil, err
-	}
-
-	err = driver.CompleteConfiguration()
-	if err != nil {
-		return nil, err
+		if err != storage.ErrStorageNotConfigured {
+			return nil, err
+		}
+		cr.Status.Conditions = append(cr.Status.Conditions, operatorapi.OperatorCondition{
+			Type:               operatorapi.OperatorStatusTypeAvailable,
+			Status:             operatorapi.ConditionFalse,
+			LastTransitionTime: metav1.Now(),
+			Reason:             "Bootstrap",
+			Message:            err.Error(),
+		})
+	} else {
+		err = driver.CompleteConfiguration()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return cr, sdk.Create(cr)

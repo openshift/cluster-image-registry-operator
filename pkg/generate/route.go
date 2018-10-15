@@ -99,7 +99,7 @@ func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[s
 	ret := map[string]Generator{}
 
 	if cr.Spec.DefaultRoute {
-		ret[cr.ObjectMeta.Name + "-default-route"] = DefaultRoute
+		ret[cr.ObjectMeta.Name+"-default-route"] = DefaultRoute
 	}
 
 	for i := range cr.Spec.Routes {

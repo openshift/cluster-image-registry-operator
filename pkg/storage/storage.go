@@ -14,6 +14,10 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
 )
 
+var (
+	ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
+)
+
 type Driver interface {
 	GetName() string
 	ConfigEnv() ([]corev1.EnvVar, error)
@@ -45,13 +49,17 @@ func NewDriver(cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
 		drivers = append(drivers, swift.NewDriver(cfg.Swift))
 	}
 
-	if len(drivers) != 1 {
-		var names []string
-		for _, drv := range drivers {
-			names = append(names, drv.GetName())
-		}
-		return nil, fmt.Errorf("exactly one storage backend should be configured at the same time, got %d: %v", len(drivers), names)
+	switch len(drivers) {
+	case 0:
+		return nil, ErrStorageNotConfigured
+	case 1:
+		return drivers[0], nil
 	}
 
-	return drivers[0], nil
+	var names []string
+	for _, drv := range drivers {
+		names = append(names, drv.GetName())
+	}
+
+	return nil, fmt.Errorf("exactly one storage backend should be configured at the same time, got %d: %v", len(drivers), names)
 }
