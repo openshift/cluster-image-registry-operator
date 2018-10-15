@@ -42,7 +42,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 
 	h := &Handler{
 		params:             p,
-		generateDeployment: generate.DeploymentConfig,
+		generateDeployment: generate.Deployment,
 	}
 
 	_, err := h.Bootstrap()
