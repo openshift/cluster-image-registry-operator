@@ -90,7 +90,6 @@ type ImageRegistrySpec struct {
 	TLS          bool                        `json:"tls,omitempty"`
 	DefaultRoute bool                        `json:"defaultRoute,omitempty"`
 	Routes       []ImageRegistryConfigRoute  `json:"routes,omitempty"`
-	NodeSelector map[string]string           `json:"nodeSelector,omitempty"`
 	Replicas     int32                       `json:"replicas,omitempty"`
 }
 

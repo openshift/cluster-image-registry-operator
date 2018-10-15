@@ -214,7 +214,14 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 			Labels: p.Deployment.Labels,
 		},
 		Spec: corev1.PodSpec{
-			NodeSelector: cr.Spec.NodeSelector,
+			NodeSelector: map[string]string{"node-role.kubernetes.io/master": ""},
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+			},
 			Containers: []corev1.Container{
 				{
 					Name:  "registry",
