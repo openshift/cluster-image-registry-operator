@@ -14,6 +14,12 @@ spec:
       labels:
         name: cluster-image-registry-operator
     spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
       containers:
         - name: cluster-image-registry-operator
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
