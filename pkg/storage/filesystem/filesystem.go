@@ -2,6 +2,8 @@ package filesystem
 
 import (
 	"fmt"
+	"reflect"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -61,5 +63,45 @@ func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
 	} else {
 		prevState.Data["storagetype"] = d.GetName()
 	}
+
+	fieldname, err := getVolumeSourceField(&d.Config.VolumeSource)
+	if err != nil {
+		return err
+	}
+
+	if len(fieldname) > 0 {
+		if v, ok := prevState.Data["storagefield"]; ok {
+			if v != fieldname {
+				return fmt.Errorf("volumeSource type change is not supported: expected storage type %s, but got %s", v, fieldname)
+			}
+		} else {
+			prevState.Data["storagefield"] = fieldname
+		}
+	}
+
 	return nil
+}
+
+func getVolumeSourceField(source *corev1.VolumeSource) (string, error) {
+	val := reflect.Indirect(reflect.ValueOf(source))
+
+	n := 0
+	name := ""
+
+	for i := 0; i < val.NumField(); i++ {
+		if !val.Field(i).IsNil() {
+			name = val.Type().Field(i).Name
+			n += 1
+		}
+	}
+
+	switch n {
+	case 0:
+		// volumeSource is not configured yet.
+		return "", nil
+	case 1:
+		return strings.ToLower(name), nil
+	}
+
+	return "", fmt.Errorf("too many storage types defined")
 }
