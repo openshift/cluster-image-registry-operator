@@ -77,6 +77,14 @@ rules:
   - routes/custom-host
   verbs:
   - "*"
+- apiGroups:
+  - operatorstatus.openshift.io
+  resources:
+  - clusteroperators
+  verbs:
+  - create
+  - get
+  - update
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
