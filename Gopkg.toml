@@ -41,6 +41,10 @@ required = [
   name = "sigs.k8s.io/controller-runtime"
   revision = "60bb251ad86f9b313653618aad0c2c53f41a6625"
 
+[[override]]
+  name = "github.com/openshift/cluster-version-operator"
+  revision = "fe673cb712fa5e27001488fc088ac91bb553353d"
+
 [[constraint]]
   name = "github.com/operator-framework/operator-sdk"
   # The version rule is used for a specific release and the master branch for in between releases.

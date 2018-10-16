@@ -160,8 +160,13 @@
 [[projects]]
   branch = "release-3.10"
   name = "github.com/openshift/api"
-  packages = ["apps/v1","authorization/v1","config/v1","operator/v1alpha1","pkg/serialization","project/v1","route/v1"]
+  packages = ["apps/v1","config/v1","operator/v1alpha1","project/v1","route/v1"]
   revision = "6a90ae6466cec806da11feb3b15708ca33c1c54b"
+
+[[projects]]
+  name = "github.com/openshift/cluster-version-operator"
+  packages = ["pkg/apis","pkg/apis/operatorstatus.openshift.io/v1"]
+  revision = "fe673cb712fa5e27001488fc088ac91bb553353d"
 
 [[projects]]
   branch = "master"
@@ -334,6 +339,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a2ea6f276fe6e81f93648e5c4fc45a5fc8d7518abaf5243a3ff694546640d7e5"
+  inputs-digest = "bdf5fd878b901c80af53eeacfc9bb65f3e1c14fe828e7f43c7f469c33cfdc9f6"
   solver-name = "gps-cdcl"
   solver-version = 1
