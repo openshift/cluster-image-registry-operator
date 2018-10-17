@@ -69,7 +69,6 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 			OperatorSpec: operatorapi.OperatorSpec{
 				ManagementState: operatorapi.Managed,
 				Version:         "none",
-				ImagePullSpec:   "docker.io/openshift/origin-docker-registry",
 			},
 			Storage:  regopapi.ImageRegistryConfigStorage{},
 			Replicas: 1,

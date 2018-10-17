@@ -464,12 +464,12 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("bad custom resource: %s", err)
 	}
 
-	templetes, err := h.GenerateTemplates(o, &h.params)
+	templates, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
 		return fmt.Errorf("unable to genetate templates: %s", err)
 	}
 
-	for _, tpl := range templetes {
+	for _, tpl := range templates {
 		err = generate.ApplyTemplate(tpl, false, modified)
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)

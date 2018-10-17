@@ -6,3 +6,7 @@ spec:
     from:
       kind: DockerImage
       name: docker.io/openshift/origin-cluster-image-registry-operator:latest
+  - name: docker-registry
+    from:
+      kind: DockerImage
+      name: docker.io/openshift/origin-docker-registry:latest
