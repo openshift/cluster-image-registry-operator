@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -209,6 +210,8 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
 
+	image := os.Getenv("IMAGE")
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: p.Deployment.Labels,
@@ -225,7 +228,7 @@ func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.
 			Containers: []corev1.Container{
 				{
 					Name:  "registry",
-					Image: cr.Spec.ImagePullSpec,
+					Image: image,
 					Ports: []corev1.ContainerPort{
 						{
 							ContainerPort: int32(p.Container.Port),
