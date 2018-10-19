@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
+	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +21,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -27,6 +29,16 @@ import (
 )
 
 func NewHandler(namespace string) (sdk.Handler, error) {
+	operatorNamespace, err := k8sutil.GetWatchNamespace()
+	if err != nil {
+		logrus.Fatalf("Failed to get watch namespace: %v", err)
+	}
+
+	operatorName, err := k8sutil.GetOperatorName()
+	if err != nil {
+		logrus.Fatalf("Failed to get operator name: %v", err)
+	}
+
 	p := parameters.Globals{}
 
 	p.Deployment.Namespace = namespace
@@ -41,19 +53,28 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 	p.Service.Name = "image-registry"
 
 	h := &Handler{
+		name:               operatorName,
+		namespace:          operatorNamespace,
 		params:             p,
 		generateDeployment: generate.Deployment,
 	}
 
-	_, err := h.Bootstrap()
+	_, err = h.Bootstrap()
 	if err != nil {
 		return nil, err
+	}
+
+	err = h.createClusterOperator()
+	if err != nil {
+		logrus.Errorf("unable to create cluster operator resource: %s", err)
 	}
 
 	return h, nil
 }
 
 type Handler struct {
+	name               string
+	namespace          string
 	params             parameters.Globals
 	generateDeployment generate.Generator
 }
@@ -294,7 +315,18 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			break
 		}
 
+		if o.Status.ReadyReplicas > 0 {
+			errOp := h.operatorStatus(osapi.OperatorAvailable, osapi.ConditionTrue, "")
+			if errOp != nil {
+				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
+			}
+		}
+
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
+			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionFalse, "")
+			if errOp != nil {
+				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
+			}
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
 		} else {
 			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
@@ -325,7 +357,18 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			break
 		}
 
+		if o.Status.ReadyReplicas > 0 {
+			errOp := h.operatorStatus(osapi.OperatorAvailable, osapi.ConditionTrue, "")
+			if errOp != nil {
+				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
+			}
+		}
+
 		if cr.Spec.Replicas == o.Status.ReadyReplicas {
+			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionFalse, "")
+			if errOp != nil {
+				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
+			}
 			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
 		} else {
 			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
@@ -348,10 +391,24 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 			}
 		case operatorapi.Managed:
+			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionTrue, "registry server is in the process of deployment")
+			if errOp != nil {
+				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
+			}
+
 			err = h.CreateOrUpdateResources(cr, &statusChanged)
+
 			if err != nil {
+				errOp := h.operatorStatus(osapi.OperatorFailing, osapi.ConditionTrue, "unable to deploy registry")
+				if errOp != nil {
+					logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+				}
 				conditionResourceApply(o, operatorapi.ConditionFalse, err.Error(), &statusChanged)
 			} else {
+				errOp := h.operatorStatus(osapi.OperatorFailing, osapi.ConditionFalse, "")
+				if errOp != nil {
+					logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionFalse, errOp)
+				}
 				conditionResourceApply(o, operatorapi.ConditionTrue, "all resources applied", &statusChanged)
 			}
 		case operatorapi.Unmanaged:
