@@ -11,10 +11,11 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
 
 	kappsapi "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+	coreapi "k8s.io/api/core/v1"
 	rbacapi "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
@@ -79,6 +80,69 @@ type Handler struct {
 	generateDeployment generate.Generator
 }
 
+func isDeploymentStatusAvailable(o runtime.Object) bool {
+	switch deploy := o.(type) {
+	case *appsapi.DeploymentConfig:
+		return deploy.Status.AvailableReplicas > 0
+	case *kappsapi.Deployment:
+		return deploy.Status.AvailableReplicas > 0
+	}
+	return false
+}
+
+func isDeploymentStatusComplete(o runtime.Object) bool {
+	switch deploy := o.(type) {
+	case *appsapi.DeploymentConfig:
+		return deploy.Status.UpdatedReplicas == deploy.Spec.Replicas &&
+			deploy.Status.Replicas == deploy.Spec.Replicas &&
+			deploy.Status.AvailableReplicas == deploy.Spec.Replicas &&
+			deploy.Status.ObservedGeneration >= deploy.Generation
+	case *kappsapi.Deployment:
+		return deploy.Status.UpdatedReplicas == *(deploy.Spec.Replicas) &&
+			deploy.Status.Replicas == *(deploy.Spec.Replicas) &&
+			deploy.Status.AvailableReplicas == *(deploy.Spec.Replicas) &&
+			deploy.Status.ObservedGeneration >= deploy.Generation
+	}
+	return false
+}
+
+func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Object, statusChanged *bool) {
+	operatorAvailable := osapi.ConditionFalse
+	operatorAvailableMsg := ""
+
+	if isDeploymentStatusAvailable(o) {
+		operatorAvailable = osapi.ConditionTrue
+		operatorAvailableMsg = "deployment has minimum availability"
+	}
+
+	errOp := h.operatorStatus(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
+	if errOp != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
+	}
+
+	operatorProgressing := osapi.ConditionTrue
+	operatorProgressingMsg := "deployment is progressing"
+
+
+	if isDeploymentStatusComplete(o) {
+		operatorProgressing = osapi.ConditionFalse
+		operatorProgressingMsg = "deployment successfully progressed"
+	}
+
+	errOp = h.operatorStatus(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
+	if errOp != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, operatorProgressing, errOp)
+	}
+
+	syncSuccessful := operatorapi.ConditionFalse
+
+	if operatorProgressing == osapi.ConditionFalse {
+		syncSuccessful = operatorapi.ConditionTrue
+	}
+
+	conditionSyncDeployment(cr, syncSuccessful, operatorProgressingMsg, statusChanged)
+}
+
 func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition) bool {
 	modified := false
 	found := false
@@ -123,16 +187,18 @@ func conditionResourceApply(cr *regopapi.ImageRegistry, status operatorapi.Condi
 	}
 }
 
-func conditionDeployment(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	if status == operatorapi.ConditionFalse {
-		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
+func conditionSyncDeployment(cr *regopapi.ImageRegistry, syncSuccessful operatorapi.ConditionStatus, m string, modified *bool) {
+	reason := "DeploymentProgressed"
+
+	if syncSuccessful == operatorapi.ConditionFalse {
+		reason = "DeploymentInProgress"
 	}
 
 	changed := updateCondition(cr, &operatorapi.OperatorCondition{
 		Type:               operatorapi.OperatorStatusTypeSyncSuccessful,
-		Status:             status,
+		Status:             syncSuccessful,
 		LastTransitionTime: metav1.Now(),
-		Reason:             "Progressing",
+		Reason:             reason,
 		Message:            m,
 	})
 
@@ -234,25 +300,25 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return err
 		}
 
-	case *corev1.Service:
+	case *coreapi.Service:
 		cr, statusChanged, err = h.reCreateByEvent(event, generate.Service)
 		if err != nil {
 			return err
 		}
 
-	case *corev1.ServiceAccount:
+	case *coreapi.ServiceAccount:
 		cr, statusChanged, err = h.reDeployByEvent(event, generate.ServiceAccount)
 		if err != nil {
 			return err
 		}
 
-	case *corev1.ConfigMap:
+	case *coreapi.ConfigMap:
 		cr, statusChanged, err = h.reDeployByEvent(event, generate.ConfigMap)
 		if err != nil {
 			return err
 		}
 
-	case *corev1.Secret:
+	case *coreapi.Secret:
 		cr, statusChanged, err = h.reDeployByEvent(event, generate.Secret)
 		if err != nil {
 			return err
@@ -315,22 +381,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			break
 		}
 
-		if o.Status.ReadyReplicas > 0 {
-			errOp := h.operatorStatus(osapi.OperatorAvailable, osapi.ConditionTrue, "")
-			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
-			}
-		}
-
-		if cr.Spec.Replicas == o.Status.ReadyReplicas {
-			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionFalse, "")
-			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
-			}
-			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
-		} else {
-			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
-		}
+		h.syncDeploymentStatus(cr, o, &statusChanged)
 
 	case *appsapi.DeploymentConfig:
 		cr, err = h.getImageRegistryForResource(&o.ObjectMeta)
@@ -357,22 +408,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			break
 		}
 
-		if o.Status.ReadyReplicas > 0 {
-			errOp := h.operatorStatus(osapi.OperatorAvailable, osapi.ConditionTrue, "")
-			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
-			}
-		}
-
-		if cr.Spec.Replicas == o.Status.ReadyReplicas {
-			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionFalse, "")
-			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
-			}
-			conditionDeployment(cr, operatorapi.ConditionTrue, "deployment successfully progressed", &statusChanged)
-		} else {
-			conditionDeployment(cr, operatorapi.ConditionFalse, "not enough replicas", &statusChanged)
-		}
+		h.syncDeploymentStatus(cr, o, &statusChanged)
 
 	case *regopapi.ImageRegistry:
 		cr = event.Object.(*regopapi.ImageRegistry)
@@ -391,11 +427,6 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 			}
 		case operatorapi.Managed:
-			errOp := h.operatorStatus(osapi.OperatorProgressing, osapi.ConditionTrue, "registry server is in the process of deployment")
-			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionFalse, errOp)
-			}
-
 			err = h.CreateOrUpdateResources(cr, &statusChanged)
 
 			if err != nil {
