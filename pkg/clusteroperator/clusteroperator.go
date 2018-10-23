@@ -1,4 +1,4 @@
-package operator
+package clusteroperator
 
 import (
 	"fmt"
@@ -14,40 +14,27 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
-func updateOperatorCondition(op *osapi.ClusterOperator, condition *osapi.ClusterOperatorStatusCondition) (modified bool) {
-	found := false
-	conditions := []osapi.ClusterOperatorStatusCondition{}
-
-	for _, c := range op.Status.Conditions {
-		if condition.Type != c.Type {
-			conditions = append(conditions, c)
-			continue
-		}
-		if condition.Status != c.Status {
-			modified = true
-		}
-		conditions = append(conditions, *condition)
-		found = true
-	}
-
-	if !found {
-		conditions = append(conditions, *condition)
-		modified = true
-	}
-
-	op.Status.Conditions = conditions
-	return
+type StatusHandler struct {
+	Name      string
+	Namespace string
 }
 
-func (h *Handler) createClusterOperator() error {
+func NewStatusHandler(name, namespace string) *StatusHandler {
+	return &StatusHandler{
+		Name:      name,
+		Namespace: namespace,
+	}
+}
+
+func (s *StatusHandler) Create() error {
 	state := &osapi.ClusterOperator{
 		TypeMeta: metaapi.TypeMeta{
 			APIVersion: osapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterOperator",
 		},
 		ObjectMeta: metaapi.ObjectMeta{
-			Name:      h.name,
-			Namespace: h.namespace,
+			Name:      s.Name,
+			Namespace: s.Namespace,
 		},
 		Status: osapi.ClusterOperatorStatus{
 			Version: version.Version,
@@ -62,15 +49,15 @@ func (h *Handler) createClusterOperator() error {
 	return sdk.Create(state)
 }
 
-func (h *Handler) operatorStatus(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg string) error {
+func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg string) error {
 	state := &osapi.ClusterOperator{
 		TypeMeta: metaapi.TypeMeta{
 			APIVersion: osapi.SchemeGroupVersion.String(),
 			Kind:       "ClusterOperator",
 		},
 		ObjectMeta: metaapi.ObjectMeta{
-			Name:      h.name,
-			Namespace: h.namespace,
+			Name:      s.Name,
+			Namespace: s.Namespace,
 		},
 	}
 
@@ -122,4 +109,29 @@ func (h *Handler) operatorStatus(condtype osapi.ClusterStatusConditionType, stat
 
 		return sdkFunc(state)
 	})
+}
+
+func updateOperatorCondition(op *osapi.ClusterOperator, condition *osapi.ClusterOperatorStatusCondition) (modified bool) {
+	found := false
+	conditions := []osapi.ClusterOperatorStatusCondition{}
+
+	for _, c := range op.Status.Conditions {
+		if condition.Type != c.Type {
+			conditions = append(conditions, c)
+			continue
+		}
+		if condition.Status != c.Status {
+			modified = true
+		}
+		conditions = append(conditions, *condition)
+		found = true
+	}
+
+	if !found {
+		conditions = append(conditions, *condition)
+		modified = true
+	}
+
+	op.Status.Conditions = conditions
+	return
 }

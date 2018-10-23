@@ -13,8 +13,8 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
 

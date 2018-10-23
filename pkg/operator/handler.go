@@ -24,8 +24,9 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -55,10 +56,9 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 	p.ImageConfig.Name = "cluster"
 
 	h := &Handler{
-		name:               operatorName,
-		namespace:          operatorNamespace,
 		params:             p,
 		generateDeployment: resource.Deployment,
+		clusterStatus:      clusteroperator.NewStatusHandler(operatorName, operatorNamespace),
 	}
 
 	_, err = h.Bootstrap()
@@ -66,7 +66,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 		return nil, err
 	}
 
-	err = h.createClusterOperator()
+	err = h.clusterStatus.Create()
 	if err != nil {
 		logrus.Errorf("unable to create cluster operator resource: %s", err)
 	}
@@ -75,10 +75,9 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 }
 
 type Handler struct {
-	name               string
-	namespace          string
 	params             parameters.Globals
 	generateDeployment resource.Generator
+	clusterStatus      *clusteroperator.StatusHandler
 }
 
 func isDeploymentStatusAvailable(o runtime.Object) bool {
@@ -116,7 +115,7 @@ func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Obj
 		operatorAvailableMsg = "deployment has minimum availability"
 	}
 
-	errOp := h.operatorStatus(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
+	errOp := h.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
 	if errOp != nil {
 		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
 	}
@@ -129,7 +128,7 @@ func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Obj
 		operatorProgressingMsg = "deployment successfully progressed"
 	}
 
-	errOp = h.operatorStatus(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
+	errOp = h.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
 	if errOp != nil {
 		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, operatorProgressing, errOp)
 	}
@@ -438,13 +437,13 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			err = h.CreateOrUpdateResources(cr, &statusChanged)
 
 			if err != nil {
-				errOp := h.operatorStatus(osapi.OperatorFailing, osapi.ConditionTrue, "unable to deploy registry")
+				errOp := h.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to deploy registry")
 				if errOp != nil {
 					logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 				}
 				conditionResourceApply(o, operatorapi.ConditionFalse, err.Error(), &statusChanged)
 			} else {
-				errOp := h.operatorStatus(osapi.OperatorFailing, osapi.ConditionFalse, "")
+				errOp := h.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionFalse, "")
 				if errOp != nil {
 					logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionFalse, errOp)
 				}
