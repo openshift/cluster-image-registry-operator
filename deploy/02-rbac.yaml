@@ -11,6 +11,12 @@ rules:
   verbs:
   - "*"
 - apiGroups:
+  - config.openshift.io
+  resources:
+  - "images"
+  verbs:
+  - "*"
+- apiGroups:
   - ""
   resources:
   - configmaps

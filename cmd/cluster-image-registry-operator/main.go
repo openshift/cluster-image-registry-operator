@@ -79,6 +79,7 @@ func main() {
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "ServiceAccount", namespace, 0)
+	watch(corev1.SchemeGroupVersion.String(), "Service", namespace, 0)
 	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 10*time.Minute)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 10*time.Minute)

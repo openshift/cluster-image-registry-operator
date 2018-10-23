@@ -52,6 +52,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 	p.Healthz.TimeoutSeconds = 5
 
 	p.Service.Name = "image-registry"
+	p.ImageConfig.Name = "cluster"
 
 	h := &Handler{
 		name:               operatorName,
@@ -122,7 +123,6 @@ func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Obj
 
 	operatorProgressing := osapi.ConditionTrue
 	operatorProgressingMsg := "deployment is progressing"
-
 
 	if isDeploymentStatusComplete(o) {
 		operatorProgressing = osapi.ConditionFalse
@@ -304,6 +304,14 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		cr, statusChanged, err = h.reCreateByEvent(event, generate.Service)
 		if err != nil {
 			return err
+		}
+		if cr != nil {
+			svc := event.Object.(*coreapi.Service)
+			svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+			if cr.Status.InternalRegistryHostname != svcHostname {
+				cr.Status.InternalRegistryHostname = svcHostname
+				statusChanged = true
+			}
 		}
 
 	case *coreapi.ServiceAccount:
@@ -508,6 +516,7 @@ func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Glo
 		generate.ConfigMap,
 		generate.Secret,
 		generate.Service,
+		generate.ImageConfig,
 	}
 
 	routes := generate.GetRouteGenerators(o, p)
@@ -554,7 +563,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 
 	templates, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
-		return fmt.Errorf("unable to genetate templates: %s", err)
+		return fmt.Errorf("unable to generate templates: %s", err)
 	}
 
 	for _, tpl := range templates {
