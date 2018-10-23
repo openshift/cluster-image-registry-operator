@@ -239,6 +239,12 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		if err != nil {
 			return err
 		}
+		svc := o.(*corev1.Service)
+		svcHostname := fmt.Sprintf("%s.%s.cluster.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+		if cr.Status.InternalRegistryHostname != svcHostname {
+			cr.Status.InternalRegistryHostname = svcHostname
+			statuChanged = true
+		}
 
 	case *corev1.ServiceAccount:
 		cr, statusChanged, err = h.reDeployByEvent(event, generate.ServiceAccount)
@@ -523,7 +529,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 
 	templates, err := h.GenerateTemplates(o, &h.params)
 	if err != nil {
-		return fmt.Errorf("unable to genetate templates: %s", err)
+		return fmt.Errorf("unable to generate templates: %s", err)
 	}
 
 	for _, tpl := range templates {
