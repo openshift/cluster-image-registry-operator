@@ -20,6 +20,6 @@ import (
 	f "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
-func TestMain(m *testing.M) {
-	f.MainEntry(m)
+func TestMain(t *testing.T) {
+	f.MainEntry(t)
 }

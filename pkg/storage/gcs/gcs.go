@@ -3,15 +3,16 @@ package gcs
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	util "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type driver struct {
@@ -54,9 +55,9 @@ func (d *driver) CompleteConfiguration() error {
 			return err
 		}
 
-		d.Config.Bucket = fmt.Sprintf("image-registry-%d", time.Now().UnixNano())
-
 		for {
+			d.Config.Bucket = fmt.Sprintf("%s-%s", util.STORAGE_PREFIX, string(uuid.NewUUID()))
+
 			err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
 
 			switch e := err.(type) {
@@ -68,8 +69,6 @@ func (d *driver) CompleteConfiguration() error {
 					return err
 				}
 			}
-
-			d.Config.Bucket = fmt.Sprintf("image-registry-%d", time.Now().UnixNano())
 		}
 	}
 	return nil

@@ -3,9 +3,18 @@ package s3
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+
+	"k8s.io/apimachinery/pkg/util/uuid"
+
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	util "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type driver struct {
@@ -59,7 +68,78 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
+// checkBucketExists checks if an S3 bucket with the given name exists
+func (d *driver) checkBucketExists(svc *s3.S3) error {
+	_, err := svc.HeadBucket(&s3.HeadBucketInput{
+		Bucket: aws.String(d.Config.Bucket),
+	})
+	return err
+}
+
+// createBucket attempts to create an s3 bucket with the given name
+func (d *driver) createBucket(svc *s3.S3) error {
+	input := &s3.CreateBucketInput{
+		Bucket: aws.String(d.Config.Bucket),
+	}
+
+	if len(d.Config.Region) > 0 && d.Config.Region != "us-east-1" {
+		input.SetCreateBucketConfiguration(
+			&s3.CreateBucketConfiguration{
+				LocationConstraint: aws.String(d.Config.Region),
+			},
+		)
+	}
+
+	if _, err := svc.CreateBucket(input); err != nil {
+		return err
+	}
+
+	err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
+		Bucket: aws.String(d.Config.Bucket),
+	})
+
+	return err
+}
+
 func (d *driver) CompleteConfiguration() error {
+	sess, err := session.NewSession(&aws.Config{
+		Credentials: credentials.NewStaticCredentials("", "", ""),
+	})
+	if err != nil {
+		return err
+	}
+	svc := s3.New(sess)
+
+	if len(d.Config.Bucket) == 0 {
+		for {
+			d.Config.Bucket = fmt.Sprintf("%s-%s", util.STORAGE_PREFIX, string(uuid.NewUUID()))
+			if err := d.createBucket(svc); err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					switch aerr.Code() {
+					case s3.ErrCodeBucketAlreadyExists:
+						continue
+					default:
+						return err
+					}
+				}
+			} else {
+				break
+			}
+		}
+	} else {
+		if err := d.checkBucketExists(svc); err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case s3.ErrCodeNoSuchBucket:
+					if err = d.createBucket(svc); err != nil {
+						return err
+					}
+				default:
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -72,7 +152,7 @@ func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
 		prevState.Data["storagetype"] = d.GetName()
 	}
 
-	if v, ok := prevState.Data["gcs-bucket"]; ok {
+	if v, ok := prevState.Data["s3-bucket"]; ok {
 		if v != d.Config.Bucket {
 			return fmt.Errorf("S3 bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
 		}
