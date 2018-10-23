@@ -26,6 +26,12 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
+  name = "github.com/aws/aws-sdk-go"
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/csm","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","internal/ini","internal/s3err","internal/sdkio","internal/sdkrand","internal/sdkuri","internal/shareddefaults","private/protocol","private/protocol/eventstream","private/protocol/eventstream/eventstreamapi","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/s3","service/sts"]
+  revision = "9a79cc876234949427d966249a09fc98e7864bde"
+  version = "v1.15.61"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -98,6 +104,12 @@
   revision = "24818f796faf91cd76ec7bddd72458fbced7a6c1"
 
 [[projects]]
+  name = "github.com/google/uuid"
+  packages = ["."]
+  revision = "d460ce9f8df2e77fb1ba55ca87fafed96c607494"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/googleapis/gax-go"
   packages = ["."]
   revision = "317e0006254c44a0ac427cc52a0e083ff0b9622f"
@@ -126,6 +138,11 @@
   packages = ["."]
   revision = "9f23e2d6bd2a77f959b2bf6acdbefd708a83a4a4"
   version = "v0.3.6"
+
+[[projects]]
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  revision = "0b12d6b5"
 
 [[projects]]
   name = "github.com/json-iterator/go"
@@ -158,10 +175,10 @@
   version = "1.0.1"
 
 [[projects]]
-  branch = "release-3.10"
+  branch = "master"
   name = "github.com/openshift/api"
   packages = ["apps/v1","config/v1","operator/v1alpha1","project/v1","route/v1"]
-  revision = "6a90ae6466cec806da11feb3b15708ca33c1c54b"
+  revision = "ab94c17d53098bd73dcfbbc26c6ce078959b361f"
 
 [[projects]]
   name = "github.com/openshift/cluster-version-operator"
@@ -173,6 +190,12 @@
   name = "github.com/operator-framework/operator-sdk"
   packages = ["pkg/k8sclient","pkg/sdk","pkg/sdk/internal/metrics","pkg/test","pkg/util/k8sutil","version"]
   revision = "d23344453ec6124f1555fafc2e66230f98410bbb"
+
+[[projects]]
+  name = "github.com/pborman/uuid"
+  packages = ["."]
+  revision = "adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1"
+  version = "v1.2"
 
 [[projects]]
   name = "github.com/prometheus/client_golang"
@@ -306,7 +329,7 @@
 
 [[projects]]
   name = "k8s.io/apimachinery"
-  packages = ["pkg/api/errors","pkg/api/meta","pkg/api/resource","pkg/apis/meta/internalversion","pkg/apis/meta/v1","pkg/apis/meta/v1/unstructured","pkg/apis/meta/v1beta1","pkg/conversion","pkg/conversion/queryparams","pkg/fields","pkg/labels","pkg/runtime","pkg/runtime/schema","pkg/runtime/serializer","pkg/runtime/serializer/json","pkg/runtime/serializer/protobuf","pkg/runtime/serializer/recognizer","pkg/runtime/serializer/streaming","pkg/runtime/serializer/versioning","pkg/selection","pkg/types","pkg/util/cache","pkg/util/clock","pkg/util/diff","pkg/util/errors","pkg/util/framer","pkg/util/intstr","pkg/util/json","pkg/util/net","pkg/util/runtime","pkg/util/sets","pkg/util/validation","pkg/util/validation/field","pkg/util/wait","pkg/util/yaml","pkg/version","pkg/watch","third_party/forked/golang/reflect"]
+  packages = ["pkg/api/errors","pkg/api/meta","pkg/api/resource","pkg/apis/meta/internalversion","pkg/apis/meta/v1","pkg/apis/meta/v1/unstructured","pkg/apis/meta/v1beta1","pkg/conversion","pkg/conversion/queryparams","pkg/fields","pkg/labels","pkg/runtime","pkg/runtime/schema","pkg/runtime/serializer","pkg/runtime/serializer/json","pkg/runtime/serializer/protobuf","pkg/runtime/serializer/recognizer","pkg/runtime/serializer/streaming","pkg/runtime/serializer/versioning","pkg/selection","pkg/types","pkg/util/cache","pkg/util/clock","pkg/util/diff","pkg/util/errors","pkg/util/framer","pkg/util/intstr","pkg/util/json","pkg/util/net","pkg/util/runtime","pkg/util/sets","pkg/util/uuid","pkg/util/validation","pkg/util/validation/field","pkg/util/wait","pkg/util/yaml","pkg/version","pkg/watch","third_party/forked/golang/reflect"]
   revision = "302974c03f7e50f16561ba237db776ab93594ef6"
 
 [[projects]]
@@ -339,6 +362,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "bdf5fd878b901c80af53eeacfc9bb65f3e1c14fe828e7f43c7f469c33cfdc9f6"
+  inputs-digest = "4fc784fb1e920310ebf5f9833f09c5aff77d62e0ff19a87b248261584846b43f"
   solver-name = "gps-cdcl"
   solver-version = 1
