@@ -80,8 +80,8 @@ func main() {
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "ServiceAccount", namespace, 0)
 	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
-	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 0)
-	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 0)
+	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 10*time.Minute)
+	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 10*time.Minute)
 	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 10*time.Minute)
 
 	sdk.Handle(handler)
