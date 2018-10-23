@@ -24,7 +24,7 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -58,7 +58,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 		name:               operatorName,
 		namespace:          operatorNamespace,
 		params:             p,
-		generateDeployment: generate.Deployment,
+		generateDeployment: resource.Deployment,
 	}
 
 	_, err = h.Bootstrap()
@@ -78,7 +78,7 @@ type Handler struct {
 	name               string
 	namespace          string
 	params             parameters.Globals
-	generateDeployment generate.Generator
+	generateDeployment resource.Generator
 }
 
 func isDeploymentStatusAvailable(o runtime.Object) bool {
@@ -207,7 +207,7 @@ func conditionSyncDeployment(cr *regopapi.ImageRegistry, syncSuccessful operator
 	}
 }
 
-func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*regopapi.ImageRegistry, bool, error) {
+func (h *Handler) reCreateByEvent(event sdk.Event, gen resource.Generator) (*regopapi.ImageRegistry, bool, error) {
 	o := event.Object.(metav1.Object)
 
 	cr, err := h.getImageRegistryForResource(o)
@@ -230,7 +230,7 @@ func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*reg
 		return cr, statusChanged, nil
 	}
 
-	err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+	err = resource.ApplyTemplate(tmpl, false, &statusChanged)
 	if err != nil {
 		conditionResourceApply(cr, operatorapi.ConditionFalse,
 			fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
@@ -247,7 +247,7 @@ func (h *Handler) reCreateByEvent(event sdk.Event, gen generate.Generator) (*reg
 	return cr, statusChanged, nil
 }
 
-func (h *Handler) reDeployByEvent(event sdk.Event, gen generate.Generator) (*regopapi.ImageRegistry, bool, error) {
+func (h *Handler) reDeployByEvent(event sdk.Event, gen resource.Generator) (*regopapi.ImageRegistry, bool, error) {
 	cr, statusChanged, err := h.reCreateByEvent(event, gen)
 	if err != nil {
 		return cr, statusChanged, err
@@ -266,7 +266,7 @@ func (h *Handler) reDeployByEvent(event sdk.Event, gen generate.Generator) (*reg
 		return cr, statusChanged, nil
 	}
 
-	err = generate.ApplyTemplate(tmpl, true, &statusChanged)
+	err = resource.ApplyTemplate(tmpl, true, &statusChanged)
 	if err != nil {
 		conditionResourceApply(cr, operatorapi.ConditionFalse,
 			fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
@@ -289,19 +289,19 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 
 	switch o := event.Object.(type) {
 	case *rbacapi.ClusterRole:
-		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRole)
+		cr, statusChanged, err = h.reCreateByEvent(event, resource.ClusterRole)
 		if err != nil {
 			return err
 		}
 
 	case *rbacapi.ClusterRoleBinding:
-		cr, statusChanged, err = h.reCreateByEvent(event, generate.ClusterRoleBinding)
+		cr, statusChanged, err = h.reCreateByEvent(event, resource.ClusterRoleBinding)
 		if err != nil {
 			return err
 		}
 
 	case *coreapi.Service:
-		cr, statusChanged, err = h.reCreateByEvent(event, generate.Service)
+		cr, statusChanged, err = h.reCreateByEvent(event, resource.Service)
 		if err != nil {
 			return err
 		}
@@ -315,19 +315,19 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 	case *coreapi.ServiceAccount:
-		cr, statusChanged, err = h.reDeployByEvent(event, generate.ServiceAccount)
+		cr, statusChanged, err = h.reDeployByEvent(event, resource.ServiceAccount)
 		if err != nil {
 			return err
 		}
 
 	case *coreapi.ConfigMap:
-		cr, statusChanged, err = h.reDeployByEvent(event, generate.ConfigMap)
+		cr, statusChanged, err = h.reDeployByEvent(event, resource.ConfigMap)
 		if err != nil {
 			return err
 		}
 
 	case *coreapi.Secret:
-		cr, statusChanged, err = h.reDeployByEvent(event, generate.Secret)
+		cr, statusChanged, err = h.reDeployByEvent(event, resource.Secret)
 		if err != nil {
 			return err
 		}
@@ -342,7 +342,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 			return nil
 		}
 
-		routes := generate.GetRouteGenerators(cr, &h.params)
+		routes := resource.GetRouteGenerators(cr, &h.params)
 
 		if gen, found := routes[o.ObjectMeta.Name]; found {
 			tmpl, err := gen(cr, &h.params)
@@ -354,7 +354,7 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 				break
 			}
 
-			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			err = resource.ApplyTemplate(tmpl, false, &statusChanged)
 			if err != nil {
 				conditionResourceApply(cr, operatorapi.ConditionFalse,
 					fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
@@ -375,12 +375,12 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 		if event.Deleted {
-			tmpl, err := generate.Deployment(cr, &h.params)
+			tmpl, err := resource.Deployment(cr, &h.params)
 			if err != nil {
 				return err
 			}
 
-			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			err = resource.ApplyTemplate(tmpl, false, &statusChanged)
 			if err != nil {
 				return err
 			}
@@ -402,12 +402,12 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		}
 
 		if event.Deleted {
-			tmpl, err := generate.DeploymentConfig(cr, &h.params)
+			tmpl, err := resource.DeploymentConfig(cr, &h.params)
 			if err != nil {
 				return err
 			}
 
-			err = generate.ApplyTemplate(tmpl, false, &statusChanged)
+			err = resource.ApplyTemplate(tmpl, false, &statusChanged)
 			if err != nil {
 				return err
 			}
@@ -508,25 +508,25 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 	return cr, nil
 }
 
-func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) (ret []generate.Template, err error) {
-	generators := []generate.Generator{
-		generate.ClusterRole,
-		generate.ClusterRoleBinding,
-		generate.ServiceAccount,
-		generate.ConfigMap,
-		generate.Secret,
-		generate.Service,
-		generate.ImageConfig,
+func (h *Handler) GenerateTemplates(o *regopapi.ImageRegistry, p *parameters.Globals) (ret []resource.Template, err error) {
+	generators := []resource.Generator{
+		resource.ClusterRole,
+		resource.ClusterRoleBinding,
+		resource.ServiceAccount,
+		resource.ConfigMap,
+		resource.Secret,
+		resource.Service,
+		resource.ImageConfig,
 	}
 
-	routes := generate.GetRouteGenerators(o, p)
+	routes := resource.GetRouteGenerators(o, p)
 	for i := range routes {
 		generators = append(generators, routes[i])
 	}
 
 	generators = append(generators, h.generateDeployment)
 
-	ret = make([]generate.Template, len(generators))
+	ret = make([]resource.Template, len(generators))
 
 	for i, gen := range generators {
 		ret[i], err = gen(o, p)
@@ -546,7 +546,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("unable to complete resource: %s", err)
 	}
 
-	configState, err := generate.GetConfigState(h.params.Deployment.Namespace)
+	configState, err := resource.GetConfigState(h.params.Deployment.Namespace)
 	if err != nil {
 		return fmt.Errorf("unable to get previous config state: %s", err)
 	}
@@ -567,7 +567,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 	}
 
 	for _, tpl := range templates {
-		err = generate.ApplyTemplate(tpl, false, modified)
+		err = resource.ApplyTemplate(tpl, false, modified)
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)
 		}
@@ -578,7 +578,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("unable to sync routes: %s", err)
 	}
 
-	err = generate.SetConfigState(o, configState)
+	err = resource.SetConfigState(o, configState)
 	if err != nil {
 		return fmt.Errorf("unable to write current config state: %s", err)
 	}

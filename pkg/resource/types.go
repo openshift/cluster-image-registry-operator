@@ -1,4 +1,4 @@
-package generate
+package resource
 
 import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"

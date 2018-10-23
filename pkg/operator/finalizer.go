@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
@@ -27,19 +27,19 @@ func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
 	}
 
 	for _, tmpl := range templetes {
-		err = generate.RemoveByTemplate(tmpl, &modified)
+		err = resource.RemoveByTemplate(tmpl, &modified)
 		if err != nil {
 			return fmt.Errorf("unable to remove objects: %s", err)
 		}
 		logrus.Infof("resource %s removed", tmpl.Name())
 	}
 
-	configState, err := generate.GetConfigState(h.params.Deployment.Namespace)
+	configState, err := resource.GetConfigState(h.params.Deployment.Namespace)
 	if err != nil {
 		return fmt.Errorf("unable to get previous config state: %s", err)
 	}
 
-	err = generate.RemoveConfigState(configState)
+	err = resource.RemoveConfigState(configState)
 	if err != nil {
 		return fmt.Errorf("unable to remove previous config state: %s", err)
 	}
