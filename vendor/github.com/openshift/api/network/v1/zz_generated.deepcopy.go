@@ -18,6 +18,15 @@ func (in *ClusterNetwork) DeepCopyInto(out *ClusterNetwork) {
 		*out = make([]ClusterNetworkEntry, len(*in))
 		copy(*out, *in)
 	}
+	if in.VXLANPort != nil {
+		in, out := &in.VXLANPort, &out.VXLANPort
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(uint32)
+			**out = **in
+		}
+	}
 	return
 }
 
@@ -209,6 +218,11 @@ func (in *HostSubnet) DeepCopyInto(out *HostSubnet) {
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	if in.EgressIPs != nil {
 		in, out := &in.EgressIPs, &out.EgressIPs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.EgressCIDRs != nil {
+		in, out := &in.EgressCIDRs, &out.EgressCIDRs
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

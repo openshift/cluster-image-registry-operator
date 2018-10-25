@@ -95,4 +95,6 @@ type ImageRegistrySpec struct {
 
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
+
+	InternalRegistryHostname string `json:"internalRegistryHostname"`
 }

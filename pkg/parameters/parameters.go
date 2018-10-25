@@ -26,4 +26,7 @@ type Globals struct {
 	Service struct {
 		Name string
 	}
+	ImageConfig struct {
+		Name string
+	}
 }

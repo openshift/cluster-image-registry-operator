@@ -183,6 +183,7 @@ var map_BuildSource = map[string]string{
 	"contextDir":   "contextDir specifies the sub-directory where the source code for the application exists. This allows to have buildable sources in directory other than root of repository.",
 	"sourceSecret": "sourceSecret is the name of a Secret that would be used for setting up the authentication for cloning private repository. The secret contains valid credentials for remote repository, where the data's key represent the authentication method to be used and value is the base64 encoded credentials. Supported auth methods are: ssh-privatekey.",
 	"secrets":      "secrets represents a list of secrets and their destinations that will be used only for the build.",
+	"configMaps":   "configMaps represents a list of configMaps and their destinations that will be used for the build.",
 }
 
 func (BuildSource) SwaggerDoc() map[string]string {
@@ -304,6 +305,16 @@ func (CommonWebHookCause) SwaggerDoc() map[string]string {
 	return map_CommonWebHookCause
 }
 
+var map_ConfigMapBuildSource = map[string]string{
+	"":               "ConfigMapBuildSource describes a configmap and its destination directory that will be used only at the build time. The content of the configmap referenced here will be copied into the destination directory instead of mounting.",
+	"configMap":      "configMap is a reference to an existing configmap that you want to use in your build.",
+	"destinationDir": "destinationDir is the directory where the files from the configmap should be available for the build time. For the Source build strategy, these will be injected into a container where the assemble script runs. For the Docker build strategy, these will be copied into the build directory, where the Dockerfile is located, so users can ADD or COPY them during docker build.",
+}
+
+func (ConfigMapBuildSource) SwaggerDoc() map[string]string {
+	return map_ConfigMapBuildSource
+}
+
 var map_CustomBuildStrategy = map[string]string{
 	"":                   "CustomBuildStrategy defines input parameters specific to Custom build.",
 	"from":               "from is reference to an DockerImage, ImageStreamTag, or ImageStreamImage from which the docker image should be pulled",
@@ -388,7 +399,8 @@ func (GitHubWebHookCause) SwaggerDoc() map[string]string {
 }
 
 var map_GitInfo = map[string]string{
-	"": "GitInfo is the aggregated git information for a generic webhook post",
+	"":     "GitInfo is the aggregated git information for a generic webhook post",
+	"refs": "Refs is a list of GitRefs for the provided repo - generally sent when used from a post-receive hook. This field is optional and is used when sending multiple refs",
 }
 
 func (GitInfo) SwaggerDoc() map[string]string {
@@ -401,6 +413,14 @@ var map_GitLabWebHookCause = map[string]string{
 
 func (GitLabWebHookCause) SwaggerDoc() map[string]string {
 	return map_GitLabWebHookCause
+}
+
+var map_GitRefInfo = map[string]string{
+	"": "GitRefInfo is a single ref",
+}
+
+func (GitRefInfo) SwaggerDoc() map[string]string {
+	return map_GitRefInfo
 }
 
 var map_GitSourceRevision = map[string]string{
@@ -429,6 +449,7 @@ var map_ImageChangeTrigger = map[string]string{
 	"": "ImageChangeTrigger allows builds to be triggered when an ImageStream changes",
 	"lastTriggeredImageID": "lastTriggeredImageID is used internally by the ImageChangeController to save last used image ID for build",
 	"from":                 "from is a reference to an ImageStreamTag that will trigger a build when updated It is optional. If no From is specified, the From image from the build strategy will be used. Only one ImageChangeTrigger with an empty From reference is allowed in a build configuration.",
+	"paused":               "paused is true if this trigger is temporarily disabled. Optional.",
 }
 
 func (ImageChangeTrigger) SwaggerDoc() map[string]string {
