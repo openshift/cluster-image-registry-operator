@@ -1,4 +1,4 @@
-package generate
+package resource
 
 import (
 	rbacapi "k8s.io/api/rbac/v1"

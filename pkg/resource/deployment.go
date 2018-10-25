@@ -1,4 +1,4 @@
-package generate
+package resource
 
 import (
 	kappsapi "k8s.io/api/apps/v1"

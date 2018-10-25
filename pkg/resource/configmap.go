@@ -1,4 +1,4 @@
-package generate
+package resource
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -9,20 +9,20 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ServiceAccount(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
-	sa := &corev1.ServiceAccount{
+func ConfigMap(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+	cm := &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "ServiceAccount",
+			Kind:       "ConfigMap",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Pod.ServiceAccount,
+			Name:      cr.ObjectMeta.Name + "-certificates",
 			Namespace: p.Deployment.Namespace,
 		},
 	}
-	addOwnerRefToObject(sa, asOwner(cr))
+	addOwnerRefToObject(cm, asOwner(cr))
 	return Template{
-		Object:   sa,
-		Strategy: strategy.Override{},
+		Object:   cm,
+		Strategy: strategy.ConfigMap{},
 	}, nil
 }

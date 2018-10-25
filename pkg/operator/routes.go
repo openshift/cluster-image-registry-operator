@@ -10,8 +10,8 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/generate"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
 func syncRoutes(o *regopapi.ImageRegistry, p *parameters.Globals, modified *bool) error {
@@ -27,7 +27,7 @@ func syncRoutes(o *regopapi.ImageRegistry, p *parameters.Globals, modified *bool
 		return fmt.Errorf("failed to list routes: %s", err)
 	}
 
-	routes := generate.GetRouteGenerators(o, p)
+	routes := resource.GetRouteGenerators(o, p)
 
 	for _, route := range routeList.Items {
 		if !metav1.IsControlledBy(&route, o) {

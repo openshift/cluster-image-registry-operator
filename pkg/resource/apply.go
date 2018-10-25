@@ -1,4 +1,4 @@
-package generate
+package resource
 
 import (
 	"crypto/sha256"
