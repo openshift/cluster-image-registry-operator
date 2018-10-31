@@ -14,8 +14,6 @@ spec:
       labels:
         name: cluster-image-registry-operator
     spec:
-      nodeSelector:
-        node-role.kubernetes.io/master: ""
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
