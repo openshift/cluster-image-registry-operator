@@ -9,12 +9,16 @@ import (
 )
 
 type driver struct {
-	Config *opapi.ImageRegistryConfigStorageSwift
+	Name      string
+	Namespace string
+	Config    *opapi.ImageRegistryConfigStorageSwift
 }
 
-func NewDriver(c *opapi.ImageRegistryConfigStorageSwift) *driver {
+func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageSwift) *driver {
 	return &driver{
-		Config: c,
+		Name:      crname,
+		Namespace: crnamespace,
+		Config:    c,
 	}
 }
 
@@ -32,7 +36,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "image-registry-private-configuration",
+						Name: d.Name + "-private-configuration",
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
 				},
@@ -43,7 +47,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "image-registry-private-configuration",
+						Name: d.Name + "-private-configuration",
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
 				},

@@ -554,7 +554,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("unable to get previous config state: %s", err)
 	}
 
-	driver, err := storage.NewDriver(&o.Spec.Storage)
+	driver, err := storage.NewDriver(o.Name, o.Namespace, &o.Spec.Storage)
 	if err != nil {
 		return fmt.Errorf("unable to create storage driver: %s", err)
 	}

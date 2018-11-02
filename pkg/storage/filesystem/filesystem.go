@@ -15,12 +15,16 @@ const (
 )
 
 type driver struct {
-	Config *opapi.ImageRegistryConfigStorageFilesystem
+	Name      string
+	Namespace string
+	Config    *opapi.ImageRegistryConfigStorageFilesystem
 }
 
-func NewDriver(c *opapi.ImageRegistryConfigStorageFilesystem) *driver {
+func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageFilesystem) *driver {
 	return &driver{
-		Config: c,
+		Name:      crname,
+		Namespace: crnamespace,
+		Config:    c,
 	}
 }
 

@@ -1,9 +1,16 @@
 package clusterconfig
 
 import (
+	"fmt"
+	"os"
+	"os/user"
+	"path/filepath"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcore "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
@@ -41,8 +48,38 @@ type Config struct {
 	Storage Storage
 }
 
+// GetConfig creates a *rest.Config for talking to a Kubernetes apiserver.
+// Otherwise will assume running in cluster and use the cluster provided kubeconfig.
+//
+// Config precedence
+//
+// * KUBECONFIG environment variable pointing at a file
+//
+// * In-cluster config if running in cluster
+//
+// * $HOME/.kube/config if exists
+func GetConfig() (*restclient.Config, error) {
+	// If an env variable is specified with the config locaiton, use that
+	if len(os.Getenv("KUBECONFIG")) > 0 {
+		return clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
+	}
+	// If no explicit location, try the in-cluster config
+	if c, err := restclient.InClusterConfig(); err == nil {
+		return c, nil
+	}
+	// If no in-cluster config, try the default location in the user's home directory
+	if usr, err := user.Current(); err == nil {
+		if c, err := clientcmd.BuildConfigFromFlags(
+			"", filepath.Join(usr.HomeDir, ".kube", "config")); err == nil {
+			return c, nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not locate a kubeconfig")
+}
+
 func Get() (*Config, error) {
-	kubeconfig, err := restclient.InClusterConfig()
+	kubeconfig, err := GetConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -52,18 +89,18 @@ func Get() (*Config, error) {
 		return nil, err
 	}
 
+	cfg := &Config{}
+
 	cm, err := client.ConfigMaps(configNamespace).Get(configName, metaapi.GetOptions{})
 	if err != nil {
+		if errors.IsNotFound(err) {
+			return cfg, nil
+		}
 		return nil, err
 	}
 
-	cfg := &Config{}
-
-	if v, ok := cm.Data["storage_type"]; ok {
-		cfg.Storage.Type = v
-	}
-
 	mapkeys := map[string]*string{
+		"storage_type":              &cfg.Storage.Type,
 		"storage_azure_accountname": &cfg.Storage.Azure.AccountName,
 		"storage_azure_accountkey":  &cfg.Storage.Azure.AccountKey,
 		"storage_azure_container":   &cfg.Storage.Azure.Container,

@@ -8,20 +8,30 @@ import (
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/googleapi"
 
-	corev1 "k8s.io/api/core/v1"
+	coreapi "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/util/retry"
+
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	util "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type driver struct {
-	Config *opapi.ImageRegistryConfigStorageGCS
+	Name      string
+	Namespace string
+	Config    *opapi.ImageRegistryConfigStorageGCS
 }
 
-func NewDriver(c *opapi.ImageRegistryConfigStorageGCS) *driver {
+func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageGCS) *driver {
 	return &driver{
-		Config: c,
+		Name:      crname,
+		Namespace: crnamespace,
+		Config:    c,
 	}
 }
 
@@ -29,19 +39,90 @@ func (d *driver) GetName() string {
 	return "gcs"
 }
 
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+func (d *driver) ConfigEnv() (envs []coreapi.EnvVar, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetName()},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: d.Config.Bucket},
+		coreapi.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetName()},
+		coreapi.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: d.Config.Bucket},
+		coreapi.EnvVar{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile"},
 	)
 	return
 }
 
-func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
-	return nil, nil, nil
+func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
+	vol := coreapi.Volume{
+		Name: "registry-storage-keyfile",
+		VolumeSource: coreapi.VolumeSource{
+			Projected: &coreapi.ProjectedVolumeSource{
+				Sources: []coreapi.VolumeProjection{
+					{
+						Secret: &coreapi.SecretProjection{
+							LocalObjectReference: coreapi.LocalObjectReference{
+								Name: d.Name + "-private-configuration",
+							},
+							Items: []coreapi.KeyToPath{
+								{
+									Key:  "STORAGE_GCS_KEYFILE",
+									Path: "keyfile",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	mount := coreapi.VolumeMount{
+		Name:      vol.Name,
+		MountPath: "/gcs",
+	}
+
+	return []coreapi.Volume{vol}, []coreapi.VolumeMount{mount}, nil
 }
 
 func (d *driver) CompleteConfiguration() error {
+	// Apply global config
+	gcfg, err := clusterconfig.Get()
+	if err != nil {
+		return fmt.Errorf("unable to get global config: %s", err)
+	}
+
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		cur := &coreapi.Secret{
+			TypeMeta: metaapi.TypeMeta{
+				APIVersion: coreapi.SchemeGroupVersion.String(),
+				Kind:       "Secret",
+			},
+			ObjectMeta: metaapi.ObjectMeta{
+				Name:      d.Name + "-private-configuration",
+				Namespace: d.Namespace,
+			},
+		}
+		err := sdk.Get(cur)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get secret %s: %s", cur.Name, err)
+			}
+		}
+
+		if cur.StringData == nil {
+			cur.StringData = make(map[string]string)
+		}
+		cur.StringData["STORAGE_GCS_KEYFILE"] = gcfg.Storage.GCS.KeyfileData
+
+		if errors.IsNotFound(err) {
+			return sdk.Create(cur)
+		}
+		return sdk.Update(cur)
+	})
+	if err != nil {
+		return err
+	}
+
+	if len(d.Config.Bucket) == 0 {
+		d.Config.Bucket = gcfg.Storage.GCS.Bucket
+	}
+
 	if len(d.Config.Bucket) == 0 {
 		projectID, err := metadata.NewClient(nil).ProjectID()
 		if err != nil {
@@ -74,7 +155,7 @@ func (d *driver) CompleteConfiguration() error {
 	return nil
 }
 
-func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
+func (d *driver) ValidateConfiguration(prevState *coreapi.ConfigMap) error {
 	if v, ok := prevState.Data["storagetype"]; ok {
 		if v != d.GetName() {
 			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())

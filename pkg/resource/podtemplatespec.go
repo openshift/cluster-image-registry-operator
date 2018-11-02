@@ -95,10 +95,10 @@ func generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*cor
 	}, nil
 }
 
-func storageConfigure(cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
-	driver, err = storage.NewDriver(cfg)
+	driver, err = storage.NewDriver(crname, crnamespace, cfg)
 	if err != nil {
 		return
 	}
@@ -117,7 +117,7 @@ func storageConfigure(cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.E
 }
 
 func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
-	env, volumes, mounts, err := storageConfigure(&cr.Spec.Storage)
+	env, volumes, mounts, err := storageConfigure(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
 	}
