@@ -84,7 +84,7 @@ func (h *Handler) Bootstrap() (*regopapi.ImageRegistry, error) {
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
 
-	driver, err := storage.NewDriver(&cr.Spec.Storage)
+	driver, err := storage.NewDriver(cr.Name, h.params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		if err != storage.ErrStorageNotConfigured {
 			return nil, err

@@ -38,7 +38,7 @@ func Service(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error
 
 	if cr.Spec.TLS {
 		svc.ObjectMeta.Annotations = map[string]string{
-			"service.alpha.openshift.io/serving-cert-secret-name": "image-registry-tls",
+			"service.alpha.openshift.io/serving-cert-secret-name": cr.ObjectMeta.Name + "-tls",
 		}
 	}
 
