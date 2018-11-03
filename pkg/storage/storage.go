@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/filesystem"
@@ -71,7 +72,8 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 	if err == ErrStorageNotConfigured {
 		gcfg, err := clusterconfig.Get()
 		if err != nil {
-			return nil, fmt.Errorf("unable to get global config: %s", err)
+			logrus.Errorf("unable to get global config: %s", err)
+			return nil, ErrStorageNotConfigured
 		}
 		switch strings.ToLower(gcfg.Storage.Type) {
 		case "azure":
