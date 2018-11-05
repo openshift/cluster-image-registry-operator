@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -85,7 +87,8 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 		case "swift":
 			cfg.Swift = &opapi.ImageRegistryConfigStorageSwift{}
 		default:
-			return nil, fmt.Errorf("unknown storage backend: %s", gcfg.Storage.Type)
+			logrus.Errorf("unknown storage backend: %s", gcfg.Storage.Type)
+			return nil, ErrStorageNotConfigured
 		}
 		return newDriver(crname, crnamespace, cfg)
 	}
