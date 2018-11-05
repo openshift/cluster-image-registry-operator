@@ -21,12 +21,12 @@ import (
 
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/pubsub/pstest"
-
 	"golang.org/x/net/context"
-
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // All returns the remaining subscriptions from this iterator.
@@ -175,6 +175,40 @@ func TestUpdateSubscription(t *testing.T) {
 	_, err = sub.Update(ctx, SubscriptionConfigToUpdate{})
 	if err == nil {
 		t.Fatal("got nil, want error")
+	}
+}
+
+func TestReceive(t *testing.T) {
+	testReceive(t, true)
+	testReceive(t, false)
+}
+
+func testReceive(t *testing.T, synchronous bool) {
+	ctx := context.Background()
+	client, srv := newFake(t)
+	defer client.Close()
+
+	topic := mustCreateTopic(t, client, "t")
+	sub, err := client.CreateSubscription(ctx, "s", SubscriptionConfig{Topic: topic})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 256; i++ {
+		srv.Publish(topic.name, []byte{byte(i)}, nil)
+	}
+	sub.ReceiveSettings.Synchronous = synchronous
+	msgs, err := pullN(ctx, sub, 256, func(_ context.Context, m *Message) { m.Ack() })
+	if c := status.Convert(err); err != nil && c.Code() != codes.Canceled {
+		t.Fatalf("Pull: %v", err)
+	}
+	var seen [256]bool
+	for _, m := range msgs {
+		seen[m.Data[0]] = true
+	}
+	for i, saw := range seen {
+		if !saw {
+			t.Errorf("sync=%t: did not see message #%d", synchronous, i)
+		}
 	}
 }
 

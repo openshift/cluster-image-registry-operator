@@ -1226,6 +1226,10 @@ type FindDevicesByDeviceIdentifierResponse struct {
 	// results are available.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
+	// TotalSize: The total count of items in the list irrespective of
+	// pagination.
+	TotalSize int64 `json:"totalSize,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -1308,6 +1312,10 @@ type FindDevicesByOwnerResponse struct {
 	// Omitted if no further results are available.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
+	// TotalSize: The total count of items in the list irrespective of
+	// pagination.
+	TotalSize int64 `json:"totalSize,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -1340,6 +1348,15 @@ func (s *FindDevicesByOwnerResponse) MarshalJSON() ([]byte, error) {
 type ListCustomersResponse struct {
 	// Customers: List of customers related to this reseller partner.
 	Customers []*Company `json:"customers,omitempty"`
+
+	// NextPageToken: A token to retrieve the next page of results. Omitted
+	// if no further results
+	// are available.
+	NextPageToken string `json:"nextPageToken,omitempty"`
+
+	// TotalSize: The total count of items in the list irrespective of
+	// pagination.
+	TotalSize int64 `json:"totalSize,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -1379,6 +1396,10 @@ type ListVendorCustomersResponse struct {
 	// are available.
 	NextPageToken string `json:"nextPageToken,omitempty"`
 
+	// TotalSize: The total count of items in the list irrespective of
+	// pagination.
+	TotalSize int64 `json:"totalSize,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -1412,6 +1433,10 @@ type ListVendorsResponse struct {
 	// if no further results
 	// are available.
 	NextPageToken string `json:"nextPageToken,omitempty"`
+
+	// TotalSize: The total count of items in the list irrespective of
+	// pagination.
+	TotalSize int64 `json:"totalSize,omitempty"`
 
 	// Vendors: List of vendors of the reseller partner. Fields `name`,
 	// `companyId` and
@@ -2050,7 +2075,10 @@ func (c *CustomersListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/customers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -2202,7 +2230,10 @@ func (c *CustomersConfigurationsCreateCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/configurations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2330,7 +2361,10 @@ func (c *CustomersConfigurationsDeleteCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2467,7 +2501,10 @@ func (c *CustomersConfigurationsGetCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2604,7 +2641,10 @@ func (c *CustomersConfigurationsListCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/configurations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2747,7 +2787,10 @@ func (c *CustomersConfigurationsPatchCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2890,7 +2933,10 @@ func (c *CustomersDevicesApplyConfigurationCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/devices:applyConfiguration")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3030,7 +3076,10 @@ func (c *CustomersDevicesGetCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3182,7 +3231,10 @@ func (c *CustomersDevicesListCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/devices")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3344,7 +3396,10 @@ func (c *CustomersDevicesRemoveConfigurationCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/devices:removeConfiguration")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3483,7 +3538,10 @@ func (c *CustomersDevicesUnclaimCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/devices:unclaim")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3625,7 +3683,10 @@ func (c *CustomersDpcsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/dpcs")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3766,7 +3827,10 @@ func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3902,7 +3966,10 @@ func (c *PartnersCustomersCreateCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/customers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3997,6 +4064,21 @@ func (r *PartnersCustomersService) List(partnerId int64) *PartnersCustomersListC
 	return c
 }
 
+// PageSize sets the optional parameter "pageSize": The maximum number
+// of results to be returned. If not specified or 0, all
+// the records are returned.
+func (c *PartnersCustomersListCall) PageSize(pageSize int64) *PartnersCustomersListCall {
+	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
+	return c
+}
+
+// PageToken sets the optional parameter "pageToken": A token
+// identifying a page of results returned by the server.
+func (c *PartnersCustomersListCall) PageToken(pageToken string) *PartnersCustomersListCall {
+	c.urlParams_.Set("pageToken", pageToken)
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
@@ -4046,7 +4128,10 @@ func (c *PartnersCustomersListCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/customers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -4100,6 +4185,17 @@ func (c *PartnersCustomersListCall) Do(opts ...googleapi.CallOption) (*ListCusto
 	//     "partnerId"
 	//   ],
 	//   "parameters": {
+	//     "pageSize": {
+	//       "description": "The maximum number of results to be returned. If not specified or 0, all\nthe records are returned.",
+	//       "format": "int32",
+	//       "location": "query",
+	//       "type": "integer"
+	//     },
+	//     "pageToken": {
+	//       "description": "A token identifying a page of results returned by the server.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "partnerId": {
 	//       "description": "Required. The ID of the reseller partner.",
 	//       "format": "int64",
@@ -4115,6 +4211,27 @@ func (c *PartnersCustomersListCall) Do(opts ...googleapi.CallOption) (*ListCusto
 	//   }
 	// }
 
+}
+
+// Pages invokes f for each page of results.
+// A non-nil error returned from f will halt the iteration.
+// The provided context supersedes any context provided to the Context method.
+func (c *PartnersCustomersListCall) Pages(ctx context.Context, f func(*ListCustomersResponse) error) error {
+	c.ctx_ = ctx
+	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
+	for {
+		x, err := c.Do()
+		if err != nil {
+			return err
+		}
+		if err := f(x); err != nil {
+			return err
+		}
+		if x.NextPageToken == "" {
+			return nil
+		}
+		c.PageToken(x.NextPageToken)
+	}
 }
 
 // method id "androiddeviceprovisioning.partners.devices.claim":
@@ -4180,7 +4297,10 @@ func (c *PartnersDevicesClaimCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:claim")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -4318,7 +4438,10 @@ func (c *PartnersDevicesClaimAsyncCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:claimAsync")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -4453,7 +4576,10 @@ func (c *PartnersDevicesFindByIdentifierCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:findByIdentifier")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -4615,7 +4741,10 @@ func (c *PartnersDevicesFindByOwnerCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:findByOwner")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -4777,7 +4906,10 @@ func (c *PartnersDevicesGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4909,7 +5041,10 @@ func (c *PartnersDevicesMetadataCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+metadataOwnerId}/devices/{+deviceId}/metadata")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metadataOwnerId": strconv.FormatInt(c.metadataOwnerId, 10),
@@ -5055,7 +5190,10 @@ func (c *PartnersDevicesUnclaimCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:unclaim")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -5194,7 +5332,10 @@ func (c *PartnersDevicesUnclaimAsyncCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:unclaimAsync")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -5334,7 +5475,10 @@ func (c *PartnersDevicesUpdateMetadataAsyncCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/partners/{+partnerId}/devices:updateMetadataAsync")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"partnerId": strconv.FormatInt(c.partnerId, 10),
@@ -5489,7 +5633,10 @@ func (c *PartnersVendorsListCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/vendors")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -5672,7 +5819,10 @@ func (c *PartnersVendorsCustomersListCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/customers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,

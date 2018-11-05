@@ -10,6 +10,8 @@ import (
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacapi "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
 	routeapi "github.com/openshift/api/route/v1"
@@ -66,12 +68,31 @@ func main() {
 		logrus.Fatalf("failed to get watch namespace: %s", err)
 	}
 
+	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
+
+	dc := &appsapi.DeploymentConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: appsapi.SchemeGroupVersion.String(),
+			Kind:       "DeploymentConfig",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "docker-registry",
+			Namespace: "default",
+		},
+	}
+	err = sdk.Get(dc)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			logrus.Fatal(err)
+		}
+	} else {
+		namespace = "default"
+	}
+
 	handler, err := operator.NewHandler(namespace)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-
-	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
 
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)

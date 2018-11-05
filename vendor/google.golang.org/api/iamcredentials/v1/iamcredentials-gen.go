@@ -618,7 +618,10 @@ func (c *ProjectsServiceAccountsGenerateAccessTokenCall) doRequest(alt string) (
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:generateAccessToken")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -673,7 +676,7 @@ func (c *ProjectsServiceAccountsGenerateAccessTokenCall) Do(opts ...googleapi.Ca
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.\nUsing `-` as a wildcard for the project will infer the project from\nthe account.",
+	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/serviceAccounts/[^/]+$",
 	//       "required": true,
@@ -755,7 +758,10 @@ func (c *ProjectsServiceAccountsGenerateIdTokenCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:generateIdToken")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -810,7 +816,7 @@ func (c *ProjectsServiceAccountsGenerateIdTokenCall) Do(opts ...googleapi.CallOp
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.\nUsing `-` as a wildcard for the project will infer the project from\nthe account.",
+	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/serviceAccounts/[^/]+$",
 	//       "required": true,
@@ -891,7 +897,10 @@ func (c *ProjectsServiceAccountsGenerateIdentityBindingAccessTokenCall) doReques
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:generateIdentityBindingAccessToken")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -948,7 +957,7 @@ func (c *ProjectsServiceAccountsGenerateIdentityBindingAccessTokenCall) Do(opts 
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.\nUsing `-` as a wildcard for the project will infer the project from\nthe account.",
+	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/serviceAccounts/[^/]+$",
 	//       "required": true,
@@ -1027,7 +1036,10 @@ func (c *ProjectsServiceAccountsSignBlobCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:signBlob")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1082,7 +1094,7 @@ func (c *ProjectsServiceAccountsSignBlobCall) Do(opts ...googleapi.CallOption) (
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.\nUsing `-` as a wildcard for the project will infer the project from\nthe account.",
+	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/serviceAccounts/[^/]+$",
 	//       "required": true,
@@ -1164,7 +1176,10 @@ func (c *ProjectsServiceAccountsSignJwtCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:signJwt")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1219,7 +1234,7 @@ func (c *ProjectsServiceAccountsSignJwtCall) Do(opts ...googleapi.CallOption) (*
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.\nUsing `-` as a wildcard for the project will infer the project from\nthe account.",
+	//       "description": "The resource name of the service account for which the credentials\nare requested, in the following format:\n`projects/-/serviceAccounts/{ACCOUNT_EMAIL_OR_UNIQUEID}`.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/serviceAccounts/[^/]+$",
 	//       "required": true,

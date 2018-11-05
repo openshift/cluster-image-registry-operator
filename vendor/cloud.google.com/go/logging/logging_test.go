@@ -24,10 +24,9 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	gax "github.com/googleapis/gax-go"
 
 	cinternal "cloud.google.com/go/internal"
 	"cloud.google.com/go/internal/testutil"
@@ -35,6 +34,7 @@ import (
 	"cloud.google.com/go/logging"
 	ltesting "cloud.google.com/go/logging/internal/testing"
 	"cloud.google.com/go/logging/logadmin"
+	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/iterator"
@@ -225,6 +225,23 @@ func TestLogAndEntries(t *testing.T) {
 	}
 }
 
+func TestContextFunc(t *testing.T) {
+	initLogs(ctx)
+	var contextFuncCalls, cleanupCalls int32 //atomic
+
+	lg := client.Logger(testLogID, logging.ContextFunc(func() (context.Context, func()) {
+		atomic.AddInt32(&contextFuncCalls, 1)
+		return context.Background(), func() { atomic.AddInt32(&cleanupCalls, 1) }
+	}))
+	lg.Log(logging.Entry{Payload: "p"})
+	lg.Flush()
+	got1 := atomic.LoadInt32(&contextFuncCalls)
+	got2 := atomic.LoadInt32(&cleanupCalls)
+	if got1 != 1 || got1 != got2 {
+		t.Errorf("got %d calls to context func, %d calls to cleanup func; want 1, 1", got1, got2)
+	}
+}
+
 // compareEntries compares most fields list of Entries against expected. compareEntries does not compare:
 //   - HTTPRequest
 //   - Operation
@@ -275,21 +292,6 @@ func entryForTesting(payload interface{}) *logging.Entry {
 		Payload:   payload,
 		LogName:   "projects/" + testProjectID + "/logs/" + testLogID,
 		Resource:  &mrpb.MonitoredResource{Type: "global", Labels: map[string]string{"project_id": testProjectID}},
-	}
-}
-
-func countLogEntries(ctx context.Context, filter string) int {
-	it := aclient.Entries(ctx, logadmin.Filter(filter))
-	n := 0
-	for {
-		_, err := it.Next()
-		if err == iterator.Done {
-			return n
-		}
-		if err != nil {
-			log.Fatalf("counting log entries: %v", err)
-		}
-		n++
 	}
 }
 

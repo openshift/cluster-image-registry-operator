@@ -285,6 +285,8 @@ func (h *Handler) reDeployByEvent(event sdk.Event, gen resource.Generator) (*reg
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
+	logrus.Debugf("received event for %T (deleted=%t)", event.Object, event.Deleted)
+
 	var (
 		statusChanged bool
 		err           error

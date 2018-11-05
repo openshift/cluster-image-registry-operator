@@ -573,6 +573,9 @@ type CheckError struct {
 	// deleted (soft deletion).
 	//   "PROJECT_INVALID" - The consumer's project number or id does not
 	// represent a valid project.
+	//   "CONSUMER_INVALID" - The input consumer info does not represent a
+	// valid consumer folder or
+	// organization.
 	//   "IP_ADDRESS_BLOCKED" - The IP address of the consumer is invalid
 	// for the specific consumer
 	// project.
@@ -790,15 +793,32 @@ func (s *CheckResponse) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// ConsumerInfo: `ConsumerInfo` provides information about the consumer
-// project.
+// ConsumerInfo: `ConsumerInfo` provides information about the consumer.
 type ConsumerInfo struct {
+	// ConsumerNumber: The consumer identity number, can be Google cloud
+	// project number, folder
+	// number or organization number e.g. 1234567890. A value of 0 indicates
+	// no
+	// consumer number is found.
+	ConsumerNumber int64 `json:"consumerNumber,omitempty,string"`
+
 	// ProjectNumber: The Google cloud project number, e.g. 1234567890. A
 	// value of 0 indicates
 	// no project number is found.
+	//
+	// NOTE: This field is deprecated after Chemist support flexible
+	// consumer
+	// id. New code should not depend on this field anymore.
 	ProjectNumber int64 `json:"projectNumber,omitempty,string"`
 
-	// ForceSendFields is a list of field names (e.g. "ProjectNumber") to
+	// Possible values:
+	//   "CONSUMER_TYPE_UNSPECIFIED"
+	//   "PROJECT"
+	//   "FOLDER"
+	//   "ORGANIZATION"
+	Type string `json:"type,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "ConsumerNumber") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -806,12 +826,13 @@ type ConsumerInfo struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "ProjectNumber") to include
-	// in API requests with the JSON null value. By default, fields with
-	// empty values are omitted from API requests. However, any field with
-	// an empty value appearing in NullFields will be sent to the server as
-	// null. It is an error if a field in this list has a non-empty value.
-	// This may be used to include null fields in Patch requests.
+	// NullFields is a list of field names (e.g. "ConsumerNumber") to
+	// include in API requests with the JSON null value. By default, fields
+	// with empty values are omitted from API requests. However, any field
+	// with an empty value appearing in NullFields will be sent to the
+	// server as null. It is an error if a field in this list has a
+	// non-empty value. This may be used to include null fields in Patch
+	// requests.
 	NullFields []string `json:"-"`
 }
 
@@ -1200,8 +1221,8 @@ type HttpRequest struct {
 	// headers and the request body.
 	RequestSize int64 `json:"requestSize,omitempty,string"`
 
-	// RequestUrl: The scheme (http, https), the host name, the path and the
-	// query
+	// RequestUrl: The scheme (http, https), the host name, the path, and
+	// the query
 	// portion of the URL that was requested.
 	// Example: "http://example.com/some/info?color=red".
 	RequestUrl string `json:"requestUrl,omitempty"`
@@ -1216,7 +1237,7 @@ type HttpRequest struct {
 	// sent to.
 	ServerIp string `json:"serverIp,omitempty"`
 
-	// Status: The response code indicating the status of
+	// Status: The response code indicating the status of the
 	// response.
 	// Examples: 200, 404.
 	Status int64 `json:"status,omitempty"`
@@ -1379,9 +1400,9 @@ type LogEntry struct {
 
 	// Trace: Optional. Resource name of the trace associated with the log
 	// entry, if any.
-	// If it contains a relative resource name, the name is assumed to be
-	// relative
-	// to `//tracing.googleapis.com`.
+	// If this field contains a relative resource name, you can assume the
+	// name is
+	// relative to `//tracing.googleapis.com`.
 	// Example:
 	// `projects/my-projectid/traces/06796866738c859f2f19b7cfb321482
 	// 4`
@@ -2566,6 +2587,7 @@ type RequestMetadata struct {
 	// with
 	// the request.
 	//
+	//
 	// To get the whole view of the attributes used in IAM
 	// condition evaluation, the user must also look
 	// into
@@ -3041,7 +3063,10 @@ func (c *ServicesAllocateQuotaCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:allocateQuota")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,
@@ -3199,7 +3224,10 @@ func (c *ServicesCheckCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:check")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,
@@ -3343,7 +3371,10 @@ func (c *ServicesEndReconciliationCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:endReconciliation")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,
@@ -3494,7 +3525,10 @@ func (c *ServicesReleaseQuotaCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:releaseQuota")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,
@@ -3649,7 +3683,10 @@ func (c *ServicesReportCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:report")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,
@@ -3826,7 +3863,10 @@ func (c *ServicesStartReconciliationCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/services/{serviceName}:startReconciliation")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"serviceName": c.serviceName,

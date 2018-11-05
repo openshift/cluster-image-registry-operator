@@ -1,0 +1,17 @@
+managementState: Managed
+version: none
+imagePullSpec: example.com:443/openshift/docker-registry:v3.9.11
+httpSecret: "false"
+storage:
+  s3:
+    bucket: image-registry-bucket.example.com
+    region: us-east-1
+requests:
+  read:
+    max_in_queue: 256
+  write:
+    maxrunning: 256
+    maxwaitinqueue: 7200_000_000_000
+tls: true
+routes: []
+replicas: 3

@@ -635,18 +635,24 @@ type CryptoKeyVersion struct {
 	// digest.
 	//   "RSA_SIGN_PSS_4096_SHA256" - RSASSA-PSS 4096 bit key with a SHA256
 	// digest.
+	//   "RSA_SIGN_PSS_4096_SHA512" - RSASSA-PSS 4096 bit key with a SHA512
+	// digest.
 	//   "RSA_SIGN_PKCS1_2048_SHA256" - RSASSA-PKCS1-v1_5 with a 2048 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_3072_SHA256" - RSASSA-PKCS1-v1_5 with a 3072 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_4096_SHA256" - RSASSA-PKCS1-v1_5 with a 4096 bit
 	// key and a SHA256 digest.
+	//   "RSA_SIGN_PKCS1_4096_SHA512" - RSASSA-PKCS1-v1_5 with a 4096 bit
+	// key and a SHA512 digest.
 	//   "RSA_DECRYPT_OAEP_2048_SHA256" - RSAES-OAEP 2048 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_3072_SHA256" - RSAES-OAEP 3072 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_4096_SHA256" - RSAES-OAEP 4096 bit key with a
 	// SHA256 digest.
+	//   "RSA_DECRYPT_OAEP_4096_SHA512" - RSAES-OAEP 4096 bit key with a
+	// SHA512 digest.
 	//   "EC_SIGN_P256_SHA256" - ECDSA on the NIST P-256 curve with a SHA256
 	// digest.
 	//   "EC_SIGN_P384_SHA384" - ECDSA on the NIST P-384 curve with a SHA384
@@ -773,18 +779,24 @@ type CryptoKeyVersionTemplate struct {
 	// digest.
 	//   "RSA_SIGN_PSS_4096_SHA256" - RSASSA-PSS 4096 bit key with a SHA256
 	// digest.
+	//   "RSA_SIGN_PSS_4096_SHA512" - RSASSA-PSS 4096 bit key with a SHA512
+	// digest.
 	//   "RSA_SIGN_PKCS1_2048_SHA256" - RSASSA-PKCS1-v1_5 with a 2048 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_3072_SHA256" - RSASSA-PKCS1-v1_5 with a 3072 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_4096_SHA256" - RSASSA-PKCS1-v1_5 with a 4096 bit
 	// key and a SHA256 digest.
+	//   "RSA_SIGN_PKCS1_4096_SHA512" - RSASSA-PKCS1-v1_5 with a 4096 bit
+	// key and a SHA512 digest.
 	//   "RSA_DECRYPT_OAEP_2048_SHA256" - RSAES-OAEP 2048 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_3072_SHA256" - RSAES-OAEP 3072 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_4096_SHA256" - RSAES-OAEP 4096 bit key with a
 	// SHA256 digest.
+	//   "RSA_DECRYPT_OAEP_4096_SHA512" - RSAES-OAEP 4096 bit key with a
+	// SHA512 digest.
 	//   "EC_SIGN_P256_SHA256" - ECDSA on the NIST P-256 curve with a SHA256
 	// digest.
 	//   "EC_SIGN_P384_SHA384" - ECDSA on the NIST P-384 curve with a SHA384
@@ -1527,18 +1539,24 @@ type PublicKey struct {
 	// digest.
 	//   "RSA_SIGN_PSS_4096_SHA256" - RSASSA-PSS 4096 bit key with a SHA256
 	// digest.
+	//   "RSA_SIGN_PSS_4096_SHA512" - RSASSA-PSS 4096 bit key with a SHA512
+	// digest.
 	//   "RSA_SIGN_PKCS1_2048_SHA256" - RSASSA-PKCS1-v1_5 with a 2048 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_3072_SHA256" - RSASSA-PKCS1-v1_5 with a 3072 bit
 	// key and a SHA256 digest.
 	//   "RSA_SIGN_PKCS1_4096_SHA256" - RSASSA-PKCS1-v1_5 with a 4096 bit
 	// key and a SHA256 digest.
+	//   "RSA_SIGN_PKCS1_4096_SHA512" - RSASSA-PKCS1-v1_5 with a 4096 bit
+	// key and a SHA512 digest.
 	//   "RSA_DECRYPT_OAEP_2048_SHA256" - RSAES-OAEP 2048 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_3072_SHA256" - RSAES-OAEP 3072 bit key with a
 	// SHA256 digest.
 	//   "RSA_DECRYPT_OAEP_4096_SHA256" - RSAES-OAEP 4096 bit key with a
 	// SHA256 digest.
+	//   "RSA_DECRYPT_OAEP_4096_SHA512" - RSAES-OAEP 4096 bit key with a
+	// SHA512 digest.
 	//   "EC_SIGN_P256_SHA256" - ECDSA on the NIST P-256 curve with a SHA256
 	// digest.
 	//   "EC_SIGN_P384_SHA384" - ECDSA on the NIST P-384 curve with a SHA384
@@ -1798,7 +1816,10 @@ func (c *ProjectsLocationsGetCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1960,7 +1981,10 @@ func (c *ProjectsLocationsListCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}/locations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2138,7 +2162,10 @@ func (c *ProjectsLocationsKeyRingsCreateCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/keyRings")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2286,7 +2313,10 @@ func (c *ProjectsLocationsKeyRingsGetCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2429,7 +2459,10 @@ func (c *ProjectsLocationsKeyRingsGetIamPolicyCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:getIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -2590,7 +2623,10 @@ func (c *ProjectsLocationsKeyRingsListCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/keyRings")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2757,7 +2793,10 @@ func (c *ProjectsLocationsKeyRingsSetIamPolicyCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:setIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -2903,7 +2942,10 @@ func (c *ProjectsLocationsKeyRingsTestIamPermissionsCall) doRequest(alt string) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:testIamPermissions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -3051,7 +3093,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCreateCall) doRequest(alt string) (*
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/cryptoKeys")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3194,7 +3239,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysDecryptCall) doRequest(alt string) (
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:decrypt")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3333,7 +3381,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysEncryptCall) doRequest(alt string) (
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:encrypt")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3477,7 +3528,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysGetCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3620,7 +3674,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysGetIamPolicyCall) doRequest(alt stri
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:getIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -3793,7 +3850,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysListCall) doRequest(alt string) (*ht
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/cryptoKeys")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3974,7 +4034,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysPatchCall) doRequest(alt string) (*h
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4118,7 +4181,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysSetIamPolicyCall) doRequest(alt stri
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:setIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -4264,7 +4330,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysTestIamPermissionsCall) doRequest(al
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+resource}:testIamPermissions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -4403,7 +4472,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysUpdatePrimaryVersionCall) doRequest(
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:updatePrimaryVersion")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4543,7 +4615,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsAsymmetricDecryptCa
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:asymmetricDecrypt")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4683,7 +4758,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsAsymmetricSignCall)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:asymmetricSign")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4823,7 +4901,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsCreateCall) doReque
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/cryptoKeyVersions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4971,7 +5052,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsDestroyCall) doRequ
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:destroy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -5114,7 +5198,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsGetCall) doRequest(
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -5258,7 +5345,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsGetPublicKeyCall) d
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}/publicKey")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -5431,7 +5521,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsListCall) doRequest
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+parent}/cryptoKeyVersions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -5619,7 +5712,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsPatchCall) doReques
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -5768,7 +5864,10 @@ func (c *ProjectsLocationsKeyRingsCryptoKeysCryptoKeyVersionsRestoreCall) doRequ
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/{+name}:restore")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,

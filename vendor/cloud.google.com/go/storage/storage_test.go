@@ -32,7 +32,6 @@ import (
 
 	"cloud.google.com/go/iam"
 	"cloud.google.com/go/internal/testutil"
-
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -390,16 +389,16 @@ func TestCondition(t *testing.T) {
 		},
 		{
 			func() { obj.If(Conditions{MetagenerationNotMatch: 1234}).Attrs(ctx) },
-			"GET /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationNotMatch=1234&projection=full",
+			"GET /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationNotMatch=1234&prettyPrint=false&projection=full",
 		},
 
 		{
 			func() { obj.If(Conditions{MetagenerationMatch: 1234}).Update(ctx, ObjectAttrsToUpdate{}) },
-			"PATCH /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationMatch=1234&projection=full",
+			"PATCH /storage/v1/b/buck/o/obj?alt=json&ifMetagenerationMatch=1234&prettyPrint=false&projection=full",
 		},
 		{
 			func() { obj.Generation(1234).Delete(ctx) },
-			"DELETE /storage/v1/b/buck/o/obj?alt=json&generation=1234",
+			"DELETE /storage/v1/b/buck/o/obj?alt=json&generation=1234&prettyPrint=false",
 		},
 		{
 			func() {
@@ -407,7 +406,7 @@ func TestCondition(t *testing.T) {
 				w.ContentType = "text/plain"
 				w.Close()
 			},
-			"POST /upload/storage/v1/b/buck/o?alt=json&ifGenerationMatch=1234&projection=full&uploadType=multipart",
+			"POST /upload/storage/v1/b/buck/o?alt=json&ifGenerationMatch=1234&prettyPrint=false&projection=full&uploadType=multipart",
 		},
 		{
 			func() {
@@ -415,13 +414,13 @@ func TestCondition(t *testing.T) {
 				w.ContentType = "text/plain"
 				w.Close()
 			},
-			"POST /upload/storage/v1/b/buck/o?alt=json&ifGenerationMatch=0&projection=full&uploadType=multipart",
+			"POST /upload/storage/v1/b/buck/o?alt=json&ifGenerationMatch=0&prettyPrint=false&projection=full&uploadType=multipart",
 		},
 		{
 			func() {
 				dst.If(Conditions{MetagenerationMatch: 5678}).CopierFrom(obj.If(Conditions{GenerationMatch: 1234})).Run(ctx)
 			},
-			"POST /storage/v1/b/buck/o/obj/rewriteTo/b/dstbuck/o/dst?alt=json&ifMetagenerationMatch=5678&ifSourceGenerationMatch=1234&projection=full",
+			"POST /storage/v1/b/buck/o/obj/rewriteTo/b/dstbuck/o/dst?alt=json&ifMetagenerationMatch=5678&ifSourceGenerationMatch=1234&prettyPrint=false&projection=full",
 		},
 	}
 
@@ -497,7 +496,7 @@ func TestObjectCompose(t *testing.T) {
 				c.Bucket("foo").Object("baz"),
 				c.Bucket("foo").Object("quux"),
 			},
-			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json",
+			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json&prettyPrint=false",
 			wantReq: raw.ComposeRequest{
 				Destination: &raw.Object{Bucket: "foo"},
 				SourceObjects: []*raw.ComposeRequestSourceObjects{
@@ -517,7 +516,7 @@ func TestObjectCompose(t *testing.T) {
 				Name:        "not-bar",
 				ContentType: "application/json",
 			},
-			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json",
+			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json&prettyPrint=false",
 			wantReq: raw.ComposeRequest{
 				Destination: &raw.Object{
 					Bucket:      "foo",
@@ -540,7 +539,7 @@ func TestObjectCompose(t *testing.T) {
 				c.Bucket("foo").Object("baz").Generation(56),
 				c.Bucket("foo").Object("quux").If(Conditions{GenerationMatch: 78}),
 			},
-			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json&ifGenerationMatch=12&ifMetagenerationMatch=34",
+			wantURL: "/storage/v1/b/foo/o/bar/compose?alt=json&ifGenerationMatch=12&ifMetagenerationMatch=34&prettyPrint=false",
 			wantReq: raw.ComposeRequest{
 				Destination: &raw.Object{Bucket: "foo"},
 				SourceObjects: []*raw.ComposeRequestSourceObjects{

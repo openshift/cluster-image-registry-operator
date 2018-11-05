@@ -203,6 +203,15 @@ func (s *AppEngineHttpQueue) MarshalJSON() ([]byte, error) {
 // [dispatch
 // files](https://cloud.google.com/appengine/docs/python/config/dispatchr
 // ef).
+// Traffic is encrypted during transport and never leaves Google
+// datacenters.
+// Because this traffic is carried over a communication mechanism
+// internal to
+// Google, you cannot explicitly set the protocol (for example, HTTP or
+// HTTPS).
+// The request to the handler, however, will appear to have used the
+// HTTP
+// protocol.
 //
 // The AppEngineRouting used to construct the URL that the task
 // is
@@ -219,6 +228,20 @@ func (s *AppEngineHttpQueue) MarshalJSON() ([]byte, error) {
 //
 // * `url =` host `+`
 //   relative_uri
+//
+// Tasks can be dispatched to secure app handlers, unsecure app
+// handlers, and
+// URIs restricted with
+// [`login:
+// admin`](https://cloud.google.com/appengine/docs/standard/python/config
+// /appref).
+// Because tasks are not run as any user, they cannot be dispatched to
+// URIs
+// restricted with
+// [`login:
+// required`](https://cloud.google.com/appengine/docs/standard/python/con
+// fig/appref)
+// Task dispatches also do not follow redirects.
 //
 // The task attempt has succeeded if the app's request handler
 // returns
@@ -364,22 +387,9 @@ func (s *AppEngineHttpRequest) MarshalJSON() ([]byte, error) {
 
 // AppEngineRouting: App Engine Routing.
 //
-// Specifies the target URI. Since this target type dispatches tasks to
-// secure
-// app handlers, unsecure app handlers, and URIs restricted
-// with
-// [`login:
-// admin`](https://cloud.google.com/appengine/docs/standard/python/config
-// /appref)
-// the protocol (for example, HTTP or HTTPS) cannot be explictly
-// specified.
-// Task dispatches do not follow redirects and cannot target URI
-// paths
-// restricted with
-// [`login:
-// required`](https://cloud.google.com/appengine/docs/standard/python/con
-// fig/appref)
-// because tasks are not run as any user.
+// Defines routing characteristics specific to App Engine - service,
+// version,
+// and instance.
 //
 // For more information about services, versions, and instances see
 // [An Overview of App
@@ -1096,7 +1106,7 @@ type PurgeQueueRequest struct {
 type Queue struct {
 	// AppEngineHttpQueue: App Engine HTTP queue.
 	//
-	// An App Engine queue is a queue that has an AppEngineHttpQeueue type.
+	// An App Engine queue is a queue that has an AppEngineHttpQueue type.
 	AppEngineHttpQueue *AppEngineHttpQueue `json:"appEngineHttpQueue,omitempty"`
 
 	// Name: Caller-specified and required in CreateQueue,
@@ -2004,7 +2014,10 @@ func (c *ProjectsLocationsGetCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2166,7 +2179,10 @@ func (c *ProjectsLocationsListCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}/locations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2351,7 +2367,10 @@ func (c *ProjectsLocationsQueuesCreateCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+parent}/queues")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2495,7 +2514,10 @@ func (c *ProjectsLocationsQueuesDeleteCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2635,7 +2657,10 @@ func (c *ProjectsLocationsQueuesGetCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2778,7 +2803,10 @@ func (c *ProjectsLocationsQueuesGetIamPolicyCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+resource}:getIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -2971,7 +2999,10 @@ func (c *ProjectsLocationsQueuesListCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+parent}/queues")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3168,7 +3199,10 @@ func (c *ProjectsLocationsQueuesPatchCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3317,7 +3351,10 @@ func (c *ProjectsLocationsQueuesPauseCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}:pause")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3461,7 +3498,10 @@ func (c *ProjectsLocationsQueuesPurgeCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}:purge")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3609,7 +3649,10 @@ func (c *ProjectsLocationsQueuesResumeCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}:resume")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -3759,7 +3802,10 @@ func (c *ProjectsLocationsQueuesSetIamPolicyCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+resource}:setIamPolicy")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -3905,7 +3951,10 @@ func (c *ProjectsLocationsQueuesTestIamPermissionsCall) doRequest(alt string) (*
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+resource}:testIamPermissions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"resource": c.resource,
@@ -4047,7 +4096,10 @@ func (c *ProjectsLocationsQueuesTasksCreateCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+parent}/tasks")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4181,7 +4233,10 @@ func (c *ProjectsLocationsQueuesTasksDeleteCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4348,7 +4403,10 @@ func (c *ProjectsLocationsQueuesTasksGetCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -4564,7 +4622,10 @@ func (c *ProjectsLocationsQueuesTasksListCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+parent}/tasks")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4767,7 +4828,10 @@ func (c *ProjectsLocationsQueuesTasksRunCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta3/{+name}:run")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,

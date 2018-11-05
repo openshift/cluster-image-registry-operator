@@ -58,9 +58,9 @@ const (
 	gopkgtoml          = "Gopkg.toml"
 	gopkglock          = "Gopkg.lock"
 	config             = "config.yaml"
+	operatorYaml       = deployDir + "/operator.yaml"
 	rbacYaml           = "rbac.yaml"
 	crYaml             = "cr.yaml"
-	saYaml             = "sa.yaml"
 	catalogPackageYaml = "package.yaml"
 	catalogCSVYaml     = "csv.yaml"
 	crdYaml            = "crd.yaml"
@@ -77,7 +77,6 @@ const (
 	operatorTmplName   = "deploy/operator.yaml"
 	rbacTmplName       = "deploy/rbac.yaml"
 	crTmplName         = "deploy/cr.yaml"
-	saTmplName         = "deploy/sa.yaml"
 	pluralSuffix       = "s"
 )
 
@@ -234,25 +233,19 @@ func renderDeployFiles(deployDir, projectName, apiVersion, kind string) error {
 		APIVersion: apiVersion,
 		Kind:       kind,
 	}
-	if err := renderWriteFile(filepath.Join(deployDir, crYaml), crTmplName, crYamlTmpl, crTd); err != nil {
-		return err
-	}
+	return renderWriteFile(filepath.Join(deployDir, crYaml), crTmplName, crYamlTmpl, crTd)
+}
 
-	saTd := tmplData{
-		ProjectName: projectName,
-	}
-	if err := renderWriteFile(filepath.Join(deployDir, saYaml), saTmplName, saYamlTmpl, saTd); err != nil {
-		return err
-	}
-
-	opTd := tmplData{
-		ProjectName:     projectName,
-		Image:           "REPLACE_IMAGE",
+// RenderOperatorYaml generates "deploy/operator.yaml"
+func RenderOperatorYaml(c *Config, image string) error {
+	td := tmplData{
+		ProjectName:     c.ProjectName,
+		Image:           image,
 		MetricsPort:     k8sutil.PrometheusMetricsPort,
 		MetricsPortName: k8sutil.PrometheusMetricsPortName,
 		OperatorNameEnv: k8sutil.OperatorNameEnvVar,
 	}
-	return renderWriteFile(filepath.Join(deployDir, "operator.yaml"), operatorTmplName, operatorYamlTmpl, opTd)
+	return renderWriteFile(operatorYaml, operatorTmplName, operatorYamlTmpl, td)
 }
 
 // RenderOlmCatalog generates catalog manifests "deploy/olm-catalog/*"
@@ -527,9 +520,6 @@ func apiDirName(apiVersion string) string {
 
 // Writes file to a given path and data buffer, as well as prints out a message confirming creation of a file
 func writeFileAndPrint(filePath string, data []byte, fileMode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(filePath), defaultDirFileMode); err != nil {
-		return err
-	}
 	if err := ioutil.WriteFile(filePath, data, fileMode); err != nil {
 		return err
 	}

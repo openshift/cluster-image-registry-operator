@@ -265,6 +265,10 @@ type CloudFunction struct {
 	// is
 	// the short name of the network.
 	//
+	// This field is mutually exclusive with `vpc_connector` and will be
+	// replaced
+	// by it.
+	//
 	// See [the VPC
 	// documentation](https://cloud.google.com/compute/docs/vpc) for
 	// more information on connecting Cloud projects.
@@ -346,6 +350,26 @@ type CloudFunction struct {
 	// attempt
 	// results in a new version of a function being created.
 	VersionId int64 `json:"versionId,omitempty,string"`
+
+	// VpcConnector: The VPC Network Connector that this cloud function can
+	// connect to. It can
+	// be either the fully-qualified URI, or the short name of the
+	// network
+	// connector resource. The format of this field
+	// is
+	// `projects/*/locations/*/connectors/*`
+	//
+	// This field is mutually exclusive with `network` field and will
+	// eventually
+	// replace it.
+	//
+	// See [the VPC
+	// documentation](https://cloud.google.com/compute/docs/vpc) for
+	// more information on connecting Cloud projects.
+	//
+	// This feature is currently in alpha, available only for whitelisted
+	// users.
+	VpcConnector string `json:"vpcConnector,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -1212,7 +1236,10 @@ func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1394,7 +1421,10 @@ func (c *OperationsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/operations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -1586,7 +1616,10 @@ func (c *ProjectsLocationsListCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}/locations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1758,7 +1791,10 @@ func (c *ProjectsLocationsFunctionsCallCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}:call")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -1898,7 +1934,10 @@ func (c *ProjectsLocationsFunctionsCreateCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+location}/functions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"location": c.location,
@@ -2031,7 +2070,10 @@ func (c *ProjectsLocationsFunctionsDeleteCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2171,7 +2213,10 @@ func (c *ProjectsLocationsFunctionsGenerateDownloadUrlCall) doRequest(alt string
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}:generateDownloadUrl")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2328,7 +2373,10 @@ func (c *ProjectsLocationsFunctionsGenerateUploadUrlCall) doRequest(alt string) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+parent}/functions:generateUploadUrl")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -2472,7 +2520,10 @@ func (c *ProjectsLocationsFunctionsGetCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2631,7 +2682,10 @@ func (c *ProjectsLocationsFunctionsListCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+location}/functions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"location": c.location,
@@ -2796,7 +2850,10 @@ func (c *ProjectsLocationsFunctionsUpdateCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1beta2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,

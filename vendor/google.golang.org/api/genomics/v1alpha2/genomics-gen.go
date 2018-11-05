@@ -2221,11 +2221,19 @@ type OperationsCancelCall struct {
 	header_                http.Header
 }
 
-// Cancel: Starts asynchronous cancellation on a long-running operation.
+// Cancel: Starts asynchronous cancellation on a long-running
+// operation.
 // The server makes a best effort to cancel the operation, but success
-// is not guaranteed. Clients may use Operations.GetOperation or
-// Operations.ListOperations to check whether the cancellation succeeded
-// or the operation completed despite cancellation.
+// is not
+// guaranteed. Clients may use Operations.GetOperation
+// or Operations.ListOperations
+// to check whether the cancellation succeeded or the operation
+// completed
+// despite cancellation.
+// Authorization requires the following [Google
+// IAM](https://cloud.google.com/iam) permission&#58;
+//
+// * `genomics.operations.cancel`
 func (r *OperationsService) Cancel(name string, canceloperationrequest *CancelOperationRequest) *OperationsCancelCall {
 	c := &OperationsCancelCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -2274,7 +2282,10 @@ func (c *OperationsCancelCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/{+name}:cancel")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2320,7 +2331,7 @@ func (c *OperationsCancelCall) Do(opts ...googleapi.CallOption) (*Empty, error) 
 	}
 	return ret, nil
 	// {
-	//   "description": "Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, but success is not guaranteed. Clients may use Operations.GetOperation or Operations.ListOperations to check whether the cancellation succeeded or the operation completed despite cancellation.",
+	//   "description": "Starts asynchronous cancellation on a long-running operation.\nThe server makes a best effort to cancel the operation, but success is not\nguaranteed. Clients may use Operations.GetOperation\nor Operations.ListOperations\nto check whether the cancellation succeeded or the operation completed\ndespite cancellation.\nAuthorization requires the following [Google IAM](https://cloud.google.com/iam) permission\u0026#58;\n\n* `genomics.operations.cancel`",
 	//   "flatPath": "v1alpha2/operations/{operationsId}:cancel",
 	//   "httpMethod": "POST",
 	//   "id": "genomics.operations.cancel",
@@ -2362,11 +2373,14 @@ type OperationsGetCall struct {
 	header_      http.Header
 }
 
-// Get: Gets the latest state of a long-running operation.  Clients can
-// use this
-// method to poll the operation result at intervals as recommended by
-// the API
-// service.
+// Get: Gets the latest state of a long-running operation.
+// Clients can use this method to poll the operation result at intervals
+// as
+// recommended by the API service.
+// Authorization requires the following [Google
+// IAM](https://cloud.google.com/iam) permission&#58;
+//
+// * `genomics.operations.get`
 func (r *OperationsService) Get(name string) *OperationsGetCall {
 	c := &OperationsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -2422,7 +2436,10 @@ func (c *OperationsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2468,7 +2485,7 @@ func (c *OperationsGetCall) Do(opts ...googleapi.CallOption) (*Operation, error)
 	}
 	return ret, nil
 	// {
-	//   "description": "Gets the latest state of a long-running operation.  Clients can use this\nmethod to poll the operation result at intervals as recommended by the API\nservice.",
+	//   "description": "Gets the latest state of a long-running operation.\nClients can use this method to poll the operation result at intervals as\nrecommended by the API service.\nAuthorization requires the following [Google IAM](https://cloud.google.com/iam) permission\u0026#58;\n\n* `genomics.operations.get`",
 	//   "flatPath": "v1alpha2/operations/{operationsId}",
 	//   "httpMethod": "GET",
 	//   "id": "genomics.operations.get",
@@ -2509,6 +2526,10 @@ type OperationsListCall struct {
 
 // List: Lists operations that match the specified filter in the
 // request.
+// Authorization requires the following [Google
+// IAM](https://cloud.google.com/iam) permission&#58;
+//
+// * `genomics.operations.list`
 func (r *OperationsService) List(name string) *OperationsListCall {
 	c := &OperationsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.name = name
@@ -2621,7 +2642,10 @@ func (c *OperationsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -2667,7 +2691,7 @@ func (c *OperationsListCall) Do(opts ...googleapi.CallOption) (*ListOperationsRe
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists operations that match the specified filter in the request.",
+	//   "description": "Lists operations that match the specified filter in the request.\nAuthorization requires the following [Google IAM](https://cloud.google.com/iam) permission\u0026#58;\n\n* `genomics.operations.list`",
 	//   "flatPath": "v1alpha2/operations",
 	//   "httpMethod": "GET",
 	//   "id": "genomics.operations.list",
@@ -2797,7 +2821,10 @@ func (c *PipelinesCreateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -2916,7 +2943,10 @@ func (c *PipelinesDeleteCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines/{pipelineId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"pipelineId": c.pipelineId,
@@ -3058,7 +3088,10 @@ func (c *PipelinesGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines/{pipelineId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"pipelineId": c.pipelineId,
@@ -3211,7 +3244,10 @@ func (c *PipelinesGetControllerConfigCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines:getControllerConfig")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -3384,7 +3420,10 @@ func (c *PipelinesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -3559,7 +3598,10 @@ func (c *PipelinesRunCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines:run")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -3686,7 +3728,10 @@ func (c *PipelinesSetOperationStatusCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1alpha2/pipelines:setOperationStatus")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }

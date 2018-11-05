@@ -431,6 +431,11 @@ func (s *GooglePrivacyDlpV2BigQueryKey) MarshalJSON() ([]byte, error) {
 // GooglePrivacyDlpV2BigQueryOptions: Options defining BigQuery table
 // and row identifiers.
 type GooglePrivacyDlpV2BigQueryOptions struct {
+	// ExcludedFields: References to fields excluded from scanning. This
+	// allows you to skip
+	// inspection of entire columns which you know have no findings.
+	ExcludedFields []*GooglePrivacyDlpV2FieldId `json:"excludedFields,omitempty"`
+
 	// IdentifyingFields: References to fields uniquely identifying rows
 	// within the table.
 	// Nested fields in the format, like `person.birthdate.year`, are
@@ -467,15 +472,15 @@ type GooglePrivacyDlpV2BigQueryOptions struct {
 	// TableReference: Complete BigQuery table reference.
 	TableReference *GooglePrivacyDlpV2BigQueryTable `json:"tableReference,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "IdentifyingFields")
-	// to unconditionally include in API requests. By default, fields with
+	// ForceSendFields is a list of field names (e.g. "ExcludedFields") to
+	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
 	// server regardless of whether the field is empty or not. This may be
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "IdentifyingFields") to
+	// NullFields is a list of field names (e.g. "ExcludedFields") to
 	// include in API requests with the JSON null value. By default, fields
 	// with empty values are omitted from API requests. However, any field
 	// with an empty value appearing in NullFields will be sent to the
@@ -976,7 +981,8 @@ type GooglePrivacyDlpV2CloudStorageOptions struct {
 	// FileTypes: List of file type groups to include in the scan.
 	// If empty, all files are scanned and available data format
 	// processors
-	// are applied.
+	// are applied. In addition, the binary content of the selected files
+	// is always scanned as well.
 	//
 	// Possible values:
 	//   "FILE_TYPE_UNSPECIFIED" - Includes all files.
@@ -1060,6 +1066,109 @@ type GooglePrivacyDlpV2CloudStoragePath struct {
 
 func (s *GooglePrivacyDlpV2CloudStoragePath) MarshalJSON() ([]byte, error) {
 	type NoMethod GooglePrivacyDlpV2CloudStoragePath
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// GooglePrivacyDlpV2CloudStorageRegexFileSet: Message representing a
+// set of files in a Cloud Storage bucket. Regular
+// expressions are used to allow fine-grained control over which files
+// in the
+// bucket to include.
+//
+// Included files are those that match at least one item in
+// `include_regex` and
+// do not match any items in `exclude_regex`. Note that a file that
+// matches
+// items from both lists will _not_ be included. For a match to occur,
+// the
+// entire file path (i.e., everything in the url after the bucket name)
+// must
+// match the regular expression.
+//
+// For example, given the input `{bucket_name: "mybucket",
+// include_regex:
+// ["directory1/.*"], exclude_regex:
+// ["directory1/excluded.*"]}`:
+//
+// * `gs://mybucket/directory1/myfile` will be included
+// * `gs://mybucket/directory1/directory2/myfile` will be included (`.*`
+// matches
+// across `/`)
+// * `gs://mybucket/directory0/directory1/myfile` will _not_ be included
+// (the
+// full path doesn't match any items in `include_regex`)
+// * `gs://mybucket/directory1/excludedfile` will _not_ be included (the
+// path
+// matches an item in `exclude_regex`)
+//
+// If `include_regex` is left empty, it will match all files by
+// default
+// (this is equivalent to setting `include_regex: [".*"]`).
+//
+// Some other common use cases:
+//
+// * `{bucket_name: "mybucket", exclude_regex: [".*\.pdf"]}` will
+// include all
+// files in `mybucket` except for .pdf files
+// * `{bucket_name: "mybucket", include_regex: ["directory/[^/]+"]}`
+// will
+// include all files directly under `gs://mybucket/directory/`, without
+// matching
+// across `/`
+type GooglePrivacyDlpV2CloudStorageRegexFileSet struct {
+	// BucketName: The name of a Cloud Storage bucket. Required.
+	BucketName string `json:"bucketName,omitempty"`
+
+	// ExcludeRegex: A list of regular expressions matching file paths to
+	// exclude. All files in
+	// the bucket that match at least one of these regular expressions will
+	// be
+	// excluded from the scan.
+	//
+	// Regular expressions use
+	// RE2
+	// [syntax](https://github.com/google/re2/wiki/Syntax); a guide can be
+	// found
+	// under the google/re2 repository on GitHub.
+	ExcludeRegex []string `json:"excludeRegex,omitempty"`
+
+	// IncludeRegex: A list of regular expressions matching file paths to
+	// include. All files in
+	// the bucket that match at least one of these regular expressions will
+	// be
+	// included in the set of files, except for those that also match an
+	// item in
+	// `exclude_regex`. Leaving this field empty will match all files by
+	// default
+	// (this is equivalent to including `.*` in the list).
+	//
+	// Regular expressions use
+	// RE2
+	// [syntax](https://github.com/google/re2/wiki/Syntax); a guide can be
+	// found
+	// under the google/re2 repository on GitHub.
+	IncludeRegex []string `json:"includeRegex,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "BucketName") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "BucketName") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GooglePrivacyDlpV2CloudStorageRegexFileSet) MarshalJSON() ([]byte, error) {
+	type NoMethod GooglePrivacyDlpV2CloudStorageRegexFileSet
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -1260,10 +1369,17 @@ func (s *GooglePrivacyDlpV2ContentItem) MarshalJSON() ([]byte, error) {
 type GooglePrivacyDlpV2ContentLocation struct {
 	// ContainerName: Name of the container where the finding is
 	// located.
-	// The top level name is the source file name or table name. Nested
-	// names
-	// could be absent if the embedded object has no string identifier
-	// (for an example an image contained within a document).
+	// The top level name is the source file name or table name. Names of
+	// some
+	// common storage containers are formatted as follows:
+	//
+	// * BigQuery tables:  `<project_id>:<dataset_id>.<table_id>`
+	// * Cloud Storage files: `gs://<bucket>/<path>`
+	// * Datastore namespace: <namespace>
+	//
+	// Nested names could be absent if the embedded object has no
+	// string
+	// identifier (for an example an image contained within a document).
 	ContainerName string `json:"containerName,omitempty"`
 
 	// ContainerTimestamp: Findings container modification timestamp, if
@@ -1720,9 +1836,29 @@ type GooglePrivacyDlpV2CustomInfoType struct {
 	// Dictionary: A list of phrases to detect as a CustomInfoType.
 	Dictionary *GooglePrivacyDlpV2Dictionary `json:"dictionary,omitempty"`
 
-	// InfoType: All CustomInfoTypes must have a name
-	// that does not conflict with built-in InfoTypes or other
-	// CustomInfoTypes.
+	// ExclusionType: If set to EXCLUSION_TYPE_EXCLUDE this infoType will
+	// not cause a finding
+	// to be returned. It still can be used for rules matching.
+	//
+	// Possible values:
+	//   "EXCLUSION_TYPE_UNSPECIFIED" - A finding of this custom info type
+	// will not be excluded from results.
+	//   "EXCLUSION_TYPE_EXCLUDE" - A finding of this custom info type will
+	// be excluded from final results,
+	// but can still affect rule execution.
+	ExclusionType string `json:"exclusionType,omitempty"`
+
+	// InfoType: CustomInfoType can either be a new infoType, or an
+	// extension of built-in
+	// infoType, when the name matches one of existing infoTypes and that
+	// infoType
+	// is specified in `InspectContent.info_types` field. Specifying the
+	// latter
+	// adds findings to the one detected by the system. If built-in info
+	// type is
+	// not specified in `InspectContent.info_types` list then the name is
+	// treated
+	// as a custom info type.
 	InfoType *GooglePrivacyDlpV2InfoType `json:"infoType,omitempty"`
 
 	// Likelihood: Likelihood to return for this CustomInfoType. This base
@@ -1898,6 +2034,7 @@ func (s *GooglePrivacyDlpV2DateShiftConfig) MarshalJSON() ([]byte, error) {
 }
 
 // GooglePrivacyDlpV2DateTime: Message for a date time object.
+// e.g. 2018-01-01, 5th August.
 type GooglePrivacyDlpV2DateTime struct {
 	// Date: One or more of the following must be set. All fields are
 	// optional, but
@@ -2649,6 +2786,108 @@ func (s *GooglePrivacyDlpV2Error) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// GooglePrivacyDlpV2ExcludeInfoTypes: List of exclude infoTypes.
+type GooglePrivacyDlpV2ExcludeInfoTypes struct {
+	// InfoTypes: InfoType list in ExclusionRule rule drops a finding when
+	// it overlaps or
+	// contained within with a finding of an infoType from this list.
+	// For
+	// example, for `InspectionRuleSet.info_types` containing
+	// "PHONE_NUMBER" and
+	// `exclusion_rule` containing `exclude_info_types.info_types`
+	// with
+	// "EMAIL_ADDRESS" the phone number findings are dropped if they
+	// overlap
+	// with EMAIL_ADDRESS finding.
+	// That leads to "555-222-2222@example.org" to generate only a
+	// single
+	// finding, namely email address.
+	InfoTypes []*GooglePrivacyDlpV2InfoType `json:"infoTypes,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "InfoTypes") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "InfoTypes") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GooglePrivacyDlpV2ExcludeInfoTypes) MarshalJSON() ([]byte, error) {
+	type NoMethod GooglePrivacyDlpV2ExcludeInfoTypes
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// GooglePrivacyDlpV2ExclusionRule: The rule that specifies conditions
+// when findings of infoTypes specified in
+// `InspectionRuleSet` are removed from results.
+type GooglePrivacyDlpV2ExclusionRule struct {
+	// Dictionary: Dictionary which defines the rule.
+	Dictionary *GooglePrivacyDlpV2Dictionary `json:"dictionary,omitempty"`
+
+	// ExcludeInfoTypes: Set of infoTypes for which findings would affect
+	// this rule.
+	ExcludeInfoTypes *GooglePrivacyDlpV2ExcludeInfoTypes `json:"excludeInfoTypes,omitempty"`
+
+	// MatchingType: How the rule is applied, see MatchingType documentation
+	// for details.
+	//
+	// Possible values:
+	//   "MATCHING_TYPE_UNSPECIFIED" - Invalid.
+	//   "MATCHING_TYPE_FULL_MATCH" - Full match.
+	//
+	// - Dictionary: join of Dictionary results matched complete finding
+	// quote
+	// - Regex: all regex matches fill a finding quote start to end
+	// - Exclude info type: completely inside affecting info types findings
+	//   "MATCHING_TYPE_PARTIAL_MATCH" - Partial match.
+	//
+	// - Dictionary: at least one of the tokens in the finding matches
+	// - Regex: substring of the finding matches
+	// - Exclude info type: intersects with affecting info types findings
+	//   "MATCHING_TYPE_INVERSE_MATCH" - Inverse match.
+	//
+	// - Dictionary: no tokens in the finding match the dictionary
+	// - Regex: finding doesn't match the regex
+	// - Exclude info type: no intersection with affecting info types
+	// findings
+	MatchingType string `json:"matchingType,omitempty"`
+
+	// Regex: Regular expression which defines the rule.
+	Regex *GooglePrivacyDlpV2Regex `json:"regex,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Dictionary") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Dictionary") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GooglePrivacyDlpV2ExclusionRule) MarshalJSON() ([]byte, error) {
+	type NoMethod GooglePrivacyDlpV2ExclusionRule
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // GooglePrivacyDlpV2Expressions: An expression, consisting or an
 // operator and conditions.
 type GooglePrivacyDlpV2Expressions struct {
@@ -2769,12 +3008,19 @@ func (s *GooglePrivacyDlpV2FieldTransformation) MarshalJSON() ([]byte, error) {
 
 // GooglePrivacyDlpV2FileSet: Set of files to scan.
 type GooglePrivacyDlpV2FileSet struct {
+	// RegexFileSet: The regex-filtered set of files to scan. Exactly one of
+	// `url` or
+	// `regex_file_set` must be set.
+	RegexFileSet *GooglePrivacyDlpV2CloudStorageRegexFileSet `json:"regexFileSet,omitempty"`
+
 	// Url: The Cloud Storage url of the file(s) to scan, in the
 	// format
 	// `gs://<bucket>/<path>`. Trailing wildcard in the path is allowed.
+	// Exactly
+	// one of `url` or `regex_file_set` must be set.
 	Url string `json:"url,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "Url") to
+	// ForceSendFields is a list of field names (e.g. "RegexFileSet") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -2782,10 +3028,10 @@ type GooglePrivacyDlpV2FileSet struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "Url") to include in API
-	// requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
+	// NullFields is a list of field names (e.g. "RegexFileSet") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
 	// null. It is an error if a field in this list has a non-empty value.
 	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
@@ -3406,6 +3652,14 @@ type GooglePrivacyDlpV2InspectConfig struct {
 	//   "VERY_LIKELY" - Many matching elements.
 	MinLikelihood string `json:"minLikelihood,omitempty"`
 
+	// RuleSet: Set of rules to apply to the findings for this
+	// InspectConfig.
+	// Exclusion rules, contained in the set are executed in the end,
+	// other
+	// rules are executed in the order they are specified for each info
+	// type.
+	RuleSet []*GooglePrivacyDlpV2InspectionRuleSet `json:"ruleSet,omitempty"`
+
 	// ForceSendFields is a list of field names (e.g. "ContentOptions") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
@@ -3687,6 +3941,74 @@ func (s *GooglePrivacyDlpV2InspectTemplate) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// GooglePrivacyDlpV2InspectionRule: A single inspection rule to be
+// applied to infoTypes, specified in
+// `InspectionRuleSet`.
+type GooglePrivacyDlpV2InspectionRule struct {
+	// ExclusionRule: Exclusion rule.
+	ExclusionRule *GooglePrivacyDlpV2ExclusionRule `json:"exclusionRule,omitempty"`
+
+	// HotwordRule: Hotword-based detection rule.
+	HotwordRule *GooglePrivacyDlpV2HotwordRule `json:"hotwordRule,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "ExclusionRule") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "ExclusionRule") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GooglePrivacyDlpV2InspectionRule) MarshalJSON() ([]byte, error) {
+	type NoMethod GooglePrivacyDlpV2InspectionRule
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// GooglePrivacyDlpV2InspectionRuleSet: Rule set for modifying a set of
+// infoTypes to alter behavior under certain
+// circumstances, depending on the specific details of the rules within
+// the set.
+type GooglePrivacyDlpV2InspectionRuleSet struct {
+	// InfoTypes: List of infoTypes this rule set is applied to.
+	InfoTypes []*GooglePrivacyDlpV2InfoType `json:"infoTypes,omitempty"`
+
+	// Rules: Set of rules to be applied to infoTypes. The rules are applied
+	// in order.
+	Rules []*GooglePrivacyDlpV2InspectionRule `json:"rules,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "InfoTypes") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "InfoTypes") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *GooglePrivacyDlpV2InspectionRuleSet) MarshalJSON() ([]byte, error) {
+	type NoMethod GooglePrivacyDlpV2InspectionRuleSet
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // GooglePrivacyDlpV2JobTrigger: Contains a configuration to make dlp
 // api calls on a repeating basis.
 // See https://cloud.google.com/dlp/docs/concepts-job-triggers to learn
@@ -3704,7 +4026,7 @@ type GooglePrivacyDlpV2JobTrigger struct {
 
 	// Errors: A stream of errors encountered when the trigger was
 	// activated. Repeated
-	// errors may result in the JobTrigger automaticaly being paused.
+	// errors may result in the JobTrigger automatically being paused.
 	// Will return the last 100 errors. Whenever the JobTrigger is
 	// modified
 	// this list will be cleared. Output only field.
@@ -3776,7 +4098,7 @@ type GooglePrivacyDlpV2KAnonymityConfig struct {
 	// associated to a
 	// single individual. If the same entity_id is associated to
 	// multiple
-	// quasi-identifier tuples over distict rows, we consider the
+	// quasi-identifier tuples over distinct rows, we consider the
 	// entire
 	// collection of tuples as the composite quasi-identifier. This
 	// collection
@@ -4866,8 +5188,10 @@ type GooglePrivacyDlpV2OutputStorageConfig struct {
 	// the existing table will be deleted.
 	//
 	// If unspecified, then all available columns will be used for a new
-	// table,
-	// and no changes will be made to an existing table.
+	// table or
+	// an (existing) table with no schema, and no changes will be made to
+	// an
+	// existing table that has a schema.
 	//
 	// Possible values:
 	//   "OUTPUT_SCHEMA_UNSPECIFIED"
@@ -5303,6 +5627,7 @@ func (s *GooglePrivacyDlpV2QuasiIdentifierField) MarshalJSON() ([]byte, error) {
 // GooglePrivacyDlpV2QuoteInfo: Message for infoType-dependent details
 // parsed from quote.
 type GooglePrivacyDlpV2QuoteInfo struct {
+	// DateTime: The date time indicated by the quote.
 	DateTime *GooglePrivacyDlpV2DateTime `json:"dateTime,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "DateTime") to
@@ -7166,28 +7491,32 @@ func (s *GoogleRpcStatus) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// GoogleTypeDate: Represents a whole calendar date, for example date of
-// birth. The time of day
+// GoogleTypeDate: Represents a whole or partial calendar date, e.g. a
+// birthday. The time of day
 // and time zone are either specified elsewhere or are not significant.
 // The date
-// is relative to the Proleptic Gregorian Calendar. The day can be 0
-// to
-// represent a year and month where the day is not significant, for
-// example
-// credit card expiration date. The year can be 0 to represent a month
-// and day
-// independent of year, for example anniversary date. Related types
-// are
-// google.type.TimeOfDay and `google.protobuf.Timestamp`.
+// is relative to the Proleptic Gregorian Calendar. This can
+// represent:
+//
+// * A full date, with non-zero year, month and day values
+// * A month and day value, with a zero year, e.g. an anniversary
+// * A year on its own, with zero month and day values
+// * A year and month value, with a zero day, e.g. a credit card
+// expiration date
+//
+// Related types are google.type.TimeOfDay and
+// `google.protobuf.Timestamp`.
 type GoogleTypeDate struct {
 	// Day: Day of month. Must be from 1 to 31 and valid for the year and
 	// month, or 0
-	// if specifying a year/month where the day is not significant.
+	// if specifying a year by itself or a year and month where the day is
+	// not
+	// significant.
 	Day int64 `json:"day,omitempty"`
 
-	// Month: Month of year. Must be from 1 to 12, or 0 if specifying a date
+	// Month: Month of year. Must be from 1 to 12, or 0 if specifying a year
 	// without a
-	// month.
+	// month and day.
 	Month int64 `json:"month,omitempty"`
 
 	// Year: Year of date. Must be from 1 to 9999, or 0 if specifying a date
@@ -7351,7 +7680,10 @@ func (c *InfoTypesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/infoTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -7488,7 +7820,10 @@ func (c *OrganizationsDeidentifyTemplatesCreateCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/deidentifyTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -7621,7 +7956,10 @@ func (c *OrganizationsDeidentifyTemplatesDeleteCall) doRequest(alt string) (*htt
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -7764,7 +8102,10 @@ func (c *OrganizationsDeidentifyTemplatesGetCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -7945,7 +8286,10 @@ func (c *OrganizationsDeidentifyTemplatesListCall) doRequest(alt string) (*http.
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/deidentifyTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8120,7 +8464,10 @@ func (c *OrganizationsDeidentifyTemplatesPatchCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -8261,7 +8608,10 @@ func (c *OrganizationsInspectTemplatesCreateCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/inspectTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8393,7 +8743,10 @@ func (c *OrganizationsInspectTemplatesDeleteCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -8535,7 +8888,10 @@ func (c *OrganizationsInspectTemplatesGetCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -8715,7 +9071,10 @@ func (c *OrganizationsInspectTemplatesListCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/inspectTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -8889,7 +9248,10 @@ func (c *OrganizationsInspectTemplatesPatchCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9030,7 +9392,10 @@ func (c *OrganizationsStoredInfoTypesCreateCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/storedInfoTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9162,7 +9527,10 @@ func (c *OrganizationsStoredInfoTypesDeleteCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9305,7 +9673,10 @@ func (c *OrganizationsStoredInfoTypesGetCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9399,6 +9770,29 @@ func (r *OrganizationsStoredInfoTypesService) List(parent string) *Organizations
 	return c
 }
 
+// OrderBy sets the optional parameter "orderBy": Optional comma
+// separated list of fields to order by,
+// followed by `asc` or `desc` postfix. This list is
+// case-insensitive,
+// default sorting order is ascending, redundant space characters
+// are
+// insignificant.
+//
+// Example: `name asc, display_name, create_time desc`
+//
+// Supported fields are:
+//
+// - `create_time`: corresponds to time the most recent version of
+// the
+// resource was created.
+// - `state`: corresponds to the state of the resource.
+// - `name`: corresponds to resource name.
+// - `display_name`: corresponds to info type's display name.
+func (c *OrganizationsStoredInfoTypesListCall) OrderBy(orderBy string) *OrganizationsStoredInfoTypesListCall {
+	c.urlParams_.Set("orderBy", orderBy)
+	return c
+}
+
 // PageSize sets the optional parameter "pageSize": Optional size of the
 // page, can be limited by server. If zero server returns
 // a page of max size 100.
@@ -9464,7 +9858,10 @@ func (c *OrganizationsStoredInfoTypesListCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/storedInfoTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9520,6 +9917,11 @@ func (c *OrganizationsStoredInfoTypesListCall) Do(opts ...googleapi.CallOption) 
 	//     "parent"
 	//   ],
 	//   "parameters": {
+	//     "orderBy": {
+	//       "description": "Optional comma separated list of fields to order by,\nfollowed by `asc` or `desc` postfix. This list is case-insensitive,\ndefault sorting order is ascending, redundant space characters are\ninsignificant.\n\nExample: `name asc, display_name, create_time desc`\n\nSupported fields are:\n\n- `create_time`: corresponds to time the most recent version of the\nresource was created.\n- `state`: corresponds to the state of the resource.\n- `name`: corresponds to resource name.\n- `display_name`: corresponds to info type's display name.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "pageSize": {
 	//       "description": "Optional size of the page, can be limited by server. If zero server returns\na page of max size 100.",
 	//       "format": "int32",
@@ -9636,7 +10038,10 @@ func (c *OrganizationsStoredInfoTypesPatchCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -9783,7 +10188,10 @@ func (c *ProjectsContentDeidentifyCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/content:deidentify")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -9933,7 +10341,10 @@ func (c *ProjectsContentInspectCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/content:inspect")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10076,7 +10487,10 @@ func (c *ProjectsContentReidentifyCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/content:reidentify")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10219,7 +10633,10 @@ func (c *ProjectsDeidentifyTemplatesCreateCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/deidentifyTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10352,7 +10769,10 @@ func (c *ProjectsDeidentifyTemplatesDeleteCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -10495,7 +10915,10 @@ func (c *ProjectsDeidentifyTemplatesGetCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -10676,7 +11099,10 @@ func (c *ProjectsDeidentifyTemplatesListCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/deidentifyTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -10851,7 +11277,10 @@ func (c *ProjectsDeidentifyTemplatesPatchCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -10996,7 +11425,10 @@ func (c *ProjectsDlpJobsCancelCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}:cancel")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -11143,7 +11575,10 @@ func (c *ProjectsDlpJobsCreateCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/dlpJobs")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11280,7 +11715,10 @@ func (c *ProjectsDlpJobsDeleteCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -11424,7 +11862,10 @@ func (c *ProjectsDlpJobsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -11552,6 +11993,27 @@ func (c *ProjectsDlpJobsListCall) Filter(filter string) *ProjectsDlpJobsListCall
 	return c
 }
 
+// OrderBy sets the optional parameter "orderBy": Optional comma
+// separated list of fields to order by,
+// followed by `asc` or `desc` postfix. This list is
+// case-insensitive,
+// default sorting order is ascending, redundant space characters
+// are
+// insignificant.
+//
+// Example: `name asc, end_time asc, create_time desc`
+//
+// Supported fields are:
+//
+// - `create_time`: corresponds to time the job was created.
+// - `end_time`: corresponds to time the job ended.
+// - `name`: corresponds to job's name.
+// - `state`: corresponds to `state`
+func (c *ProjectsDlpJobsListCall) OrderBy(orderBy string) *ProjectsDlpJobsListCall {
+	c.urlParams_.Set("orderBy", orderBy)
+	return c
+}
+
 // PageSize sets the optional parameter "pageSize": The standard list
 // page size.
 func (c *ProjectsDlpJobsListCall) PageSize(pageSize int64) *ProjectsDlpJobsListCall {
@@ -11627,7 +12089,10 @@ func (c *ProjectsDlpJobsListCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/dlpJobs")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11684,6 +12149,11 @@ func (c *ProjectsDlpJobsListCall) Do(opts ...googleapi.CallOption) (*GooglePriva
 	//   "parameters": {
 	//     "filter": {
 	//       "description": "Optional. Allows filtering.\n\nSupported syntax:\n\n* Filter expressions are made up of one or more restrictions.\n* Restrictions can be combined by `AND` or `OR` logical operators. A\nsequence of restrictions implicitly uses `AND`.\n* A restriction has the form of `\u003cfield\u003e \u003coperator\u003e \u003cvalue\u003e`.\n* Supported fields/values for inspect jobs:\n    - `state` - PENDING|RUNNING|CANCELED|FINISHED|FAILED\n    - `inspected_storage` - DATASTORE|CLOUD_STORAGE|BIGQUERY\n    - `trigger_name` - The resource name of the trigger that created job.\n* Supported fields for risk analysis jobs:\n    - `state` - RUNNING|CANCELED|FINISHED|FAILED\n* The operator must be `=` or `!=`.\n\nExamples:\n\n* inspected_storage = cloud_storage AND state = done\n* inspected_storage = cloud_storage OR inspected_storage = bigquery\n* inspected_storage = cloud_storage AND (state = done OR state = canceled)\n\nThe length of this field should be no more than 500 characters.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "orderBy": {
+	//       "description": "Optional comma separated list of fields to order by,\nfollowed by `asc` or `desc` postfix. This list is case-insensitive,\ndefault sorting order is ascending, redundant space characters are\ninsignificant.\n\nExample: `name asc, end_time asc, create_time desc`\n\nSupported fields are:\n\n- `create_time`: corresponds to time the job was created.\n- `end_time`: corresponds to time the job ended.\n- `name`: corresponds to job's name.\n- `state`: corresponds to `state`",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -11819,7 +12289,10 @@ func (c *ProjectsImageRedactCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/image:redact")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -11960,7 +12433,10 @@ func (c *ProjectsInspectTemplatesCreateCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/inspectTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -12092,7 +12568,10 @@ func (c *ProjectsInspectTemplatesDeleteCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12234,7 +12713,10 @@ func (c *ProjectsInspectTemplatesGetCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12414,7 +12896,10 @@ func (c *ProjectsInspectTemplatesListCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/inspectTemplates")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -12588,7 +13073,10 @@ func (c *ProjectsInspectTemplatesPatchCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -12729,7 +13217,10 @@ func (c *ProjectsJobTriggersCreateCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/jobTriggers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -12860,7 +13351,10 @@ func (c *ProjectsJobTriggersDeleteCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13002,7 +13496,10 @@ func (c *ProjectsJobTriggersGetCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13183,7 +13680,10 @@ func (c *ProjectsJobTriggersListCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/jobTriggers")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13357,7 +13857,10 @@ func (c *ProjectsJobTriggersPatchCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13497,7 +14000,10 @@ func (c *ProjectsStoredInfoTypesCreateCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/storedInfoTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13629,7 +14135,10 @@ func (c *ProjectsStoredInfoTypesDeleteCall) doRequest(alt string) (*http.Respons
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13772,7 +14281,10 @@ func (c *ProjectsStoredInfoTypesGetCall) doRequest(alt string) (*http.Response, 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,
@@ -13866,6 +14378,29 @@ func (r *ProjectsStoredInfoTypesService) List(parent string) *ProjectsStoredInfo
 	return c
 }
 
+// OrderBy sets the optional parameter "orderBy": Optional comma
+// separated list of fields to order by,
+// followed by `asc` or `desc` postfix. This list is
+// case-insensitive,
+// default sorting order is ascending, redundant space characters
+// are
+// insignificant.
+//
+// Example: `name asc, display_name, create_time desc`
+//
+// Supported fields are:
+//
+// - `create_time`: corresponds to time the most recent version of
+// the
+// resource was created.
+// - `state`: corresponds to the state of the resource.
+// - `name`: corresponds to resource name.
+// - `display_name`: corresponds to info type's display name.
+func (c *ProjectsStoredInfoTypesListCall) OrderBy(orderBy string) *ProjectsStoredInfoTypesListCall {
+	c.urlParams_.Set("orderBy", orderBy)
+	return c
+}
+
 // PageSize sets the optional parameter "pageSize": Optional size of the
 // page, can be limited by server. If zero server returns
 // a page of max size 100.
@@ -13931,7 +14466,10 @@ func (c *ProjectsStoredInfoTypesListCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+parent}/storedInfoTypes")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -13987,6 +14525,11 @@ func (c *ProjectsStoredInfoTypesListCall) Do(opts ...googleapi.CallOption) (*Goo
 	//     "parent"
 	//   ],
 	//   "parameters": {
+	//     "orderBy": {
+	//       "description": "Optional comma separated list of fields to order by,\nfollowed by `asc` or `desc` postfix. This list is case-insensitive,\ndefault sorting order is ascending, redundant space characters are\ninsignificant.\n\nExample: `name asc, display_name, create_time desc`\n\nSupported fields are:\n\n- `create_time`: corresponds to time the most recent version of the\nresource was created.\n- `state`: corresponds to the state of the resource.\n- `name`: corresponds to resource name.\n- `display_name`: corresponds to info type's display name.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "pageSize": {
 	//       "description": "Optional size of the page, can be limited by server. If zero server returns\na page of max size 100.",
 	//       "format": "int32",
@@ -14103,7 +14646,10 @@ func (c *ProjectsStoredInfoTypesPatchCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+name}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"name": c.name,

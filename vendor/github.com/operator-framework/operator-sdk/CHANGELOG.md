@@ -1,15 +1,3 @@
-## Unreleased
-
-### Added
-### Removed
-### Changed
-
-- Moved the rendering of `deploy/operator.yaml` to the `operator-sdk new` command instead of `operator-sdk build`
-
-### Fixed
-### Deprecated
-### Security
-
 ## v0.0.6
 
 ### Added

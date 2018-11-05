@@ -1,3 +1,28 @@
+Release v1.15.64 (2018-10-26)
+===
+
+### Service Client Updates
+* `service/alexaforbusiness`: Updates service documentation
+* `service/sagemaker`: Updates service API and documentation
+  * SageMaker notebook instances can now have a volume size configured.
+* `service/ssm`: Updates service API and documentation
+  * Compliance Severity feature release for State Manager. Users now have the ability to select compliance severity to their association in state manager console or CLI.
+
+Release v1.15.63 (2018-10-25)
+===
+
+### Service Client Updates
+* `service/ec2`: Updates service API and documentation
+  * As part of this release we are introducing EC2 On-Demand Capacity Reservations. With On-Demand Capacity Reservations, customers can reserve the exact EC2 capacity they need, and can keep it only for as long as they need it.
+
+Release v1.15.62 (2018-10-24)
+===
+
+### Service Client Updates
+* `service/alexaforbusiness`: Updates service API, documentation, and paginators
+* `service/codestar`: Updates service API and documentation
+  * This release lets you create projects from source code and a toolchain definition that you provide.
+
 Release v1.15.61 (2018-10-23)
 ===
 

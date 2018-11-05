@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/internal/testutil"
-
 	"github.com/golang/protobuf/proto"
 	durpb "github.com/golang/protobuf/ptypes/duration"
 	structpb "github.com/golang/protobuf/ptypes/struct"
@@ -181,6 +180,7 @@ func TestToProtoStruct(t *testing.T) {
 }
 
 func TestToLogEntryPayload(t *testing.T) {
+	var logger Logger
 	for _, test := range []struct {
 		in         interface{}
 		wantText   string
@@ -209,7 +209,7 @@ func TestToLogEntryPayload(t *testing.T) {
 			},
 		},
 	} {
-		e, err := toLogEntry(Entry{Payload: test.in})
+		e, err := logger.toLogEntry(Entry{Payload: test.in})
 		if err != nil {
 			t.Fatalf("%+v: %v", test.in, err)
 		}
@@ -228,6 +228,7 @@ func TestToLogEntryPayload(t *testing.T) {
 }
 
 func TestToLogEntryTrace(t *testing.T) {
+	logger := &Logger{client: &Client{parent: "projects/P"}}
 	// Verify that we get the trace from the HTTP request if it isn't
 	// provided by the caller.
 	u := &url.URL{Scheme: "http"}
@@ -254,7 +255,7 @@ func TestToLogEntryTrace(t *testing.T) {
 					},
 				},
 			},
-			"t2",
+			"projects/P/traces/t2",
 		},
 		{
 			Entry{
@@ -269,12 +270,12 @@ func TestToLogEntryTrace(t *testing.T) {
 			"t4",
 		},
 	} {
-		e, err := toLogEntry(test.in)
+		e, err := logger.toLogEntry(test.in)
 		if err != nil {
 			t.Fatalf("%+v: %v", test.in, err)
 		}
 		if got := e.Trace; got != test.want {
-			t.Errorf("got %q, want %q", got, test.want)
+			t.Errorf("%+v: got %q, want %q", test.in, got, test.want)
 		}
 	}
 }

@@ -332,11 +332,7 @@ type AdministratorWebTokenSpec struct {
 	// https.
 	Parent string `json:"parent,omitempty"`
 
-	// Permission: The list of permissions the admin is granted within the
-	// iframe. The admin will only be allowed to view an iframe if they have
-	// all of the permissions associated with it. The only valid value is
-	// "approveApps" that will allow the admin to access the iframe in
-	// "approve" mode.
+	// Permission: Deprecated. Use PlaySearch.approveApps.
 	Permission []string `json:"permission,omitempty"`
 
 	// PlaySearch: Options for displaying the Play Search page.
@@ -375,10 +371,14 @@ func (s *AdministratorWebTokenSpec) MarshalJSON() ([]byte, error) {
 }
 
 type AdministratorWebTokenSpecPlaySearch struct {
+	// ApproveApps: Allow access to the iframe in approve mode. Default is
+	// false.
+	ApproveApps bool `json:"approveApps,omitempty"`
+
 	// Enabled: Whether the Play Search page is displayed. Default is true.
 	Enabled bool `json:"enabled,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "Enabled") to
+	// ForceSendFields is a list of field names (e.g. "ApproveApps") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -386,10 +386,10 @@ type AdministratorWebTokenSpecPlaySearch struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "Enabled") to include in
-	// API requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
+	// NullFields is a list of field names (e.g. "ApproveApps") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
 	// null. It is an error if a field in this list has a non-empty value.
 	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
@@ -429,7 +429,8 @@ func (s *AdministratorWebTokenSpecPrivateApps) MarshalJSON() ([]byte, error) {
 }
 
 type AdministratorWebTokenSpecStoreBuilder struct {
-	// Enabled: Whether the Store Builder is be displayed. Default is true.
+	// Enabled: Whether the Store Builder page is displayed. Default is
+	// true.
 	Enabled bool `json:"enabled,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Enabled") to
@@ -729,9 +730,17 @@ func (s *AppUpdateEvent) MarshalJSON() ([]byte, error) {
 
 // AppVersion: This represents a single version of the app.
 type AppVersion struct {
+	// IsProduction: True if this version is a production Apk.
+	IsProduction bool `json:"isProduction,omitempty"`
+
 	// Track: The track that this app was published in. For example if track
-	// is "alpha", this is an alpha version of the app.
+	// is "alpha", this is an alpha version of the app. Deprecated, use
+	// track_id instead.
 	Track string `json:"track,omitempty"`
+
+	// TrackId: The track ids that this version was published in. This field
+	// supersedes track, but doesn't include the production track.
+	TrackId []string `json:"trackId,omitempty"`
 
 	// VersionCode: Unique increasing identifier for the app version.
 	VersionCode int64 `json:"versionCode,omitempty"`
@@ -741,7 +750,7 @@ type AppVersion struct {
 	// localized (for example, the string could be "1.4").
 	VersionString string `json:"versionString,omitempty"`
 
-	// ForceSendFields is a list of field names (e.g. "Track") to
+	// ForceSendFields is a list of field names (e.g. "IsProduction") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -749,10 +758,10 @@ type AppVersion struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "Track") to include in API
-	// requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
+	// NullFields is a list of field names (e.g. "IsProduction") to include
+	// in API requests with the JSON null value. By default, fields with
+	// empty values are omitted from API requests. However, any field with
+	// an empty value appearing in NullFields will be sent to the server as
 	// null. It is an error if a field in this list has a non-empty value.
 	// This may be used to include null fields in Patch requests.
 	NullFields []string `json:"-"`
@@ -2307,6 +2316,10 @@ func (s *Policy) MarshalJSON() ([]byte, error) {
 // to the full Google Play details page) is intended to allow a basic
 // representation of the product within an EMM user interface.
 type Product struct {
+	// AppTracks: The tracks that are visible to the enterprise with their
+	// user-friendly name.
+	AppTracks []*TrackInfo `json:"appTracks,omitempty"`
+
 	// AppVersion: App versions currently available for this product.
 	AppVersion []*AppVersion `json:"appVersion,omitempty"`
 
@@ -2318,6 +2331,7 @@ type Product struct {
 	AvailableCountries []string `json:"availableCountries,omitempty"`
 
 	// AvailableTracks: The tracks that are visible to the enterprise.
+	// Deprecated, use app_tracks instead.
 	AvailableTracks []string `json:"availableTracks,omitempty"`
 
 	// Category: The app category (e.g. RACING, SOCIAL, etc.)
@@ -2399,7 +2413,7 @@ type Product struct {
 	// server.
 	googleapi.ServerResponse `json:"-"`
 
-	// ForceSendFields is a list of field names (e.g. "AppVersion") to
+	// ForceSendFields is a list of field names (e.g. "AppTracks") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
 	// non-interface field appearing in ForceSendFields will be sent to the
@@ -2407,7 +2421,7 @@ type Product struct {
 	// used to include empty fields in Patch requests.
 	ForceSendFields []string `json:"-"`
 
-	// NullFields is a list of field names (e.g. "AppVersion") to include in
+	// NullFields is a list of field names (e.g. "AppTracks") to include in
 	// API requests with the JSON null value. By default, fields with empty
 	// values are omitted from API requests. However, any field with an
 	// empty value appearing in NullFields will be sent to the server as
@@ -2576,6 +2590,11 @@ type ProductPolicy struct {
 	// "app:com.google.android.gm".
 	ProductId string `json:"productId,omitempty"`
 
+	// TrackIds: Grants visibility to the specified track(s) of the product
+	// to the device. The existing track ids can be obtained by calling
+	// Products.Get.
+	TrackIds []string `json:"trackIds,omitempty"`
+
 	// Tracks: Grants visibility to the specified track(s) of the product to
 	// the device. The track available to the device is based on the
 	// following order of preference: alpha, beta, production. For example,
@@ -2592,6 +2611,8 @@ type ProductPolicy struct {
 	// {"production"} {"beta", "production"} {"alpha", "beta", "production"}
 	// The order of elements is not relevant. Any other set of tracks will
 	// be rejected with an error.
+	//
+	// This is deprecated. Use track_ids instead.
 	Tracks []string `json:"tracks,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "ProductId") to
@@ -2716,6 +2737,11 @@ type ProductVisibility struct {
 	// each item in the productVisibility list.
 	ProductId string `json:"productId,omitempty"`
 
+	// TrackIds: Grants visibility to the specified track(s) of the product
+	// to the user. This replaces the tracks field, and specifies the track
+	// by their unique id.
+	TrackIds []string `json:"trackIds,omitempty"`
+
 	// Tracks: Grants visibility to the specified track(s) of the product to
 	// the user. The track available to the user is based on the following
 	// order of preference: alpha, beta, production. For example, if an app
@@ -2732,6 +2758,8 @@ type ProductVisibility struct {
 	// {"production"} {"beta", "production"} {"alpha", "beta", "production"}
 	// The order of elements is not relevant. Any other set of tracks will
 	// be rejected with an error.
+	//
+	// This is deprecated. Use track_ids instead.
 	Tracks []string `json:"tracks,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "ProductId") to
@@ -3313,6 +3341,37 @@ func (s *TokenPagination) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
+// TrackInfo: Id to name association of a track.
+type TrackInfo struct {
+	// TrackAlias: A changeable, user-friendly name for a track.
+	TrackAlias string `json:"trackAlias,omitempty"`
+
+	// TrackId: A unique an unchangeable identifier of a test track.
+	TrackId string `json:"trackId,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "TrackAlias") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "TrackAlias") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *TrackInfo) MarshalJSON() ([]byte, error) {
+	type NoMethod TrackInfo
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
 // User: A Users resource represents an account associated with an
 // enterprise. The account may be specific to a device or to an
 // individual user (who can then use the account across multiple
@@ -3580,7 +3639,10 @@ func (c *DevicesGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -3743,7 +3805,10 @@ func (c *DevicesGetStateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/state")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -3899,7 +3964,10 @@ func (c *DevicesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -4054,7 +4122,10 @@ func (c *DevicesPatchCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -4218,7 +4289,10 @@ func (c *DevicesSetStateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/state")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -4383,7 +4457,10 @@ func (c *DevicesUpdateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -4539,7 +4616,10 @@ func (c *EnterprisesAcknowledgeNotificationSetCall) doRequest(alt string) (*http
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/acknowledgeNotificationSet")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -4642,7 +4722,10 @@ func (c *EnterprisesCompleteSignupCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/completeSignup")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -4775,7 +4858,10 @@ func (c *EnterprisesCreateWebTokenCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/createWebToken")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -4908,7 +4994,10 @@ func (c *EnterprisesEnrollCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/enroll")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -5045,7 +5134,10 @@ func (c *EnterprisesGenerateSignupUrlCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/signupUrl")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -5176,7 +5268,10 @@ func (c *EnterprisesGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -5314,7 +5409,10 @@ func (c *EnterprisesGetAndroidDevicePolicyConfigCall) doRequest(alt string) (*ht
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/androidDevicePolicyConfig")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -5478,7 +5576,10 @@ func (c *EnterprisesGetServiceAccountCall) doRequest(alt string) (*http.Response
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/serviceAccount")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -5631,7 +5732,10 @@ func (c *EnterprisesGetStoreLayoutCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -5772,7 +5876,10 @@ func (c *EnterprisesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -5927,7 +6034,10 @@ func (c *EnterprisesPullNotificationSetCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/pullNotificationSet")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -6054,7 +6164,10 @@ func (c *EnterprisesSendTestPushNotificationCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/sendTestPushNotification")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -6188,7 +6301,10 @@ func (c *EnterprisesSetAccountCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/account")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -6322,7 +6438,10 @@ func (c *EnterprisesSetAndroidDevicePolicyConfigCall) doRequest(alt string) (*ht
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/androidDevicePolicyConfig")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -6463,7 +6582,10 @@ func (c *EnterprisesSetStoreLayoutCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -6590,7 +6712,10 @@ func (c *EnterprisesUnenrollCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/unenroll")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -6690,7 +6815,10 @@ func (c *EntitlementsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/entitlements/{entitlementId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":  c.enterpriseId,
@@ -6820,7 +6948,10 @@ func (c *EntitlementsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/entitlements/{entitlementId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":  c.enterpriseId,
@@ -6977,7 +7108,10 @@ func (c *EntitlementsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/entitlements")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -7131,7 +7265,10 @@ func (c *EntitlementsPatchCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/entitlements/{entitlementId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":  c.enterpriseId,
@@ -7300,7 +7437,10 @@ func (c *EntitlementsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/entitlements/{entitlementId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":  c.enterpriseId,
@@ -7465,7 +7605,10 @@ func (c *GrouplicensesGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/groupLicenses/{groupLicenseId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":   c.enterpriseId,
@@ -7612,7 +7755,10 @@ func (c *GrouplicensesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/groupLicenses")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -7753,7 +7899,10 @@ func (c *GrouplicenseusersListCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/groupLicenses/{groupLicenseId}/users")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":   c.enterpriseId,
@@ -7893,7 +8042,10 @@ func (c *InstallsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/installs/{installId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -8033,7 +8185,10 @@ func (c *InstallsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/installs/{installId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -8200,7 +8355,10 @@ func (c *InstallsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/installs")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -8355,7 +8513,10 @@ func (c *InstallsPatchCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/installs/{installId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -8521,7 +8682,10 @@ func (c *InstallsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/installs/{installId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -8679,7 +8843,10 @@ func (c *ManagedconfigurationsfordeviceDeleteCall) doRequest(alt string) (*http.
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/managedConfigurationsForDevice/{managedConfigurationForDeviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                    c.enterpriseId,
@@ -8819,7 +8986,10 @@ func (c *ManagedconfigurationsfordeviceGetCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/managedConfigurationsForDevice/{managedConfigurationForDeviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                    c.enterpriseId,
@@ -8986,7 +9156,10 @@ func (c *ManagedconfigurationsfordeviceListCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/managedConfigurationsForDevice")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -9142,7 +9315,10 @@ func (c *ManagedconfigurationsfordevicePatchCall) doRequest(alt string) (*http.R
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/managedConfigurationsForDevice/{managedConfigurationForDeviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                    c.enterpriseId,
@@ -9307,7 +9483,10 @@ func (c *ManagedconfigurationsfordeviceUpdateCall) doRequest(alt string) (*http.
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/devices/{deviceId}/managedConfigurationsForDevice/{managedConfigurationForDeviceId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                    c.enterpriseId,
@@ -9463,7 +9642,10 @@ func (c *ManagedconfigurationsforuserDeleteCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/managedConfigurationsForUser/{managedConfigurationForUserId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                  c.enterpriseId,
@@ -9594,7 +9776,10 @@ func (c *ManagedconfigurationsforuserGetCall) doRequest(alt string) (*http.Respo
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/managedConfigurationsForUser/{managedConfigurationForUserId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                  c.enterpriseId,
@@ -9751,7 +9936,10 @@ func (c *ManagedconfigurationsforuserListCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/managedConfigurationsForUser")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -9902,7 +10090,10 @@ func (c *ManagedconfigurationsforuserPatchCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/managedConfigurationsForUser/{managedConfigurationForUserId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                  c.enterpriseId,
@@ -10061,7 +10252,10 @@ func (c *ManagedconfigurationsforuserUpdateCall) doRequest(alt string) (*http.Re
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/managedConfigurationsForUser/{managedConfigurationForUserId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId":                  c.enterpriseId,
@@ -10221,7 +10415,10 @@ func (c *ManagedconfigurationssettingsListCall) doRequest(alt string) (*http.Res
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/managedConfigurationsSettings")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -10377,7 +10574,10 @@ func (c *PermissionsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "permissions/{permissionId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"permissionId": c.permissionId,
@@ -10521,7 +10721,10 @@ func (c *ProductsApproveCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/approve")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -10648,7 +10851,10 @@ func (c *ProductsGenerateApprovalUrlCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/generateApprovalUrl")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -10810,7 +11016,10 @@ func (c *ProductsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -10976,7 +11185,10 @@ func (c *ProductsGetAppRestrictionsSchemaCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/appRestrictionsSchema")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11130,7 +11342,10 @@ func (c *ProductsGetPermissionsCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/permissions")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11321,7 +11536,10 @@ func (c *ProductsListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11474,7 +11692,10 @@ func (c *ProductsUnapproveCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/products/{productId}/unapprove")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11584,7 +11805,10 @@ func (c *ServiceaccountkeysDeleteCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/serviceAccountKeys/{keyId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11702,7 +11926,10 @@ func (c *ServiceaccountkeysInsertCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/serviceAccountKeys")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11847,7 +12074,10 @@ func (c *ServiceaccountkeysListCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/serviceAccountKeys")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -11975,7 +12205,10 @@ func (c *StorelayoutclustersDeleteCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters/{clusterId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12105,7 +12338,10 @@ func (c *StorelayoutclustersGetCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters/{clusterId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12254,7 +12490,10 @@ func (c *StorelayoutclustersInsertCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12405,7 +12644,10 @@ func (c *StorelayoutclustersListCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12548,7 +12790,10 @@ func (c *StorelayoutclustersPatchCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters/{clusterId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12702,7 +12947,10 @@ func (c *StorelayoutclustersUpdateCall) doRequest(alt string) (*http.Response, e
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}/clusters/{clusterId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12847,7 +13095,10 @@ func (c *StorelayoutpagesDeleteCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -12967,7 +13218,10 @@ func (c *StorelayoutpagesGetCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13106,7 +13360,10 @@ func (c *StorelayoutpagesInsertCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13247,7 +13504,10 @@ func (c *StorelayoutpagesListCall) doRequest(alt string) (*http.Response, error)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13381,7 +13641,10 @@ func (c *StorelayoutpagesPatchCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13525,7 +13788,10 @@ func (c *StorelayoutpagesUpdateCall) doRequest(alt string) (*http.Response, erro
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/storeLayout/pages/{pageId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13662,7 +13928,10 @@ func (c *UsersDeleteCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13773,7 +14042,10 @@ func (c *UsersGenerateAuthenticationTokenCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/authenticationToken")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -13911,7 +14183,10 @@ func (c *UsersGenerateTokenCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/token")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14059,7 +14334,10 @@ func (c *UsersGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14208,7 +14486,10 @@ func (c *UsersGetAvailableProductSetCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/availableProductSet")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14353,7 +14634,10 @@ func (c *UsersInsertCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14498,7 +14782,10 @@ func (c *UsersListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14644,7 +14931,10 @@ func (c *UsersPatchCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PATCH", urls, body)
+	req, err := http.NewRequest("PATCH", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14785,7 +15075,10 @@ func (c *UsersRevokeDeviceAccessCall) doRequest(alt string) (*http.Response, err
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/deviceAccess")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -14892,7 +15185,10 @@ func (c *UsersRevokeTokenCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/token")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -15008,7 +15304,10 @@ func (c *UsersSetAvailableProductSetCall) doRequest(alt string) (*http.Response,
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}/availableProductSet")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,
@@ -15157,7 +15456,10 @@ func (c *UsersUpdateCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "enterprises/{enterpriseId}/users/{userId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"enterpriseId": c.enterpriseId,

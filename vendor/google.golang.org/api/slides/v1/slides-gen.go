@@ -3944,7 +3944,7 @@ type Recolor struct {
 	// color from its color scheme.
 	//   "LIGHT7" - A recolor effect that lightens the image using the
 	// page's seventh
-	// available color from its color scheme.e.
+	// available color from its color scheme.
 	//   "LIGHT8" - A recolor effect that lightens the image using the
 	// page's eighth
 	// available color from its color scheme.
@@ -4726,7 +4726,7 @@ func (s *RgbColor) UnmarshalJSON(data []byte) error {
 type Shadow struct {
 	// Alignment: The alignment point of the shadow, that sets the origin
 	// for translate,
-	// scale and skew of the shadow.
+	// scale and skew of the shadow. This property is read-only.
 	//
 	// Possible values:
 	//   "RECTANGLE_POSITION_UNSPECIFIED" - Unspecified.
@@ -4791,6 +4791,8 @@ type Shadow struct {
 	PropertyState string `json:"propertyState,omitempty"`
 
 	// RotateWithShape: Whether the shadow should rotate with the shape.
+	// This property is
+	// read-only.
 	RotateWithShape bool `json:"rotateWithShape,omitempty"`
 
 	// Transform: Transform that encodes the translate, scale, and skew of
@@ -4798,7 +4800,7 @@ type Shadow struct {
 	// relative to the alignment position.
 	Transform *AffineTransform `json:"transform,omitempty"`
 
-	// Type: The type of the shadow.
+	// Type: The type of the shadow. This property is read-only.
 	//
 	// Possible values:
 	//   "SHADOW_TYPE_UNSPECIFIED" - Unspecified shadow type.
@@ -7801,7 +7803,10 @@ func (c *PresentationsBatchUpdateCall) doRequest(alt string) (*http.Response, er
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/presentations/{presentationId}:batchUpdate")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"presentationId": c.presentationId,
@@ -7944,7 +7949,10 @@ func (c *PresentationsCreateCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/presentations")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -8076,7 +8084,10 @@ func (c *PresentationsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/presentations/{+presentationId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"presentationId": c.presentationId,
@@ -8223,7 +8234,10 @@ func (c *PresentationsPagesGetCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/presentations/{presentationId}/pages/{pageObjectId}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"presentationId": c.presentationId,
@@ -8414,7 +8428,10 @@ func (c *PresentationsPagesGetThumbnailCall) doRequest(alt string) (*http.Respon
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v1/presentations/{presentationId}/pages/{pageObjectId}/thumbnail")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"presentationId": c.presentationId,

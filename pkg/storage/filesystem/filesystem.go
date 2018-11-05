@@ -2,12 +2,12 @@ package filesystem
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/coreutil"
 )
 
 const (
@@ -68,10 +68,12 @@ func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
 		prevState.Data["storagetype"] = d.GetName()
 	}
 
-	fieldname, err := getVolumeSourceField(&d.Config.VolumeSource)
+	field, err := coreutil.GetVolumeSourceField(d.Config.VolumeSource)
 	if err != nil {
 		return err
 	}
+
+	fieldname := strings.ToLower(field.Name)
 
 	if len(fieldname) > 0 {
 		if v, ok := prevState.Data["storagefield"]; ok {
@@ -84,28 +86,4 @@ func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
 	}
 
 	return nil
-}
-
-func getVolumeSourceField(source *corev1.VolumeSource) (string, error) {
-	val := reflect.Indirect(reflect.ValueOf(source))
-
-	n := 0
-	name := ""
-
-	for i := 0; i < val.NumField(); i++ {
-		if !val.Field(i).IsNil() {
-			name = val.Type().Field(i).Name
-			n += 1
-		}
-	}
-
-	switch n {
-	case 0:
-		// volumeSource is not configured yet.
-		return "", nil
-	case 1:
-		return strings.ToLower(name), nil
-	}
-
-	return "", fmt.Errorf("too many storage types defined")
 }

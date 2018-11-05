@@ -70,10 +70,8 @@ func New(client *http.Client) (*Service, error) {
 		return nil, errors.New("client is nil")
 	}
 	s := &Service{client: client, BasePath: basePath}
-	s.BillingAccounts = NewBillingAccountsService(s)
 	s.Entries = NewEntriesService(s)
 	s.MonitoredResourceDescriptors = NewMonitoredResourceDescriptorsService(s)
-	s.Organizations = NewOrganizationsService(s)
 	s.Projects = NewProjectsService(s)
 	return s, nil
 }
@@ -83,13 +81,9 @@ type Service struct {
 	BasePath  string // API endpoint base URL
 	UserAgent string // optional additional User-Agent fragment
 
-	BillingAccounts *BillingAccountsService
-
 	Entries *EntriesService
 
 	MonitoredResourceDescriptors *MonitoredResourceDescriptorsService
-
-	Organizations *OrganizationsService
 
 	Projects *ProjectsService
 }
@@ -99,27 +93,6 @@ func (s *Service) userAgent() string {
 		return googleapi.UserAgent
 	}
 	return googleapi.UserAgent + " " + s.UserAgent
-}
-
-func NewBillingAccountsService(s *Service) *BillingAccountsService {
-	rs := &BillingAccountsService{s: s}
-	rs.Logs = NewBillingAccountsLogsService(s)
-	return rs
-}
-
-type BillingAccountsService struct {
-	s *Service
-
-	Logs *BillingAccountsLogsService
-}
-
-func NewBillingAccountsLogsService(s *Service) *BillingAccountsLogsService {
-	rs := &BillingAccountsLogsService{s: s}
-	return rs
-}
-
-type BillingAccountsLogsService struct {
-	s *Service
 }
 
 func NewEntriesService(s *Service) *EntriesService {
@@ -140,30 +113,8 @@ type MonitoredResourceDescriptorsService struct {
 	s *Service
 }
 
-func NewOrganizationsService(s *Service) *OrganizationsService {
-	rs := &OrganizationsService{s: s}
-	rs.Logs = NewOrganizationsLogsService(s)
-	return rs
-}
-
-type OrganizationsService struct {
-	s *Service
-
-	Logs *OrganizationsLogsService
-}
-
-func NewOrganizationsLogsService(s *Service) *OrganizationsLogsService {
-	rs := &OrganizationsLogsService{s: s}
-	return rs
-}
-
-type OrganizationsLogsService struct {
-	s *Service
-}
-
 func NewProjectsService(s *Service) *ProjectsService {
 	rs := &ProjectsService{s: s}
-	rs.Logs = NewProjectsLogsService(s)
 	rs.Metrics = NewProjectsMetricsService(s)
 	rs.Sinks = NewProjectsSinksService(s)
 	return rs
@@ -172,20 +123,9 @@ func NewProjectsService(s *Service) *ProjectsService {
 type ProjectsService struct {
 	s *Service
 
-	Logs *ProjectsLogsService
-
 	Metrics *ProjectsMetricsService
 
 	Sinks *ProjectsSinksService
-}
-
-func NewProjectsLogsService(s *Service) *ProjectsLogsService {
-	rs := &ProjectsLogsService{s: s}
-	return rs
-}
-
-type ProjectsLogsService struct {
-	s *Service
 }
 
 func NewProjectsMetricsService(s *Service) *ProjectsMetricsService {
@@ -703,46 +643,6 @@ func (s *ListLogMetricsResponse) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// ListLogsResponse: Result returned from ListLogs.
-type ListLogsResponse struct {
-	// LogNames: A list of log names. For example,
-	// "projects/my-project/syslog" or
-	// "organizations/123/cloudresourcemanager.googleapis.com%2Factivity".
-	LogNames []string `json:"logNames,omitempty"`
-
-	// NextPageToken: If there might be more results than those appearing in
-	// this response, then nextPageToken is included. To get the next set of
-	// results, call this method again using the value of nextPageToken as
-	// pageToken.
-	NextPageToken string `json:"nextPageToken,omitempty"`
-
-	// ServerResponse contains the HTTP response code and headers from the
-	// server.
-	googleapi.ServerResponse `json:"-"`
-
-	// ForceSendFields is a list of field names (e.g. "LogNames") to
-	// unconditionally include in API requests. By default, fields with
-	// empty values are omitted from API requests. However, any non-pointer,
-	// non-interface field appearing in ForceSendFields will be sent to the
-	// server regardless of whether the field is empty or not. This may be
-	// used to include empty fields in Patch requests.
-	ForceSendFields []string `json:"-"`
-
-	// NullFields is a list of field names (e.g. "LogNames") to include in
-	// API requests with the JSON null value. By default, fields with empty
-	// values are omitted from API requests. However, any field with an
-	// empty value appearing in NullFields will be sent to the server as
-	// null. It is an error if a field in this list has a non-empty value.
-	// This may be used to include null fields in Patch requests.
-	NullFields []string `json:"-"`
-}
-
-func (s *ListLogsResponse) MarshalJSON() ([]byte, error) {
-	type NoMethod ListLogsResponse
-	raw := NoMethod(*s)
-	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
-}
-
 // ListMonitoredResourceDescriptorsResponse: Result returned from
 // ListMonitoredResourceDescriptors.
 type ListMonitoredResourceDescriptorsResponse struct {
@@ -941,6 +841,15 @@ type LogEntry struct {
 	// projects/my-projectid/traces/06796866738c859f2f19b7cfb3214824
 	Trace string `json:"trace,omitempty"`
 
+	// TraceSampled: Optional. The sampling decision of the trace associated
+	// with the log entry. True means that the trace resource name in the
+	// trace field was sampled for storage in a trace backend. False means
+	// that the trace was not sampled for storage when this log entry was
+	// written, or the sampling decision was unknown at the time. A
+	// non-sampled trace value is still useful as a request correlation
+	// identifier. The default is False.
+	TraceSampled bool `json:"traceSampled,omitempty"`
+
 	// ForceSendFields is a list of field names (e.g. "HttpRequest") to
 	// unconditionally include in API requests. By default, fields with
 	// empty values are omitted from API requests. However, any non-pointer,
@@ -1115,7 +1024,8 @@ type LogMetric struct {
 	BucketOptions *BucketOptions `json:"bucketOptions,omitempty"`
 
 	// Description: Optional. A description of this metric, which is used in
-	// documentation.
+	// documentation. The maximum length of the description is 8000
+	// characters.
 	Description string `json:"description,omitempty"`
 
 	// Filter: Required. An advanced logs filter which is used to match log
@@ -1240,10 +1150,6 @@ type LogSink struct {
 	// not exported. For more information, see Exporting Logs With Sinks.
 	Destination string `json:"destination,omitempty"`
 
-	// EndTime: Deprecated. This field is ignored when creating or updating
-	// sinks.
-	EndTime string `json:"endTime,omitempty"`
-
 	// Filter: Optional. An advanced logs filter. The only exported log
 	// entries are those that are in the resource owning the sink and that
 	// match the filter. For
@@ -1287,10 +1193,6 @@ type LogSink struct {
 	//   "V2" - LogEntry version 2 format.
 	//   "V1" - LogEntry version 1 format.
 	OutputVersionFormat string `json:"outputVersionFormat,omitempty"`
-
-	// StartTime: Deprecated. This field is ignored when creating or
-	// updating sinks.
-	StartTime string `json:"startTime,omitempty"`
 
 	// WriterIdentity: Output only. An IAM identity&mdash;a service account
 	// or group&mdash;under which Logging writes the exported log entries to
@@ -2043,330 +1945,6 @@ type WriteLogEntriesResponse struct {
 	googleapi.ServerResponse `json:"-"`
 }
 
-// method id "logging.billingAccounts.logs.delete":
-
-type BillingAccountsLogsDeleteCall struct {
-	s          *Service
-	logName    string
-	urlParams_ gensupport.URLParams
-	ctx_       context.Context
-	header_    http.Header
-}
-
-// Delete: Deletes all the log entries in a log. The log reappears if it
-// receives new entries. Log entries written shortly before the delete
-// operation might not be deleted.
-func (r *BillingAccountsLogsService) Delete(logName string) *BillingAccountsLogsDeleteCall {
-	c := &BillingAccountsLogsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.logName = logName
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *BillingAccountsLogsDeleteCall) Fields(s ...googleapi.Field) *BillingAccountsLogsDeleteCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *BillingAccountsLogsDeleteCall) Context(ctx context.Context) *BillingAccountsLogsDeleteCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *BillingAccountsLogsDeleteCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *BillingAccountsLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+logName}")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"logName": c.logName,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.billingAccounts.logs.delete" call.
-// Exactly one of *Empty or error will be non-nil. Any non-2xx status
-// code is an error. Response headers are in either
-// *Empty.ServerResponse.Header or (if a response was returned at all)
-// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
-// check whether the returned error was because http.StatusNotModified
-// was returned.
-func (c *BillingAccountsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &Empty{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Deletes all the log entries in a log. The log reappears if it receives new entries. Log entries written shortly before the delete operation might not be deleted.",
-	//   "flatPath": "v2beta1/billingAccounts/{billingAccountsId}/logs/{logsId}",
-	//   "httpMethod": "DELETE",
-	//   "id": "logging.billingAccounts.logs.delete",
-	//   "parameterOrder": [
-	//     "logName"
-	//   ],
-	//   "parameters": {
-	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
-	//       "location": "path",
-	//       "pattern": "^billingAccounts/[^/]+/logs/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+logName}",
-	//   "response": {
-	//     "$ref": "Empty"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/logging.admin"
-	//   ]
-	// }
-
-}
-
-// method id "logging.billingAccounts.logs.list":
-
-type BillingAccountsLogsListCall struct {
-	s            *Service
-	parent       string
-	urlParams_   gensupport.URLParams
-	ifNoneMatch_ string
-	ctx_         context.Context
-	header_      http.Header
-}
-
-// List: Lists the logs in projects, organizations, folders, or billing
-// accounts. Only logs that have entries are listed.
-func (r *BillingAccountsLogsService) List(parent string) *BillingAccountsLogsListCall {
-	c := &BillingAccountsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.parent = parent
-	return c
-}
-
-// PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Non-positive values are
-// ignored. The presence of nextPageToken in the response indicates that
-// more results might be available.
-func (c *BillingAccountsLogsListCall) PageSize(pageSize int64) *BillingAccountsLogsListCall {
-	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
-	return c
-}
-
-// PageToken sets the optional parameter "pageToken": If present, then
-// retrieve the next batch of results from the preceding call to this
-// method. pageToken must be the value of nextPageToken from the
-// previous response. The values of other method parameters should be
-// identical to those in the previous call.
-func (c *BillingAccountsLogsListCall) PageToken(pageToken string) *BillingAccountsLogsListCall {
-	c.urlParams_.Set("pageToken", pageToken)
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *BillingAccountsLogsListCall) Fields(s ...googleapi.Field) *BillingAccountsLogsListCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// IfNoneMatch sets the optional parameter which makes the operation
-// fail if the object's ETag matches the given value. This is useful for
-// getting updates only after the object has changed since the last
-// request. Use googleapi.IsNotModified to check whether the response
-// error from Do is the result of In-None-Match.
-func (c *BillingAccountsLogsListCall) IfNoneMatch(entityTag string) *BillingAccountsLogsListCall {
-	c.ifNoneMatch_ = entityTag
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *BillingAccountsLogsListCall) Context(ctx context.Context) *BillingAccountsLogsListCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *BillingAccountsLogsListCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *BillingAccountsLogsListCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/logs")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"parent": c.parent,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.billingAccounts.logs.list" call.
-// Exactly one of *ListLogsResponse or error will be non-nil. Any
-// non-2xx status code is an error. Response headers are in either
-// *ListLogsResponse.ServerResponse.Header or (if a response was
-// returned at all) in error.(*googleapi.Error).Header. Use
-// googleapi.IsNotModified to check whether the returned error was
-// because http.StatusNotModified was returned.
-func (c *BillingAccountsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsResponse, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &ListLogsResponse{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
-	//   "flatPath": "v2beta1/billingAccounts/{billingAccountsId}/logs",
-	//   "httpMethod": "GET",
-	//   "id": "logging.billingAccounts.logs.list",
-	//   "parameterOrder": [
-	//     "parent"
-	//   ],
-	//   "parameters": {
-	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Non-positive values are ignored. The presence of nextPageToken in the response indicates that more results might be available.",
-	//       "format": "int32",
-	//       "location": "query",
-	//       "type": "integer"
-	//     },
-	//     "pageToken": {
-	//       "description": "Optional. If present, then retrieve the next batch of results from the preceding call to this method. pageToken must be the value of nextPageToken from the previous response. The values of other method parameters should be identical to those in the previous call.",
-	//       "location": "query",
-	//       "type": "string"
-	//     },
-	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
-	//       "location": "path",
-	//       "pattern": "^billingAccounts/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+parent}/logs",
-	//   "response": {
-	//     "$ref": "ListLogsResponse"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
-	//     "https://www.googleapis.com/auth/logging.admin",
-	//     "https://www.googleapis.com/auth/logging.read"
-	//   ]
-	// }
-
-}
-
-// Pages invokes f for each page of results.
-// A non-nil error returned from f will halt the iteration.
-// The provided context supersedes any context provided to the Context method.
-func (c *BillingAccountsLogsListCall) Pages(ctx context.Context, f func(*ListLogsResponse) error) error {
-	c.ctx_ = ctx
-	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
-	for {
-		x, err := c.Do()
-		if err != nil {
-			return err
-		}
-		if err := f(x); err != nil {
-			return err
-		}
-		if x.NextPageToken == "" {
-			return nil
-		}
-		c.PageToken(x.NextPageToken)
-	}
-}
-
 // method id "logging.entries.list":
 
 type EntriesListCall struct {
@@ -2426,7 +2004,10 @@ func (c *EntriesListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/entries:list")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -2576,7 +2157,10 @@ func (c *EntriesWriteCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/entries:write")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -2726,7 +2310,10 @@ func (c *MonitoredResourceDescriptorsListCall) doRequest(alt string) (*http.Resp
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/monitoredResourceDescriptors")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	return gensupport.SendRequest(c.ctx_, c.s.client, req)
 }
@@ -2824,654 +2411,6 @@ func (c *MonitoredResourceDescriptorsListCall) Pages(ctx context.Context, f func
 	}
 }
 
-// method id "logging.organizations.logs.delete":
-
-type OrganizationsLogsDeleteCall struct {
-	s          *Service
-	logName    string
-	urlParams_ gensupport.URLParams
-	ctx_       context.Context
-	header_    http.Header
-}
-
-// Delete: Deletes all the log entries in a log. The log reappears if it
-// receives new entries. Log entries written shortly before the delete
-// operation might not be deleted.
-func (r *OrganizationsLogsService) Delete(logName string) *OrganizationsLogsDeleteCall {
-	c := &OrganizationsLogsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.logName = logName
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *OrganizationsLogsDeleteCall) Fields(s ...googleapi.Field) *OrganizationsLogsDeleteCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *OrganizationsLogsDeleteCall) Context(ctx context.Context) *OrganizationsLogsDeleteCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *OrganizationsLogsDeleteCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *OrganizationsLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+logName}")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"logName": c.logName,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.organizations.logs.delete" call.
-// Exactly one of *Empty or error will be non-nil. Any non-2xx status
-// code is an error. Response headers are in either
-// *Empty.ServerResponse.Header or (if a response was returned at all)
-// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
-// check whether the returned error was because http.StatusNotModified
-// was returned.
-func (c *OrganizationsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &Empty{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Deletes all the log entries in a log. The log reappears if it receives new entries. Log entries written shortly before the delete operation might not be deleted.",
-	//   "flatPath": "v2beta1/organizations/{organizationsId}/logs/{logsId}",
-	//   "httpMethod": "DELETE",
-	//   "id": "logging.organizations.logs.delete",
-	//   "parameterOrder": [
-	//     "logName"
-	//   ],
-	//   "parameters": {
-	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
-	//       "location": "path",
-	//       "pattern": "^organizations/[^/]+/logs/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+logName}",
-	//   "response": {
-	//     "$ref": "Empty"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/logging.admin"
-	//   ]
-	// }
-
-}
-
-// method id "logging.organizations.logs.list":
-
-type OrganizationsLogsListCall struct {
-	s            *Service
-	parent       string
-	urlParams_   gensupport.URLParams
-	ifNoneMatch_ string
-	ctx_         context.Context
-	header_      http.Header
-}
-
-// List: Lists the logs in projects, organizations, folders, or billing
-// accounts. Only logs that have entries are listed.
-func (r *OrganizationsLogsService) List(parent string) *OrganizationsLogsListCall {
-	c := &OrganizationsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.parent = parent
-	return c
-}
-
-// PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Non-positive values are
-// ignored. The presence of nextPageToken in the response indicates that
-// more results might be available.
-func (c *OrganizationsLogsListCall) PageSize(pageSize int64) *OrganizationsLogsListCall {
-	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
-	return c
-}
-
-// PageToken sets the optional parameter "pageToken": If present, then
-// retrieve the next batch of results from the preceding call to this
-// method. pageToken must be the value of nextPageToken from the
-// previous response. The values of other method parameters should be
-// identical to those in the previous call.
-func (c *OrganizationsLogsListCall) PageToken(pageToken string) *OrganizationsLogsListCall {
-	c.urlParams_.Set("pageToken", pageToken)
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *OrganizationsLogsListCall) Fields(s ...googleapi.Field) *OrganizationsLogsListCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// IfNoneMatch sets the optional parameter which makes the operation
-// fail if the object's ETag matches the given value. This is useful for
-// getting updates only after the object has changed since the last
-// request. Use googleapi.IsNotModified to check whether the response
-// error from Do is the result of In-None-Match.
-func (c *OrganizationsLogsListCall) IfNoneMatch(entityTag string) *OrganizationsLogsListCall {
-	c.ifNoneMatch_ = entityTag
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *OrganizationsLogsListCall) Context(ctx context.Context) *OrganizationsLogsListCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *OrganizationsLogsListCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *OrganizationsLogsListCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/logs")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"parent": c.parent,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.organizations.logs.list" call.
-// Exactly one of *ListLogsResponse or error will be non-nil. Any
-// non-2xx status code is an error. Response headers are in either
-// *ListLogsResponse.ServerResponse.Header or (if a response was
-// returned at all) in error.(*googleapi.Error).Header. Use
-// googleapi.IsNotModified to check whether the returned error was
-// because http.StatusNotModified was returned.
-func (c *OrganizationsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsResponse, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &ListLogsResponse{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
-	//   "flatPath": "v2beta1/organizations/{organizationsId}/logs",
-	//   "httpMethod": "GET",
-	//   "id": "logging.organizations.logs.list",
-	//   "parameterOrder": [
-	//     "parent"
-	//   ],
-	//   "parameters": {
-	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Non-positive values are ignored. The presence of nextPageToken in the response indicates that more results might be available.",
-	//       "format": "int32",
-	//       "location": "query",
-	//       "type": "integer"
-	//     },
-	//     "pageToken": {
-	//       "description": "Optional. If present, then retrieve the next batch of results from the preceding call to this method. pageToken must be the value of nextPageToken from the previous response. The values of other method parameters should be identical to those in the previous call.",
-	//       "location": "query",
-	//       "type": "string"
-	//     },
-	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
-	//       "location": "path",
-	//       "pattern": "^organizations/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+parent}/logs",
-	//   "response": {
-	//     "$ref": "ListLogsResponse"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
-	//     "https://www.googleapis.com/auth/logging.admin",
-	//     "https://www.googleapis.com/auth/logging.read"
-	//   ]
-	// }
-
-}
-
-// Pages invokes f for each page of results.
-// A non-nil error returned from f will halt the iteration.
-// The provided context supersedes any context provided to the Context method.
-func (c *OrganizationsLogsListCall) Pages(ctx context.Context, f func(*ListLogsResponse) error) error {
-	c.ctx_ = ctx
-	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
-	for {
-		x, err := c.Do()
-		if err != nil {
-			return err
-		}
-		if err := f(x); err != nil {
-			return err
-		}
-		if x.NextPageToken == "" {
-			return nil
-		}
-		c.PageToken(x.NextPageToken)
-	}
-}
-
-// method id "logging.projects.logs.delete":
-
-type ProjectsLogsDeleteCall struct {
-	s          *Service
-	logName    string
-	urlParams_ gensupport.URLParams
-	ctx_       context.Context
-	header_    http.Header
-}
-
-// Delete: Deletes all the log entries in a log. The log reappears if it
-// receives new entries. Log entries written shortly before the delete
-// operation might not be deleted.
-func (r *ProjectsLogsService) Delete(logName string) *ProjectsLogsDeleteCall {
-	c := &ProjectsLogsDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.logName = logName
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *ProjectsLogsDeleteCall) Fields(s ...googleapi.Field) *ProjectsLogsDeleteCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *ProjectsLogsDeleteCall) Context(ctx context.Context) *ProjectsLogsDeleteCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *ProjectsLogsDeleteCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *ProjectsLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+logName}")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"logName": c.logName,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.projects.logs.delete" call.
-// Exactly one of *Empty or error will be non-nil. Any non-2xx status
-// code is an error. Response headers are in either
-// *Empty.ServerResponse.Header or (if a response was returned at all)
-// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
-// check whether the returned error was because http.StatusNotModified
-// was returned.
-func (c *ProjectsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &Empty{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Deletes all the log entries in a log. The log reappears if it receives new entries. Log entries written shortly before the delete operation might not be deleted.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/logs/{logsId}",
-	//   "httpMethod": "DELETE",
-	//   "id": "logging.projects.logs.delete",
-	//   "parameterOrder": [
-	//     "logName"
-	//   ],
-	//   "parameters": {
-	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
-	//       "location": "path",
-	//       "pattern": "^projects/[^/]+/logs/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+logName}",
-	//   "response": {
-	//     "$ref": "Empty"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/logging.admin"
-	//   ]
-	// }
-
-}
-
-// method id "logging.projects.logs.list":
-
-type ProjectsLogsListCall struct {
-	s            *Service
-	parent       string
-	urlParams_   gensupport.URLParams
-	ifNoneMatch_ string
-	ctx_         context.Context
-	header_      http.Header
-}
-
-// List: Lists the logs in projects, organizations, folders, or billing
-// accounts. Only logs that have entries are listed.
-func (r *ProjectsLogsService) List(parent string) *ProjectsLogsListCall {
-	c := &ProjectsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
-	c.parent = parent
-	return c
-}
-
-// PageSize sets the optional parameter "pageSize": The maximum number
-// of results to return from this request. Non-positive values are
-// ignored. The presence of nextPageToken in the response indicates that
-// more results might be available.
-func (c *ProjectsLogsListCall) PageSize(pageSize int64) *ProjectsLogsListCall {
-	c.urlParams_.Set("pageSize", fmt.Sprint(pageSize))
-	return c
-}
-
-// PageToken sets the optional parameter "pageToken": If present, then
-// retrieve the next batch of results from the preceding call to this
-// method. pageToken must be the value of nextPageToken from the
-// previous response. The values of other method parameters should be
-// identical to those in the previous call.
-func (c *ProjectsLogsListCall) PageToken(pageToken string) *ProjectsLogsListCall {
-	c.urlParams_.Set("pageToken", pageToken)
-	return c
-}
-
-// Fields allows partial responses to be retrieved. See
-// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
-// for more information.
-func (c *ProjectsLogsListCall) Fields(s ...googleapi.Field) *ProjectsLogsListCall {
-	c.urlParams_.Set("fields", googleapi.CombineFields(s))
-	return c
-}
-
-// IfNoneMatch sets the optional parameter which makes the operation
-// fail if the object's ETag matches the given value. This is useful for
-// getting updates only after the object has changed since the last
-// request. Use googleapi.IsNotModified to check whether the response
-// error from Do is the result of In-None-Match.
-func (c *ProjectsLogsListCall) IfNoneMatch(entityTag string) *ProjectsLogsListCall {
-	c.ifNoneMatch_ = entityTag
-	return c
-}
-
-// Context sets the context to be used in this call's Do method. Any
-// pending HTTP request will be aborted if the provided context is
-// canceled.
-func (c *ProjectsLogsListCall) Context(ctx context.Context) *ProjectsLogsListCall {
-	c.ctx_ = ctx
-	return c
-}
-
-// Header returns an http.Header that can be modified by the caller to
-// add HTTP headers to the request.
-func (c *ProjectsLogsListCall) Header() http.Header {
-	if c.header_ == nil {
-		c.header_ = make(http.Header)
-	}
-	return c.header_
-}
-
-func (c *ProjectsLogsListCall) doRequest(alt string) (*http.Response, error) {
-	reqHeaders := make(http.Header)
-	for k, v := range c.header_ {
-		reqHeaders[k] = v
-	}
-	reqHeaders.Set("User-Agent", c.s.userAgent())
-	if c.ifNoneMatch_ != "" {
-		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
-	}
-	var body io.Reader = nil
-	c.urlParams_.Set("alt", alt)
-	c.urlParams_.Set("prettyPrint", "false")
-	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/logs")
-	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
-	req.Header = reqHeaders
-	googleapi.Expand(req.URL, map[string]string{
-		"parent": c.parent,
-	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
-}
-
-// Do executes the "logging.projects.logs.list" call.
-// Exactly one of *ListLogsResponse or error will be non-nil. Any
-// non-2xx status code is an error. Response headers are in either
-// *ListLogsResponse.ServerResponse.Header or (if a response was
-// returned at all) in error.(*googleapi.Error).Header. Use
-// googleapi.IsNotModified to check whether the returned error was
-// because http.StatusNotModified was returned.
-func (c *ProjectsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsResponse, error) {
-	gensupport.SetOptions(c.urlParams_, opts...)
-	res, err := c.doRequest("json")
-	if res != nil && res.StatusCode == http.StatusNotModified {
-		if res.Body != nil {
-			res.Body.Close()
-		}
-		return nil, &googleapi.Error{
-			Code:   res.StatusCode,
-			Header: res.Header,
-		}
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer googleapi.CloseBody(res)
-	if err := googleapi.CheckResponse(res); err != nil {
-		return nil, err
-	}
-	ret := &ListLogsResponse{
-		ServerResponse: googleapi.ServerResponse{
-			Header:         res.Header,
-			HTTPStatusCode: res.StatusCode,
-		},
-	}
-	target := &ret
-	if err := gensupport.DecodeResponse(target, res); err != nil {
-		return nil, err
-	}
-	return ret, nil
-	// {
-	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
-	//   "flatPath": "v2beta1/projects/{projectsId}/logs",
-	//   "httpMethod": "GET",
-	//   "id": "logging.projects.logs.list",
-	//   "parameterOrder": [
-	//     "parent"
-	//   ],
-	//   "parameters": {
-	//     "pageSize": {
-	//       "description": "Optional. The maximum number of results to return from this request. Non-positive values are ignored. The presence of nextPageToken in the response indicates that more results might be available.",
-	//       "format": "int32",
-	//       "location": "query",
-	//       "type": "integer"
-	//     },
-	//     "pageToken": {
-	//       "description": "Optional. If present, then retrieve the next batch of results from the preceding call to this method. pageToken must be the value of nextPageToken from the previous response. The values of other method parameters should be identical to those in the previous call.",
-	//       "location": "query",
-	//       "type": "string"
-	//     },
-	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
-	//       "location": "path",
-	//       "pattern": "^projects/[^/]+$",
-	//       "required": true,
-	//       "type": "string"
-	//     }
-	//   },
-	//   "path": "v2beta1/{+parent}/logs",
-	//   "response": {
-	//     "$ref": "ListLogsResponse"
-	//   },
-	//   "scopes": [
-	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
-	//     "https://www.googleapis.com/auth/logging.admin",
-	//     "https://www.googleapis.com/auth/logging.read"
-	//   ]
-	// }
-
-}
-
-// Pages invokes f for each page of results.
-// A non-nil error returned from f will halt the iteration.
-// The provided context supersedes any context provided to the Context method.
-func (c *ProjectsLogsListCall) Pages(ctx context.Context, f func(*ListLogsResponse) error) error {
-	c.ctx_ = ctx
-	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
-	for {
-		x, err := c.Do()
-		if err != nil {
-			return err
-		}
-		if err := f(x); err != nil {
-			return err
-		}
-		if x.NextPageToken == "" {
-			return nil
-		}
-		c.PageToken(x.NextPageToken)
-	}
-}
-
 // method id "logging.projects.metrics.create":
 
 type ProjectsMetricsCreateCall struct {
@@ -3532,7 +2471,10 @@ func (c *ProjectsMetricsCreateCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/metrics")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -3663,7 +2605,10 @@ func (c *ProjectsMetricsDeleteCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricName,
@@ -3805,7 +2750,10 @@ func (c *ProjectsMetricsGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricName,
@@ -3967,7 +2915,10 @@ func (c *ProjectsMetricsListCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/metrics")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4135,7 +3086,10 @@ func (c *ProjectsMetricsUpdateCall) doRequest(alt string) (*http.Response, error
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+metricName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"metricName": c.metricName,
@@ -4293,7 +3247,10 @@ func (c *ProjectsSinksCreateCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/sinks")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("POST", urls, body)
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4429,7 +3386,10 @@ func (c *ProjectsSinksDeleteCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("DELETE", urls, body)
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkNameid,
@@ -4570,7 +3530,10 @@ func (c *ProjectsSinksGetCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkName,
@@ -4732,7 +3695,10 @@ func (c *ProjectsSinksListCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+parent}/sinks")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("GET", urls, body)
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"parent": c.parent,
@@ -4886,7 +3852,7 @@ func (c *ProjectsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool
 // compatibility purposes:  destination,filter,includeChildren At some
 // point in the future, behavior will be removed and specifying an empty
 // updateMask will be an error.For a detailed FieldMask definition, see
-// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#FieldMaskExample:
+// https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#google.protobuf.FieldMaskExample:
 // updateMask=filter.
 func (c *ProjectsSinksUpdateCall) UpdateMask(updateMask string) *ProjectsSinksUpdateCall {
 	c.urlParams_.Set("updateMask", updateMask)
@@ -4934,7 +3900,10 @@ func (c *ProjectsSinksUpdateCall) doRequest(alt string) (*http.Response, error) 
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2beta1/{+sinkName}")
 	urls += "?" + c.urlParams_.Encode()
-	req, _ := http.NewRequest("PUT", urls, body)
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
 	req.Header = reqHeaders
 	googleapi.Expand(req.URL, map[string]string{
 		"sinkName": c.sinkNameid,
@@ -5001,7 +3970,7 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	//       "type": "boolean"
 	//     },
 	//     "updateMask": {
-	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#FieldMaskExample: updateMask=filter.",
+	//       "description": "Optional. Field mask that specifies the fields in sink that need an update. A sink field will be overwritten if, and only if, it is in the update mask. name and output only fields cannot be updated.An empty updateMask is temporarily treated as using the following mask for backwards compatibility purposes:  destination,filter,includeChildren At some point in the future, behavior will be removed and specifying an empty updateMask will be an error.For a detailed FieldMask definition, see https://developers.google.com/protocol-buffers/docs/reference/google.protobuf#google.protobuf.FieldMaskExample: updateMask=filter.",
 	//       "format": "google-fieldmask",
 	//       "location": "query",
 	//       "type": "string"
