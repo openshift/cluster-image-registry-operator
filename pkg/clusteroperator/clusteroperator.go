@@ -67,7 +67,7 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 		err := sdk.Get(state)
 		if err != nil {
 			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.ObjectMeta.Namespace, state.ObjectMeta.Name, err)
+				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
 			}
 
 			state.Status.Conditions = []osapi.ClusterOperatorStatusCondition{

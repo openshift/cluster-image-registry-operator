@@ -43,8 +43,8 @@ func SetConfigState(cr *v1alpha1.ImageRegistry, cm *corev1.ConfigMap) error {
 				Kind:       "ConfigMap",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      cm.ObjectMeta.Name,
-				Namespace: cm.ObjectMeta.Namespace,
+				Name:      cm.Name,
+				Namespace: cm.Namespace,
 			},
 		}
 		err := sdk.Get(cur)

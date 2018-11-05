@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
@@ -63,7 +64,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 		return nil
 	}
 
-	logrus.Infof("finalizing %s %s/%s", o.GetObjectKind().GroupVersionKind().Kind, o.Namespace, o.Name)
+	logrus.Infof("finalizing %s", metautil.TypeAndName(o))
 
 	err := h.RemoveResources(o)
 	if err != nil {
@@ -79,14 +80,14 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 					Kind:       o.TypeMeta.Kind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      o.ObjectMeta.Name,
-					Namespace: o.ObjectMeta.Namespace,
+					Name:      o.Name,
+					Namespace: o.Namespace,
 				},
 			}
 
 			err := sdk.Get(cr)
 			if err != nil {
-				return fmt.Errorf("failed to get custom resource %s/%s: %s", o.ObjectMeta.Namespace, o.ObjectMeta.Name, err)
+				return fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
 			}
 
 			finalizers = []string{}
@@ -108,7 +109,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("unable to update finalizers in custom resource %s/%s: %s", o.ObjectMeta.Namespace, o.ObjectMeta.Name, err)
+		return fmt.Errorf("unable to update finalizers in %s: %s", metautil.TypeAndName(o), err)
 	}
 
 	// These errors may indicate a transient error that we can retry in tests.
@@ -130,8 +131,8 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 				Kind:       o.TypeMeta.Kind,
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      o.ObjectMeta.Name,
-				Namespace: o.ObjectMeta.Namespace,
+				Name:      o.Name,
+				Namespace: o.Namespace,
 			},
 		}
 
@@ -156,7 +157,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 				return
 			}
 
-			err = fmt.Errorf("failed to get custom resource %s/%s: %s", o.ObjectMeta.Namespace, o.ObjectMeta.Name, err)
+			err = fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
 			return
 		}
 
@@ -164,7 +165,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("unable to wait for custom resource %s/%s deletion: %s", o.ObjectMeta.Namespace, o.ObjectMeta.Name, err)
+		return fmt.Errorf("unable to wait for %s deletion: %s", metautil.TypeAndName(o), err)
 	}
 
 	return nil
