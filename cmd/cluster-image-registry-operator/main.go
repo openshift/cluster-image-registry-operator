@@ -75,6 +75,7 @@ func main() {
 
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)
+	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", "", 10*time.Minute)
 
 	watch(corev1.SchemeGroupVersion.String(), "ConfigMap", namespace, 0)
 	watch(corev1.SchemeGroupVersion.String(), "Secret", namespace, 0)
@@ -83,7 +84,6 @@ func main() {
 	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 10*time.Minute)
 	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 10*time.Minute)
-	watch(regopapi.SchemeGroupVersion.String(), "ImageRegistry", namespace, 10*time.Minute)
 
 	sdk.Handle(handler)
 	sdk.Run(context.TODO())

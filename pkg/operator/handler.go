@@ -25,6 +25,7 @@ import (
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -174,7 +175,7 @@ func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.Operator
 
 func conditionResourceApply(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
 	if status == operatorapi.ConditionFalse {
-		logrus.Errorf("condition failed on %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, m)
+		logrus.Errorf("condition failed on %s: %s", metautil.TypeAndName(cr), m)
 	}
 
 	changed := updateCondition(cr, &operatorapi.OperatorCondition{
@@ -459,13 +460,13 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	}
 
 	if cr != nil && statusChanged {
-		logrus.Infof("%s %s/%s changed", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name)
+		logrus.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 
 		err = sdk.Update(cr)
 		if err != nil && !errors.IsConflict(err) {
-			logrus.Errorf("unable to update %s %s/%s: %s", cr.GetObjectKind().GroupVersionKind().Kind, cr.Namespace, cr.Name, err)
+			logrus.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
 		}
 	}
 
@@ -554,7 +555,7 @@ func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("unable to get previous config state: %s", err)
 	}
 
-	driver, err := storage.NewDriver(o.Name, o.Namespace, &o.Spec.Storage)
+	driver, err := storage.NewDriver(o.Name, h.params.Deployment.Namespace, &o.Spec.Storage)
 	if err != nil {
 		return fmt.Errorf("unable to create storage driver: %s", err)
 	}
