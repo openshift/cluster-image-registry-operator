@@ -15,11 +15,10 @@
 package e2e
 
 import (
+	"os"
 	"testing"
-
-	f "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
-func TestMain(t *testing.T) {
-	f.MainEntry(t)
+func TestMain(m *testing.M) {
+	os.Exit(m.Run())
 }

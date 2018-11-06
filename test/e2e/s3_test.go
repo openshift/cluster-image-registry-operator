@@ -16,10 +16,8 @@ package e2e
 
 import (
 	"testing"
-
-	f "github.com/operator-framework/operator-sdk/pkg/test"
 )
 
 func TestS3(t *testing.T) {
-	f.MainEntry(t)
+
 }

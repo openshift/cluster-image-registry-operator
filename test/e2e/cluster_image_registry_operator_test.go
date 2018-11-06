@@ -3,24 +3,26 @@ package e2e_test
 import (
 	"testing"
 
-	framework "github.com/operator-framework/operator-sdk/pkg/test"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-sdk/pkg/sdk"
+
+	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 )
 
 func TestClusterImageRegistryOperator(t *testing.T) {
-	ctx := framework.NewTestCtx(t)
-	defer ctx.Cleanup(t)
-
-	err := ctx.InitializeClusterResources()
-	if err != nil {
-		t.Fatalf("failed to initialize cluster resources: %v", err)
+	cr := &imageregistryapi.ImageRegistry{
+		TypeMeta: metaapi.TypeMeta{
+			Kind:       "ImageRegistry",
+			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metaapi.ObjectMeta{
+			Name:      "image-registry",
+			Namespace: "openshift-image-registry",
+		},
+	}
+	if err := sdk.Get(cr); err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
 
-	t.Log("Initialized cluster resources")
-
-	namespace, err := ctx.GetNamespace()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log("TODO", namespace)
 }
