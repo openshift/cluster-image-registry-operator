@@ -24,10 +24,8 @@ test-unit:
 	go test ./cmd/... ./pkg/...
 
 test-e2e:
-	mkdir -p -m775 ./deploy/test/
-	cat ./deploy/03-sa.yaml ./deploy/04-operator.yaml >./deploy/test/namespace-manifests.yaml
-	operator-sdk test local ./test/e2e --global-manifest=./deploy/00-crd.yaml --namespaced-manifest=./deploy/test/namespace-manifests.yaml
-
+	KUBERNETES_CONFIG=$KUBECONFIG go test ./test/e2e/...
+	
 verify:
 	hack/verify.sh
 
