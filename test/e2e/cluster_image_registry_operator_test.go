@@ -2,8 +2,10 @@ package e2e_test
 
 import (
 	"testing"
+	"time"
 
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
@@ -12,17 +14,22 @@ import (
 
 func TestClusterImageRegistryOperator(t *testing.T) {
 	cr := &imageregistryapi.ImageRegistry{
-		TypeMeta: metaapi.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "ImageRegistry",
 			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
 		},
-		ObjectMeta: metaapi.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      "image-registry",
 			Namespace: "openshift-image-registry",
 		},
 	}
-	if err := sdk.Get(cr); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	err := wait.PollImmediate(1*time.Second, 10*time.Minute, func() (bool, error) {
+		if err := sdk.Get(cr); err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Errorf("error waiting for registry resource to appear: %v", err)
 	}
-
 }
