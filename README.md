@@ -1,5 +1,6 @@
 # cluster-image-registry-operator
 
+
 The image registry operator installs+maintains the integrated image registry on a cluster.
 
 # Manual deployment
