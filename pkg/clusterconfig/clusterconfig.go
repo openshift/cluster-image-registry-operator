@@ -6,6 +6,7 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientcore "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -94,6 +95,7 @@ func Get() (*Config, error) {
 	cm, err := client.ConfigMaps(configNamespace).Get(configName, metaapi.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
+			logrus.Warnf("config-map %s/%s not found", configNamespace, configName)
 			return cfg, nil
 		}
 		return nil, err
