@@ -69,6 +69,7 @@ func main() {
 	}
 
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
+	k8sutil.AddToSDKScheme(routeapi.AddToScheme)
 
 	dc := &appsapi.DeploymentConfig{
 		TypeMeta: metav1.TypeMeta{
