@@ -1,0 +1,10 @@
+managementState: Managed
+version: none
+imagePullSpec: openshift/origin-docker-registry:v3.11.0
+httpSecret: this-is-an-http-/secret/-for-the-registry
+storage:
+  filesystem:
+    volumeSource:
+      emptyDir: {}
+routes: []
+replicas: 1

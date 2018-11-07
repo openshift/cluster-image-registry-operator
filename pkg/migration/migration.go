@@ -215,6 +215,12 @@ func migrateTLS(config *configuration.Configuration, podFileGetter PodFileGetter
 	}, nil
 }
 
+func isEnvVarSupported(name string) bool {
+	return strings.HasPrefix(name, "REGISTRY_") ||
+		name == "DOCKER_REGISTRY_URL" ||
+		name == "OPENSHIFT_DEFAULT_REGISTRY"
+}
+
 func NewImageRegistrySpecFromDeploymentConfig(dc *appsapi.DeploymentConfig, resources dependency.NamespacedResources) (imageregistryapi.ImageRegistrySpec, *coreapi.Secret, error) {
 	fail := func(format string, a ...interface{}) (imageregistryapi.ImageRegistrySpec, *coreapi.Secret, error) {
 		format = "unable to create an image registry spec from the DeploymentConfig %s/%s: " + format
@@ -250,7 +256,7 @@ func NewImageRegistrySpecFromDeploymentConfig(dc *appsapi.DeploymentConfig, reso
 			}
 		} else if env.Name == "REGISTRY_CONFIGURATION_PATH" {
 			configurationPath = env.Value
-		} else if strings.HasPrefix(env.Name, "REGISTRY_") {
+		} else if isEnvVarSupported(env.Name) {
 			envs[env.Name] = env.Value
 		} else {
 			return fail("unsupported environment variable %s", env.Name)
