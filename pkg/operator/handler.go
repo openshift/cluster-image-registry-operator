@@ -3,7 +3,6 @@ package operator
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/sirupsen/logrus"
 
@@ -358,20 +357,13 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 		return nil, nil
 	}
 
-	namespace := o.GetNamespace()
-	if len(namespace) == 0 {
-		// FIXME
-		namespace = os.Getenv("WATCH_NAMESPACE")
-	}
-
 	cr := &regopapi.ImageRegistry{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: ownerRef.APIVersion,
 			Kind:       ownerRef.Kind,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ownerRef.Name,
-			Namespace: namespace,
+			Name: ownerRef.Name,
 		},
 	}
 
