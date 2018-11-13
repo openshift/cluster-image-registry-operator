@@ -62,6 +62,7 @@ func NewHandler(namespace string) (sdk.Handler, error) {
 		clusterStatus:      clusteroperator.NewStatusHandler(operatorName, operatorNamespace),
 	}
 
+	return h, nil
 	_, err = h.Bootstrap()
 	if err != nil {
 		return nil, err
@@ -285,6 +286,7 @@ func (h *Handler) reDeployByEvent(event sdk.Event, gen resource.Generator) (*reg
 }
 
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
+	return nil
 	logrus.Debugf("received event for %T (deleted=%t)", event.Object, event.Deleted)
 
 	var (
