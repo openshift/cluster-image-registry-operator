@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ImageConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func makeImageConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	ic := &configapiv1.Image{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: configapiv1.SchemeGroupVersion.String(),

@@ -11,13 +11,13 @@ type Generator func(*regopapi.ImageRegistry, *parameters.Globals) (Template, err
 
 func Templates(cr *regopapi.ImageRegistry, p *parameters.Globals) (ret []Template, err error) {
 	generators := []Generator{
-		ClusterRole,
-		ClusterRoleBinding,
-		ServiceAccount,
-		ConfigMap,
-		Secret,
-		Service,
-		ImageConfig,
+		makeClusterRole,
+		makeClusterRoleBinding,
+		makeServiceAccount,
+		makeConfigMap,
+		makeSecret,
+		makeService,
+		makeImageConfig,
 	}
 
 	routes := GetRouteGenerators(cr, p)
@@ -41,7 +41,7 @@ func Templates(cr *regopapi.ImageRegistry, p *parameters.Globals) (ret []Templat
 		}
 	}
 
-	deploymentTmpl, err := Deployment(cr, p)
+	deploymentTmpl, err := makeDeployment(cr, p)
 	if err != nil {
 		return
 	}

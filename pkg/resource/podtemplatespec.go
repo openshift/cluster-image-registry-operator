@@ -116,7 +116,7 @@ func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegi
 	return
 }
 
-func PodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
+func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
 	env, volumes, mounts, err := storageConfigure(cr.Name, p.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
