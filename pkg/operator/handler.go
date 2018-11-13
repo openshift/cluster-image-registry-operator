@@ -398,17 +398,12 @@ func (h *Handler) createOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 		return fmt.Errorf("unable to complete resource: %s", err)
 	}
 
-	configState, err := resource.GetConfigState(h.params.Deployment.Namespace)
-	if err != nil {
-		return fmt.Errorf("unable to get previous config state: %s", err)
-	}
-
 	driver, err := storage.NewDriver(o.Name, h.params.Deployment.Namespace, &o.Spec.Storage)
 	if err != nil {
 		return fmt.Errorf("unable to create storage driver: %s", err)
 	}
 
-	err = driver.ValidateConfiguration(configState)
+	err = driver.ValidateConfiguration(o, modified)
 	if err != nil {
 		return fmt.Errorf("bad custom resource: %s", err)
 	}
@@ -428,11 +423,6 @@ func (h *Handler) createOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 	err = syncRoutes(o, &h.params, modified)
 	if err != nil {
 		return fmt.Errorf("unable to sync routes: %s", err)
-	}
-
-	err = resource.SetConfigState(o, configState)
-	if err != nil {
-		return fmt.Errorf("unable to write current config state: %s", err)
 	}
 
 	return nil

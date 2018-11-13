@@ -35,16 +35,6 @@ func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
 		logrus.Infof("resource %s removed", tmpl.Name())
 	}
 
-	configState, err := resource.GetConfigState(h.params.Deployment.Namespace)
-	if err != nil {
-		return fmt.Errorf("unable to get previous config state: %s", err)
-	}
-
-	err = resource.RemoveConfigState(configState)
-	if err != nil {
-		return fmt.Errorf("unable to remove previous config state: %s", err)
-	}
-
 	return nil
 }
 

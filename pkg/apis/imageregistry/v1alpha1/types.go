@@ -93,8 +93,15 @@ type ImageRegistrySpec struct {
 	Replicas     int32                       `json:"replicas,omitempty"`
 }
 
+type ImageRegistryStatusState struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
 
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
+
+	State []ImageRegistryStatusState `json:"state"`
 }
