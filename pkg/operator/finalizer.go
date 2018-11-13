@@ -22,7 +22,7 @@ import (
 func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
 	modified := false
 
-	templetes, err := h.GenerateTemplates(o, &h.params)
+	templetes, err := resource.Templates(o, &h.params)
 	if err != nil {
 		return fmt.Errorf("unable to generate templates: %s", err)
 	}

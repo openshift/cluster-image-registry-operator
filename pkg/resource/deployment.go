@@ -38,7 +38,8 @@ func Deployment(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, er
 	addOwnerRefToObject(dc, asOwner(cr))
 
 	return Template{
-		Object:   dc,
-		Strategy: strategy.Deployment{},
+		Object:      dc,
+		Annotations: dc.ObjectMeta.Annotations,
+		Strategy:    strategy.Deployment{},
 	}, nil
 }

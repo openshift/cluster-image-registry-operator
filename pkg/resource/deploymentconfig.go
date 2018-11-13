@@ -42,7 +42,8 @@ func DeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Templa
 	addOwnerRefToObject(dc, asOwner(cr))
 
 	return Template{
-		Object:   dc,
-		Strategy: strategy.DeploymentConfig{},
+		Object:      dc,
+		Annotations: dc.ObjectMeta.Annotations,
+		Strategy:    strategy.DeploymentConfig{},
 	}, nil
 }

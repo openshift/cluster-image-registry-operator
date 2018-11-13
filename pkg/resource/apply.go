@@ -74,7 +74,11 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		}
 
 		if updatedMeta.GetAnnotations() == nil {
-			updatedMeta.SetAnnotations(map[string]string{})
+			if tmpl.Annotations != nil {
+				updatedMeta.SetAnnotations(tmpl.Annotations)
+			} else {
+				updatedMeta.SetAnnotations(map[string]string{})
+			}
 		}
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
