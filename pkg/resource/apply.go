@@ -9,6 +9,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -96,7 +97,15 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 }
 
 func RemoveByTemplate(tmpl Template, modified *bool) error {
-	err := sdk.Delete(tmpl.Expected())
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+
+	opt := sdk.WithDeleteOptions(&metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	})
+
+	err := sdk.Delete(tmpl.Expected(), opt)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete %s: %s", tmpl.Name(), err)

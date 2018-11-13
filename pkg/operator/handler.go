@@ -111,10 +111,12 @@ func isDeploymentStatusComplete(o runtime.Object) bool {
 func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Object, statusChanged *bool) {
 	metaObject := o.(metav1.Object)
 
+	resourceRemoved := operatorapi.ConditionTrue
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 
 	if metaObject.GetDeletionTimestamp() == nil && isDeploymentStatusAvailable(o) {
+		resourceRemoved = operatorapi.ConditionFalse
 		operatorAvailable = osapi.ConditionTrue
 		operatorAvailableMsg = "deployment has minimum availability"
 	}
@@ -123,6 +125,8 @@ func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Obj
 	if errOp != nil {
 		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
 	}
+
+	conditionRemoved(cr, resourceRemoved, operatorAvailableMsg, statusChanged)
 
 	operatorProgressing := osapi.ConditionTrue
 	operatorProgressingMsg := "deployment is progressing"
@@ -215,6 +219,20 @@ func conditionSyncDeployment(cr *regopapi.ImageRegistry, syncSuccessful operator
 	}
 }
 
+func conditionRemoved(cr *regopapi.ImageRegistry, state operatorapi.ConditionStatus, m string, modified *bool) {
+	changed := updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               regopapi.OperatorStatusTypeRemoved,
+		Status:             state,
+		LastTransitionTime: metav1.Now(),
+		Reason:             "",
+		Message:            m,
+	})
+
+	if changed {
+		*modified = true
+	}
+}
+
 func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 	logrus.Debugf("received event for %T (deleted=%t)", event.Object, event.Deleted)
 
@@ -273,6 +291,10 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		cr, err = h.getImageRegistryForResource(&o.ObjectMeta)
 		if err != nil {
 			return err
+		}
+
+		if cr.Spec.ManagementState != operatorapi.Managed {
+			return nil
 		}
 
 		if cr == nil || !metav1.IsControlledBy(o, cr) {
@@ -386,10 +408,6 @@ func (h *Handler) getImageRegistryForResource(o metav1.Object) (*regopapi.ImageR
 		return nil, nil
 	}
 
-	if cr.Spec.ManagementState != operatorapi.Managed {
-		return nil, nil
-	}
-
 	return cr, nil
 }
 
@@ -432,7 +450,7 @@ func (h *Handler) createOrUpdateResources(o *regopapi.ImageRegistry, modified *b
 }
 
 func (h *Handler) CreateOrUpdateResources(o *regopapi.ImageRegistry, modified *bool) {
-	if o.Spec.ManagementState == operatorapi.Unmanaged {
+	if o.Spec.ManagementState != operatorapi.Managed {
 		return
 	}
 
