@@ -109,10 +109,12 @@ func isDeploymentStatusComplete(o runtime.Object) bool {
 }
 
 func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Object, statusChanged *bool) {
+	metaObject := o.(metav1.Object)
+
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 
-	if isDeploymentStatusAvailable(o) {
+	if metaObject.GetDeletionTimestamp() == nil && isDeploymentStatusAvailable(o) {
 		operatorAvailable = osapi.ConditionTrue
 		operatorAvailableMsg = "deployment has minimum availability"
 	}
@@ -125,9 +127,14 @@ func (h *Handler) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Obj
 	operatorProgressing := osapi.ConditionTrue
 	operatorProgressingMsg := "deployment is progressing"
 
-	if isDeploymentStatusComplete(o) {
-		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "deployment successfully progressed"
+	if  metaObject.GetDeletionTimestamp() == nil {
+		if isDeploymentStatusComplete(o) {
+			operatorProgressing = osapi.ConditionFalse
+			operatorProgressingMsg = "deployment successfully progressed"
+		}
+	} else {
+			operatorProgressing = osapi.ConditionFalse
+			operatorProgressingMsg = "deployment removed"
 	}
 
 	errOp = h.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
@@ -326,6 +333,10 @@ func (h *Handler) Handle(ctx context.Context, event sdk.Event) error {
 		case operatorapi.Removed:
 			err = h.RemoveResources(cr)
 			if err != nil {
+				errOp := h.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
+				if errOp != nil {
+					logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+				}
 				conditionResourceApply(o, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 			}
 		case operatorapi.Managed:
