@@ -21,15 +21,15 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
 
-func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 	modified := false
 
-	errOp := h.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
+	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
 	if errOp != nil {
 		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
 	}
 
-	templetes, err := resource.Templates(o, &h.params)
+	templetes, err := resource.Templates(o, &c.params)
 	if err != nil {
 		return fmt.Errorf("unable to generate templates: %s", err)
 	}
@@ -45,7 +45,7 @@ func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
 	return nil
 }
 
-func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	if o.ObjectMeta.DeletionTimestamp == nil {
 		return nil
 	}
@@ -63,9 +63,9 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 
 	logrus.Infof("finalizing %s", metautil.TypeAndName(o))
 
-	err := h.RemoveResources(o)
+	err := c.RemoveResources(o)
 	if err != nil {
-		errOp := h.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
+		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 		if errOp != nil {
 			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 		}

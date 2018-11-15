@@ -32,7 +32,7 @@ func resourceName(namespace string) string {
 	return "image-registry"
 }
 
-func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
+func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 
 	crList := &imageregistryapi.ImageRegistryList{
@@ -42,7 +42,7 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 		},
 	}
 
-	err := sdk.List(h.params.Deployment.Namespace, crList)
+	err := sdk.List(c.params.Deployment.Namespace, crList)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, fmt.Errorf("failed to list registry custom resources: %s", err)
@@ -54,7 +54,7 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 		// let's create it.
 	case 1:
 		if crList.Items[0].ObjectMeta.DeletionTimestamp != nil {
-			err = h.finalizeResources(&crList.Items[0])
+			err = c.finalizeResources(&crList.Items[0])
 			if err != nil {
 				return nil, err
 			}
@@ -62,7 +62,7 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			return &crList.Items[0], nil
 		}
 	default:
-		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", h.params.Deployment.Namespace, len(crList.Items))
+		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", c.params.Deployment.Namespace, len(crList.Items))
 	}
 
 	var spec imageregistryapi.ImageRegistrySpec
@@ -74,8 +74,8 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			Kind:       "DeploymentConfig",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceName(h.params.Deployment.Namespace),
-			Namespace: h.params.Deployment.Namespace,
+			Name:      resourceName(c.params.Deployment.Namespace),
+			Namespace: c.params.Deployment.Namespace,
 		},
 	}
 	err = sdk.Get(dc)
@@ -91,11 +91,11 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	} else if err != nil {
 		return nil, fmt.Errorf("unable to check if the deployment already exists: %s", err)
 	} else {
-		logrus.Infof("adapting the existing deployment config...")
+		logrus.Infof("adopting the existing deployment config...")
 		var tlsSecret *corev1.Secret
 		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(dc.ObjectMeta.Namespace))
 		if err != nil {
-			return nil, fmt.Errorf("unable to adapt the existing deployment config: %s", err)
+			return nil, fmt.Errorf("unable to adopt the existing deployment config: %s", err)
 		}
 		if tlsSecret != nil {
 			tlsSecret.TypeMeta = metav1.TypeMeta{
@@ -122,8 +122,8 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			Kind:       "ImageRegistry",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       resourceName(h.params.Deployment.Namespace),
-			Namespace:  h.params.Deployment.Namespace,
+			Name:       resourceName(c.params.Deployment.Namespace),
+			Namespace:  c.params.Deployment.Namespace,
 			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec:   spec,
@@ -138,7 +138,7 @@ func (h *Handler) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
 
-	driver, err := storage.NewDriver(cr.Name, h.params.Deployment.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		if err != storage.ErrStorageNotConfigured {
 			return nil, err
