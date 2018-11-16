@@ -146,7 +146,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		if !kerrors.IsNotFound(err) {
 			for _, isRetryError := range errorFuncs {
 				if isRetryError(err) {
-					return
+					return false, nil
 				}
 			}
 
@@ -156,7 +156,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 				if retryTime < delayTime {
 					time.Sleep(delayTime - retryTime)
 				}
-				return
+				return false, nil
 			}
 
 			err = fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
