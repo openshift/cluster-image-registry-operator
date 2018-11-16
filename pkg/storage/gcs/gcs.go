@@ -18,7 +18,7 @@ import (
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
-	util "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type driver struct {
@@ -155,21 +155,23 @@ func (d *driver) CompleteConfiguration() error {
 	return nil
 }
 
-func (d *driver) ValidateConfiguration(prevState *coreapi.ConfigMap) error {
-	if v, ok := prevState.Data["storagetype"]; ok {
+func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
+	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
 		if v != d.GetName() {
 			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
 		}
 	} else {
-		prevState.Data["storagetype"] = d.GetName()
+		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
+		*modified = true
 	}
 
-	if v, ok := prevState.Data["gcs-bucket"]; ok {
+	if v, ok := util.GetStateValue(&cr.Status, "gcs-bucket"); ok {
 		if v != d.Config.Bucket {
 			return fmt.Errorf("GCS bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
 		}
 	} else {
-		prevState.Data["gcs-bucket"] = d.Config.Bucket
+		util.SetStateValue(&cr.Status, "gcs-bucket", d.Config.Bucket)
+		*modified = true
 	}
 
 	return nil

@@ -18,6 +18,7 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
+	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
 	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
 	k8sutil "github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
@@ -71,29 +72,41 @@ func main() {
 	k8sutil.AddToSDKScheme(appsapi.AddToScheme)
 	k8sutil.AddToSDKScheme(routeapi.AddToScheme)
 
-	dc := &appsapi.DeploymentConfig{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: appsapi.SchemeGroupVersion.String(),
-			Kind:       "DeploymentConfig",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "docker-registry",
-			Namespace: "default",
-		},
-	}
-	err = sdk.Get(dc)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			logrus.Fatal(err)
+	if envval := os.Getenv("IMAGE_REGISTRY_OPERATOR_NO_ADOPTION"); envval == "" {
+		dc := &appsapi.DeploymentConfig{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: appsapi.SchemeGroupVersion.String(),
+				Kind:       "DeploymentConfig",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "docker-registry",
+				Namespace: "default",
+			},
 		}
-	} else {
-		namespace = "default"
+		err = sdk.Get(dc)
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				logrus.Fatal(err)
+			}
+		} else {
+			namespace = "default"
+		}
 	}
 
-	handler, err := operator.NewHandler(namespace)
+	// set up signals so we handle the first shutdown signal gracefully
+	stopCh := signals.SetupSignalHandler()
+
+	controller, err := operator.NewController(namespace)
 	if err != nil {
 		logrus.Fatal(err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		defer cancel()
+		controller.Run(stopCh)
+	}()
 
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRole", "", 0)
 	watch(rbacapi.SchemeGroupVersion.String(), "ClusterRoleBinding", "", 0)
@@ -105,8 +118,7 @@ func main() {
 	watch(corev1.SchemeGroupVersion.String(), "Service", namespace, 0)
 	watch(routeapi.SchemeGroupVersion.String(), "Route", namespace, 0)
 	watch(kappsapi.SchemeGroupVersion.String(), "Deployment", namespace, 10*time.Minute)
-	watch(appsapi.SchemeGroupVersion.String(), "DeploymentConfig", namespace, 10*time.Minute)
 
-	sdk.Handle(handler)
-	sdk.Run(context.TODO())
+	sdk.Handle(controller)
+	sdk.Run(ctx)
 }

@@ -14,7 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	util "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type driver struct {
@@ -147,29 +147,32 @@ func (d *driver) CompleteConfiguration() error {
 	return nil
 }
 
-func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
-	if v, ok := prevState.Data["storagetype"]; ok {
+func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
+	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
 		if v != d.GetName() {
 			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
 		}
 	} else {
-		prevState.Data["storagetype"] = d.GetName()
+		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
+		*modified = true
 	}
 
-	if v, ok := prevState.Data["s3-bucket"]; ok {
+	if v, ok := util.GetStateValue(&cr.Status, "s3-bucket"); ok {
 		if v != d.Config.Bucket {
 			return fmt.Errorf("S3 bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
 		}
 	} else {
-		prevState.Data["s3-bucket"] = d.Config.Bucket
+		util.SetStateValue(&cr.Status, "s3-bucket", d.Config.Bucket)
+		*modified = true
 	}
 
-	if v, ok := prevState.Data["s3-region"]; ok {
+	if v, ok := util.GetStateValue(&cr.Status, "s3-region"); ok {
 		if v != d.Config.Region {
 			return fmt.Errorf("S3 region change is not supported: expected region %s, but got %s", v, d.Config.Region)
 		}
 	} else {
-		prevState.Data["s3-region"] = d.Config.Region
+		util.SetStateValue(&cr.Status, "s3-region", d.Config.Region)
+		*modified = true
 	}
 
 	return nil

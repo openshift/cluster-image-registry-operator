@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
+func makeDefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -45,7 +45,7 @@ func DefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, 
 	}, nil
 }
 
-func Route(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute, p *parameters.Globals) (Template, error) {
+func makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute, p *parameters.Globals) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -99,12 +99,12 @@ func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[s
 	ret := map[string]Generator{}
 
 	if cr.Spec.DefaultRoute {
-		ret[cr.ObjectMeta.Name+"-default-route"] = DefaultRoute
+		ret[cr.ObjectMeta.Name+"-default-route"] = makeDefaultRoute
 	}
 
 	for i := range cr.Spec.Routes {
 		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
-			return Route(o, &o.Spec.Routes[i], p)
+			return makeRoute(o, &o.Spec.Routes[i], p)
 		}
 	}
 

@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func checksum(o interface{}) (string, error) {
+func Checksum(o interface{}) (string, error) {
 	data, err := json.Marshal(o)
 	if err != nil {
 		return "", err
@@ -23,22 +26,23 @@ func checksum(o interface{}) (string, error) {
 }
 
 func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
-	expected := tmpl.Expected()
-
-	dgst, err := checksum(expected)
+	dgst, err := Checksum(tmpl.Expected())
 	if err != nil {
 		return fmt.Errorf("unable to generate checksum for %s: %s", tmpl.Name(), err)
 	}
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		current := expected
+		current := tmpl.Expected()
 
 		err := sdk.Get(current)
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get object %s: %s", tmpl.Name(), err)
 			}
-			err = sdk.Create(expected)
+
+			logrus.Infof("creating object: %s", tmpl.Name())
+
+			err = sdk.Create(current)
 			if err == nil {
 				*modified = true
 				return nil
@@ -60,6 +64,7 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if !force && ok && dgst == curdgst {
+			logrus.Debugf("object has not changed: %s", tmpl.Name())
 			return nil
 		}
 
@@ -74,13 +79,19 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 		}
 
 		if updatedMeta.GetAnnotations() == nil {
-			updatedMeta.SetAnnotations(map[string]string{})
+			if tmpl.Annotations != nil {
+				updatedMeta.SetAnnotations(tmpl.Annotations)
+			} else {
+				updatedMeta.SetAnnotations(map[string]string{})
+			}
 		}
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
 		if force {
 			updatedMeta.SetGeneration(currentMeta.GetGeneration() + 1)
 		}
+
+		logrus.Infof("updating object: %s", tmpl.Name())
 
 		err = sdk.Update(updated)
 		if err == nil {
@@ -92,7 +103,17 @@ func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
 }
 
 func RemoveByTemplate(tmpl Template, modified *bool) error {
-	err := sdk.Delete(tmpl.Expected())
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+
+	opt := sdk.WithDeleteOptions(&metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	})
+
+	logrus.Infof("deleting opject %s", tmpl.Name())
+
+	err := sdk.Delete(tmpl.Expected(), opt)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete %s: %s", tmpl.Name(), err)

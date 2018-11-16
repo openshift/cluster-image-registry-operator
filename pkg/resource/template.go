@@ -12,9 +12,10 @@ import (
 type TemplateValidator func(runtime.Object) error
 
 type Template struct {
-	Object    runtime.Object
-	Strategy  strategy.Strategy
-	Validator TemplateValidator
+	Object      runtime.Object
+	Annotations map[string]string
+	Strategy    strategy.Strategy
+	Validator   TemplateValidator
 }
 
 func (t *Template) Name() string {

@@ -9,6 +9,10 @@ import (
 	operatorsv1alpha1api "github.com/openshift/api/operator/v1alpha1"
 )
 
+const (
+	OperatorStatusTypeRemoved = "Removed"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type ImageRegistryList struct {
@@ -93,8 +97,15 @@ type ImageRegistrySpec struct {
 	Replicas     int32                       `json:"replicas,omitempty"`
 }
 
+type ImageRegistryStatusState struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
 
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
+
+	State []ImageRegistryStatusState `json:"state"`
 }

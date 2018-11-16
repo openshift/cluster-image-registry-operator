@@ -10,8 +10,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func DeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
-	podTemplateSpec, annotations, err := PodTemplateSpec(cr, p)
+func makeDeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+	podTemplateSpec, annotations, err := makePodTemplateSpec(cr, p)
 	if err != nil {
 		return Template{}, err
 	}
@@ -42,7 +42,8 @@ func DeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Templa
 	addOwnerRefToObject(dc, asOwner(cr))
 
 	return Template{
-		Object:   dc,
-		Strategy: strategy.DeploymentConfig{},
+		Object:      dc,
+		Annotations: dc.ObjectMeta.Annotations,
+		Strategy:    strategy.DeploymentConfig{},
 	}, nil
 }

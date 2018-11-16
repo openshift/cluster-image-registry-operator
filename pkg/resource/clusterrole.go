@@ -9,7 +9,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ClusterRole(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func makeClusterRole(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	role := &rbacapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacapi.SchemeGroupVersion.String(),

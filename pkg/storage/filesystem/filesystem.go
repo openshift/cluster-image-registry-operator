@@ -8,6 +8,7 @@ import (
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/coreutil"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 const (
@@ -59,13 +60,14 @@ func (d *driver) CompleteConfiguration() error {
 	return nil
 }
 
-func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
-	if v, ok := prevState.Data["storagetype"]; ok {
+func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
+	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
 		if v != d.GetName() {
 			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
 		}
 	} else {
-		prevState.Data["storagetype"] = d.GetName()
+		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
+		*modified = true
 	}
 
 	field, err := coreutil.GetVolumeSourceField(d.Config.VolumeSource)
@@ -76,12 +78,13 @@ func (d *driver) ValidateConfiguration(prevState *corev1.ConfigMap) error {
 	fieldname := strings.ToLower(field.Name)
 
 	if len(fieldname) > 0 {
-		if v, ok := prevState.Data["storagefield"]; ok {
+		if v, ok := util.GetStateValue(&cr.Status, "storagefield"); ok {
 			if v != fieldname {
 				return fmt.Errorf("volumeSource type change is not supported: expected storage type %s, but got %s", v, fieldname)
 			}
 		} else {
-			prevState.Data["storagefield"] = fieldname
+			util.SetStateValue(&cr.Status, "storagefield", fieldname)
+			*modified = true
 		}
 	}
 

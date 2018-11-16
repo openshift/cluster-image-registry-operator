@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 
+	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -19,10 +21,15 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
 
-func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 	modified := false
 
-	templetes, err := h.GenerateTemplates(o, &h.params)
+	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
+	if errOp != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
+	}
+
+	templetes, err := resource.Templates(o, &c.params)
 	if err != nil {
 		return fmt.Errorf("unable to generate templates: %s", err)
 	}
@@ -35,20 +42,10 @@ func (h *Handler) RemoveResources(o *regopapi.ImageRegistry) error {
 		logrus.Infof("resource %s removed", tmpl.Name())
 	}
 
-	configState, err := resource.GetConfigState(h.params.Deployment.Namespace)
-	if err != nil {
-		return fmt.Errorf("unable to get previous config state: %s", err)
-	}
-
-	err = resource.RemoveConfigState(configState)
-	if err != nil {
-		return fmt.Errorf("unable to remove previous config state: %s", err)
-	}
-
 	return nil
 }
 
-func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	if o.ObjectMeta.DeletionTimestamp == nil {
 		return nil
 	}
@@ -66,8 +63,12 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 
 	logrus.Infof("finalizing %s", metautil.TypeAndName(o))
 
-	err := h.RemoveResources(o)
+	err := c.RemoveResources(o)
 	if err != nil {
+		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
+		if errOp != nil {
+			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+		}
 		return err
 	}
 
@@ -99,6 +100,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 		}
 
 		cr.ObjectMeta.Finalizers = finalizers
+		addImageRegistryChecksum(cr)
 
 		err := sdk.Update(cr)
 		if err != nil {
@@ -144,7 +146,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 		if !kerrors.IsNotFound(err) {
 			for _, isRetryError := range errorFuncs {
 				if isRetryError(err) {
-					return
+					return false, nil
 				}
 			}
 
@@ -154,7 +156,7 @@ func (h *Handler) finalizeResources(o *regopapi.ImageRegistry) error {
 				if retryTime < delayTime {
 					time.Sleep(delayTime - retryTime)
 				}
-				return
+				return false, nil
 			}
 
 			err = fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)

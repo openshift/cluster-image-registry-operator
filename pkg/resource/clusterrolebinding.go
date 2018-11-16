@@ -9,7 +9,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
 )
 
-func ClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func makeClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
 	crb := &rbacapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacapi.SchemeGroupVersion.String(),
