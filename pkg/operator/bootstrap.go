@@ -18,6 +18,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -30,6 +31,20 @@ func resourceName(namespace string) string {
 		return "docker-registry"
 	}
 	return "image-registry"
+}
+
+func addImageRegistryChecksum(cr *imageregistryapi.ImageRegistry) {
+	dgst, err := resource.Checksum(cr.Spec)
+	if err != nil {
+		logrus.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
+		return
+	}
+
+	if cr.ObjectMeta.Annotations == nil {
+		cr.ObjectMeta.Annotations = make(map[string]string)
+	}
+
+	cr.ObjectMeta.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
 }
 
 func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
@@ -156,6 +171,8 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			return nil, err
 		}
 	}
+
+	addImageRegistryChecksum(cr)
 
 	return cr, sdk.Create(cr)
 }

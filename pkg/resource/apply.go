@@ -17,7 +17,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func checksum(o interface{}) (string, error) {
+func Checksum(o interface{}) (string, error) {
 	data, err := json.Marshal(o)
 	if err != nil {
 		return "", err
@@ -26,7 +26,7 @@ func checksum(o interface{}) (string, error) {
 }
 
 func ApplyTemplate(tmpl Template, force bool, modified *bool) error {
-	dgst, err := checksum(tmpl.Expected())
+	dgst, err := Checksum(tmpl.Expected())
 	if err != nil {
 		return fmt.Errorf("unable to generate checksum for %s: %s", tmpl.Name(), err)
 	}

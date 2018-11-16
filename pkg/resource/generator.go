@@ -34,7 +34,7 @@ func Templates(cr *regopapi.ImageRegistry, p *parameters.Globals) (ret []Templat
 			return
 		}
 
-		resourceData[i], err = checksum(ret[i].Expected())
+		resourceData[i], err = Checksum(ret[i].Expected())
 		if err != nil {
 			err = fmt.Errorf("unable to generate checksum for %s: %s", ret[i].Name(), err)
 			return
@@ -46,7 +46,7 @@ func Templates(cr *regopapi.ImageRegistry, p *parameters.Globals) (ret []Templat
 		return
 	}
 
-	dgst, err := checksum(resourceData)
+	dgst, err := Checksum(resourceData)
 	if err != nil {
 		err = fmt.Errorf("unable to generate checksum for %s dependencies: %s", deploymentTmpl.Name(), err)
 		return

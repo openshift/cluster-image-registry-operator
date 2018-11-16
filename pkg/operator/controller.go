@@ -221,9 +221,19 @@ func (c *Controller) Handle(ctx context.Context, event sdk.Event) error {
 		return nil
 	}
 
-	gvk := event.Object.GetObjectKind().GroupVersionKind()
+	if cr, ok := event.Object.(*regopapi.ImageRegistry); ok {
+		dgst, err := resource.Checksum(cr.Spec)
+		if err != nil {
+			logrus.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+			dgst = ""
+		}
 
-	if gvk.Kind != "ImageRegistry" || gvk.Group != regopapi.SchemeGroupVersion.Group || gvk.Version != regopapi.SchemeGroupVersion.Version {
+		curdgst, ok := metaObject.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
+		if ok && dgst == curdgst {
+			logrus.Debugf("ImageRegistry %s Spec has not changed", metaObject.GetName())
+			return nil
+		}
+	} else {
 		ownerRef := metaapi.GetControllerOf(metaObject)
 
 		if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
@@ -334,6 +344,7 @@ func (c *Controller) sync() error {
 		logrus.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
+		addImageRegistryChecksum(cr)
 
 		err = sdk.Update(cr)
 		if err != nil && !errors.IsConflict(err) {

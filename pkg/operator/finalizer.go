@@ -100,6 +100,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		}
 
 		cr.ObjectMeta.Finalizers = finalizers
+		addImageRegistryChecksum(cr)
 
 		err := sdk.Update(cr)
 		if err != nil {
