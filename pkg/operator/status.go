@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"fmt"
+
 	"github.com/sirupsen/logrus"
 
 	kappsapi "k8s.io/api/apps/v1"
@@ -12,12 +14,9 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 )
 
-func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition) bool {
-	modified := false
+func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition, modified *bool) {
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
 
@@ -26,72 +25,65 @@ func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.Operator
 			conditions = append(conditions, c)
 			continue
 		}
-		if condition.Status != c.Status {
-			modified = true
+		if c.Status != condition.Status {
+			c.Status = condition.Status
+			c.LastTransitionTime = condition.LastTransitionTime
+			*modified = true
 		}
-		conditions = append(conditions, *condition)
+		if c.Reason != condition.Reason {
+			c.Reason = condition.Reason
+			*modified = true
+		}
+		if c.Message != condition.Message {
+			c.Message = condition.Message
+			*modified = true
+		}
+		conditions = append(conditions, c)
 		found = true
 	}
 
 	if !found {
 		conditions = append(conditions, *condition)
-		modified = true
+		*modified = true
 	}
 
 	cr.Status.Conditions = conditions
-	return modified
 }
 
-func conditionResourceApply(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	if status == operatorapi.ConditionFalse {
-		logrus.Errorf("condition failed on %s: %s", metautil.TypeAndName(cr), m)
-	}
+func conditionRemoved(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               regopapi.OperatorStatusTypeRemoved,
+		Status:             status,
+		LastTransitionTime: metaapi.Now(),
+		Message:            m,
+	}, modified)
+}
 
-	changed := updateCondition(cr, &operatorapi.OperatorCondition{
+func conditionAvailable(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+	updateCondition(cr, &operatorapi.OperatorCondition{
 		Type:               operatorapi.OperatorStatusTypeAvailable,
 		Status:             status,
 		LastTransitionTime: metaapi.Now(),
-		Reason:             "ResourceApplied",
 		Message:            m,
-	})
-
-	if changed {
-		*modified = true
-	}
+	}, modified)
 }
 
-func conditionSyncDeployment(cr *regopapi.ImageRegistry, syncSuccessful operatorapi.ConditionStatus, m string, modified *bool) {
-	reason := "DeploymentProgressed"
-
-	if syncSuccessful == operatorapi.ConditionFalse {
-		reason = "DeploymentInProgress"
-	}
-
-	changed := updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeSyncSuccessful,
-		Status:             syncSuccessful,
+func conditionProgressing(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeProgressing,
+		Status:             status,
 		LastTransitionTime: metaapi.Now(),
-		Reason:             reason,
 		Message:            m,
-	})
-
-	if changed {
-		*modified = true
-	}
+	}, modified)
 }
 
-func conditionRemoved(cr *regopapi.ImageRegistry, state operatorapi.ConditionStatus, m string, modified *bool) {
-	changed := updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               regopapi.OperatorStatusTypeRemoved,
-		Status:             state,
+func conditionFailing(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeFailing,
+		Status:             status,
 		LastTransitionTime: metaapi.Now(),
-		Reason:             "",
 		Message:            m,
-	})
-
-	if changed {
-		*modified = true
-	}
+	}, modified)
 }
 
 func isDeploymentStatusAvailable(o runtime.Object) bool {
@@ -124,45 +116,77 @@ func isDeploymentStatusComplete(o runtime.Object) bool {
 	return false
 }
 
-func (c *Controller) syncDeploymentStatus(cr *regopapi.ImageRegistry, o runtime.Object, statusChanged *bool) {
-	metaObject := o.(metaapi.Object)
+func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, applyError error, statusChanged *bool) {
+	metaObject, _ := o.(metaapi.Object)
 
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
-
-	if metaObject.GetDeletionTimestamp() == nil && isDeploymentStatusAvailable(o) {
+	if o == nil {
+		operatorAvailableMsg = "deployment does not exist"
+	} else if metaObject.GetDeletionTimestamp() != nil {
+		operatorAvailableMsg = "deployment is being deleted"
+	} else if !isDeploymentStatusAvailable(o) {
+		operatorAvailableMsg = "deployment does not have available replicas"
+	} else {
 		operatorAvailable = osapi.ConditionTrue
 		operatorAvailableMsg = "deployment has minimum availability"
 	}
 
-	errOp := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
-	if errOp != nil {
-		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorAvailable, osapi.ConditionTrue, errOp)
+	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
+	if err != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, err)
 	}
+
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeAvailable,
+		Status:             operatorapi.ConditionStatus(operatorAvailable),
+		LastTransitionTime: metaapi.Now(),
+		Message:            operatorAvailableMsg,
+	}, statusChanged)
 
 	operatorProgressing := osapi.ConditionTrue
-	operatorProgressingMsg := "deployment is progressing"
-
-	if metaObject.GetDeletionTimestamp() == nil {
-		if isDeploymentStatusComplete(o) {
-			operatorProgressing = osapi.ConditionFalse
-			operatorProgressingMsg = "deployment successfully progressed"
-		}
+	operatorProgressingMsg := ""
+	if applyError != nil {
+		operatorProgressingMsg = fmt.Sprintf("unable to apply resources: %s", applyError)
+	} else if o == nil {
+		operatorProgressingMsg = "all resources are successfully applied, but the deployment does not exist"
+	} else if metaObject.GetDeletionTimestamp() != nil {
+		operatorProgressingMsg = "the deployment is being deleted"
+	} else if !isDeploymentStatusComplete(o) {
+		operatorProgressingMsg = "the deployment has not completed"
 	} else {
 		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "deployment removed"
+		operatorProgressingMsg = "everything is ready"
 	}
 
-	errOp = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
-	if errOp != nil {
-		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, operatorProgressing, errOp)
+	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
+	if err != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, err)
 	}
 
-	syncSuccessful := operatorapi.ConditionFalse
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeProgressing,
+		Status:             operatorapi.ConditionStatus(operatorProgressing),
+		LastTransitionTime: metaapi.Now(),
+		Message:            operatorProgressingMsg,
+	}, statusChanged)
 
-	if operatorProgressing == osapi.ConditionFalse {
-		syncSuccessful = operatorapi.ConditionTrue
+	operatorFailing := osapi.ConditionFalse
+	operatorFailingMsg := ""
+	if _, ok := applyError.(permanentError); ok {
+		operatorFailing = osapi.ConditionTrue
+		operatorFailingMsg = applyError.Error()
 	}
 
-	conditionSyncDeployment(cr, syncSuccessful, operatorProgressingMsg, statusChanged)
+	err = c.clusterStatus.Update(osapi.OperatorFailing, operatorFailing, operatorFailingMsg)
+	if err != nil {
+		logrus.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorFailing, operatorFailing, operatorFailingMsg, err)
+	}
+
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               operatorapi.OperatorStatusTypeFailing,
+		Status:             operatorapi.ConditionStatus(operatorFailing),
+		LastTransitionTime: metaapi.Now(),
+		Message:            operatorFailingMsg,
+	}, statusChanged)
 }

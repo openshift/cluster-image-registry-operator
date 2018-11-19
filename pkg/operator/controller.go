@@ -14,6 +14,7 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
@@ -33,6 +34,14 @@ import (
 const (
 	WORKQUEUE_KEY = "changes"
 )
+
+type permanentError struct {
+	Err error
+}
+
+func (e permanentError) Error() string {
+	return e.Err.Error()
+}
 
 func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
 	operatorNamespace, err := k8sutil.GetWatchNamespace()
@@ -114,13 +123,15 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	}
 
 	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
-	if err != nil {
+	if err == storage.ErrStorageNotConfigured {
+		return permanentError{Err: err}
+	} else if err != nil {
 		return fmt.Errorf("unable to create storage driver: %s", err)
 	}
 
 	err = driver.ValidateConfiguration(cr, modified)
 	if err != nil {
-		return fmt.Errorf("bad custom resource: %s", err)
+		return permanentError{Err: fmt.Errorf("invalid configuration: %s", err)}
 	}
 
 	err = c.generator.Apply(cr, modified)
@@ -131,27 +142,12 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	return nil
 }
 
-func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) {
+func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
 	if cr.Spec.ManagementState != operatorapi.Managed {
-		return
+		return nil
 	}
 
-	err := c.createOrUpdateResources(cr, modified)
-
-	if err != nil {
-		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to deploy registry")
-		if errOp != nil {
-			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
-		}
-		conditionResourceApply(cr, operatorapi.ConditionFalse, err.Error(), modified)
-	} else {
-		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionFalse, "")
-		if errOp != nil {
-			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionFalse, errOp)
-		}
-		conditionResourceApply(cr, operatorapi.ConditionTrue, "all resources applied", modified)
-		conditionRemoved(cr, operatorapi.ConditionFalse, "", modified)
-	}
+	return c.createOrUpdateResources(cr, modified)
 }
 
 func (c *Controller) Handle(ctx context.Context, event sdk.Event) error {
@@ -163,16 +159,18 @@ func (c *Controller) Handle(ctx context.Context, event sdk.Event) error {
 	}
 
 	if cr, ok := event.Object.(*regopapi.ImageRegistry); ok {
-		dgst, err := resource.Checksum(cr.Spec)
-		if err != nil {
-			logrus.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
-			dgst = ""
-		}
+		if cr.DeletionTimestamp == nil {
+			dgst, err := resource.Checksum(cr.Spec)
+			if err != nil {
+				logrus.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+				dgst = ""
+			}
 
-		curdgst, ok := metaObject.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-		if ok && dgst == curdgst {
-			logrus.Debugf("ImageRegistry %s Spec has not changed", metaObject.GetName())
-			return nil
+			curdgst, ok := metaObject.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
+			if ok && dgst == curdgst {
+				logrus.Debugf("ImageRegistry %s Spec has not changed", metaObject.GetName())
+				return nil
+			}
 		}
 	} else {
 		ownerRef := metaapi.GetControllerOf(metaObject)
@@ -201,20 +199,16 @@ func (c *Controller) sync() error {
 		return err
 	}
 
-	if cr == nil {
-		logrus.Debugf("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
-		return nil
-	}
-
-	if cr.ObjectMeta.DeletionTimestamp != nil {
-		cr, err = c.Bootstrap()
+	if cr == nil || cr.ObjectMeta.DeletionTimestamp != nil {
+		_, err = c.Bootstrap()
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 
 	var statusChanged bool
-
+	var applyError error
 	switch cr.Spec.ManagementState {
 	case operatorapi.Removed:
 		err = c.RemoveResources(cr)
@@ -223,44 +217,23 @@ func (c *Controller) sync() error {
 			if errOp != nil {
 				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 			}
-			conditionResourceApply(cr, operatorapi.ConditionFalse, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
+			conditionProgressing(cr, operatorapi.ConditionTrue, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 		} else {
 			conditionRemoved(cr, operatorapi.ConditionTrue, "", &statusChanged)
+			conditionAvailable(cr, operatorapi.ConditionFalse, "", &statusChanged)
+			conditionProgressing(cr, operatorapi.ConditionFalse, "", &statusChanged)
+			conditionFailing(cr, operatorapi.ConditionFalse, "", &statusChanged)
 		}
 	case operatorapi.Managed:
-		c.CreateOrUpdateResources(cr, &statusChanged)
-
+		conditionRemoved(cr, operatorapi.ConditionFalse, "", &statusChanged)
+		applyError = c.CreateOrUpdateResources(cr, &statusChanged)
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
 		logrus.Warnf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	svc := &coreapi.Service{
-		TypeMeta: metaapi.TypeMeta{
-			APIVersion: coreapi.SchemeGroupVersion.String(),
-			Kind:       "Service",
-		},
-		ObjectMeta: metaapi.ObjectMeta{
-			Name:      c.params.Service.Name,
-			Namespace: c.params.Deployment.Namespace,
-			Labels:    c.params.Deployment.Labels,
-		},
-	}
-
-	err = sdk.Get(svc)
-	if err == nil {
-		svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
-		if cr.Status.InternalRegistryHostname != svcHostname {
-			cr.Status.InternalRegistryHostname = svcHostname
-			statusChanged = true
-		}
-	} else {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get %q service %s", svc.Name, err)
-		}
-	}
-
+	var deployInterface runtime.Object
 	deploy := &kappsapi.Deployment{
 		TypeMeta: metaapi.TypeMeta{
 			APIVersion: kappsapi.SchemeGroupVersion.String(),
@@ -271,15 +244,39 @@ func (c *Controller) sync() error {
 			Namespace: c.params.Deployment.Namespace,
 		},
 	}
-
 	err = sdk.Get(deploy)
-	if err == nil {
-		c.syncDeploymentStatus(cr, deploy, &statusChanged)
-	} else {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get %q deployment: %s", deploy.Name, err)
+	deployInterface = deploy
+	if errors.IsNotFound(err) {
+		deployInterface = nil
+	} else if err != nil {
+		return fmt.Errorf("failed to get %q deployment: %s", deploy.Name, err)
+	}
+
+	if applyError != nil {
+		svc := &coreapi.Service{
+			TypeMeta: metaapi.TypeMeta{
+				APIVersion: coreapi.SchemeGroupVersion.String(),
+				Kind:       "Service",
+			},
+			ObjectMeta: metaapi.ObjectMeta{
+				Name:      c.params.Service.Name,
+				Namespace: c.params.Deployment.Namespace,
+				Labels:    c.params.Deployment.Labels,
+			},
+		}
+		err = sdk.Get(svc)
+		if err == nil {
+			svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+			if cr.Status.InternalRegistryHostname != svcHostname {
+				cr.Status.InternalRegistryHostname = svcHostname
+				statusChanged = true
+			}
+		} else if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to get %q service %s", svc.Name, err)
 		}
 	}
+
+	c.syncStatus(cr, deployInterface, applyError, &statusChanged)
 
 	if statusChanged {
 		logrus.Infof("%s changed", metautil.TypeAndName(cr))

@@ -158,13 +158,6 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 		if err != storage.ErrStorageNotConfigured {
 			return nil, err
 		}
-		cr.Status.Conditions = append(cr.Status.Conditions, operatorapi.OperatorCondition{
-			Type:               operatorapi.OperatorStatusTypeAvailable,
-			Status:             operatorapi.ConditionFalse,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "Bootstrap",
-			Message:            err.Error(),
-		})
 	} else {
 		err = driver.CompleteConfiguration()
 		if err != nil {

@@ -55,7 +55,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		if errOp != nil {
 			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 		}
-		return err
+		return fmt.Errorf("unable to finalize resource: %s", err)
 	}
 
 	cr := o
@@ -95,7 +95,6 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		}
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("unable to update finalizers in %s: %s", metautil.TypeAndName(o), err)
 	}
