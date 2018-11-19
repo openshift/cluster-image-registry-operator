@@ -5,11 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeClusterRoleBinding(cr *v1alpha1.ImageRegistry) (Template, error) {
 	crb := &rbacapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacapi.SchemeGroupVersion.String(),
@@ -21,8 +20,8 @@ func makeClusterRoleBinding(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (
 		Subjects: []rbacapi.Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      p.Pod.ServiceAccount,
-				Namespace: p.Deployment.Namespace,
+				Name:      g.params.Pod.ServiceAccount,
+				Namespace: g.params.Deployment.Namespace,
 			},
 		},
 		RoleRef: rbacapi.RoleRef{

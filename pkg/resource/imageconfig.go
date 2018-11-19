@@ -6,18 +6,17 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeImageConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeImageConfig(cr *v1alpha1.ImageRegistry) (Template, error) {
 	ic := &configapiv1.Image{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: configapiv1.SchemeGroupVersion.String(),
 			Kind:       "Image",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: p.ImageConfig.Name,
+			Name: g.params.ImageConfig.Name,
 		},
 		Status: configapiv1.ImageStatus{
 			InternalRegistryHostname: cr.Status.InternalRegistryHostname,

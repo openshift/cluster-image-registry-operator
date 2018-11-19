@@ -17,6 +17,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
@@ -28,7 +29,13 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
-var logLevel = flag.String("loglevel", "", "sets the sensitivity of logging output.")
+var (
+	logLevel string
+)
+
+func init() {
+	flag.StringVar(&logLevel, "loglevel", "", "sets the sensitivity of logging output.")
+}
 
 func printVersion() {
 	logrus.Infof("Cluster Image Registry Operator Version: %s", version.Version)
@@ -45,20 +52,25 @@ func watch(apiVersion, kind, namespace string, resyncPeriod time.Duration) {
 func main() {
 	flag.Parse()
 
-	if len(*logLevel) == 0 {
+	if len(logLevel) == 0 {
 		envval := os.Getenv("LOG_LEVEL")
 		if len(envval) > 0 {
-			*logLevel = envval
+			logLevel = envval
 		} else {
-			*logLevel = "info"
+			logLevel = "info"
 		}
 	}
-	lvl, err := logrus.ParseLevel(*logLevel)
+	lvl, err := logrus.ParseLevel(logLevel)
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
 	logrus.SetLevel(lvl)
+
+	cfg, err := client.GetConfig()
+	if err != nil {
+		logrus.Fatalf("Error building kubeconfig: %s", err)
+	}
 
 	printVersion()
 
@@ -96,7 +108,7 @@ func main() {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
-	controller, err := operator.NewController(namespace)
+	controller, err := operator.NewController(cfg, namespace)
 	if err != nil {
 		logrus.Fatal(err)
 	}

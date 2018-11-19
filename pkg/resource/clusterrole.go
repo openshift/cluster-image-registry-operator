@@ -5,11 +5,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeClusterRole(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeClusterRole(cr *v1alpha1.ImageRegistry) (Template, error) {
 	role := &rbacapi.ClusterRole{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacapi.SchemeGroupVersion.String(),

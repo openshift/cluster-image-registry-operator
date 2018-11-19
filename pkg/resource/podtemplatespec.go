@@ -60,7 +60,7 @@ func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *cor
 	}
 }
 
-func generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+func (g *Generator) generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
 	ns := &projectapi.Project{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: projectapi.SchemeGroupVersion.String(),
@@ -116,8 +116,8 @@ func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegi
 	return
 }
 
-func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (corev1.PodTemplateSpec, map[string]string, error) {
-	env, volumes, mounts, err := storageConfigure(cr.Name, p.Deployment.Namespace, &cr.Spec.Storage)
+func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodTemplateSpec, map[string]string, error) {
+	env, volumes, mounts, err := storageConfigure(cr.Name, g.params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
 	}
@@ -125,7 +125,7 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 	annotations := map[string]string{}
 
 	env = append(env,
-		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", p.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", g.params.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
 		corev1.EnvVar{Name: "REGISTRY_LOG_LEVEL", Value: generateLogLevel(cr)},
@@ -133,7 +133,7 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
-		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", p.Service.Name, p.Deployment.Namespace, p.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", g.params.Service.Name, g.params.Deployment.Namespace, g.params.Container.Port)},
 	)
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
@@ -164,7 +164,7 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 		)
 	}
 
-	securityContext, err := generateSecurityContext(cr, p.Deployment.Namespace)
+	securityContext, err := g.generateSecurityContext(cr, g.params.Deployment.Namespace)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
@@ -214,7 +214,7 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: p.Deployment.Labels,
+			Labels: g.params.Deployment.Labels,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations: []corev1.Toleration{
@@ -230,14 +230,14 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 					Image: image,
 					Ports: []corev1.ContainerPort{
 						{
-							ContainerPort: int32(p.Container.Port),
+							ContainerPort: int32(g.params.Container.Port),
 							Protocol:      "TCP",
 						},
 					},
 					Env:            env,
 					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(cr, p),
-					ReadinessProbe: generateReadinessProbeConfig(cr, p),
+					LivenessProbe:  generateLivenessProbeConfig(cr, g.params),
+					ReadinessProbe: generateReadinessProbeConfig(cr, g.params),
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -247,7 +247,7 @@ func makePodTemplateSpec(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (cor
 				},
 			},
 			Volumes:            volumes,
-			ServiceAccountName: p.Pod.ServiceAccount,
+			ServiceAccountName: g.params.Pod.ServiceAccount,
 			SecurityContext:    securityContext,
 		},
 	}

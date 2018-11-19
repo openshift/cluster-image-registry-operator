@@ -7,11 +7,10 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func getSecret(name, namespace string) (*corev1.Secret, error) {
+func (g *Generator) getSecret(name, namespace string) (*corev1.Secret, error) {
 	o := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -31,7 +30,7 @@ func getSecret(name, namespace string) (*corev1.Secret, error) {
 	return o, nil
 }
 
-func makeSecret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeSecret(cr *v1alpha1.ImageRegistry) (Template, error) {
 	s := &corev1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
@@ -39,7 +38,7 @@ func makeSecret(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, er
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.ObjectMeta.Name + "-private-configuration",
-			Namespace: p.Deployment.Namespace,
+			Namespace: g.params.Deployment.Namespace,
 		},
 	}
 	addOwnerRefToObject(s, asOwner(cr))
