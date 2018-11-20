@@ -1,35 +1,33 @@
-package util
+package clusterconfig
 
 import (
 	"fmt"
 	"strings"
 
-	corev1 "k8s.io/api/core/v1"
+	installer "github.com/openshift/installer/pkg/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-
-	installer "github.com/openshift/installer/pkg/types"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
-
-type StorageType string
 
 const (
 	STORAGE_PREFIX = "image-registry"
 
-	StorageTypeAzure StorageType = "azure"
-
-	StorageTypeGCS StorageType = "gcs"
-
-	StorageTypeS3 StorageType = "s3"
-
-	StorageTypeEmptyDir StorageType = "emptydir"
-
+	StorageTypeAzure      StorageType = "azure"
+	StorageTypeGCS        StorageType = "gcs"
+	StorageTypeS3         StorageType = "s3"
+	StorageTypeEmptyDir   StorageType = "emptydir"
 	StorageTypeFileSystem StorageType = "filesystem"
+	StorageTypeSwift      StorageType = "swift"
 
-	StorageTypeSwift StorageType = "swift"
+	installerConfigNamespace = "kube-system"
+	installerConfigName      = "cluster-config-v1"
+	installerAWSCredsName    = "aws-creds"
 )
+
+type StorageType string
 
 type Azure struct {
 	AccountName string
@@ -61,18 +59,18 @@ type Config struct {
 }
 
 func GetInstallConfig() (*installer.InstallConfig, error) {
-	cm := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-config-v1",
-			Namespace: "kube-system",
-		},
+	kubeconfig, err := client.GetConfig()
+	if err != nil {
+		return nil, err
 	}
 
-	if err := sdk.Get(cm); err != nil {
+	client, err := coreset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	cm, err := client.ConfigMaps(installerConfigNamespace).Get(installerConfigName, metav1.GetOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("unable to read cluster install configuration: %v", err)
 	}
 
@@ -85,6 +83,16 @@ func GetInstallConfig() (*installer.InstallConfig, error) {
 }
 
 func GetAWSConfig() (*Config, error) {
+	kubeconfig, err := client.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := coreset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{}
 
 	installConfig, err := GetInstallConfig()
@@ -94,18 +102,8 @@ func GetAWSConfig() (*Config, error) {
 	cfg.Storage.Type = StorageTypeS3
 	cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 
-	sec := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "aws-creds",
-			Namespace: "kube-system",
-		},
-	}
-
-	if err := sdk.Get(sec); err != nil {
+	sec, err := client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("unable to read aws-creds secret: %v", err)
 	}
 

@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
+	"github.com/golang/glog"
 
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-
-	routeapi "github.com/openshift/api/route/v1"
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -31,7 +29,7 @@ func Checksum(o interface{}) (string, error) {
 
 type templateGenerator func(*regopapi.ImageRegistry) (Template, error)
 
-func NewGenerator(kubeconfig *restclient.Config, params *parameters.Globals) *Generator {
+func NewGenerator(kubeconfig *rest.Config, params *parameters.Globals) *Generator {
 	return &Generator{
 		kubeconfig: kubeconfig,
 		params:     params,
@@ -39,7 +37,7 @@ func NewGenerator(kubeconfig *restclient.Config, params *parameters.Globals) *Ge
 }
 
 type Generator struct {
-	kubeconfig *restclient.Config
+	kubeconfig *rest.Config
 	params     *parameters.Globals
 }
 
@@ -98,14 +96,12 @@ func (g *Generator) makeTemplates(cr *regopapi.ImageRegistry) (ret []Template, e
 }
 
 func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
-	routeList := &routeapi.RouteList{
-		TypeMeta: metaapi.TypeMeta{
-			APIVersion: routeapi.SchemeGroupVersion.String(),
-			Kind:       "Route",
-		},
+	client, err := routeset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return err
 	}
 
-	err := sdk.List(g.params.Deployment.Namespace, routeList)
+	routeList, err := client.Routes(g.params.Deployment.Namespace).List(metaapi.ListOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to list routes: %s", err)
 	}
@@ -124,6 +120,14 @@ func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error
 		}
 	}
 
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+
+	opts := &metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	}
+
 	for _, route := range routeList.Items {
 		if !metaapi.IsControlledBy(&route, cr) {
 			continue
@@ -131,7 +135,7 @@ func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error
 		if _, found := routes[route.ObjectMeta.Name]; found {
 			continue
 		}
-		err = sdk.Delete(&route)
+		err = client.Routes(g.params.Deployment.Namespace).Delete(route.ObjectMeta.Name, opts)
 		if err != nil {
 			return err
 		}
@@ -148,29 +152,20 @@ func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) err
 	}
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		current := tmpl.Expected()
-
-		err := sdk.Get(current)
+		current, err := tmpl.Get()
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get object %s: %s", tmpl.Name(), err)
 			}
 
-			logrus.Infof("creating object: %s", tmpl.Name())
+			glog.Infof("creating object: %s", tmpl.Name())
 
-			err = sdk.Create(current)
+			err = tmpl.Create()
 			if err == nil {
 				*modified = true
 				return nil
 			}
 			return fmt.Errorf("failed to create object %s: %s", tmpl.Name(), err)
-		}
-
-		if tmpl.Validator != nil {
-			err = tmpl.Validator(current)
-			if err != nil {
-				return err
-			}
 		}
 
 		currentMeta, err := kmeta.Accessor(current)
@@ -180,7 +175,7 @@ func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) err
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if !force && ok && dgst == curdgst {
-			logrus.Debugf("object has not changed: %s", tmpl.Name())
+			glog.V(1).Infof("object has not changed: %s", tmpl.Name())
 			return nil
 		}
 
@@ -207,9 +202,9 @@ func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) err
 			updatedMeta.SetGeneration(currentMeta.GetGeneration() + 1)
 		}
 
-		logrus.Infof("updating object: %s", tmpl.Name())
+		glog.Infof("updating object: %s", tmpl.Name())
 
-		err = sdk.Update(updated)
+		err = tmpl.Update(updated)
 		if err == nil {
 			*modified = true
 			return nil
@@ -243,14 +238,14 @@ func (g *Generator) removeByTemplate(tmpl Template, modified *bool) error {
 	gracePeriod := int64(0)
 	propagationPolicy := metaapi.DeletePropagationForeground
 
-	opt := sdk.WithDeleteOptions(&metaapi.DeleteOptions{
+	opts := &metaapi.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
-	})
+	}
 
-	logrus.Infof("deleting opject %s", tmpl.Name())
+	glog.Infof("deleting object %s", tmpl.Name())
 
-	err := sdk.Delete(tmpl.Expected(), opt)
+	err := tmpl.Delete(opts)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to delete %s: %s", tmpl.Name(), err)
@@ -272,7 +267,7 @@ func (g *Generator) Remove(cr *regopapi.ImageRegistry, modified *bool) error {
 		if err != nil {
 			return fmt.Errorf("unable to remove objects: %s", err)
 		}
-		logrus.Infof("resource %s removed", tmpl.Name())
+		glog.Infof("resource %s removed", tmpl.Name())
 	}
 
 	return nil

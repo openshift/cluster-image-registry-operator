@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	kappsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 func TestMain(m *testing.M) {
@@ -39,18 +39,19 @@ func TestMain(m *testing.M) {
 }
 
 func waitForOperator() error {
-	d := &kappsapi.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: kappsapi.SchemeGroupVersion.String(),
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-image-registry-operator",
-			Namespace: "openshift-image-registry",
-		},
+	kubeconfig, err := client.GetConfig()
+	if err != nil {
+		return err
 	}
-	err := wait.PollImmediate(1*time.Second, 10*time.Minute, func() (bool, error) {
-		if err := sdk.Get(d); err != nil {
+
+	appsclient, err := appsset.NewForConfig(kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	err = wait.PollImmediate(1*time.Second, 10*time.Minute, func() (bool, error) {
+		_, err := appsclient.Deployments("openshift-image-registry").Get("cluster-image-registry-operator", metav1.GetOptions{})
+		if err != nil {
 			fmt.Printf("error waiting for operator deployment to exist: %v\n", err)
 			return false, nil
 		}

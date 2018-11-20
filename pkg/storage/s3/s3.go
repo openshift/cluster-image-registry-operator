@@ -14,8 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-	oputil "github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 type driver struct {
@@ -107,7 +107,7 @@ func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey 
 }
 
 func (d *driver) CompleteConfiguration() error {
-	cfg, err := oputil.GetAWSConfig()
+	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (d *driver) CompleteConfiguration() error {
 
 	if len(d.Config.Bucket) == 0 {
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s", util.STORAGE_PREFIX, string(uuid.NewUUID()))
+			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
 			if err := d.createBucket(svc); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {

@@ -6,14 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	projectapi "github.com/openshift/api/project/v1"
+	projectset "github.com/openshift/client-go/project/clientset/versioned"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -61,16 +59,12 @@ func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *cor
 }
 
 func (g *Generator) generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
-	ns := &projectapi.Project{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: projectapi.SchemeGroupVersion.String(),
-			Kind:       "Project",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespace,
-		},
+	client, err := projectset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
 	}
-	err := sdk.Get(ns)
+
+	ns, err := client.ProjectV1().Projects().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +89,7 @@ func (g *Generator) generateSecurityContext(cr *v1alpha1.ImageRegistry, namespac
 	}, nil
 }
 
-func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func (g *Generator) storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
 	driver, err = storage.NewDriver(crname, crnamespace, cfg)
@@ -117,7 +111,7 @@ func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegi
 }
 
 func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodTemplateSpec, map[string]string, error) {
-	env, volumes, mounts, err := storageConfigure(cr.Name, g.params.Deployment.Namespace, &cr.Spec.Storage)
+	env, volumes, mounts, err := g.storageConfigure(cr.Name, g.params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
 	}

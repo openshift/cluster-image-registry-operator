@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-	oputil "github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 type driver struct {
@@ -87,7 +87,7 @@ func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
 
 func (d *driver) CompleteConfiguration() error {
 	// Apply global config
-	cfg, err := oputil.GetGCSConfig()
+	cfg, err := clusterconfig.GetGCSConfig()
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (d *driver) CompleteConfiguration() error {
 		}
 
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s", util.STORAGE_PREFIX, string(uuid.NewUUID()))
+			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
 
 			err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
 

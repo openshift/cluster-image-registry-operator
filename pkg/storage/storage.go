@@ -8,13 +8,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/filesystem"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var (
@@ -79,21 +79,21 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 			return nil, fmt.Errorf("unable to get storage type from cluster install config: %s", err)
 		}
 		switch storageType {
-		case util.StorageTypeAzure:
+		case clusterconfig.StorageTypeAzure:
 			cfg.Azure = &opapi.ImageRegistryConfigStorageAzure{}
-		case util.StorageTypeFileSystem:
+		case clusterconfig.StorageTypeFileSystem:
 			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{}
-		case util.StorageTypeEmptyDir:
+		case clusterconfig.StorageTypeEmptyDir:
 			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			}
-		case util.StorageTypeGCS:
+		case clusterconfig.StorageTypeGCS:
 			cfg.GCS = &opapi.ImageRegistryConfigStorageGCS{}
-		case util.StorageTypeS3:
+		case clusterconfig.StorageTypeS3:
 			cfg.S3 = &opapi.ImageRegistryConfigStorageS3{}
-		case util.StorageTypeSwift:
+		case clusterconfig.StorageTypeSwift:
 			cfg.Swift = &opapi.ImageRegistryConfigStorageSwift{}
 		default:
 			logrus.Errorf("unknown storage backend: %s", storageType)
@@ -107,8 +107,8 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 // getPlatformStorage returns the storage type that should be used
 // based on the cloudplatform we are running on, as determined
 // from the installer configuration.
-func getPlatformStorage() (util.StorageType, error) {
-	installConfig, err := util.GetInstallConfig()
+func getPlatformStorage() (clusterconfig.StorageType, error) {
+	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		return "", err
 	}
@@ -117,13 +117,13 @@ func getPlatformStorage() (util.StorageType, error) {
 	// a PVC for the registry.
 	switch {
 	case installConfig.Platform.Libvirt != nil:
-		return util.StorageTypeEmptyDir, nil
+		return clusterconfig.StorageTypeEmptyDir, nil
 	case installConfig.Platform.AWS != nil:
-		return util.StorageTypeS3, nil
+		return clusterconfig.StorageTypeS3, nil
 		// case installConfig.Platform.OpenStack != nil:
-		// 	return util.StorageTypeSwift, nil
+		// 	return clusterconfig.StorageTypeSwift, nil
 	default:
-		//return util.StorageTypeFileSystem, nil
+		//return clusterconfig.StorageTypeFileSystem, nil
 		return "", nil
 	}
 }
