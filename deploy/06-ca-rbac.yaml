@@ -1,0 +1,29 @@
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: registry-ca-hostmapper
+  namespace: openshift-image-registry
+rules:
+- apiGroups:
+  - security.openshift.io
+  resources:
+  - securitycontextconstraints
+  verbs:
+  - use
+  resourceNames:
+  - privileged
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: registry-ca-hostmapper
+  namespace: openshift-image-registry
+subjects:
+- kind: ServiceAccount
+  name: registry-ca-hostmapper
+  namespace: openshift-image-registry
+roleRef:
+  kind: Role
+  name: registry-ca-hostmapper
+  apiGroup: rbac.authorization.k8s.io
