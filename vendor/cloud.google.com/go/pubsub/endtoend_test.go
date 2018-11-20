@@ -16,6 +16,7 @@ package pubsub
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -25,7 +26,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/internal/testutil"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 )
 
@@ -33,7 +33,7 @@ const (
 	timeout                 = time.Minute * 10
 	ackDeadline             = time.Second * 10
 	nMessages               = 1e4
-	acceptableDupPercentage = .05
+	acceptableDupPercentage = 1
 	numAcceptableDups       = int(nMessages * acceptableDupPercentage / 100)
 )
 
@@ -156,7 +156,7 @@ loop:
 			t.Errorf("Consumer %d: %d messages never arrived", i, zeroes)
 			ok = false
 		} else if numDups > numAcceptableDups {
-			t.Errorf("Consumer %d: Willing to accept %d dups (%f%% duplicated of %d messages), but got %d", i, numAcceptableDups, acceptableDupPercentage, int(nMessages), numDups)
+			t.Errorf("Consumer %d: Willing to accept %d dups (%v duplicated of %d messages), but got %d", i, numAcceptableDups, acceptableDupPercentage, int(nMessages), numDups)
 			ok = false
 		}
 	}
@@ -165,20 +165,18 @@ loop:
 	}
 }
 
-// publish publishes n messages to topic, and returns the published message IDs.
+// publish publishes n messages to topic.
 func publish(ctx context.Context, topic *Topic, n int) error {
 	var rs []*PublishResult
 	for i := 0; i < n; i++ {
 		m := &Message{Data: []byte(fmt.Sprintf("msg %d", i))}
 		rs = append(rs, topic.Publish(ctx, m))
 	}
-	var ids []string
 	for _, r := range rs {
-		id, err := r.Get(ctx)
+		_, err := r.Get(ctx)
 		if err != nil {
 			return err
 		}
-		ids = append(ids, id)
 	}
 	return nil
 }

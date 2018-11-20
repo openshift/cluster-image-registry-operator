@@ -214,7 +214,7 @@
    "name": "alertcenter",
    "version": "v1beta1",
    "title": "G Suite Alert Center API",
-   "description": "G Suite Alert Center API to view and manage alerts on issues affecting your domain.",
+   "description": "Manages alerts on issues affecting your domain.",
    "discoveryRestUrl": "https://alertcenter.googleapis.com/$discovery/rest?version=v1beta1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -835,7 +835,7 @@
    "name": "cloudresourcemanager",
    "version": "v1",
    "title": "Cloud Resource Manager API",
-   "description": "The Google Cloud Resource Manager API provides methods for creating, reading, and updating project metadata.",
+   "description": "Creates, reads, and updates metadata for Google Cloud Platform resource containers.",
    "discoveryRestUrl": "https://cloudresourcemanager.googleapis.com/$discovery/rest?version=v1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -850,7 +850,7 @@
    "name": "cloudresourcemanager",
    "version": "v1beta1",
    "title": "Cloud Resource Manager API",
-   "description": "The Google Cloud Resource Manager API provides methods for creating, reading, and updating project metadata.",
+   "description": "Creates, reads, and updates metadata for Google Cloud Platform resource containers.",
    "discoveryRestUrl": "https://cloudresourcemanager.googleapis.com/$discovery/rest?version=v1beta1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -865,7 +865,7 @@
    "name": "cloudresourcemanager",
    "version": "v2",
    "title": "Cloud Resource Manager API",
-   "description": "The Google Cloud Resource Manager API provides methods for creating, reading, and updating project metadata.",
+   "description": "Creates, reads, and updates metadata for Google Cloud Platform resource containers.",
    "discoveryRestUrl": "https://cloudresourcemanager.googleapis.com/$discovery/rest?version=v2",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -880,7 +880,7 @@
    "name": "cloudresourcemanager",
    "version": "v2beta1",
    "title": "Cloud Resource Manager API",
-   "description": "The Google Cloud Resource Manager API provides methods for creating, reading, and updating project metadata.",
+   "description": "Creates, reads, and updates metadata for Google Cloud Platform resource containers.",
    "discoveryRestUrl": "https://cloudresourcemanager.googleapis.com/$discovery/rest?version=v2beta1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -888,6 +888,21 @@
    },
    "documentationLink": "https://cloud.google.com/resource-manager",
    "preferred": false
+  },
+  {
+   "kind": "discovery#directoryItem",
+   "id": "cloudsearch:v1",
+   "name": "cloudsearch",
+   "version": "v1",
+   "title": "Cloud Search API",
+   "description": "Cloud Search provides cloud-based search capabilities over G Suite data. The Cloud Search API allows indexing of non-G Suite data into Cloud Search.",
+   "discoveryRestUrl": "https://cloudsearch.googleapis.com/$discovery/rest?version=v1",
+   "icons": {
+    "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
+    "x32": "https://www.gstatic.com/images/branding/product/1x/googleg_32dp.png"
+   },
+   "documentationLink": "https://gsuite.google.com/products/cloud-search/",
+   "preferred": true
   },
   {
    "kind": "discovery#directoryItem",
@@ -1078,7 +1093,7 @@
    "name": "container",
    "version": "v1",
    "title": "Kubernetes Engine API",
-   "description": "The Google Kubernetes Engine API is used for building and managing container based applications, powered by the open source Kubernetes technology.",
+   "description": "Builds and manages container-based applications, powered by the open source Kubernetes technology.",
    "discoveryRestUrl": "https://container.googleapis.com/$discovery/rest?version=v1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -1093,7 +1108,7 @@
    "name": "container",
    "version": "v1beta1",
    "title": "Kubernetes Engine API",
-   "description": "The Google Kubernetes Engine API is used for building and managing container based applications, powered by the open source Kubernetes technology.",
+   "description": "Builds and manages container-based applications, powered by the open source Kubernetes technology.",
    "discoveryRestUrl": "https://container.googleapis.com/$discovery/rest?version=v1beta1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",
@@ -2723,7 +2738,7 @@
    "name": "sourcerepo",
    "version": "v1",
    "title": "Cloud Source Repositories API",
-   "description": "Access source code repositories hosted by Google.",
+   "description": "Accesses source code repositories hosted by Google.",
    "discoveryRestUrl": "https://sourcerepo.googleapis.com/$discovery/rest?version=v1",
    "icons": {
     "x16": "https://www.gstatic.com/images/branding/product/1x/googleg_16dp.png",

@@ -15,6 +15,7 @@
 package bigtable
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"sort"
@@ -24,7 +25,6 @@ import (
 
 	"cloud.google.com/go/internal/testutil"
 	"github.com/golang/protobuf/proto"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	btapb "google.golang.org/genproto/googleapis/bigtable/admin/v2"
 )

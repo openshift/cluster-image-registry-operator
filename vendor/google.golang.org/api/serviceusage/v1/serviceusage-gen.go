@@ -11,18 +11,18 @@ package serviceusage // import "google.golang.org/api/serviceusage/v1"
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	context "golang.org/x/net/context"
-	ctxhttp "golang.org/x/net/context/ctxhttp"
-	gensupport "google.golang.org/api/gensupport"
-	googleapi "google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	gensupport "google.golang.org/api/gensupport"
+	googleapi "google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -38,7 +38,6 @@ var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
 var _ = context.Canceled
-var _ = ctxhttp.Do
 
 const apiId = "serviceusage:v1"
 const apiName = "serviceusage"
@@ -545,6 +544,11 @@ type BackendRule struct {
 	// value lower than this will be rejected.
 	MinDeadline float64 `json:"minDeadline,omitempty"`
 
+	// OperationDeadline: The number of seconds to wait for the completion
+	// of a long running
+	// operation. The default is no deadline.
+	OperationDeadline float64 `json:"operationDeadline,omitempty"`
+
 	// Selector: Selects the methods to which this rule applies.
 	//
 	// Refer to selector for syntax details.
@@ -576,8 +580,9 @@ func (s *BackendRule) MarshalJSON() ([]byte, error) {
 func (s *BackendRule) UnmarshalJSON(data []byte) error {
 	type NoMethod BackendRule
 	var s1 struct {
-		Deadline    gensupport.JSONFloat64 `json:"deadline"`
-		MinDeadline gensupport.JSONFloat64 `json:"minDeadline"`
+		Deadline          gensupport.JSONFloat64 `json:"deadline"`
+		MinDeadline       gensupport.JSONFloat64 `json:"minDeadline"`
+		OperationDeadline gensupport.JSONFloat64 `json:"operationDeadline"`
 		*NoMethod
 	}
 	s1.NoMethod = (*NoMethod)(s)
@@ -586,6 +591,7 @@ func (s *BackendRule) UnmarshalJSON(data []byte) error {
 	}
 	s.Deadline = float64(s1.Deadline)
 	s.MinDeadline = float64(s1.MinDeadline)
+	s.OperationDeadline = float64(s1.OperationDeadline)
 	return nil
 }
 

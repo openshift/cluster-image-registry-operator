@@ -1,3 +1,262 @@
+Release v1.15.81 (2018-11-21)
+===
+
+### Service Client Updates
+* `service/rekognition`: Updates service API and documentation
+  * This release updates the DetectFaces and IndexFaces operation. When the Attributes input parameter is set to ALL, the face location landmarks includes 5 new landmarks: upperJawlineLeft, midJawlineLeft, chinBottom, midJawlineRight, upperJawlineRight.
+
+Release v1.15.80 (2018-11-20)
+===
+
+### Service Client Updates
+* `service/appsync`: Updates service API and documentation
+* `service/autoscaling-plans`: Updates service API and documentation
+* `service/cloudfront`: Adds new service
+  * With Origin Failover capability in CloudFront, you can setup two origins for your distributions - primary and secondary, such that your content is served from your secondary origin if CloudFront detects that your primary origin is unavailable. These origins can be any combination of AWS origins or non-AWS custom HTTP origins. For example, you can have two Amazon S3 buckets that serve as your origin that you independently upload your content to. If an object that CloudFront requests from your primary bucket is not present or if connection to your primary bucket times-out, CloudFront will request the object from your secondary bucket. So, you can configure CloudFront to trigger a failover in response to either HTTP 4xx or 5xx status codes.
+* `service/devicefarm`: Updates service API and documentation
+  * Disabling device filters
+* `service/medialive`: Updates service API and documentation
+  * You can now include the media playlist(s) from both pipelines in the HLS master manifest for seamless failover.
+* `service/monitoring`: Updates service API and documentation
+  * Amazon CloudWatch now supports alarms on metric math expressions.
+* `service/quicksight`: Adds new service
+  * Amazon QuickSight is a fully managed, serverless, cloud business intelligence system that allows you to extend data and insights to every user in your organization. The first release of APIs for Amazon QuickSight introduces embedding and user/group management capabilities. The get-dashboard-embed-url API allows you to obtain an authenticated dashboard URL that can be embedded in application domains whitelisted for QuickSight dashboard embedding. User APIs allow you to programmatically expand and manage your QuickSight deployments while group APIs allow easier permissions management for resources within QuickSight.
+* `service/rds-data`: Adds new service
+* `service/redshift`: Updates service documentation
+  * Documentation updates for redshift
+* `service/ssm`: Updates service API and documentation
+  * AWS Systems Manager Distributor helps you securely distribute and install software packages.
+* `service/xray`: Updates service API and documentation
+  * Groups build upon X-Ray filter expressions to allow for fine tuning trace summaries and service graph results. You can configure groups by using the AWS X-Ray console or by using the CreateGroup API. The addition of groups has extended the available request fields to the GetServiceGraph API. You can now specify a group name or group ARN to retrieve its service graph.
+
+Release v1.15.79 (2018-11-20)
+===
+
+### Service Client Updates
+* `service/batch`: Updates service API and documentation
+  * Adding multinode parallel jobs, placement group support for compute environments.
+* `service/cloudformation`: Updates service API and documentation
+  * Use the CAPABILITY_AUTO_EXPAND capability to create or update a stack directly from a stack template that contains macros, without first reviewing the resulting changes in a change set first.
+* `service/cloudtrail`: Updates service API and documentation
+  * This release supports creating a trail in CloudTrail that logs events for all AWS accounts in an organization in AWS Organizations. This helps enable you to define a uniform event logging strategy for your organization. An organization trail is applied automatically to each account in the organization and cannot be modified by member accounts. To learn more, please see the AWS CloudTrail User Guide https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html
+* `service/config`: Updates service API and documentation
+* `service/devicefarm`: Updates service API and documentation
+  * Customers can now schedule runs without a need to create a Device Pool. They also get realtime information on public device availability.
+* `service/ec2`: Updates service API and documentation
+  * Adding AvailabilityZoneId to DescribeAvailabilityZones
+* `service/iot`: Updates service API and documentation
+  * IoT now supports resource tagging and tag based access control for Billing Groups, Thing Groups, Thing Types, Jobs, and Security Profiles. IoT Billing Groups help you group devices to categorize and track your costs. AWS IoT Device Management also introduces three new features: 1. Dynamic thing groups. 2. Jobs dynamic rollouts. 3. Device connectivity indexing. Dynamic thing groups lets you to create a group of devices using a Fleet Indexing query. The devices in your group will be automatically added or removed when they match your specified query criteria. Jobs dynamic rollout allows you to configure an exponentially increasing rate of deployment for device updates and define failure criteria to cancel your job. Device connectivity indexing allows you to index your devices' lifecycle events to discover whether devices are connected or disconnected to AWS IoT.
+* `service/lambda`: Updates service API and documentation
+  * AWS Lambda now supports python3.7 and  the Kinesis Data Streams (KDS) enhanced fan-out and HTTP/2 data retrieval features for Kinesis event sources.
+* `service/lightsail`: Updates service API
+  * Add Managed Database operations to OperationType enum.
+* `service/mediaconvert`: Updates service API and documentation
+  * AWS Elemental MediaConvert SDK has added several features including support for: SPEKE full document encryption, up to 150 elements for input stitching, input and motion image insertion, AWS CLI path arguments in S3 links including special characters, AFD signaling, additional caption types, and client-side encrypted input files.
+* `service/rds`: Updates service API and documentation
+  * This release adds a new parameter to specify VPC security groups for restore from DB snapshot, restore to point int time and create read replica operations. For more information, see Amazon RDS Documentation.
+* `service/workdocs`: Updates service API and documentation
+  * With this release, clients can now use the GetResources API to fetch files and folders from the user's SharedWithMe collection. And also through this release, the existing DescribeActivities API has been enhanced to support additional filters such as the ActivityType and the ResourceId.
+* `service/workspaces`: Updates service API and documentation
+  * Added new APIs to Modify and Describe WorkSpaces client properties for users in a directory. With the new APIs, you can enable/disable remember me option in WorkSpaces client for users in a directory.
+
+### SDK Bugs
+* `internal/ini`: trimSpaces not trimming rhs properly (#2282)
+  * Fixes trimSpaces to behave properly by removing the necessary rhs spaces of a literal.
+Release v1.15.78 (2018-11-16)
+===
+
+### Service Client Updates
+* `service/ce`: Updates service API and documentation
+* `service/comprehend`: Updates service API and documentation
+* `service/ecs`: Updates service API and documentation
+  * This release of Amazon Elastic Container Service (Amazon ECS) introduces support for additional Docker flags as Task Definition parameters. Customers can now configure their ECS Tasks to use pidMode (pid) and ipcMode (ipc) Docker flags.
+* `service/ssm`: Updates service API and documentation
+  * AWS Systems Manager Automation now allows you to execute and manage Automation workflows across multiple accounts and regions.
+* `service/workspaces`: Updates service API and documentation
+  * Added new Bring Your Own License (BYOL) automation APIs. With the new APIs, you can list available management CIDR ranges for dedicated tenancy, enable your account for BYOL, describe BYOL status of your account, and import BYOL images. Added new APIs to also describe and delete WorkSpaces images.
+
+Release v1.15.77 (2018-11-16)
+===
+
+### Service Client Updates
+* `service/codebuild`: Updates service API and documentation
+  * Adding queue phase and configurable queue timeout to CodeBuild.
+* `service/comprehend`: Updates service API and documentation
+* `service/directconnect`: Updates service API and documentation
+  * This release enables DirectConnect customers to have logical redundancy on virtual interfaces within supported DirectConnect locations.
+* `service/dms`: Updates service API, documentation, and waiters
+  * Settings structures have been added to our DMS endpoint APIs to support Kinesis and Elasticsearch as targets. We are introducing the ability to configure custom DNS name servers on a replication instance as a beta feature.
+* `service/ecs`: Updates service API, documentation, and examples
+  * In this release, Amazon ECS introduces multiple features. First, ECS now supports integration with Systems Manager Parameter Store for injecting runtime secrets. Second, ECS introduces support for resources tagging. Finally, ECS introduces a new ARN and ID Format for its resources, and provides new APIs for opt-in to the new formats.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/iam`: Updates service API, documentation, and examples
+  * We are making it easier for you to manage your AWS Identity and Access Management (IAM) resources by enabling you to add tags to your IAM principals (users and roles). Adding tags on IAM principals will enable you to write fewer policies for permissions management and make policies easier to comprehend.  Additionally, tags will also make it easier for you to grant access to AWS resources.
+* `service/pinpoint`: Updates service API and documentation
+  * 1. With Amazon Pinpoint Voice, you can use text-to-speech technology to deliver personalized voice messages to your customers. Amazon Pinpoint Voice is a great way to deliver transactional messages -- such as one-time passwords and identity confirmations -- to customers. 2. Adding support for Campaign Event Triggers. With Campaign Event Triggers you can now schedule campaigns to execute based on incoming event data and target just the source of the event.
+* `service/ram`: Adds new service
+* `service/rds`: Updates service API, documentation, and paginators
+  * Introduces DB Instance Automated Backups for the MySQL, MariaDB, PostgreSQL, Oracle and Microsoft SQL Server database engines. You can now retain Amazon RDS automated backups (system snapshots and transaction logs) when you delete a database instance. This allows you to restore a deleted database instance to a specified point in time within the backup retention period even after it has been deleted, protecting you against accidental deletion of data. For more information, see Amazon RDS Documentation.
+* `service/redshift`: Updates service API and documentation
+  * With this release, Redshift is providing API's for better snapshot management by supporting user defined automated snapshot schedules, retention periods for manual snapshots, and aggregate snapshot actions including batch deleting user snapshots, viewing account level snapshot storage metrics, and better filtering and sorting on the describe-cluster-snapshots API. Automated snapshots can be scheduled to be taken at a custom interval and the schedule created can be reused across clusters. Manual snapshot retention periods can be set at the cluster, snapshot, and cross-region-copy level. The retention period set on a manual snapshot indicates how many days the snapshot will be retained before being automatically deleted.
+* `service/route53resolver`: Adds new service
+* `service/s3`: Updates service API, documentation, and examples
+  * Add support for new S3 Block Public Access bucket-level APIs. The new Block Public Access settings allow bucket owners to prevent public access to S3 data via bucket/object ACLs or bucket policies.
+* `service/s3control`: Adds new service
+  * Add support for new S3 Block Public Access account-level APIs. The Block Public Access settings allow account owners to prevent public access to S3 data via bucket/object ACLs or bucket policies.
+* `service/sms-voice`: Adds new service
+* `service/transcribe`: Updates service API and documentation
+
+Release v1.15.76 (2018-11-14)
+===
+
+### Service Client Updates
+* `service/autoscaling`: Updates service API and documentation
+  * EC2 Auto Scaling now allows users to provision and automatically scale instances across purchase options (Spot, On-Demand, and RIs) and instance types in a single Auto Scaling group (ASG).
+* `service/ec2`: Updates service API and documentation
+  * Amazon EC2 Fleet now supports a new request type "Instant" that you can use to provision capacity synchronously across instance types & purchase models and CreateFleet will return the instances launched in the API response.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/mediatailor`: Updates service API and documentation
+* `service/resource-groups`: Updates service API and documentation
+* `service/sagemaker`: Updates service API and documentation
+  * SageMaker now makes the final set of metrics published from training jobs available in the DescribeTrainingJob results.  Automatic Model Tuning now supports warm start of hyperparameter tuning jobs.  Notebook instances now support a larger number of instance types to include instances from the ml.t3, ml.m5, ml.c4, ml.c5 families.
+* `service/servicecatalog`: Updates service API and documentation
+  * Adds support for Cloudformation StackSets in Service Catalog
+* `service/sns`: Updates service API and documentation
+  * Added an optional request parameter, named Attributes, to the Amazon SNS CreateTopic API action. For more information, see the Amazon SNS API Reference (https://docs.aws.amazon.com/sns/latest/api/API_CreateTopic.html).
+
+Release v1.15.75 (2018-11-13)
+===
+
+### Service Client Updates
+* `service/budgets`: Updates service documentation
+  * Doc Update: 1. Available monthly-budgets maximal history data points from 12 to 13.  2. Added 'Amazon Elasticsearch' costfilters support.
+* `service/chime`: Updates service API and documentation
+  * This release adds support in ListUsers API to filter the list by an email address.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/redshift`: Updates service API and documentation
+  * Amazon Redshift provides the option to defer non-mandatory maintenance updates to a later date.
+
+Release v1.15.74 (2018-11-12)
+===
+
+### Service Client Updates
+* `service/batch`: Updates service API and documentation
+  * Adding EC2 Launch Template support in AWS Batch Compute Environments.
+* `service/budgets`: Updates service API and documentation
+  * 1. Added budget performance history, enabling you to see how well your budgets matched your actual costs and usage.                                                                                             2. Added budget performance history, notification state, and last updated time, enabling you to see how well your budgets matched your actual costs and usage, how often your budget alerts triggered, and when your budget was last updated.
+* `service/cloudformation`: Updates service API, documentation, and paginators
+  * The Drift Detection feature enables customers to detect whether a stack's actual configuration differs, or has drifted, from its expected configuration as defined within AWS CloudFormation.
+* `service/codepipeline`: Updates service API and documentation
+  * Add support for cross-region pipeline with accompanying definitions as needed in the AWS CodePipeline API Guide.
+* `service/firehose`: Updates service API and documentation
+  * With this release, Amazon Kinesis Data Firehose allows you to enable/disable server-side encryption(SSE) for your delivery streams ensuring encryption of data at rest. For technical documentation, look at https://docs.aws.amazon.com/firehose/latest/dev/encryption.html
+* `service/polly`: Updates service API
+  * Amazon Polly adds new female voices: Italian - Bianca, Castilian Spanish - Lucia and new language: Mexican Spanish with new female voice - Mia.
+* `service/rds`: Updates service API and documentation
+  * API Update for RDS: this update enables Custom Endpoints, a new feature compatible with Aurora Mysql, Aurora PostgreSQL and Neptune that allows users to configure a customizable endpoint that will provide access to their instances in a cluster.
+
+### SDK Bugs
+* `internal/ini`: allowing LHS of equal expression to contain spaces (#2265)
+  * Fixes a backward compatibility issue where LHS of equal expr could contain spaces
+
+Release v1.15.73 (2018-11-09)
+===
+
+### Service Client Updates
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/mediapackage`: Updates service API and documentation
+  * As a part of SPEKE DRM encryption, MediaPackage now supports encrypted content keys. You can enable this enhanced content protection in an OriginEndpoint's encryption settings. When this is enabled, MediaPackage indicates to the key server that it requires an encrypted response. To use this, your DRM key provider must support content key encryption. For details on this feature, see the AWS MediaPackage User Guide at https://docs.aws.amazon.com/mediapackage/latest/ug/what-is.html.
+
+Release v1.15.72 (2018-11-08)
+===
+
+### Service Client Updates
+* `service/dlm`: Updates service API and documentation
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/events`: Updates service documentation
+  * Documentation updates for events
+* `service/medialive`: Updates service API and documentation
+  * You can now switch a live channel between preconfigured inputs. This means assigned inputs for a running channel can be changed according to a defined schedule. You can also use MP4 files as inputs.
+
+Release v1.15.71 (2018-11-07)
+===
+
+### Service Client Updates
+* `service/ce`: Updates service API and documentation
+* `service/dms`: Updates service waiters
+  * Update the DMS TestConnectionSucceeds waiter.
+* `service/ec2`: Updates service API and documentation
+  * VM Import/Export now supports generating encrypted EBS snapshots, as well as AMIs backed by encrypted EBS snapshots during the import process.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+
+Release v1.15.70 (2018-11-06)
+===
+
+### Service Client Updates
+* `service/apigateway`: Updates service API and documentation
+  * AWS WAF integration with APIGW. Changes for adding webAclArn as a part of  Stage output. When the user calls a get-stage or get-stages, webAclArn will also be returned as a part of the output.
+* `service/codebuild`: Updates service documentation
+  * Documentation updates for codebuild
+* `service/ec2`: Updates service API and paginators
+  * You can now launch the new Amazon EC2 memory optimized R5a and general purpose M5a instances families that feature AMD EPYC processors.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/pinpoint`: Updates service API and documentation
+  * This update adds the ability to send transactional email by using the SendMessage API. Transactional emails are emails that you send directly to specific email addresses. Unlike campaign-based email that you send from Amazon Pinpoint, you don't have to create segments and campaigns in order to send transactional email.
+* `service/pinpoint-email`: Adds new service
+* `service/waf-regional`: Updates service API and documentation
+
+Release v1.15.69 (2018-11-05)
+===
+
+### Service Client Updates
+* `service/eks`: Updates service waiters
+* `service/serverlessrepo`: Updates service API and documentation
+
+Release v1.15.68 (2018-11-02)
+===
+
+### Service Client Updates
+* `service/clouddirectory`: Updates service API and documentation
+  * ListObjectParents API now supports a bool parameter IncludeAllLinksToEachParent, which if set to true, will return a ParentLinks list instead of a Parents map; BatchRead API now supports ListObjectParents operation.
+* `service/rekognition`: Updates service API and documentation
+  * This release updates the DetectLabels operation. Bounding boxes are now returned for certain objects, a hierarchical taxonomy is now available for labels, and you can now get the version of the detection model used for detection.
+
+### SDK Bugs
+* `internal/ini`: profile names did not allow for ':' character (#2247)
+  * Fixes an issue where profile names would return an error if the name contained a ':'
+Release v1.15.67 (2018-11-01)
+===
+
+### Service Client Updates
+* `service/servicecatalog`: Updates service API, documentation, and paginators
+  * Service Catalog integration with AWS Organizations, enables customers to more easily create and manage a portfolio of IT services across an organization. Administrators can now take advantage of the AWS account structure and account groupings configured in AWS Organizations to share Service Catalog Portfolios increasing agility and reducing risk. With this integration the admin user will leverage the trust relationship that exists within the accounts of the Organization to share portfolios to the entire Organization, a specific Organizational Unit or a specific Account.
+
+### SDK Bugs
+* `internal/ini`: removing // comments (#2240)
+  * removes // comments since that was never supported previously.
+Release v1.15.66 (2018-10-31)
+===
+
+### Service Client Updates
+* `service/config`: Updates service API
+* `service/greengrass`: Updates service API and documentation
+  * Greengrass APIs now support bulk deployment operations, and APIs that list definition versions now support pagination.
+* `service/mediastore-data`: Updates service API and documentation
+* `service/secretsmanager`: Updates service documentation
+  * Documentation updates for AWS Secrets Manager.
+
+Release v1.15.65 (2018-10-30)
+===
+
+### Service Client Updates
+* `service/chime`: Adds new service
+  * This is the initial release for the Amazon Chime AWS SDK. In this release, Amazon Chime adds support for administrative actions on users and accounts. API Documentation is also updated on https://docs.aws.amazon.com/chime/index.html
+* `service/dms`: Updates service waiters
+  * Add waiters for TestConnectionSucceeds, EndpointDeleted, ReplicationInstanceAvailable, ReplicationInstanceDeleted, ReplicationTaskReady, ReplicationTaskStopped, ReplicationTaskRunning and ReplicationTaskDeleted.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/rds`: Updates service API and documentation
+  * This release adds the listener connection endpoint for SQL Server Always On to the list of fields returned when performing a describe-db-instances operation.
+
 Release v1.15.64 (2018-10-26)
 ===
 
@@ -183,6 +442,7 @@ Release v1.15.47 (2018-10-02)
 * `service/cloudfront/sign`: Do not Escape HTML when encode the cloudfront sign policy (#2164)
   * Fixes the signer escaping HTML elements `<`, `>`, and `&` in the signature policy incorrectly. Allows use of multiple query parameters in the URL to be signed.
   * Fixes #2163
+
 Release v1.15.46 (2018-10-01)
 ===
 
@@ -3539,6 +3799,7 @@ Release v1.8.16 (2017-04-21)
 * `private/protocol/xml/xmlutil`: Fix unmarshaling dropping errors (#1219)
   * The XML unmarshaler would drop any serialization or body read error that occurred on the floor effectively hiding any errors that would occur.
   * Fixes #1205
+
 Release v1.8.15 (2017-04-20)
 ===
 

@@ -15,11 +15,11 @@
 package spanner
 
 import (
+	"context"
 	"io"
 	"testing"
 
 	"cloud.google.com/go/spanner/internal/testutil"
-	"golang.org/x/net/context"
 	sppb "google.golang.org/genproto/googleapis/spanner/v1"
 	"google.golang.org/grpc/codes"
 )

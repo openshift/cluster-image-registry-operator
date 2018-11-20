@@ -11,18 +11,18 @@ package androidmanagement // import "google.golang.org/api/androidmanagement/v1"
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	context "golang.org/x/net/context"
-	ctxhttp "golang.org/x/net/context/ctxhttp"
-	gensupport "google.golang.org/api/gensupport"
-	googleapi "google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	gensupport "google.golang.org/api/gensupport"
+	googleapi "google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -38,7 +38,6 @@ var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
 var _ = context.Canceled
-var _ = ctxhttp.Do
 
 const apiId = "androidmanagement:v1"
 const apiName = "androidmanagement"
@@ -425,11 +424,9 @@ type ApplicationPolicy struct {
 	// <tr><td>BUNDLE_ARRAY</td><td>array of objects</td></tr> </table>
 	ManagedConfiguration googleapi.RawMessage `json:"managedConfiguration,omitempty"`
 
-	// ManagedConfigurationTemplate: The formulated managed configuration
-	// with the managed configuration template applied to the app. To
-	// generate a web token that identifies the enterprise use
-	// https://developers.google.com/android/management/reference/rest/v1/enterprises.webTokens This field is ignored if managed_configuration is
-	// set.
+	// ManagedConfigurationTemplate: The managed configurations template for
+	// the app, saved from the managed configurations iframe. This field is
+	// ignored if managed_configuration is set.
 	ManagedConfigurationTemplate *ManagedConfigurationTemplate `json:"managedConfigurationTemplate,omitempty"`
 
 	// MinimumVersionCode: The minimum version of the app that runs on the
@@ -1498,10 +1495,8 @@ func (s *ListPoliciesResponse) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// ManagedConfigurationTemplate: The formulated managed configuration
-// with the managed configuration template applied to the app. To
-// generate a web token that identifies the enterprise use
-// https://developers.google.com/android/management/reference/rest/v1/enterprises.webTokens
+// ManagedConfigurationTemplate: The managed configurations template for
+// the app, saved from the managed configurations iframe.
 type ManagedConfigurationTemplate struct {
 	// ConfigurationVariables: Optional, a map containing <key, value>
 	// configuration variables defined for the configuration.
@@ -2086,6 +2081,18 @@ type PasswordRequirements struct {
 	// example, password_minimum_letters are enforced.
 	PasswordQuality string `json:"passwordQuality,omitempty"`
 
+	// PasswordScope: The scope that the password requirement applies to.
+	//
+	// Possible values:
+	//   "SCOPE_UNSPECIFIED" - The scope is unspecified. The password
+	// requirements are applied to the work profile for work profile devices
+	// and the whole device for fully managed or dedicated devices.
+	//   "SCOPE_DEVICE" - The password requirements are only applied to the
+	// device.
+	//   "SCOPE_PROFILE" - The password requirements are only applied to the
+	// work profile.
+	PasswordScope string `json:"passwordScope,omitempty"`
+
 	// ForceSendFields is a list of field names (e.g.
 	// "MaximumFailedPasswordsForWipe") to unconditionally include in API
 	// requests. By default, fields with empty values are omitted from API
@@ -2449,18 +2456,13 @@ type Policy struct {
 	// OutgoingCallsDisabled: Whether outgoing calls are disabled.
 	OutgoingCallsDisabled bool `json:"outgoingCallsDisabled,omitempty"`
 
-	// PasswordPolicies: Password policy that can apply to different scope
-	// e.g. at either a device or profile level. 'password_requirements' is
-	// overridden if this policy is set with default scope or with scope
-	// explicitly applying to the scope that 'password_requirements' applies
-	// to. If scope is not specified then restriction applies to the default
-	// scope i.e. profile in a managed profile. If an entry exists with
-	// unspecified scope and also an entry for the default scope with scope
-	// explicitly specified then the explicit restriction overrides the
-	// default scope restriction.
+	// PasswordPolicies: Password requirement policies. Different policies
+	// can be set for work profile or fully managed devices by setting the
+	// password_scope field in the policy.
 	PasswordPolicies []*PasswordRequirements `json:"passwordPolicies,omitempty"`
 
-	// PasswordRequirements: Password requirements.
+	// PasswordRequirements: Password requirements. DEPRECATED - Use
+	// password_policies
 	PasswordRequirements *PasswordRequirements `json:"passwordRequirements,omitempty"`
 
 	// PermissionGrants: Explicit permission or group grants or denials for

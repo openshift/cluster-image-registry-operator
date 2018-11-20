@@ -13,18 +13,18 @@ package dlp // import "google.golang.org/api/dlp/v2"
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	context "golang.org/x/net/context"
-	ctxhttp "golang.org/x/net/context/ctxhttp"
-	gensupport "google.golang.org/api/gensupport"
-	googleapi "google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	gensupport "google.golang.org/api/gensupport"
+	googleapi "google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -40,7 +40,6 @@ var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
 var _ = context.Canceled
-var _ = ctxhttp.Do
 
 const apiId = "dlp:v2"
 const apiName = "dlp"
@@ -3372,7 +3371,9 @@ type GooglePrivacyDlpV2InfoType struct {
 	// creating a CustomInfoType, or one of the names listed
 	// at https://cloud.google.com/dlp/docs/infotypes-reference when
 	// specifying
-	// a built-in type.
+	// a built-in type. InfoType names should conform to the
+	// pattern
+	// [a-zA-Z0-9_]{1,64}.
 	Name string `json:"name,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Name") to

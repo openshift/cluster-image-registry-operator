@@ -13,18 +13,18 @@ package oslogin // import "google.golang.org/api/oslogin/v1alpha"
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	context "golang.org/x/net/context"
-	ctxhttp "golang.org/x/net/context/ctxhttp"
-	gensupport "google.golang.org/api/gensupport"
-	googleapi "google.golang.org/api/googleapi"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	gensupport "google.golang.org/api/gensupport"
+	googleapi "google.golang.org/api/googleapi"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -40,7 +40,6 @@ var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
 var _ = context.Canceled
-var _ = ctxhttp.Do
 
 const apiId = "oslogin:v1alpha"
 const apiName = "oslogin"
@@ -341,6 +340,33 @@ func (r *UsersService) GetLoginProfile(name string) *UsersGetLoginProfileCall {
 	return c
 }
 
+// OperatingSystemType sets the optional parameter
+// "operatingSystemType": The type of operating system associated with
+// the account.
+//
+// Possible values:
+//   "OPERATING_SYSTEM_TYPE_UNSPECIFIED"
+//   "LINUX"
+//   "WINDOWS"
+func (c *UsersGetLoginProfileCall) OperatingSystemType(operatingSystemType string) *UsersGetLoginProfileCall {
+	c.urlParams_.Set("operatingSystemType", operatingSystemType)
+	return c
+}
+
+// ProjectId sets the optional parameter "projectId": The project ID of
+// the Google Cloud Platform project.
+func (c *UsersGetLoginProfileCall) ProjectId(projectId string) *UsersGetLoginProfileCall {
+	c.urlParams_.Set("projectId", projectId)
+	return c
+}
+
+// SystemId sets the optional parameter "systemId": A system ID for
+// filtering the results of the request.
+func (c *UsersGetLoginProfileCall) SystemId(systemId string) *UsersGetLoginProfileCall {
+	c.urlParams_.Set("systemId", systemId)
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
@@ -452,6 +478,26 @@ func (c *UsersGetLoginProfileCall) Do(opts ...googleapi.CallOption) (*LoginProfi
 	//       "location": "path",
 	//       "pattern": "^users/[^/]+$",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "operatingSystemType": {
+	//       "description": "The type of operating system associated with the account.",
+	//       "enum": [
+	//         "OPERATING_SYSTEM_TYPE_UNSPECIFIED",
+	//         "LINUX",
+	//         "WINDOWS"
+	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "projectId": {
+	//       "description": "The project ID of the Google Cloud Platform project.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "systemId": {
+	//       "description": "A system ID for filtering the results of the request.",
+	//       "location": "query",
 	//       "type": "string"
 	//     }
 	//   },

@@ -177,6 +177,10 @@ type BuildControllerConfig struct {
 
 	BuildDefaults  *BuildDefaultsConfig  `json:"buildDefaults"`
 	BuildOverrides *BuildOverridesConfig `json:"buildOverrides"`
+
+	// additionalTrustedCA is a path to a pem bundle file containing additional CAs that
+	// should be trusted for image pushes and pulls during builds.
+	AdditionalTrustedCA string `json:"additionalTrustedCA"`
 }
 
 type ResourceQuotaControllerConfig struct {
@@ -211,6 +215,11 @@ type ServiceAccountControllerConfig struct {
 type DockerPullSecretControllerConfig struct {
 	// registryURLs is a list of urls that the docker pull secrets should be valid for.
 	RegistryURLs []string `json:"registryURLs"`
+
+	// internalRegistryHostname is the hostname for the default internal image
+	// registry. The value must be in "hostname[:port]" format.  Docker pull secrets
+	// will be generated for this registry.
+	InternalRegistryHostname string `json:"internalRegistryHostname"`
 }
 
 type ImageImportControllerConfig struct {

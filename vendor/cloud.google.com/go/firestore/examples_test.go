@@ -17,10 +17,10 @@
 package firestore_test
 
 import (
+	"context"
 	"fmt"
 
 	"cloud.google.com/go/firestore"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 )
 
