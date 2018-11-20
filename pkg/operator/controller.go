@@ -76,8 +76,7 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 	}
 
-	_, err = c.Bootstrap()
-	if err != nil {
+	if err = c.Bootstrap(); err != nil {
 		return nil, err
 	}
 
@@ -199,12 +198,12 @@ func (c *Controller) sync() error {
 		return err
 	}
 
-	if cr == nil || cr.ObjectMeta.DeletionTimestamp != nil {
-		_, err = c.Bootstrap()
-		if err != nil {
-			return err
-		}
-		return nil
+	if cr == nil {
+		return c.Bootstrap()
+	}
+
+	if cr.ObjectMeta.DeletionTimestamp != nil {
+		return c.finalizeResources(cr)
 	}
 
 	var statusChanged bool

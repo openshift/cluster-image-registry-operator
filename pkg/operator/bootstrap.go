@@ -47,7 +47,7 @@ func addImageRegistryChecksum(cr *imageregistryapi.ImageRegistry) {
 	cr.ObjectMeta.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
 }
 
-func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
+func (c *Controller) Bootstrap() error {
 	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
 
 	crList := &imageregistryapi.ImageRegistryList{
@@ -60,7 +60,7 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	err := sdk.List(c.params.Deployment.Namespace, crList)
 	if err != nil {
 		if !errors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to list registry custom resources: %s", err)
+			return fmt.Errorf("failed to list registry custom resources: %s", err)
 		}
 	}
 
@@ -68,16 +68,9 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	case 0:
 		// let's create it.
 	case 1:
-		if crList.Items[0].ObjectMeta.DeletionTimestamp != nil {
-			err = c.finalizeResources(&crList.Items[0])
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return &crList.Items[0], nil
-		}
+		return nil
 	default:
-		return nil, fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", c.params.Deployment.Namespace, len(crList.Items))
+		return fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", c.params.Deployment.Namespace, len(crList.Items))
 	}
 
 	var spec imageregistryapi.ImageRegistrySpec
@@ -104,13 +97,13 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			Replicas: 1,
 		}
 	} else if err != nil {
-		return nil, fmt.Errorf("unable to check if the deployment already exists: %s", err)
+		return fmt.Errorf("unable to check if the deployment already exists: %s", err)
 	} else {
 		logrus.Infof("adopting the existing deployment config...")
 		var tlsSecret *corev1.Secret
 		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(dc.ObjectMeta.Namespace))
 		if err != nil {
-			return nil, fmt.Errorf("unable to adopt the existing deployment config: %s", err)
+			return fmt.Errorf("unable to adopt the existing deployment config: %s", err)
 		}
 		if tlsSecret != nil {
 			tlsSecret.TypeMeta = metav1.TypeMeta{
@@ -124,7 +117,7 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 			err = sdk.Create(tlsSecret)
 			// TODO: it might already exist
 			if err != nil {
-				return nil, fmt.Errorf("unable to create the tls secret: %s", err)
+				return fmt.Errorf("unable to create the tls secret: %s", err)
 			}
 		}
 	}
@@ -148,7 +141,7 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	if len(cr.Spec.HTTPSecret) == 0 {
 		var secretBytes [randomSecretSize]byte
 		if _, err := rand.Read(secretBytes[:]); err != nil {
-			return nil, fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
+			return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
 		}
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
@@ -156,14 +149,14 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		if err != storage.ErrStorageNotConfigured {
-			return nil, err
+			return err
 		}
 	} else {
 		err = driver.CompleteConfiguration()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return cr, sdk.Create(cr)
+	return sdk.Create(cr)
 }
