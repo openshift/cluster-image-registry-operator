@@ -57,3 +57,7 @@ required = [
   name = "github.com/docker/distribution"
   source = "https://github.com/openshift/docker-distribution"
   branch = "image-registry-3.11"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/openshift/installer"
