@@ -15,10 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
-	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
@@ -34,7 +34,7 @@ const (
 	WORKQUEUE_KEY = "changes"
 )
 
-func NewController(namespace string) (*Controller, error) {
+func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
 	operatorNamespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
 		logrus.Fatalf("Failed to get watch namespace: %v", err)
@@ -60,7 +60,9 @@ func NewController(namespace string) (*Controller, error) {
 	p.ImageConfig.Name = "cluster"
 
 	c := &Controller{
+		kubeconfig:    kubeconfig,
 		params:        p,
+		generator:     resource.NewGenerator(kubeconfig, &p),
 		clusterStatus: clusteroperator.NewStatusHandler(operatorName, operatorNamespace),
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 	}
@@ -74,7 +76,9 @@ func NewController(namespace string) (*Controller, error) {
 }
 
 type Controller struct {
+	kubeconfig    *restclient.Config
 	params        parameters.Globals
+	generator     *resource.Generator
 	clusterStatus *clusteroperator.StatusHandler
 	workqueue     workqueue.RateLimitingInterface
 }
@@ -101,57 +105,6 @@ func (c *Controller) getImageRegistry() (*regopapi.ImageRegistry, error) {
 	return cr, nil
 }
 
-func (c *Controller) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
-	routeList := &routeapi.RouteList{
-		TypeMeta: metaapi.TypeMeta{
-			APIVersion: routeapi.SchemeGroupVersion.String(),
-			Kind:       "Route",
-		},
-	}
-
-	err := sdk.List(c.params.Deployment.Namespace, routeList)
-	if err != nil {
-		return fmt.Errorf("failed to list routes: %s", err)
-	}
-
-	routes := resource.GetRouteGenerators(cr, &c.params)
-
-	for name, gen := range routes {
-		tmpl, err := gen(cr, &c.params)
-		if err != nil {
-			conditionResourceApply(cr, operatorapi.ConditionFalse,
-				fmt.Sprintf("unable to make template for route %s: %s", name, err),
-				modified,
-			)
-			continue
-		}
-
-		err = resource.ApplyTemplate(tmpl, false, modified)
-		if err != nil {
-			conditionResourceApply(cr, operatorapi.ConditionFalse,
-				fmt.Sprintf("unable to apply template %s: %s", tmpl.Name(), err),
-				modified,
-			)
-		}
-	}
-
-	for _, route := range routeList.Items {
-		if !metaapi.IsControlledBy(&route, cr) {
-			continue
-		}
-		if _, found := routes[route.ObjectMeta.Name]; found {
-			continue
-		}
-		err = sdk.Delete(&route)
-		if err != nil {
-			return err
-		}
-		*modified = true
-	}
-
-	return nil
-}
-
 func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
 	appendFinalizer(cr, modified)
 
@@ -170,21 +123,9 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 		return fmt.Errorf("bad custom resource: %s", err)
 	}
 
-	templates, err := resource.Templates(cr, &c.params)
+	err = c.generator.Apply(cr, modified)
 	if err != nil {
-		return fmt.Errorf("unable to generate templates: %s", err)
-	}
-
-	for _, tpl := range templates {
-		err = resource.ApplyTemplate(tpl, false, modified)
-		if err != nil {
-			return fmt.Errorf("unable to apply objects: %s", err)
-		}
-	}
-
-	err = c.syncRoutes(cr, modified)
-	if err != nil {
-		return fmt.Errorf("unable to sync routes: %s", err)
+		return err
 	}
 
 	return nil

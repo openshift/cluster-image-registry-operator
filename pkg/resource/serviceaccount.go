@@ -5,19 +5,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeServiceAccount(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeServiceAccount(cr *v1alpha1.ImageRegistry) (Template, error) {
 	sa := &corev1.ServiceAccount{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "ServiceAccount",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Pod.ServiceAccount,
-			Namespace: p.Deployment.Namespace,
+			Name:      g.params.Pod.ServiceAccount,
+			Namespace: g.params.Deployment.Namespace,
 		},
 	}
 	addOwnerRefToObject(sa, asOwner(cr))

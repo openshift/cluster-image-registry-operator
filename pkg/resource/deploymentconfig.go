@@ -6,12 +6,11 @@ import (
 	appsapi "github.com/openshift/api/apps/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeDeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
-	podTemplateSpec, annotations, err := makePodTemplateSpec(cr, p)
+func (g *Generator) makeDeploymentConfig(cr *v1alpha1.ImageRegistry) (Template, error) {
+	podTemplateSpec, annotations, err := g.makePodTemplateSpec(cr)
 	if err != nil {
 		return Template{}, err
 	}
@@ -23,13 +22,13 @@ func makeDeploymentConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Te
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        cr.ObjectMeta.Name,
-			Namespace:   p.Deployment.Namespace,
-			Labels:      p.Deployment.Labels,
+			Namespace:   g.params.Deployment.Namespace,
+			Labels:      g.params.Deployment.Labels,
 			Annotations: annotations,
 		},
 		Spec: appsapi.DeploymentConfigSpec{
 			Replicas: cr.Spec.Replicas,
-			Selector: p.Deployment.Labels,
+			Selector: g.params.Deployment.Labels,
 			Triggers: []appsapi.DeploymentTriggerPolicy{
 				{
 					Type: appsapi.DeploymentTriggerOnConfigChange,

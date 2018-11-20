@@ -6,11 +6,10 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeDefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeDefaultRoute(cr *regopapi.ImageRegistry) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -18,12 +17,12 @@ func makeDefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Templa
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cr.ObjectMeta.Name + "-default-route",
-			Namespace: p.Deployment.Namespace,
+			Namespace: g.params.Deployment.Namespace,
 		},
 		Spec: routeapi.RouteSpec{
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Service.Name,
+				Name: g.params.Service.Name,
 			},
 		},
 	}
@@ -45,7 +44,7 @@ func makeDefaultRoute(cr *regopapi.ImageRegistry, p *parameters.Globals) (Templa
 	}, nil
 }
 
-func makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute) (Template, error) {
 	r := &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: routeapi.SchemeGroupVersion.String(),
@@ -53,13 +52,13 @@ func makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRo
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      route.Name,
-			Namespace: p.Deployment.Namespace,
+			Namespace: g.params.Deployment.Namespace,
 		},
 		Spec: routeapi.RouteSpec{
 			Host: route.Hostname,
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: p.Service.Name,
+				Name: g.params.Service.Name,
 			},
 		},
 	}
@@ -73,7 +72,7 @@ func makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRo
 	}
 
 	if len(route.SecretName) > 0 {
-		secret, err := getSecret(route.SecretName, p.Deployment.Namespace)
+		secret, err := g.getSecret(route.SecretName, g.params.Deployment.Namespace)
 		if err != nil {
 			return Template{}, err
 		}
@@ -95,16 +94,16 @@ func makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRo
 	}, nil
 }
 
-func GetRouteGenerators(cr *regopapi.ImageRegistry, p *parameters.Globals) map[string]Generator {
-	ret := map[string]Generator{}
+func (g *Generator) getRouteGenerators(cr *regopapi.ImageRegistry) map[string]templateGenerator {
+	ret := map[string]templateGenerator{}
 
 	if cr.Spec.DefaultRoute {
-		ret[cr.ObjectMeta.Name+"-default-route"] = makeDefaultRoute
+		ret[cr.ObjectMeta.Name+"-default-route"] = g.makeDefaultRoute
 	}
 
 	for i := range cr.Spec.Routes {
-		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry, p *parameters.Globals) (Template, error) {
-			return makeRoute(o, &o.Spec.Routes[i], p)
+		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry) (Template, error) {
+			return g.makeRoute(o, &o.Spec.Routes[i])
 		}
 	}
 

@@ -17,7 +17,6 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
 
@@ -29,20 +28,7 @@ func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
 	}
 
-	templetes, err := resource.Templates(o, &c.params)
-	if err != nil {
-		return fmt.Errorf("unable to generate templates: %s", err)
-	}
-
-	for _, tmpl := range templetes {
-		err = resource.RemoveByTemplate(tmpl, &modified)
-		if err != nil {
-			return fmt.Errorf("unable to remove objects: %s", err)
-		}
-		logrus.Infof("resource %s removed", tmpl.Name())
-	}
-
-	return nil
+	return c.generator.Remove(o, &modified)
 }
 
 func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {

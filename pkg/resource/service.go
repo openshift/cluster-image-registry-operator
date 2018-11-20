@@ -8,29 +8,28 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func makeService(cr *v1alpha1.ImageRegistry, p *parameters.Globals) (Template, error) {
+func (g *Generator) makeService(cr *v1alpha1.ImageRegistry) (Template, error) {
 	svc := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: corev1.SchemeGroupVersion.String(),
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      p.Service.Name,
-			Namespace: p.Deployment.Namespace,
-			Labels:    p.Deployment.Labels,
+			Name:      g.params.Service.Name,
+			Namespace: g.params.Deployment.Namespace,
+			Labels:    g.params.Deployment.Labels,
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: p.Deployment.Labels,
+			Selector: g.params.Deployment.Labels,
 			Ports: []corev1.ServicePort{
 				{
-					Name:       fmt.Sprintf("%d-tcp", p.Container.Port),
-					Port:       int32(p.Container.Port),
+					Name:       fmt.Sprintf("%d-tcp", g.params.Container.Port),
+					Port:       int32(g.params.Container.Port),
 					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(p.Container.Port),
+					TargetPort: intstr.FromInt(g.params.Container.Port),
 				},
 			},
 		},
