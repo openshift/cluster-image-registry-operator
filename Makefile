@@ -7,7 +7,7 @@ PROG  := cluster-image-registry-operator
 all: generate build build-image verify
 
 generate:
-	operator-sdk generate k8s
+	./tmp/codegen/update-generated.sh
 
 build:
 	./tmp/build/build.sh
