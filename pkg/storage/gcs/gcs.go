@@ -6,19 +6,16 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"cloud.google.com/go/storage"
+
 	"google.golang.org/api/googleapi"
 
 	coreapi "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/client-go/util/retry"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	oputil "github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 type driver struct {
@@ -80,47 +77,23 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 	return []coreapi.Volume{vol}, []coreapi.VolumeMount{mount}, nil
 }
 
+func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
+	data := make(map[string]string)
+
+	data["STORAGE_GCS_KEYFILE"] = keyfileData
+
+	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
+}
+
 func (d *driver) CompleteConfiguration() error {
 	// Apply global config
-	gcfg, err := clusterconfig.Get()
-	if err != nil {
-		return fmt.Errorf("unable to get global config: %s", err)
-	}
-
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cur := &coreapi.Secret{
-			TypeMeta: metaapi.TypeMeta{
-				APIVersion: coreapi.SchemeGroupVersion.String(),
-				Kind:       "Secret",
-			},
-			ObjectMeta: metaapi.ObjectMeta{
-				Name:      d.Name + "-private-configuration",
-				Namespace: d.Namespace,
-			},
-		}
-		err := sdk.Get(cur)
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get secret %s: %s", cur.Name, err)
-			}
-		}
-
-		if cur.StringData == nil {
-			cur.StringData = make(map[string]string)
-		}
-		cur.StringData["STORAGE_GCS_KEYFILE"] = gcfg.Storage.GCS.KeyfileData
-
-		if errors.IsNotFound(err) {
-			return sdk.Create(cur)
-		}
-		return sdk.Update(cur)
-	})
+	cfg, err := oputil.GetGCSConfig()
 	if err != nil {
 		return err
 	}
 
 	if len(d.Config.Bucket) == 0 {
-		d.Config.Bucket = gcfg.Storage.GCS.Bucket
+		d.Config.Bucket = cfg.Storage.GCS.Bucket
 	}
 
 	if len(d.Config.Bucket) == 0 {
@@ -152,7 +125,7 @@ func (d *driver) CompleteConfiguration() error {
 			}
 		}
 	}
-	return nil
+	return d.createOrUpdatePrivateConfiguration(cfg.Storage.GCS.KeyfileData)
 }
 
 func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
