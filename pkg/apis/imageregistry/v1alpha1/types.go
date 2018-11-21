@@ -21,6 +21,8 @@ type ImageRegistryList struct {
 	Items           []ImageRegistry `json:"items"`
 }
 
+// +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type ImageRegistry struct {
