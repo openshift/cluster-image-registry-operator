@@ -4,7 +4,7 @@ const (
 	ImageRegistryOperatorResourceFinalizer = "imageregistry.operator.openshift.io/finalizer"
 
 	ChecksumOperatorAnnotation     = "imageregistry.operator.openshift.io/checksum"
-	ChecksumOperatorDepsAnnotation = "imageregistry.operator.openshift.io/depedencies-checksum"
+	ChecksumOperatorDepsAnnotation = "imageregistry.operator.openshift.io/dependencies-checksum"
 
 	SupplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
 )

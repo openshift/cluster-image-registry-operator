@@ -172,7 +172,5 @@ func (c *Controller) Bootstrap() (*imageregistryapi.ImageRegistry, error) {
 		}
 	}
 
-	addImageRegistryChecksum(cr)
-
 	return cr, sdk.Create(cr)
 }
