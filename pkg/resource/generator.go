@@ -114,7 +114,7 @@ func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error
 			return fmt.Errorf("unable to make template for route %s: %s", name, err)
 		}
 
-		err = g.applyTemplate(tmpl, false, modified)
+		err = g.applyTemplate(tmpl, modified)
 		if err != nil {
 			return fmt.Errorf("unable to apply template %s: %s", tmpl.Name(), err)
 		}
@@ -145,7 +145,7 @@ func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error
 	return nil
 }
 
-func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) error {
+func (g *Generator) applyTemplate(tmpl Template, modified *bool) error {
 	dgst, err := Checksum(tmpl.Expected())
 	if err != nil {
 		return fmt.Errorf("unable to generate checksum for %s: %s", tmpl.Name(), err)
@@ -174,7 +174,7 @@ func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) err
 		}
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-		if !force && ok && dgst == curdgst {
+		if ok && dgst == curdgst {
 			glog.V(1).Infof("object has not changed: %s", tmpl.Name())
 			return nil
 		}
@@ -198,10 +198,6 @@ func (g *Generator) applyTemplate(tmpl Template, force bool, modified *bool) err
 		}
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
-		if force {
-			updatedMeta.SetGeneration(currentMeta.GetGeneration() + 1)
-		}
-
 		glog.Infof("updating object: %s", tmpl.Name())
 
 		err = tmpl.Update(updated)
@@ -220,7 +216,7 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 	}
 
 	for _, tpl := range templates {
-		err = g.applyTemplate(tpl, false, modified)
+		err = g.applyTemplate(tpl, modified)
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)
 		}
