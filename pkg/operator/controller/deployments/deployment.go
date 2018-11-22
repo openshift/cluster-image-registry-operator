@@ -3,14 +3,13 @@ package deployment
 import (
 	"fmt"
 
-	"github.com/golang/glog"
-
 	kappsapi "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	opcontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller"
@@ -24,7 +23,7 @@ type Controller struct {
 }
 
 func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopCh <-chan struct{}) error {
-	glog.Info("Starting deployment controller")
+	klog.Info("Starting deployment controller")
 
 	kubeconfig, err := client.GetConfig()
 	if err != nil {
@@ -63,7 +62,7 @@ func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopC
 
 	kubeInformerFactory.Start(stopCh)
 
-	glog.Info("Waiting for deployment informer caches to sync")
+	klog.Info("Waiting for deployment informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.synced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}

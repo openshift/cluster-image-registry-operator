@@ -3,9 +3,8 @@ package storage
 import (
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
@@ -96,7 +95,7 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 		case clusterconfig.StorageTypeSwift:
 			cfg.Swift = &opapi.ImageRegistryConfigStorageSwift{}
 		default:
-			logrus.Errorf("unknown storage backend: %s", storageType)
+			klog.Errorf("unknown storage backend: %s", storageType)
 			return nil, ErrStorageNotConfigured
 		}
 		return newDriver(crname, crnamespace, cfg)

@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/golang/glog"
-
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
@@ -158,7 +157,7 @@ func (g *Generator) applyTemplate(tmpl Template, modified *bool) error {
 				return fmt.Errorf("failed to get object %s: %s", tmpl.Name(), err)
 			}
 
-			glog.Infof("creating object: %s", tmpl.Name())
+			klog.Infof("creating object: %s", tmpl.Name())
 
 			err = tmpl.Create()
 			if err == nil {
@@ -175,7 +174,7 @@ func (g *Generator) applyTemplate(tmpl Template, modified *bool) error {
 
 		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if ok && dgst == curdgst {
-			glog.V(1).Infof("object has not changed: %s", tmpl.Name())
+			klog.V(1).Infof("object has not changed: %s", tmpl.Name())
 			return nil
 		}
 
@@ -198,7 +197,7 @@ func (g *Generator) applyTemplate(tmpl Template, modified *bool) error {
 		}
 		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
 
-		glog.Infof("updating object: %s", tmpl.Name())
+		klog.Infof("updating object: %s", tmpl.Name())
 
 		err = tmpl.Update(updated)
 		if err == nil {
@@ -239,7 +238,7 @@ func (g *Generator) removeByTemplate(tmpl Template, modified *bool) error {
 		PropagationPolicy:  &propagationPolicy,
 	}
 
-	glog.Infof("deleting object %s", tmpl.Name())
+	klog.Infof("deleting object %s", tmpl.Name())
 
 	err := tmpl.Delete(opts)
 	if err != nil {
@@ -263,7 +262,7 @@ func (g *Generator) Remove(cr *regopapi.ImageRegistry, modified *bool) error {
 		if err != nil {
 			return fmt.Errorf("unable to remove objects: %s", err)
 		}
-		glog.Infof("resource %s removed", tmpl.Name())
+		klog.Infof("resource %s removed", tmpl.Name())
 	}
 
 	return nil

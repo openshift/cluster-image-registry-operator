@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
@@ -26,7 +25,7 @@ func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 
 	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
 	if errOp != nil {
-		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
+		klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
 	}
 
 	return c.generator.Remove(o, &modified)
@@ -48,13 +47,13 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return nil
 	}
 
-	logrus.Infof("finalizing %s", metautil.TypeAndName(o))
+	klog.Infof("finalizing %s", metautil.TypeAndName(o))
 
 	err := c.RemoveResources(o)
 	if err != nil {
 		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 		if errOp != nil {
-			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+			klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 		}
 		return fmt.Errorf("unable to finalize resource: %s", err)
 	}

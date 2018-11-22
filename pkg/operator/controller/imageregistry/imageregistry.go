@@ -3,10 +3,9 @@ package imageregistry
 import (
 	"fmt"
 
-	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	imageregistryset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
@@ -25,7 +24,7 @@ type Controller struct {
 }
 
 func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopCh <-chan struct{}) error {
-	glog.Info("Starting imageregistry controller")
+	klog.Info("Starting imageregistry controller")
 
 	kubeconfig, err := client.GetConfig()
 	if err != nil {
@@ -62,7 +61,7 @@ func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopC
 
 	informerFactory.Start(stopCh)
 
-	glog.Info("Waiting for imageregistry informer caches to sync")
+	klog.Info("Waiting for imageregistry informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.synced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +13,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
@@ -56,12 +55,12 @@ func (e permanentError) Error() string {
 func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
 	operatorNamespace, err := client.GetWatchNamespace()
 	if err != nil {
-		logrus.Fatalf("Failed to get watch namespace: %v", err)
+		klog.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
 	operatorName, err := client.GetOperatorName()
 	if err != nil {
-		logrus.Fatalf("Failed to get operator name: %v", err)
+		klog.Fatalf("Failed to get operator name: %v", err)
 	}
 
 	p := parameters.Globals{}
@@ -145,15 +144,15 @@ func (c *Controller) Handle(action string, o interface{}) {
 	if !ok {
 		tombstone, ok := o.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			logrus.Errorf("error decoding object, invalid type")
+			klog.Errorf("error decoding object, invalid type")
 			return
 		}
 		object, ok = tombstone.Obj.(metaapi.Object)
 		if !ok {
-			logrus.Errorf("error decoding object tombstone, invalid type")
+			klog.Errorf("error decoding object tombstone, invalid type")
 			return
 		}
-		logrus.Debugf("Recovered deleted object '%s' from tombstone", object.GetName())
+		klog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
 
 	objectInfo := fmt.Sprintf("Type=%T ", o)
@@ -162,18 +161,18 @@ func (c *Controller) Handle(action string, o interface{}) {
 	}
 	objectInfo += fmt.Sprintf("Name=%s", object.GetName())
 
-	logrus.Debugf("Processing %s object %s", action, objectInfo)
+	klog.V(1).Infof("Processing %s object %s", action, objectInfo)
 
 	if cr, ok := o.(*regopapi.ImageRegistry); ok {
 		dgst, err := resource.Checksum(cr.Spec)
 		if err != nil {
-			logrus.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+			klog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
 			dgst = ""
 		}
 
 		curdgst, ok := object.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if ok && dgst == curdgst {
-			logrus.Debugf("ImageRegistry %s Spec has not changed", object.GetName())
+			klog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
 			return
 		}
 	} else {
@@ -184,7 +183,7 @@ func (c *Controller) Handle(action string, o interface{}) {
 		}
 	}
 
-	logrus.Debugf("add event to workqueue due to %s (%s)", objectInfo, action)
+	klog.V(1).Infof("add event to workqueue due to %s (%s)", objectInfo, action)
 	c.workqueue.AddRateLimited(WORKQUEUE_KEY)
 }
 
@@ -199,7 +198,7 @@ func (c *Controller) sync() error {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 		}
-		logrus.Debugf("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
+		klog.Infof("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
 		return nil
 	}
 
@@ -219,7 +218,7 @@ func (c *Controller) sync() error {
 		if err != nil {
 			errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+				klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 			}
 			conditionProgressing(cr, operatorapi.ConditionTrue, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 		} else {
@@ -234,7 +233,7 @@ func (c *Controller) sync() error {
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
-		logrus.Warnf("unknown custom resource state: %s", cr.Spec.ManagementState)
+		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
 	var deployInterface runtime.Object
@@ -263,14 +262,14 @@ func (c *Controller) sync() error {
 	c.syncStatus(cr, deployInterface, applyError, &statusChanged)
 
 	if statusChanged {
-		logrus.Infof("%s changed", metautil.TypeAndName(cr))
+		klog.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 		addImageRegistryChecksum(cr)
 
 		_, err = client.ImageRegistries().Update(cr)
 		if err != nil && !errors.IsConflict(err) {
-			logrus.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+			klog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
 		}
 	}
 
@@ -290,7 +289,7 @@ func (c *Controller) eventProcessor() {
 
 			if _, ok := obj.(string); !ok {
 				c.workqueue.Forget(obj)
-				logrus.Errorf("expected string in workqueue but got %#v", obj)
+				klog.Errorf("expected string in workqueue but got %#v", obj)
 				return nil
 			}
 
@@ -301,12 +300,12 @@ func (c *Controller) eventProcessor() {
 
 			c.workqueue.Forget(obj)
 
-			logrus.Infof("event from workqueue successfully processed")
+			klog.Infof("event from workqueue successfully processed")
 			return nil
 		}(obj)
 
 		if err != nil {
-			logrus.Errorf("unable to process event: %s", err)
+			klog.Errorf("unable to process event: %s", err)
 		}
 	}
 }
@@ -316,7 +315,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 
 	err := c.clusterStatus.Create()
 	if err != nil {
-		logrus.Errorf("unable to create cluster operator resource: %s", err)
+		klog.Errorf("unable to create cluster operator resource: %s", err)
 	}
 
 	c.watchers = map[string]operatorcontroller.Watcher{
@@ -338,13 +337,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		}
 	}
 
-	logrus.Info("all controllers are running")
+	klog.Info("all controllers are running")
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
-	logrus.Info("started events processor")
+	klog.Info("started events processor")
 	<-stopCh
-	logrus.Info("shutting down events processor")
+	klog.Info("shutting down events processor")
 
 	return nil
 }

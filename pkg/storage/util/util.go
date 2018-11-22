@@ -1,8 +1,6 @@
 package util
 
 import (
-	"github.com/golang/glog"
-
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	coreapi "k8s.io/api/core/v1"
@@ -10,6 +8,7 @@ import (
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
@@ -34,7 +33,7 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 				return err
 			}
 
-			glog.Warningf("secret %s/%s not found: %s, creating", namespace, secretName, err)
+			klog.Warningf("secret %s/%s not found: %s, creating", namespace, secretName, err)
 
 			cur = &coreapi.Secret{
 				ObjectMeta: metaapi.ObjectMeta{

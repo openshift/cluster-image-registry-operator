@@ -4,11 +4,10 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
@@ -37,7 +36,7 @@ func resourceName(namespace string) string {
 func addImageRegistryChecksum(cr *regopapi.ImageRegistry) {
 	dgst, err := resource.Checksum(cr.Spec)
 	if err != nil {
-		logrus.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
+		klog.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
 		return
 	}
 
@@ -90,7 +89,7 @@ func (c *Controller) Bootstrap() error {
 	} else if err != nil {
 		return fmt.Errorf("unable to check if the deployment already exists: %s", err)
 	} else {
-		logrus.Infof("adopting the existing deployment config...")
+		klog.Infof("adopting the existing deployment config...")
 		var tlsSecret *corev1.Secret
 		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(c.kubeconfig, dc.ObjectMeta.Namespace))
 		if err != nil {
@@ -115,7 +114,7 @@ func (c *Controller) Bootstrap() error {
 		}
 	}
 
-	logrus.Infof("generating registry custom resource")
+	klog.Infof("generating registry custom resource")
 
 	cr := &regopapi.ImageRegistry{
 		ObjectMeta: metav1.ObjectMeta{
