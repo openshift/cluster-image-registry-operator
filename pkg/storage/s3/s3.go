@@ -15,6 +15,7 @@ import (
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	oputil "github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 type driver struct {
@@ -85,15 +86,6 @@ func (d *driver) createBucket(svc *s3.S3) error {
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
-
-	if len(d.Config.Region) > 0 && d.Config.Region != "us-east-1" {
-		input.SetCreateBucketConfiguration(
-			&s3.CreateBucketConfiguration{
-				LocationConstraint: aws.String(d.Config.Region),
-			},
-		)
-	}
-
 	if _, err := svc.CreateBucket(input); err != nil {
 		return err
 	}
@@ -105,14 +97,35 @@ func (d *driver) createBucket(svc *s3.S3) error {
 	return err
 }
 
+func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey string) error {
+	data := make(map[string]string)
+
+	data["REGISTRY_STORAGE_S3_ACCESSKEY"] = accessKey
+	data["REGISTRY_STORAGE_S3_SECRETKEY"] = secretKey
+
+	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
+}
+
 func (d *driver) CompleteConfiguration() error {
+	cfg, err := oputil.GetAWSConfig()
+	if err != nil {
+		return err
+	}
 	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials("", "", ""),
+		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
+		Region:      &cfg.Storage.S3.Region,
 	})
 	if err != nil {
 		return err
 	}
 	svc := s3.New(sess)
+
+	if len(d.Config.Bucket) == 0 {
+		d.Config.Bucket = cfg.Storage.S3.Bucket
+	}
+	if len(d.Config.Region) == 0 {
+		d.Config.Region = cfg.Storage.S3.Region
+	}
 
 	if len(d.Config.Bucket) == 0 {
 		for {
@@ -144,7 +157,7 @@ func (d *driver) CompleteConfiguration() error {
 			}
 		}
 	}
-	return nil
+	return d.createOrUpdatePrivateConfiguration(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey)
 }
 
 func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {

@@ -54,7 +54,6 @@ func waitForOperator() error {
 			fmt.Printf("error waiting for operator deployment to exist: %v\n", err)
 			return false, nil
 		}
-		fmt.Println("found operator deployment")
 		return true, nil
 	})
 	return err

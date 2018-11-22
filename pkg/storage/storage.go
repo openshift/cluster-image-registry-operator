@@ -2,15 +2,10 @@ package storage
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 
-	installer "github.com/openshift/installer/pkg/types"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
@@ -19,6 +14,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var (
@@ -72,7 +68,7 @@ func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 		names = append(names, drv.GetName())
 	}
 
-	return nil, fmt.Errorf("exactly one storage backend should be configured at the same time, got %d: %v", len(drivers), names)
+	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
 func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
@@ -82,22 +78,22 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 		if err != nil {
 			return nil, fmt.Errorf("unable to get storage type from cluster install config: %s", err)
 		}
-		switch strings.ToLower(storageType) {
-		case "azure":
+		switch storageType {
+		case util.StorageTypeAzure:
 			cfg.Azure = &opapi.ImageRegistryConfigStorageAzure{}
-		case "filesystem":
+		case util.StorageTypeFileSystem:
 			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{}
-		case "emptydir":
+		case util.StorageTypeEmptyDir:
 			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			}
-		case "gcs":
+		case util.StorageTypeGCS:
 			cfg.GCS = &opapi.ImageRegistryConfigStorageGCS{}
-		case "s3":
+		case util.StorageTypeS3:
 			cfg.S3 = &opapi.ImageRegistryConfigStorageS3{}
-		case "swift":
+		case util.StorageTypeSwift:
 			cfg.Swift = &opapi.ImageRegistryConfigStorageSwift{}
 		default:
 			logrus.Errorf("unknown storage backend: %s", storageType)
@@ -111,42 +107,23 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 // getPlatformStorage returns the storage type that should be used
 // based on the cloudplatform we are running on, as determined
 // from the installer configuration.
-func getPlatformStorage() (string, error) {
-	cm := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "cluster-config-v1",
-			Namespace: "kube-system",
-		},
-	}
-
-	if err := sdk.Get(cm); err != nil {
-		return "", fmt.Errorf("unable to read cluster install configuration: %v", err)
-	}
-
-	installConfig := &installer.InstallConfig{}
-	if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(cm.Data["install-config"]), 100).Decode(installConfig); err != nil {
-		return "", fmt.Errorf("unable to decode cluster install configuration: %v", err)
+func getPlatformStorage() (util.StorageType, error) {
+	installConfig, err := util.GetInstallConfig()
+	if err != nil {
+		return "", err
 	}
 
 	// if we can't determine what platform we're on, fallback to creating
 	// a PVC for the registry.
-	storage := ""
 	switch {
 	case installConfig.Platform.Libvirt != nil:
-		storage = "emptydir"
-		// TODO - Corey enable s3, someone enable swift in the future.
-		/*
-			case installConfig.Platform.AWS != nil:
-				storage = "s3"
-			case installConfig.Platform.OpenStack != nil:
-				storage = "swift"
-			default:
-			  	storage="filesystem"
-		*/
+		return util.StorageTypeEmptyDir, nil
+	case installConfig.Platform.AWS != nil:
+		return util.StorageTypeS3, nil
+		// case installConfig.Platform.OpenStack != nil:
+		// 	return util.StorageTypeSwift, nil
+	default:
+		//return util.StorageTypeFileSystem, nil
+		return "", nil
 	}
-	return storage, nil
 }
