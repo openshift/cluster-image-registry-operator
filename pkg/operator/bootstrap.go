@@ -4,17 +4,17 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-	"github.com/sirupsen/logrus"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 
-	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -33,10 +33,10 @@ func resourceName(namespace string) string {
 	return "image-registry"
 }
 
-func addImageRegistryChecksum(cr *imageregistryapi.ImageRegistry) {
+func addImageRegistryChecksum(cr *regopapi.ImageRegistry) {
 	dgst, err := resource.Checksum(cr.Spec)
 	if err != nil {
-		logrus.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
+		klog.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
 		return
 	}
 
@@ -48,16 +48,12 @@ func addImageRegistryChecksum(cr *imageregistryapi.ImageRegistry) {
 }
 
 func (c *Controller) Bootstrap() error {
-	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
-
-	crList := &imageregistryapi.ImageRegistryList{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
-		},
+	client, err := regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
 	}
 
-	err := sdk.List(c.params.Deployment.Namespace, crList)
+	crList, err := client.ImageRegistries().List(metav1.ListOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to list registry custom resources: %s", err)
@@ -73,48 +69,44 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", c.params.Deployment.Namespace, len(crList.Items))
 	}
 
-	var spec imageregistryapi.ImageRegistrySpec
+	var spec regopapi.ImageRegistrySpec
 
-	// TODO(legion): Add real bootstrap based on global ConfigMap or something.
-	dc := &appsapi.DeploymentConfig{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: appsapi.SchemeGroupVersion.String(),
-			Kind:       "DeploymentConfig",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceName(c.params.Deployment.Namespace),
-			Namespace: c.params.Deployment.Namespace,
-		},
+	appsclient, err := appsset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
 	}
-	err = sdk.Get(dc)
+
+	dc, err := appsclient.DeploymentConfigs(c.params.Deployment.Namespace).Get(resourceName(c.params.Deployment.Namespace), metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		spec = imageregistryapi.ImageRegistrySpec{
+		spec = regopapi.ImageRegistrySpec{
 			OperatorSpec: operatorapi.OperatorSpec{
 				ManagementState: operatorapi.Managed,
 				Version:         "none",
 			},
-			Storage:  imageregistryapi.ImageRegistryConfigStorage{},
+			Storage:  regopapi.ImageRegistryConfigStorage{},
 			Replicas: 1,
 		}
 	} else if err != nil {
 		return fmt.Errorf("unable to check if the deployment already exists: %s", err)
 	} else {
-		logrus.Infof("adopting the existing deployment config...")
+		klog.Infof("adopting the existing deployment config...")
 		var tlsSecret *corev1.Secret
-		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(dc.ObjectMeta.Namespace))
+		spec, tlsSecret, err = migration.NewImageRegistrySpecFromDeploymentConfig(dc, dependency.NewNamespacedResources(c.kubeconfig, dc.ObjectMeta.Namespace))
 		if err != nil {
 			return fmt.Errorf("unable to adopt the existing deployment config: %s", err)
 		}
 		if tlsSecret != nil {
-			tlsSecret.TypeMeta = metav1.TypeMeta{
-				APIVersion: corev1.SchemeGroupVersion.String(),
-				Kind:       "Secret",
-			}
 			tlsSecret.ObjectMeta = metav1.ObjectMeta{
 				Name:      dc.ObjectMeta.Name + "-tls",
 				Namespace: dc.ObjectMeta.Namespace,
 			}
-			err = sdk.Create(tlsSecret)
+
+			coreclient, err := coreset.NewForConfig(c.kubeconfig)
+			if err != nil {
+				return err
+			}
+
+			_, err = coreclient.Secrets(dc.ObjectMeta.Namespace).Create(tlsSecret)
 			// TODO: it might already exist
 			if err != nil {
 				return fmt.Errorf("unable to create the tls secret: %s", err)
@@ -122,20 +114,16 @@ func (c *Controller) Bootstrap() error {
 		}
 	}
 
-	logrus.Infof("generating registry custom resource")
+	klog.Infof("generating registry custom resource")
 
-	cr := &imageregistryapi.ImageRegistry{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
-		},
+	cr := &regopapi.ImageRegistry{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       resourceName(c.params.Deployment.Namespace),
 			Namespace:  c.params.Deployment.Namespace,
 			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec:   spec,
-		Status: imageregistryapi.ImageRegistryStatus{},
+		Status: regopapi.ImageRegistryStatus{},
 	}
 
 	if len(cr.Spec.HTTPSecret) == 0 {
@@ -158,5 +146,6 @@ func (c *Controller) Bootstrap() error {
 		}
 	}
 
-	return sdk.Create(cr)
+	_, err = client.ImageRegistries().Create(cr)
+	return err
 }

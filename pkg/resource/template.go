@@ -4,18 +4,21 @@ import (
 	"fmt"
 
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-type TemplateValidator func(runtime.Object) error
-
 type Template struct {
 	Object      runtime.Object
 	Annotations map[string]string
 	Strategy    strategy.Strategy
-	Validator   TemplateValidator
+
+	Get    func() (runtime.Object, error)
+	Create func() error
+	Update func(runtime.Object) error
+	Delete func(*metav1.DeleteOptions) error
 }
 
 func (t *Template) Name() string {

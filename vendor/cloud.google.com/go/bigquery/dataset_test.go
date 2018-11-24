@@ -15,6 +15,7 @@
 package bigquery
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"testing"
@@ -22,7 +23,6 @@ import (
 
 	"cloud.google.com/go/internal/testutil"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
 	itest "google.golang.org/api/iterator/testing"
 )

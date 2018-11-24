@@ -19,6 +19,7 @@ package pubsub
 // TODO(jba): test that when all messages expire, Stop returns.
 
 import (
+	"context"
 	"io"
 	"strconv"
 	"sync"
@@ -30,7 +31,6 @@ import (
 	tspb "github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	pb "google.golang.org/genproto/googleapis/pubsub/v1"
 	"google.golang.org/grpc"
@@ -408,10 +408,10 @@ func TestStreamingPull_ReconnectsAfterServerDies(t *testing.T) {
 				// Restart the server
 				server.srv.Close()
 				server2, err := newMockServer(server.srv.Port)
-				defer server2.srv.Close()
 				if err != nil {
 					t.Fatal(err)
 				}
+				defer server2.srv.Close()
 				server2.addStreamingPullMessages(testMessages)
 			}
 

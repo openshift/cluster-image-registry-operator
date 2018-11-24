@@ -18,25 +18,30 @@ import (
 	"fmt"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 	kappsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	kappsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 func getImageRegistryPrivateConfiguration() (*corev1.Secret, error) {
-	sec := &corev1.Secret{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "Secret",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry-private-configuration",
-			Namespace: "openshift-image-registry",
-		},
+	kubeconfig, err := client.GetConfig()
+	if err != nil {
+		return nil, err
 	}
 
-	if err := sdk.Get(sec); err != nil {
+	client, err := coreset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	sec, err := client.Secrets("openshift-image-registry").Get("image-registry-private-configuration", metav1.GetOptions{})
+	if err != nil {
 		return nil, fmt.Errorf("unable to read secret openshift-image-registry/image-registry-private-configuration: %v", err)
 	}
 
@@ -44,39 +49,29 @@ func getImageRegistryPrivateConfiguration() (*corev1.Secret, error) {
 }
 
 func getImageRegistryCustomResource() (*regopapi.ImageRegistry, error) {
-	cr := &regopapi.ImageRegistry{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: regopapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registryCustomResourceName,
-			Namespace: registryNamespace,
-		},
-	}
-
-	err := sdk.Get(cr)
+	kubeconfig, err := client.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	return cr, nil
+
+	client, err := regopset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.ImageRegistries().Get(registryCustomResourceName, metav1.GetOptions{})
 }
 
 func getRegistryDeployment() (*kappsv1.Deployment, error) {
-	rd := &kappsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: kappsv1.SchemeGroupVersion.String(),
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "image-registry",
-			Namespace: "openshift-image-registry",
-		},
-	}
-
-	err := sdk.Get(rd)
+	kubeconfig, err := client.GetConfig()
 	if err != nil {
 		return nil, err
 	}
-	return rd, nil
+
+	client, err := kappsset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Deployments("openshift-image-registry").Get("image-registry", metav1.GetOptions{})
 }

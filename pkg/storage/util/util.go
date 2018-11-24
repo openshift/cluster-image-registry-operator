@@ -1,34 +1,48 @@
 package util
 
 import (
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-
-	"github.com/sirupsen/logrus"
-
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 func CreateOrUpdateSecret(name string, namespace string, data map[string]string) error {
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cur := &coreapi.Secret{
-			TypeMeta: metaapi.TypeMeta{
-				APIVersion: coreapi.SchemeGroupVersion.String(),
-				Kind:       "Secret",
-			},
-			ObjectMeta: metaapi.ObjectMeta{
-				Name:      name + "-private-configuration",
-				Namespace: namespace,
-			},
+	kubeconfig, err := client.GetConfig()
+	if err != nil {
+		return err
+	}
+
+	client, err := coreset.NewForConfig(kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	secretName := name + "-private-configuration"
+
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		cur, err := client.Secrets(namespace).Get(secretName, metaapi.GetOptions{})
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return err
+			}
+
+			klog.Warningf("secret %s/%s not found: %s, creating", namespace, secretName, err)
+
+			cur = &coreapi.Secret{
+				ObjectMeta: metaapi.ObjectMeta{
+					Name:      name + "-private-configuration",
+					Namespace: namespace,
+				},
+			}
 		}
-		err := sdk.Get(cur)
-		if err != nil && !errors.IsNotFound(err) {
-			logrus.Warnf("failed to get secret %s: %s, creating", cur.Name, err)
-		}
+
 		if cur.StringData == nil {
 			cur.StringData = make(map[string]string)
 		}
@@ -37,14 +51,12 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 		}
 
 		if errors.IsNotFound(err) {
-			return sdk.Create(cur)
+			_, err := client.Secrets(namespace).Create(cur)
+			return err
 		}
-		return sdk.Update(cur)
-	})
-	if err != nil {
+		_, err = client.Secrets(namespace).Update(cur)
 		return err
-	}
-	return nil
+	})
 }
 
 func GetStateValue(status *opapi.ImageRegistryStatus, name string) (value string, found bool) {

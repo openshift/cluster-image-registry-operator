@@ -3342,6 +3342,10 @@
         "ZoneName":{
           "shape":"String",
           "locationName":"zoneName"
+        },
+        "ZoneId":{
+          "shape":"String",
+          "locationName":"zoneId"
         }
       }
     },
@@ -4533,6 +4537,66 @@
         }
       }
     },
+    "CreateFleetError":{
+      "type":"structure",
+      "members":{
+        "LaunchTemplateAndOverrides":{
+          "shape":"LaunchTemplateAndOverridesResponse",
+          "locationName":"launchTemplateAndOverrides"
+        },
+        "Lifecycle":{
+          "shape":"InstanceLifecycle",
+          "locationName":"lifecycle"
+        },
+        "ErrorCode":{
+          "shape":"String",
+          "locationName":"errorCode"
+        },
+        "ErrorMessage":{
+          "shape":"String",
+          "locationName":"errorMessage"
+        }
+      }
+    },
+    "CreateFleetErrorsSet":{
+      "type":"list",
+      "member":{
+        "shape":"CreateFleetError",
+        "locationName":"item"
+      }
+    },
+    "CreateFleetInstance":{
+      "type":"structure",
+      "members":{
+        "LaunchTemplateAndOverrides":{
+          "shape":"LaunchTemplateAndOverridesResponse",
+          "locationName":"launchTemplateAndOverrides"
+        },
+        "Lifecycle":{
+          "shape":"InstanceLifecycle",
+          "locationName":"lifecycle"
+        },
+        "InstanceIds":{
+          "shape":"InstanceIdsSet",
+          "locationName":"instanceIds"
+        },
+        "InstanceType":{
+          "shape":"InstanceType",
+          "locationName":"instanceType"
+        },
+        "Platform":{
+          "shape":"PlatformValues",
+          "locationName":"platform"
+        }
+      }
+    },
+    "CreateFleetInstancesSet":{
+      "type":"list",
+      "member":{
+        "shape":"CreateFleetInstance",
+        "locationName":"item"
+      }
+    },
     "CreateFleetRequest":{
       "type":"structure",
       "required":[
@@ -4564,6 +4628,14 @@
         "FleetId":{
           "shape":"FleetIdentifier",
           "locationName":"fleetId"
+        },
+        "Errors":{
+          "shape":"CreateFleetErrorsSet",
+          "locationName":"errorSet"
+        },
+        "Instances":{
+          "shape":"CreateFleetInstancesSet",
+          "locationName":"fleetInstanceSet"
         }
       }
     },
@@ -6287,6 +6359,10 @@
           "shape":"ZoneNameStringList",
           "locationName":"ZoneName"
         },
+        "ZoneIds":{
+          "shape":"ZoneIdStringList",
+          "locationName":"ZoneId"
+        },
         "DryRun":{
           "shape":"Boolean",
           "locationName":"dryRun"
@@ -6574,6 +6650,27 @@
         }
       }
     },
+    "DescribeFleetError":{
+      "type":"structure",
+      "members":{
+        "LaunchTemplateAndOverrides":{
+          "shape":"LaunchTemplateAndOverridesResponse",
+          "locationName":"launchTemplateAndOverrides"
+        },
+        "Lifecycle":{
+          "shape":"InstanceLifecycle",
+          "locationName":"lifecycle"
+        },
+        "ErrorCode":{
+          "shape":"String",
+          "locationName":"errorCode"
+        },
+        "ErrorMessage":{
+          "shape":"String",
+          "locationName":"errorMessage"
+        }
+      }
+    },
     "DescribeFleetHistoryRequest":{
       "type":"structure",
       "required":[
@@ -6643,6 +6740,45 @@
           "shape":"FleetIdentifier",
           "locationName":"fleetId"
         }
+      }
+    },
+    "DescribeFleetsErrorSet":{
+      "type":"list",
+      "member":{
+        "shape":"DescribeFleetError",
+        "locationName":"item"
+      }
+    },
+    "DescribeFleetsInstances":{
+      "type":"structure",
+      "members":{
+        "LaunchTemplateAndOverrides":{
+          "shape":"LaunchTemplateAndOverridesResponse",
+          "locationName":"launchTemplateAndOverrides"
+        },
+        "Lifecycle":{
+          "shape":"InstanceLifecycle",
+          "locationName":"lifecycle"
+        },
+        "InstanceIds":{
+          "shape":"InstanceIdsSet",
+          "locationName":"instanceIds"
+        },
+        "InstanceType":{
+          "shape":"InstanceType",
+          "locationName":"instanceType"
+        },
+        "Platform":{
+          "shape":"PlatformValues",
+          "locationName":"platform"
+        }
+      }
+    },
+    "DescribeFleetsInstancesSet":{
+      "type":"list",
+      "member":{
+        "shape":"DescribeFleetsInstances",
+        "locationName":"item"
       }
     },
     "DescribeFleetsRequest":{
@@ -9686,6 +9822,14 @@
         "Tags":{
           "shape":"TagList",
           "locationName":"tagSet"
+        },
+        "Errors":{
+          "shape":"DescribeFleetsErrorSet",
+          "locationName":"errorSet"
+        },
+        "Instances":{
+          "shape":"DescribeFleetsInstancesSet",
+          "locationName":"fleetInstanceSet"
         }
       }
     },
@@ -9770,6 +9914,10 @@
         "Priority":{
           "shape":"Double",
           "locationName":"priority"
+        },
+        "Placement":{
+          "shape":"PlacementResponse",
+          "locationName":"placement"
         }
       }
     },
@@ -9796,7 +9944,8 @@
         "SubnetId":{"shape":"String"},
         "AvailabilityZone":{"shape":"String"},
         "WeightedCapacity":{"shape":"Double"},
-        "Priority":{"shape":"Double"}
+        "Priority":{"shape":"Double"},
+        "Placement":{"shape":"Placement"}
       }
     },
     "FleetLaunchTemplateSpecification":{
@@ -9854,7 +10003,8 @@
       "type":"string",
       "enum":[
         "request",
-        "maintain"
+        "maintain",
+        "instant"
       ]
     },
     "Float":{"type":"float"},
@@ -10886,7 +11036,9 @@
           "locationName":"DiskContainer"
         },
         "DryRun":{"shape":"Boolean"},
+        "Encrypted":{"shape":"Boolean"},
         "Hypervisor":{"shape":"String"},
+        "KmsKeyId":{"shape":"String"},
         "LicenseType":{"shape":"String"},
         "Platform":{"shape":"String"},
         "RoleName":{"shape":"String"}
@@ -10903,6 +11055,10 @@
           "shape":"String",
           "locationName":"description"
         },
+        "Encrypted":{
+          "shape":"Boolean",
+          "locationName":"encrypted"
+        },
         "Hypervisor":{
           "shape":"String",
           "locationName":"hypervisor"
@@ -10914,6 +11070,10 @@
         "ImportTaskId":{
           "shape":"String",
           "locationName":"importTaskId"
+        },
+        "KmsKeyId":{
+          "shape":"String",
+          "locationName":"kmsKeyId"
         },
         "LicenseType":{
           "shape":"String",
@@ -10952,6 +11112,10 @@
           "shape":"String",
           "locationName":"description"
         },
+        "Encrypted":{
+          "shape":"Boolean",
+          "locationName":"encrypted"
+        },
         "Hypervisor":{
           "shape":"String",
           "locationName":"hypervisor"
@@ -10963,6 +11127,10 @@
         "ImportTaskId":{
           "shape":"String",
           "locationName":"importTaskId"
+        },
+        "KmsKeyId":{
+          "shape":"String",
+          "locationName":"kmsKeyId"
         },
         "LicenseType":{
           "shape":"String",
@@ -11104,13 +11272,6 @@
     },
     "ImportInstanceVolumeDetailItem":{
       "type":"structure",
-      "required":[
-        "AvailabilityZone",
-        "BytesConverted",
-        "Image",
-        "Status",
-        "Volume"
-      ],
       "members":{
         "AvailabilityZone":{
           "shape":"String",
@@ -11191,6 +11352,8 @@
         "Description":{"shape":"String"},
         "DiskContainer":{"shape":"SnapshotDiskContainer"},
         "DryRun":{"shape":"Boolean"},
+        "Encrypted":{"shape":"Boolean"},
+        "KmsKeyId":{"shape":"String"},
         "RoleName":{"shape":"String"}
       }
     },
@@ -11702,6 +11865,7 @@
         "unhealthy"
       ]
     },
+    "InstanceId":{"type":"string"},
     "InstanceIdSet":{
       "type":"list",
       "member":{
@@ -11714,6 +11878,13 @@
       "member":{
         "shape":"String",
         "locationName":"InstanceId"
+      }
+    },
+    "InstanceIdsSet":{
+      "type":"list",
+      "member":{
+        "shape":"InstanceId",
+        "locationName":"item"
       }
     },
     "InstanceInterruptionBehavior":{
@@ -11752,6 +11923,13 @@
       "members":{
         "Ipv6Address":{"shape":"String"}
       }
+    },
+    "InstanceLifecycle":{
+      "type":"string",
+      "enum":[
+        "spot",
+        "on-demand"
+      ]
     },
     "InstanceLifecycleType":{
       "type":"string",
@@ -12210,6 +12388,12 @@
         "r5.16xlarge",
         "r5.24xlarge",
         "r5.metal",
+        "r5a.large",
+        "r5a.xlarge",
+        "r5a.2xlarge",
+        "r5a.4xlarge",
+        "r5a.12xlarge",
+        "r5a.24xlarge",
         "r5d.large",
         "r5d.xlarge",
         "r5d.2xlarge",
@@ -12292,6 +12476,12 @@
         "m5.4xlarge",
         "m5.12xlarge",
         "m5.24xlarge",
+        "m5a.large",
+        "m5a.xlarge",
+        "m5a.2xlarge",
+        "m5a.4xlarge",
+        "m5a.12xlarge",
+        "m5a.24xlarge",
         "m5d.large",
         "m5d.xlarge",
         "m5d.2xlarge",
@@ -12653,6 +12843,19 @@
         "Tags":{
           "shape":"TagList",
           "locationName":"tagSet"
+        }
+      }
+    },
+    "LaunchTemplateAndOverridesResponse":{
+      "type":"structure",
+      "members":{
+        "LaunchTemplateSpecification":{
+          "shape":"FleetLaunchTemplateSpecification",
+          "locationName":"launchTemplateSpecification"
+        },
+        "Overrides":{
+          "shape":"FleetLaunchTemplateOverrides",
+          "locationName":"overrides"
         }
       }
     },
@@ -14583,13 +14786,23 @@
         "AllocationStrategy":{
           "shape":"FleetOnDemandAllocationStrategy",
           "locationName":"allocationStrategy"
+        },
+        "SingleInstanceType":{
+          "shape":"Boolean",
+          "locationName":"singleInstanceType"
+        },
+        "MinTargetCapacity":{
+          "shape":"Integer",
+          "locationName":"minTargetCapacity"
         }
       }
     },
     "OnDemandOptionsRequest":{
       "type":"structure",
       "members":{
-        "AllocationStrategy":{"shape":"FleetOnDemandAllocationStrategy"}
+        "AllocationStrategy":{"shape":"FleetOnDemandAllocationStrategy"},
+        "SingleInstanceType":{"shape":"Boolean"},
+        "MinTargetCapacity":{"shape":"Integer"}
       }
     },
     "OperationType":{
@@ -14717,6 +14930,15 @@
     "PlacementGroupStringList":{
       "type":"list",
       "member":{"shape":"String"}
+    },
+    "PlacementResponse":{
+      "type":"structure",
+      "members":{
+        "GroupName":{
+          "shape":"String",
+          "locationName":"groupName"
+        }
+      }
     },
     "PlacementStrategy":{
       "type":"string",
@@ -16493,19 +16715,25 @@
         "customer-gateway",
         "dedicated-host",
         "dhcp-options",
+        "elastic-ip",
+        "fleet",
+        "fpga-image",
         "image",
         "instance",
         "internet-gateway",
+        "launch-template",
+        "natgateway",
         "network-acl",
         "network-interface",
         "reserved-instances",
         "route-table",
+        "security-group",
         "snapshot",
         "spot-instances-request",
         "subnet",
-        "security-group",
         "volume",
         "vpc",
+        "vpc-peering-connection",
         "vpn-connection",
         "vpn-gateway"
       ]
@@ -17391,10 +17619,6 @@
     },
     "SecurityGroupReference":{
       "type":"structure",
-      "required":[
-        "GroupId",
-        "ReferencingVpcId"
-      ],
       "members":{
         "GroupId":{
           "shape":"String",
@@ -17736,9 +17960,17 @@
           "shape":"Double",
           "locationName":"diskImageSize"
         },
+        "Encrypted":{
+          "shape":"Boolean",
+          "locationName":"encrypted"
+        },
         "Format":{
           "shape":"String",
           "locationName":"format"
+        },
+        "KmsKeyId":{
+          "shape":"String",
+          "locationName":"kmsKeyId"
         },
         "Progress":{
           "shape":"String",
@@ -18205,6 +18437,14 @@
         "InstancePoolsToUseCount":{
           "shape":"Integer",
           "locationName":"instancePoolsToUseCount"
+        },
+        "SingleInstanceType":{
+          "shape":"Boolean",
+          "locationName":"singleInstanceType"
+        },
+        "MinTargetCapacity":{
+          "shape":"Integer",
+          "locationName":"minTargetCapacity"
         }
       }
     },
@@ -18213,7 +18453,9 @@
       "members":{
         "AllocationStrategy":{"shape":"SpotAllocationStrategy"},
         "InstanceInterruptionBehavior":{"shape":"SpotInstanceInterruptionBehavior"},
-        "InstancePoolsToUseCount":{"shape":"Integer"}
+        "InstancePoolsToUseCount":{"shape":"Integer"},
+        "SingleInstanceType":{"shape":"Boolean"},
+        "MinTargetCapacity":{"shape":"Integer"}
       }
     },
     "SpotPlacement":{
@@ -18303,7 +18545,6 @@
     },
     "StaleSecurityGroup":{
       "type":"structure",
-      "required":["GroupId"],
       "members":{
         "Description":{
           "shape":"String",
@@ -20128,6 +20369,13 @@
           "shape":"ByoipCidr",
           "locationName":"byoipCidr"
         }
+      }
+    },
+    "ZoneIdStringList":{
+      "type":"list",
+      "member":{
+        "shape":"String",
+        "locationName":"ZoneId"
       }
     },
     "ZoneNameStringList":{

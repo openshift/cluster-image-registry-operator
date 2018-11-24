@@ -15,9 +15,8 @@
 package metadata
 
 import (
+	"context"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func TestMetadata(t *testing.T) {

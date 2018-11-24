@@ -14,36 +14,35 @@ required = [
 
 [[override]]
   name = "k8s.io/code-generator"
-  # revision for tag "kubernetes-1.10.1"
-  revision = "7ead8f38b01cf8653249f5af80ce7b2c8aba12e2"
+  version = "kubernetes-1.11.1"
 
 [[override]]
   name = "k8s.io/api"
-  # revision for tag "kubernetes-1.10.1"
-  revision = "73d903622b7391f3312dcbac6483fed484e185f8"
+  version = "kubernetes-1.11.1"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  # revision for tag "kubernetes-1.10.1"
-  revision = "4347b330d0ff094db860f2f75fa725b4f4b53618"
+  version = "kubernetes-1.11.1"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  # revision for tag "kubernetes-1.10.1"
-  revision = "302974c03f7e50f16561ba237db776ab93594ef6"
+  version = "kubernetes-1.11.1"
 
 [[override]]
   name = "k8s.io/client-go"
-  # revision for tag "kubernetes-1.10.1"
-  revision = "989be4278f353e42f26c416c53757d16fcff77db"
+  version = "kubernetes-1.11.1"
 
 [[override]]
   name = "github.com/openshift/cluster-version-operator"
   revision = "fe673cb712fa5e27001488fc088ac91bb553353d"
 
-[[constraint]]
-  name = "github.com/operator-framework/operator-sdk"
-  version = "=v0.0.6"
+[[override]]
+  name = "github.com/openshift/client-go"
+  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
+
+[[override]]
+  name = "github.com/openshift/api"
+  revision = "ffac7eec5e7f87c6a9fcbc766e3b024ed3ef39ea"
 
 [[constraint]]
   name = "github.com/openshift/image-registry"

@@ -15,6 +15,7 @@
 package pubsub
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/internal/uid"
 	gax "github.com/googleapis/gax-go"
-	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
@@ -342,7 +342,7 @@ func TestIntegration_CancelReceive(t *testing.T) {
 			time.AfterFunc(5*time.Second, msg.Ack)
 		})
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}()
 
@@ -441,6 +441,8 @@ func TestIntegration_UpdateSubscription(t *testing.T) {
 	}
 }
 
+// NOTE: This test should be skipped by open source contributors. It requires
+// whitelisting, a (gsuite) organization project, and specific permissions.
 func TestIntegration_UpdateTopic(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -579,6 +581,11 @@ func TestIntegration_Errors(t *testing.T) {
 	}
 }
 
+// NOTE: This test should be skipped by open source contributors. It requires
+// whitelisting, a (gsuite) organization project, and specific permissions.
+//
+// Googlers, see internal bug 77920644. Furthermore, be sure to add your
+// service account as an owner of ps-geofencing-test.
 func TestIntegration_MessageStoragePolicy(t *testing.T) {
 	// Verify that the message storage policy is populated.
 	if testing.Short() {

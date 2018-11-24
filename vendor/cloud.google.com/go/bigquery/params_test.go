@@ -15,6 +15,7 @@
 package bigquery
 
 import (
+	"context"
 	"errors"
 	"math"
 	"math/big"
@@ -25,7 +26,6 @@ import (
 	"cloud.google.com/go/civil"
 	"cloud.google.com/go/internal/testutil"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
 )
 

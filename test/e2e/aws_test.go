@@ -25,17 +25,17 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 func TestAWS(t *testing.T) {
-	cfg, err := util.GetAWSConfig()
+	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
 
 	// If the storage type is not S3, skip this test.
-	if cfg.Storage.Type != util.StorageTypeS3 {
+	if cfg.Storage.Type != clusterconfig.StorageTypeS3 {
 		t.Logf("Skipping S3 storage configuration tests")
 		return
 	}
@@ -90,17 +90,17 @@ func TestAWS(t *testing.T) {
 	// exist in the image registry deployment and
 	// contain the correct values
 	awsEnvVars := []corev1.EnvVar{
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: string(cfg.Storage.Type), ValueFrom: nil},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket), ValueFrom: nil},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(imageRegistryOperatorCustomResource.Spec.Storage.S3.Region), ValueFrom: nil},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
+		{Name: "REGISTRY_STORAGE", Value: string(cfg.Storage.Type), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(imageRegistryOperatorCustomResource.Spec.Storage.S3.Region), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
 			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "image-registry-private-configuration"},
 				Key: "REGISTRY_STORAGE_S3_ACCESSKEY"},
 		},
 		},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
+		{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
 			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: "image-registry-private-configuration"},

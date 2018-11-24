@@ -49,10 +49,8 @@ var (
 	baseURL        = flag.String("base_url", "", "(optional) Override the default service API URL. If empty, the service's root URL will be used.")
 	headerPath     = flag.String("header_path", "", "If non-empty, prepend the contents of this file to generated services.")
 
-	contextHTTPPkg = flag.String("ctxhttp_pkg", "golang.org/x/net/context/ctxhttp", "Go package path of the 'ctxhttp' package.")
-	contextPkg     = flag.String("context_pkg", "golang.org/x/net/context", "Go package path of the 'context' package.")
-	gensupportPkg  = flag.String("gensupport_pkg", "google.golang.org/api/gensupport", "Go package path of the 'api/gensupport' support package.")
-	googleapiPkg   = flag.String("googleapi_pkg", "google.golang.org/api/googleapi", "Go package path of the 'api/googleapi' support package.")
+	gensupportPkg = flag.String("gensupport_pkg", "google.golang.org/api/gensupport", "Go package path of the 'api/gensupport' support package.")
+	googleapiPkg  = flag.String("googleapi_pkg", "google.golang.org/api/googleapi", "Go package path of the 'api/googleapi' support package.")
 
 	serviceTypes = []string{"Service", "APIService"}
 )
@@ -572,29 +570,29 @@ func (a *API) GenerateCode() ([]byte, error) {
 	pn("package %s // import %q", pkg, a.Target())
 	p("\n")
 	pn("import (")
+	for _, imp := range []string{
+		"bytes",
+		"context",
+		"encoding/json",
+		"errors",
+		"fmt",
+		"io",
+		"net/http",
+		"net/url",
+		"strconv",
+		"strings",
+	} {
+		pn("  %q", imp)
+	}
+	pn("")
 	for _, imp := range []struct {
 		pkg   string
 		lname string
 	}{
-		{"bytes", ""},
-		{"encoding/json", ""},
-		{"errors", ""},
-		{"fmt", ""},
-		{"io", ""},
-		{"net/http", ""},
-		{"net/url", ""},
-		{"strconv", ""},
-		{"strings", ""},
-		{*contextHTTPPkg, "ctxhttp"},
-		{*contextPkg, "context"},
 		{*gensupportPkg, "gensupport"},
 		{*googleapiPkg, "googleapi"},
 	} {
-		if imp.lname == "" {
-			pn("  %q", imp.pkg)
-		} else {
-			pn("  %s %q", imp.lname, imp.pkg)
-		}
+		pn("  %s %q", imp.lname, imp.pkg)
 	}
 	pn(")")
 	pn("\n// Always reference these packages, just in case the auto-generated code")
@@ -610,7 +608,6 @@ func (a *API) GenerateCode() ([]byte, error) {
 	pn("var _ = errors.New")
 	pn("var _ = strings.Replace")
 	pn("var _ = context.Canceled")
-	pn("var _ = ctxhttp.Do")
 	pn("")
 	pn("const apiId = %q", a.doc.ID)
 	pn("const apiName = %q", a.doc.Name)
@@ -808,6 +805,8 @@ var pointerFields = []fieldName{
 	{api: "androidpublisher:v3", schema: "ProductPurchase", field: "PurchaseType"},
 	{api: "androidpublisher:v2", schema: "SubscriptionPurchase", field: "CancelReason"},
 	{api: "androidpublisher:v2", schema: "SubscriptionPurchase", field: "PaymentState"},
+	{api: "androidpublisher:v2", schema: "SubscriptionPurchase", field: "PurchaseType"},
+	{api: "androidpublisher:v3", schema: "SubscriptionPurchase", field: "PurchaseType"},
 	{api: "cloudmonitoring:v2beta2", schema: "Point", field: "BoolValue"},
 	{api: "cloudmonitoring:v2beta2", schema: "Point", field: "DoubleValue"},
 	{api: "cloudmonitoring:v2beta2", schema: "Point", field: "Int64Value"},
@@ -1848,12 +1847,18 @@ func (meth *Method) generateCode() {
 	}
 	pn("var body io.Reader = nil")
 	if ba := args.bodyArg(); ba != nil && httpMethod != "GET" {
-		style := "WithoutDataWrapper"
-		if a.needsDataWrapper() {
-			style = "WithDataWrapper"
+		if meth.m.ID == "ml.projects.predict" {
+			// Skip JSONReader for APIs that require clients to pass in JSON already.
+			pn("body = strings.NewReader(c.%s.HttpBody.Data)", ba.goname)
+		} else {
+			style := "WithoutDataWrapper"
+			if a.needsDataWrapper() {
+				style = "WithDataWrapper"
+			}
+			pn("body, err := googleapi.%s.JSONReader(c.%s)", style, ba.goname)
+			pn("if err != nil { return nil, err }")
 		}
-		pn("body, err := googleapi.%s.JSONReader(c.%s)", style, ba.goname)
-		pn("if err != nil { return nil, err }")
+
 		pn(`reqHeaders.Set("Content-Type", "application/json")`)
 	}
 	pn(`c.urlParams_.Set("alt", alt)`)
@@ -1982,7 +1987,16 @@ func (meth *Method) generateCode() {
 		} else {
 			pn("target := &ret")
 		}
-		pn("if err := gensupport.DecodeResponse(target, res); err != nil { return nil, err }")
+
+		if meth.m.ID == "ml.projects.predict" {
+			pn("var b bytes.Buffer")
+			pn("if _, err := io.Copy(&b, res.Body); err != nil { return nil, err }")
+			pn("if err := res.Body.Close(); err != nil { return nil, err }")
+			pn("if err := json.NewDecoder(bytes.NewReader(b.Bytes())).Decode(target); err != nil { return nil, err }")
+			pn("ret.Data = b.String()")
+		} else {
+			pn("if err := gensupport.DecodeResponse(target, res); err != nil { return nil, err }")
+		}
 		pn("return ret, nil")
 	}
 

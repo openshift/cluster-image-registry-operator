@@ -1,34 +1,43 @@
 package operator
 
 import (
-	"context"
+	//"context"
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
-	"github.com/operator-framework/operator-sdk/pkg/util/k8sutil"
-
-	kappsapi "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+
+	operatorcontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller"
+	clusterrolebindingscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/clusterrolebindings"
+	clusterrolescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/clusterroles"
+	configmapscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/configmaps"
+	deploymentscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/deployments"
+	imageregistrycontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/imageregistry"
+	routescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/routes"
+	secretscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/secrets"
+	servicesaccountscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/serviceaccounts"
+	servicescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/services"
 )
 
 const (
@@ -44,14 +53,14 @@ func (e permanentError) Error() string {
 }
 
 func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
-	operatorNamespace, err := k8sutil.GetWatchNamespace()
+	operatorNamespace, err := client.GetWatchNamespace()
 	if err != nil {
-		logrus.Fatalf("Failed to get watch namespace: %v", err)
+		klog.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
-	operatorName, err := k8sutil.GetOperatorName()
+	operatorName, err := client.GetOperatorName()
 	if err != nil {
-		logrus.Fatalf("Failed to get operator name: %v", err)
+		klog.Fatalf("Failed to get operator name: %v", err)
 	}
 
 	p := parameters.Globals{}
@@ -72,7 +81,7 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 		kubeconfig:    kubeconfig,
 		params:        p,
 		generator:     resource.NewGenerator(kubeconfig, &p),
-		clusterStatus: clusteroperator.NewStatusHandler(operatorName, operatorNamespace),
+		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, operatorName, operatorNamespace),
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 	}
 
@@ -89,28 +98,8 @@ type Controller struct {
 	generator     *resource.Generator
 	clusterStatus *clusteroperator.StatusHandler
 	workqueue     workqueue.RateLimitingInterface
-}
 
-func (c *Controller) getImageRegistry() (*regopapi.ImageRegistry, error) {
-	cr := &regopapi.ImageRegistry{
-		TypeMeta: metaapi.TypeMeta{
-			APIVersion: regopapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
-		},
-		ObjectMeta: metaapi.ObjectMeta{
-			Name: resourceName(c.params.Deployment.Namespace),
-		},
-	}
-
-	err := sdk.Get(cr)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return nil, fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
-		}
-		return nil, nil
-	}
-
-	return cr, nil
+	watchers map[string]operatorcontroller.Watcher
 }
 
 func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
@@ -149,53 +138,68 @@ func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	return c.createOrUpdateResources(cr, modified)
 }
 
-func (c *Controller) Handle(ctx context.Context, event sdk.Event) error {
-	logrus.Debugf("received event for %T (deleted=%t)", event.Object, event.Deleted)
+func (c *Controller) Handle(action string, o interface{}) {
+	object, ok := o.(metaapi.Object)
 
-	metaObject, ok := event.Object.(metaapi.Object)
 	if !ok {
-		return nil
+		tombstone, ok := o.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			klog.Errorf("error decoding object, invalid type")
+			return
+		}
+		object, ok = tombstone.Obj.(metaapi.Object)
+		if !ok {
+			klog.Errorf("error decoding object tombstone, invalid type")
+			return
+		}
+		klog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
 
-	if cr, ok := event.Object.(*regopapi.ImageRegistry); ok {
-		if cr.DeletionTimestamp == nil {
-			dgst, err := resource.Checksum(cr.Spec)
-			if err != nil {
-				logrus.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
-				dgst = ""
-			}
-
-			curdgst, ok := metaObject.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-			if ok && dgst == curdgst {
-				logrus.Debugf("ImageRegistry %s Spec has not changed", metaObject.GetName())
-				return nil
-			}
-		}
-	} else {
-		ownerRef := metaapi.GetControllerOf(metaObject)
-
-		if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
-			return nil
-		}
-	}
-
-	objectInfo := fmt.Sprintf("Type=%T ", event.Object)
-
-	if namespace := metaObject.GetNamespace(); namespace != "" {
+	objectInfo := fmt.Sprintf("Type=%T ", o)
+	if namespace := object.GetNamespace(); namespace != "" {
 		objectInfo += fmt.Sprintf("Namespace=%s ", namespace)
 	}
-	objectInfo += fmt.Sprintf("Name=%s", metaObject.GetName())
+	objectInfo += fmt.Sprintf("Name=%s", object.GetName())
 
-	logrus.Debugf("add event to workqueue due to %s change", objectInfo)
+	klog.V(1).Infof("Processing %s object %s", action, objectInfo)
+
+	if cr, ok := o.(*regopapi.ImageRegistry); ok {
+		dgst, err := resource.Checksum(cr.Spec)
+		if err != nil {
+			klog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+			dgst = ""
+		}
+
+		curdgst, ok := object.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
+		if ok && dgst == curdgst {
+			klog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
+			return
+		}
+	} else {
+		ownerRef := metaapi.GetControllerOf(object)
+
+		if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
+			return
+		}
+	}
+
+	klog.V(1).Infof("add event to workqueue due to %s (%s)", objectInfo, action)
 	c.workqueue.AddRateLimited(WORKQUEUE_KEY)
-
-	return nil
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.getImageRegistry()
+	client, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
+	}
+
+	cr, err := client.ImageRegistries().Get(resourceName(c.params.Deployment.Namespace), metaapi.GetOptions{})
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
+		}
+		klog.Infof("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
+		return nil
 	}
 
 	if cr == nil {
@@ -214,7 +218,7 @@ func (c *Controller) sync() error {
 		if err != nil {
 			errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 			if errOp != nil {
-				logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+				klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 			}
 			conditionProgressing(cr, operatorapi.ConditionTrue, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 		} else {
@@ -229,63 +233,43 @@ func (c *Controller) sync() error {
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
-		logrus.Warnf("unknown custom resource state: %s", cr.Spec.ManagementState)
+		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
 	var deployInterface runtime.Object
-	deploy := &kappsapi.Deployment{
-		TypeMeta: metaapi.TypeMeta{
-			APIVersion: kappsapi.SchemeGroupVersion.String(),
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metaapi.ObjectMeta{
-			Name:      cr.ObjectMeta.Name,
-			Namespace: c.params.Deployment.Namespace,
-		},
-	}
-	err = sdk.Get(deploy)
+	deploy, err := c.watchers["deployments"].Get(cr.ObjectMeta.Name, c.params.Deployment.Namespace)
 	deployInterface = deploy
 	if errors.IsNotFound(err) {
 		deployInterface = nil
 	} else if err != nil {
-		return fmt.Errorf("failed to get %q deployment: %s", deploy.Name, err)
+		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
 	}
 
 	if applyError != nil {
-		svc := &coreapi.Service{
-			TypeMeta: metaapi.TypeMeta{
-				APIVersion: coreapi.SchemeGroupVersion.String(),
-				Kind:       "Service",
-			},
-			ObjectMeta: metaapi.ObjectMeta{
-				Name:      c.params.Service.Name,
-				Namespace: c.params.Deployment.Namespace,
-				Labels:    c.params.Deployment.Labels,
-			},
-		}
-		err = sdk.Get(svc)
+		svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
 		if err == nil {
-			svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+			svcObj := svc.(*coreapi.Service)
+			svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
 			if cr.Status.InternalRegistryHostname != svcHostname {
 				cr.Status.InternalRegistryHostname = svcHostname
 				statusChanged = true
 			}
 		} else if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get %q service %s", svc.Name, err)
+			return fmt.Errorf("failed to get %q service %s", c.params.Service.Name, err)
 		}
 	}
 
 	c.syncStatus(cr, deployInterface, applyError, &statusChanged)
 
 	if statusChanged {
-		logrus.Infof("%s changed", metautil.TypeAndName(cr))
+		klog.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 		addImageRegistryChecksum(cr)
 
-		err = sdk.Update(cr)
+		_, err = client.ImageRegistries().Update(cr)
 		if err != nil && !errors.IsConflict(err) {
-			logrus.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+			klog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
 		}
 	}
 
@@ -305,7 +289,7 @@ func (c *Controller) eventProcessor() {
 
 			if _, ok := obj.(string); !ok {
 				c.workqueue.Forget(obj)
-				logrus.Errorf("expected string in workqueue but got %#v", obj)
+				klog.Errorf("expected string in workqueue but got %#v", obj)
 				return nil
 			}
 
@@ -316,27 +300,50 @@ func (c *Controller) eventProcessor() {
 
 			c.workqueue.Forget(obj)
 
-			logrus.Infof("workqueue successfully synced")
+			klog.Infof("event from workqueue successfully processed")
 			return nil
 		}(obj)
 
 		if err != nil {
-			logrus.Errorf("unable to process event: %s", err)
+			klog.Errorf("unable to process event: %s", err)
 		}
 	}
 }
 
-func (c *Controller) Run(stopCh <-chan struct{}) {
+func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
 	err := c.clusterStatus.Create()
 	if err != nil {
-		logrus.Errorf("unable to create cluster operator resource: %s", err)
+		klog.Errorf("unable to create cluster operator resource: %s", err)
 	}
+
+	c.watchers = map[string]operatorcontroller.Watcher{
+		"deployments":         &deploymentscontroller.Controller{},
+		"services":            &servicescontroller.Controller{},
+		"secrets":             &secretscontroller.Controller{},
+		"configmaps":          &configmapscontroller.Controller{},
+		"servicesaccounts":    &servicesaccountscontroller.Controller{},
+		"routes":              &routescontroller.Controller{},
+		"clusterroles":        &clusterrolescontroller.Controller{},
+		"clusterrolebindings": &clusterrolebindingscontroller.Controller{},
+		"imageregistry":       &imageregistrycontroller.Controller{},
+	}
+
+	for _, watcher := range c.watchers {
+		err = watcher.Start(c.Handle, c.params.Deployment.Namespace, stopCh)
+		if err != nil {
+			return err
+		}
+	}
+
+	klog.Info("all controllers are running")
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
-	logrus.Info("started events processor")
+	klog.Info("started events processor")
 	<-stopCh
-	logrus.Info("shutting down events processor")
+	klog.Info("shutting down events processor")
+
+	return nil
 }

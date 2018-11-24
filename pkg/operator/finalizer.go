@@ -4,20 +4,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/operator-framework/operator-sdk/pkg/sdk"
 )
 
 func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
@@ -25,7 +25,7 @@ func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 
 	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
 	if errOp != nil {
-		logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
+		klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
 	}
 
 	return c.generator.Remove(o, &modified)
@@ -47,36 +47,29 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return nil
 	}
 
-	logrus.Infof("finalizing %s", metautil.TypeAndName(o))
+	klog.Infof("finalizing %s", metautil.TypeAndName(o))
 
 	err := c.RemoveResources(o)
 	if err != nil {
 		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 		if errOp != nil {
-			logrus.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+			klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 		}
 		return fmt.Errorf("unable to finalize resource: %s", err)
+	}
+
+	client, err := regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
 	}
 
 	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
-			cr = &regopapi.ImageRegistry{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: o.TypeMeta.APIVersion,
-					Kind:       o.TypeMeta.Kind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      o.Name,
-					Namespace: o.Namespace,
-				},
-			}
-
-			err := sdk.Get(cr)
+			cr, err := client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
 			}
-
 			finalizers = []string{}
 			for _, v := range cr.ObjectMeta.Finalizers {
 				if v != parameters.ImageRegistryOperatorResourceFinalizer {
@@ -88,7 +81,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		cr.ObjectMeta.Finalizers = finalizers
 		addImageRegistryChecksum(cr)
 
-		err := sdk.Update(cr)
+		_, err := client.ImageRegistries().Update(cr)
 		if err != nil {
 			cr = nil
 			return err
@@ -112,18 +105,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	retryTime := 3 * time.Second
 
 	err = wait.PollInfinite(retryTime, func() (stop bool, err error) {
-		cr = &regopapi.ImageRegistry{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: o.TypeMeta.APIVersion,
-				Kind:       o.TypeMeta.Kind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      o.Name,
-				Namespace: o.Namespace,
-			},
-		}
-
-		err = sdk.Get(cr)
+		_, err = client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
 		if err == nil {
 			return
 		}

@@ -15,6 +15,7 @@
 package pubsub
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -25,7 +26,6 @@ import (
 
 	"cloud.google.com/go/internal/testutil"
 	"cloud.google.com/go/pubsub/pstest"
-	"golang.org/x/net/context"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -72,6 +72,7 @@ func TestAckDistribution(t *testing.T) {
 	minAckDeadline = 1 * time.Second
 	pstest.SetMinAckDeadline(minAckDeadline)
 	srv := pstest.NewServer()
+	defer srv.Close()
 	defer pstest.ResetMinAckDeadline()
 
 	// Create the topic via a Publish. It's convenient to do it here as opposed to client.CreateTopic because the client
@@ -185,7 +186,7 @@ func startReceiving(ctx context.Context, t *testing.T, s *Subscription, recvdWg 
 	})
 	if err != nil {
 		if status.Code(err) != codes.Canceled {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}
 }

@@ -15,12 +15,12 @@
 package rpcreplay
 
 import (
+	"context"
 	"io"
 	"log"
 	"net"
 
 	pb "cloud.google.com/go/rpcreplay/proto/intstore"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

@@ -19,18 +19,17 @@
 package spanner
 
 import (
+	"context"
 	"fmt"
 	"testing"
-
-	"golang.org/x/net/context"
 )
 
 func TestBigPDML(t *testing.T) {
 	const nRows int = 1e4
 
 	ctx := context.Background()
-	client, _, tearDown := prepare(ctx, t, singerDBStatements)
-	defer tearDown()
+	client, _, cleanup := prepare(ctx, t, singerDBStatements)
+	defer cleanup()
 
 	columns := []string{"SingerId", "FirstName", "LastName"}
 

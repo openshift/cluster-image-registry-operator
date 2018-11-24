@@ -2,8 +2,10 @@ package resource
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	routeapi "github.com/openshift/api/route/v1"
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
@@ -38,9 +40,30 @@ func (g *Generator) makeDefaultRoute(cr *regopapi.ImageRegistry) (Template, erro
 	}
 
 	addOwnerRefToObject(r, asOwner(cr))
+
+	client, err := routeset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return Template{}, err
+	}
+
 	return Template{
 		Object:   r,
 		Strategy: strategy.Override{},
+		Get: func() (runtime.Object, error) {
+			return client.Routes(r.Namespace).Get(r.Name, metav1.GetOptions{})
+		},
+		Create: func() error {
+			_, err := client.Routes(r.Namespace).Create(r)
+			return err
+		},
+		Update: func(o runtime.Object) error {
+			n := o.(*routeapi.Route)
+			_, err := client.Routes(r.Namespace).Update(n)
+			return err
+		},
+		Delete: func(opts *metav1.DeleteOptions) error {
+			return client.Routes(r.Namespace).Delete(r.Name, opts)
+		},
 	}, nil
 }
 
@@ -88,9 +111,30 @@ func (g *Generator) makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageR
 	}
 
 	addOwnerRefToObject(r, asOwner(cr))
+
+	client, err := routeset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return Template{}, err
+	}
+
 	return Template{
 		Object:   r,
 		Strategy: strategy.Override{},
+		Get: func() (runtime.Object, error) {
+			return client.Routes(r.Namespace).Get(r.Name, metav1.GetOptions{})
+		},
+		Create: func() error {
+			_, err := client.Routes(r.Namespace).Create(r)
+			return err
+		},
+		Update: func(o runtime.Object) error {
+			n := o.(*routeapi.Route)
+			_, err := client.Routes(r.Namespace).Update(n)
+			return err
+		},
+		Delete: func(opts *metav1.DeleteOptions) error {
+			return client.Routes(r.Namespace).Delete(r.Name, opts)
+		},
 	}, nil
 }
 

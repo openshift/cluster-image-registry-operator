@@ -17,13 +17,13 @@ package pubsub
 // This file provides a mock in-memory pubsub server for streaming pull testing.
 
 import (
+	"context"
 	"io"
 	"sync"
 	"time"
 
 	"cloud.google.com/go/internal/testutil"
 	emptypb "github.com/golang/protobuf/ptypes/empty"
-	"golang.org/x/net/context"
 	pb "google.golang.org/genproto/googleapis/pubsub/v1"
 )
 
