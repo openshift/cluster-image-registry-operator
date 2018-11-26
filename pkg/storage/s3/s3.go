@@ -82,19 +82,36 @@ func (d *driver) checkBucketExists(svc *s3.S3) error {
 }
 
 // createBucket attempts to create an s3 bucket with the given name
-func (d *driver) createBucket(svc *s3.S3) error {
-	input := &s3.CreateBucketInput{
+func (d *driver) createAndTagBucket(svc *s3.S3, clusterID string) error {
+	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
-	if _, err := svc.CreateBucket(input); err != nil {
+	if _, err := svc.CreateBucket(createBucketInput); err != nil {
 		return err
 	}
 
-	err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
+	if err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
-	})
+	}); err != nil {
+		return err
+	}
 
-	return err
+	tagBucketInput := &s3.PutBucketTaggingInput{
+		Bucket: aws.String(d.Config.Bucket),
+		Tagging: &s3.Tagging{
+			TagSet: []*s3.Tag{
+				{
+					Key:   aws.String("tectonicClusterID"),
+					Value: aws.String(clusterID),
+				},
+			},
+		},
+	}
+	if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey string) error {
@@ -108,6 +125,10 @@ func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey 
 
 func (d *driver) CompleteConfiguration() error {
 	cfg, err := clusterconfig.GetAWSConfig()
+	if err != nil {
+		return err
+	}
+	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		return err
 	}
@@ -130,7 +151,7 @@ func (d *driver) CompleteConfiguration() error {
 	if len(d.Config.Bucket) == 0 {
 		for {
 			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
-			if err := d.createBucket(svc); err != nil {
+			if err := d.createAndTagBucket(svc, installConfig.ClusterID); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
@@ -148,7 +169,7 @@ func (d *driver) CompleteConfiguration() error {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket:
-					if err = d.createBucket(svc); err != nil {
+					if err = d.createAndTagBucket(svc, installConfig.ClusterID); err != nil {
 						return err
 					}
 				default:

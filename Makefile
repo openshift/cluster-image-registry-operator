@@ -30,4 +30,4 @@ verify:
 	hack/verify.sh
 
 clean:
-	rm -- "$(PROG)"
+	rm -rf tmp
