@@ -9,4 +9,4 @@ deepcopy,client,lister,informer \
 github.com/openshift/cluster-image-registry-operator/pkg/generated \
 github.com/openshift/cluster-image-registry-operator/pkg/apis \
 imageregistry:v1alpha1 \
---go-header-file "./tmp/codegen/boilerplate.go.txt"
+--go-header-file "./hack/codegen/boilerplate.go.txt"
