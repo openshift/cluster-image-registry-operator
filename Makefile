@@ -15,9 +15,6 @@ build:
 build-image:
 	docker build -t "$(IMAGE):$(TAG)" .
 
-build-devel-image:
-	operator-sdk build "$(IMAGE):$(TAG)"
-
 test: test-unit test-e2e
 
 test-unit:
