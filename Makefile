@@ -7,10 +7,10 @@ PROG  := cluster-image-registry-operator
 all: generate build build-image verify
 
 generate:
-	./tmp/codegen/update-generated.sh
+	./hack/codegen/update-generated.sh
 
 build:
-	./tmp/build/build.sh
+	./hack/build/build.sh
 
 build-image:
 	docker build -t "$(IMAGE):$(TAG)" .
@@ -25,7 +25,7 @@ test-unit:
 
 test-e2e:
 	KUBERNETES_CONFIG=${KUBECONFIG} go test -v ./test/e2e/...
-	
+
 verify:
 	hack/verify.sh
 
