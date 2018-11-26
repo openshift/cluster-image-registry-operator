@@ -33,6 +33,10 @@ func TestAWS(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
+	installConfig, err := clusterconfig.GetInstallConfig()
+	if err != nil {
+		t.Errorf("unable to get install configuration: %#v", err)
+	}
 
 	// If the storage type is not S3, skip this test.
 	if cfg.Storage.Type != clusterconfig.StorageTypeS3 {
@@ -84,6 +88,27 @@ func TestAWS(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("s3 bucket %s does not exist or is inaccessible: %#v", imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket, err)
+	}
+
+	// Check that the S3 bucket has the correct cluster id tag
+	getBucketTaggingResult, err := svc.GetBucketTagging(&s3.GetBucketTaggingInput{
+		Bucket: aws.String(imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		t.Errorf("unable to get tagging information for s3 bucket: %#v", err)
+	}
+
+	found := false
+	for _, v := range getBucketTaggingResult.TagSet {
+		if *v.Key == "tectonicClusterID" {
+			found = true
+			if *v.Value != installConfig.ClusterID {
+				t.Errorf("s3 bucket has the wrong value for tag \"tectonicClusterID\": wanted %s, got %s", installConfig.ClusterID, *v.Value)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("s3 bucket does not have the tag \"tectonicClusterID\": got %#v", getBucketTaggingResult.TagSet)
 	}
 
 	// Check that the S3 configuration environment variables
