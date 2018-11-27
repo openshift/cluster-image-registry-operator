@@ -90,7 +90,7 @@ func TestAWS(t *testing.T) {
 		t.Errorf("s3 bucket %s does not exist or is inaccessible: %#v", imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket, err)
 	}
 
-	// Check that the S3 bucket has the correct cluster id tag
+	// Check that the S3 bucket has the correct tags
 	getBucketTaggingResult, err := svc.GetBucketTagging(&s3.GetBucketTaggingInput{
 		Bucket: aws.String(imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket),
 	})
@@ -98,17 +98,27 @@ func TestAWS(t *testing.T) {
 		t.Errorf("unable to get tagging information for s3 bucket: %#v", err)
 	}
 
-	found := false
-	for _, v := range getBucketTaggingResult.TagSet {
-		if *v.Key == "tectonicClusterID" {
-			found = true
-			if *v.Value != installConfig.ClusterID {
-				t.Errorf("s3 bucket has the wrong value for tag \"tectonicClusterID\": wanted %s, got %s", installConfig.ClusterID, *v.Value)
+	tagShouldExist := map[string]string{
+		"tectonicClusterID": installConfig.ClusterID,
+	}
+	for k, v := range installConfig.Platform.AWS.UserTags {
+		tagShouldExist[k] = v
+	}
+
+	for tk, tv := range tagShouldExist {
+		found := false
+
+		for _, v := range getBucketTaggingResult.TagSet {
+			if *v.Key == tk {
+				found = true
+				if *v.Value != tv {
+					t.Errorf("s3 bucket has the wrong value for tag \"%s\": wanted %s, got %s", tk, *v.Value, tv)
+				}
 			}
 		}
-	}
-	if !found {
-		t.Errorf("s3 bucket does not have the tag \"tectonicClusterID\": got %#v", getBucketTaggingResult.TagSet)
+		if !found {
+			t.Errorf("s3 bucket does not have the tag \"%s\": got %#v", tk, getBucketTaggingResult.TagSet)
+		}
 	}
 
 	// Check that the S3 configuration environment variables

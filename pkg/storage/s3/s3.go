@@ -13,6 +13,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	installer "github.com/openshift/installer/pkg/types"
+
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
@@ -82,7 +84,7 @@ func (d *driver) checkBucketExists(svc *s3.S3) error {
 }
 
 // createBucket attempts to create an s3 bucket with the given name
-func (d *driver) createAndTagBucket(svc *s3.S3, clusterID string) error {
+func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.InstallConfig) error {
 	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
@@ -96,21 +98,23 @@ func (d *driver) createAndTagBucket(svc *s3.S3, clusterID string) error {
 		return err
 	}
 
-	tagBucketInput := &s3.PutBucketTaggingInput{
-		Bucket: aws.String(d.Config.Bucket),
-		Tagging: &s3.Tagging{
-			TagSet: []*s3.Tag{
-				{
-					Key:   aws.String("tectonicClusterID"),
-					Value: aws.String(clusterID),
-				},
-			},
-		},
-	}
-	if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
-		return err
-	}
+	if installConfig.Platform.AWS != nil {
+		var tagSet []*s3.Tag
+		tagSet = append(tagSet, &s3.Tag{Key: aws.String("tectonicClusterID"), Value: aws.String(installConfig.ClusterID)})
+		for k, v := range installConfig.Platform.AWS.UserTags {
+			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
+		}
 
+		tagBucketInput := &s3.PutBucketTaggingInput{
+			Bucket: aws.String(d.Config.Bucket),
+			Tagging: &s3.Tagging{
+				TagSet: tagSet,
+			},
+		}
+		if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -151,7 +155,7 @@ func (d *driver) CompleteConfiguration() error {
 	if len(d.Config.Bucket) == 0 {
 		for {
 			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
-			if err := d.createAndTagBucket(svc, installConfig.ClusterID); err != nil {
+			if err := d.createAndTagBucket(svc, installConfig); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
@@ -169,7 +173,7 @@ func (d *driver) CompleteConfiguration() error {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket:
-					if err = d.createAndTagBucket(svc, installConfig.ClusterID); err != nil {
+					if err = d.createAndTagBucket(svc, installConfig); err != nil {
 						return err
 					}
 				default:
