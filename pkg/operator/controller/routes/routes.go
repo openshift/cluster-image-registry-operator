@@ -3,9 +3,10 @@ package routes
 import (
 	"fmt"
 
+	"github.com/golang/glog"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog"
 
 	routeapi "github.com/openshift/api/route/v1"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
@@ -24,7 +25,7 @@ type Controller struct {
 }
 
 func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopCh <-chan struct{}) error {
-	klog.Info("Starting routes controller")
+	glog.Info("Starting routes controller")
 
 	kubeconfig, err := client.GetConfig()
 	if err != nil {
@@ -61,7 +62,7 @@ func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopC
 
 	informerFactory.Start(stopCh)
 
-	klog.Info("Waiting for routes informer caches to sync")
+	glog.Info("Waiting for routes informer caches to sync")
 	if ok := cache.WaitForCacheSync(stopCh, c.synced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}

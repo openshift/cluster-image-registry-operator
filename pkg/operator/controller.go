@@ -1,9 +1,10 @@
 package operator
 
 import (
-	//"context"
 	"fmt"
 	"time"
+
+	"github.com/golang/glog"
 
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -13,7 +14,6 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
@@ -55,12 +55,12 @@ func (e permanentError) Error() string {
 func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
 	operatorNamespace, err := client.GetWatchNamespace()
 	if err != nil {
-		klog.Fatalf("Failed to get watch namespace: %v", err)
+		glog.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
 	operatorName, err := client.GetOperatorName()
 	if err != nil {
-		klog.Fatalf("Failed to get operator name: %v", err)
+		glog.Fatalf("Failed to get operator name: %v", err)
 	}
 
 	p := parameters.Globals{}
@@ -144,15 +144,15 @@ func (c *Controller) Handle(action string, o interface{}) {
 	if !ok {
 		tombstone, ok := o.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			klog.Errorf("error decoding object, invalid type")
+			glog.Errorf("error decoding object, invalid type")
 			return
 		}
 		object, ok = tombstone.Obj.(metaapi.Object)
 		if !ok {
-			klog.Errorf("error decoding object tombstone, invalid type")
+			glog.Errorf("error decoding object tombstone, invalid type")
 			return
 		}
-		klog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
+		glog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
 	}
 
 	objectInfo := fmt.Sprintf("Type=%T ", o)
@@ -161,18 +161,18 @@ func (c *Controller) Handle(action string, o interface{}) {
 	}
 	objectInfo += fmt.Sprintf("Name=%s", object.GetName())
 
-	klog.V(1).Infof("Processing %s object %s", action, objectInfo)
+	glog.V(1).Infof("Processing %s object %s", action, objectInfo)
 
 	if cr, ok := o.(*regopapi.ImageRegistry); ok {
 		dgst, err := resource.Checksum(cr.Spec)
 		if err != nil {
-			klog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+			glog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
 			dgst = ""
 		}
 
 		curdgst, ok := object.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if ok && dgst == curdgst {
-			klog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
+			glog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
 			return
 		}
 	} else {
@@ -183,7 +183,7 @@ func (c *Controller) Handle(action string, o interface{}) {
 		}
 	}
 
-	klog.V(1).Infof("add event to workqueue due to %s (%s)", objectInfo, action)
+	glog.V(1).Infof("add event to workqueue due to %s (%s)", objectInfo, action)
 	c.workqueue.AddRateLimited(WORKQUEUE_KEY)
 }
 
@@ -198,7 +198,7 @@ func (c *Controller) sync() error {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 		}
-		klog.Infof("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
+		glog.Infof("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
 		return nil
 	}
 
@@ -218,7 +218,7 @@ func (c *Controller) sync() error {
 		if err != nil {
 			errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 			if errOp != nil {
-				klog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
+				glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
 			}
 			conditionProgressing(cr, operatorapi.ConditionTrue, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
 		} else {
@@ -233,7 +233,7 @@ func (c *Controller) sync() error {
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
-		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
+		glog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
 	var deployInterface runtime.Object
@@ -262,14 +262,14 @@ func (c *Controller) sync() error {
 	c.syncStatus(cr, deployInterface, applyError, &statusChanged)
 
 	if statusChanged {
-		klog.Infof("%s changed", metautil.TypeAndName(cr))
+		glog.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 		addImageRegistryChecksum(cr)
 
 		_, err = client.ImageRegistries().Update(cr)
 		if err != nil && !errors.IsConflict(err) {
-			klog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+			glog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
 		}
 	}
 
@@ -289,7 +289,7 @@ func (c *Controller) eventProcessor() {
 
 			if _, ok := obj.(string); !ok {
 				c.workqueue.Forget(obj)
-				klog.Errorf("expected string in workqueue but got %#v", obj)
+				glog.Errorf("expected string in workqueue but got %#v", obj)
 				return nil
 			}
 
@@ -300,12 +300,12 @@ func (c *Controller) eventProcessor() {
 
 			c.workqueue.Forget(obj)
 
-			klog.Infof("event from workqueue successfully processed")
+			glog.Infof("event from workqueue successfully processed")
 			return nil
 		}(obj)
 
 		if err != nil {
-			klog.Errorf("unable to process event: %s", err)
+			glog.Errorf("unable to process event: %s", err)
 		}
 	}
 }
@@ -315,7 +315,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 
 	err := c.clusterStatus.Create()
 	if err != nil {
-		klog.Errorf("unable to create cluster operator resource: %s", err)
+		glog.Errorf("unable to create cluster operator resource: %s", err)
 	}
 
 	c.watchers = map[string]operatorcontroller.Watcher{
@@ -337,13 +337,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		}
 	}
 
-	klog.Info("all controllers are running")
+	glog.Info("all controllers are running")
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
-	klog.Info("started events processor")
+	glog.Info("started events processor")
 	<-stopCh
-	klog.Info("shutting down events processor")
+	glog.Info("shutting down events processor")
 
 	return nil
 }

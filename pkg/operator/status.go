@@ -3,10 +3,11 @@ package operator
 import (
 	"fmt"
 
+	"github.com/golang/glog"
+
 	kappsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog"
 
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
@@ -133,7 +134,7 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 
 	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
 	if err != nil {
-		klog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, err)
 	}
 
 	updateCondition(cr, &operatorapi.OperatorCondition{
@@ -160,7 +161,7 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 
 	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
 	if err != nil {
-		klog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, err)
 	}
 
 	updateCondition(cr, &operatorapi.OperatorCondition{
@@ -179,7 +180,7 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 
 	err = c.clusterStatus.Update(osapi.OperatorFailing, operatorFailing, operatorFailingMsg)
 	if err != nil {
-		klog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorFailing, operatorFailing, operatorFailingMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorFailing, operatorFailing, operatorFailingMsg, err)
 	}
 
 	updateCondition(cr, &operatorapi.OperatorCondition{
