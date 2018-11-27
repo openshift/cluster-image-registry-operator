@@ -84,7 +84,7 @@ func (d *driver) checkBucketExists(svc *s3.S3) error {
 }
 
 // createBucket attempts to create an s3 bucket with the given name
-func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.InstallConfig) error {
+func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.InstallConfig, customResourceStatus *opapi.ImageRegistryStatus) error {
 	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
@@ -115,6 +115,9 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 			return err
 		}
 	}
+
+	customResourceStatus.ManagedStorage = true
+
 	return nil
 }
 
@@ -127,11 +130,12 @@ func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey 
 	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
 }
 
-func (d *driver) CompleteConfiguration() error {
+func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return err
 	}
+
 	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		return err
@@ -155,7 +159,7 @@ func (d *driver) CompleteConfiguration() error {
 	if len(d.Config.Bucket) == 0 {
 		for {
 			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
-			if err := d.createAndTagBucket(svc, installConfig); err != nil {
+			if err := d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
@@ -173,7 +177,7 @@ func (d *driver) CompleteConfiguration() error {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket:
-					if err = d.createAndTagBucket(svc, installConfig); err != nil {
+					if err = d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
 						return err
 					}
 				default:

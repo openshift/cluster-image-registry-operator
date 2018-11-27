@@ -72,6 +72,10 @@ func TestAWS(t *testing.T) {
 		if imageRegistryOperatorCustomResource.Spec.Storage.S3.Bucket == "" {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", registryNamespace, registryCustomResourceName)
 		}
+
+		if !imageRegistryOperatorCustomResource.Status.ManagedStorage {
+			t.Errorf("custom resource %s/%s contains incorrect data. S3 ManagedStorage was %v but should have been \"true\"", registryNamespace, registryCustomResourceName, imageRegistryOperatorCustomResource.Status.ManagedStorage)
+		}
 	}
 
 	// Check that the S3 bucket that we created exists and is accessible

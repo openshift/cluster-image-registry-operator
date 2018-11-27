@@ -58,13 +58,22 @@ type Config struct {
 	Storage Storage
 }
 
-func GetInstallConfig() (*installer.InstallConfig, error) {
+func GetCoreClient() (*coreset.CoreV1Client, error) {
 	kubeconfig, err := client.GetConfig()
 	if err != nil {
 		return nil, err
 	}
 
 	client, err := coreset.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func GetInstallConfig() (*installer.InstallConfig, error) {
+	client, err := GetCoreClient()
 	if err != nil {
 		return nil, err
 	}
@@ -83,16 +92,10 @@ func GetInstallConfig() (*installer.InstallConfig, error) {
 }
 
 func GetAWSConfig() (*Config, error) {
-	kubeconfig, err := client.GetConfig()
+	client, err := GetCoreClient()
 	if err != nil {
 		return nil, err
 	}
-
-	client, err := coreset.NewForConfig(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
 	cfg := &Config{}
 
 	installConfig, err := GetInstallConfig()

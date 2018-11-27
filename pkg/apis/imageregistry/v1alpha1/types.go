@@ -109,5 +109,10 @@ type ImageRegistryStatus struct {
 
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
 
+	// ManagedStorage is a boolean which denotes whether or not
+	// we created the registry storage medium (such as an
+	// S3 Bucket)
+	ManagedStorage bool `json:"managedStorage"`
+
 	State []ImageRegistryStatusState `json:"state"`
 }
