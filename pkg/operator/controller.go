@@ -164,15 +164,15 @@ func (c *Controller) Handle(action string, o interface{}) {
 	glog.V(1).Infof("Processing %s object %s", action, objectInfo)
 
 	if cr, ok := o.(*regopapi.ImageRegistry); ok {
-		dgst, err := resource.Checksum(cr.Spec)
+		dgst, err := resource.Checksum(resource.ImageRegistryChecksumInput{cr.Spec, cr.Status})
 		if err != nil {
-			glog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
+			glog.Errorf("unable to generate checksum for ImageRegistry: %s", err)
 			dgst = ""
 		}
 
 		curdgst, ok := object.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
 		if ok && dgst == curdgst {
-			glog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
+			glog.V(1).Infof("ImageRegistry %s has not changed", object.GetName())
 			return
 		}
 	} else {
@@ -245,7 +245,7 @@ func (c *Controller) sync() error {
 		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
 	}
 
-	if applyError != nil {
+	if applyError == nil {
 		svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
 		if err == nil {
 			svcObj := svc.(*coreapi.Service)

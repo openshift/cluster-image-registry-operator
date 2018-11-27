@@ -19,6 +19,11 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
+type ImageRegistryChecksumInput struct {
+	Spec   regopapi.ImageRegistrySpec
+	Status regopapi.ImageRegistryStatus
+}
+
 func Checksum(o interface{}) (string, error) {
 	data, err := json.Marshal(o)
 	if err != nil {

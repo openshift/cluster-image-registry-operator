@@ -35,9 +35,9 @@ func resourceName(namespace string) string {
 }
 
 func addImageRegistryChecksum(cr *regopapi.ImageRegistry) {
-	dgst, err := resource.Checksum(cr.Spec)
+	dgst, err := resource.Checksum(resource.ImageRegistryChecksumInput{cr.Spec, cr.Status})
 	if err != nil {
-		glog.Errorf("unable to generate checksum from ImageRegistry spec: %s", err)
+		glog.Errorf("unable to generate checksum from ImageRegistry: %s", err)
 		return
 	}
 
