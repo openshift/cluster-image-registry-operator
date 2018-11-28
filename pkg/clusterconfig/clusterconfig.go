@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 const (
@@ -59,7 +59,7 @@ type Config struct {
 }
 
 func GetCoreClient() (*coreset.CoreV1Client, error) {
-	kubeconfig, err := client.GetConfig()
+	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +103,9 @@ func GetAWSConfig() (*Config, error) {
 		return nil, err
 	}
 	cfg.Storage.Type = StorageTypeS3
-	cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
-
+	if installConfig.Platform.AWS != nil {
+		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
+	}
 	sec, err := client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to read aws-creds secret: %v", err)

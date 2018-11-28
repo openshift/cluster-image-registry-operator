@@ -9,11 +9,11 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 func CreateOrUpdateSecret(name string, namespace string, data map[string]string) error {
-	kubeconfig, err := client.GetConfig()
+	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return err
 	}

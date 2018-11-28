@@ -12,7 +12,7 @@ import (
 
 	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
@@ -32,12 +32,12 @@ func main() {
 
 	printVersion()
 
-	cfg, err := client.GetConfig()
+	cfg, err := regopclient.GetConfig()
 	if err != nil {
 		glog.Fatalf("Error building kubeconfig: %s", err)
 	}
 
-	namespace, err := client.GetWatchNamespace()
+	namespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
 		glog.Fatalf("failed to get watch namespace: %s", err)
 	}

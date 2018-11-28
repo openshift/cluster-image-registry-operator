@@ -13,7 +13,7 @@ import (
 	imageregistryinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	imageregistrylisters "github.com/openshift/cluster-image-registry-operator/pkg/generated/listers/imageregistry/v1alpha1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	opcontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller"
 )
 
@@ -27,7 +27,7 @@ type Controller struct {
 func (c *Controller) Start(handler opcontroller.Handler, namespace string, stopCh <-chan struct{}) error {
 	glog.Info("Starting imageregistry controller")
 
-	kubeconfig, err := client.GetConfig()
+	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return err
 	}
