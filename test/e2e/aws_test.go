@@ -24,11 +24,28 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
+	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
 func TestAWS(t *testing.T) {
+	const (
+		registrySecretName         string = "image-registry-private-configuration"
+		registryNamespace          string = "openshift-image-registry"
+		registryCustomResourceName string = "image-registry"
+		awsSecretName              string = "aws-creds"
+		clusterConfigName          string = "cluster-config-v1"
+		kubeSystemNamespace        string = "kube-system"
+	)
+
+	client := testframework.MustNewClientset(t, nil)
+
+	defer testframework.MustRemoveImageRegistry(t, client)
+	testframework.MustDeployImageRegistry(t, client, nil)
+	testframework.MustEnsureImageRegistryIsAvailable(t, client)
+
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
@@ -46,7 +63,7 @@ func TestAWS(t *testing.T) {
 
 	// Check that the image-registry-private-configuration secret exists and
 	// contains the correct information
-	imageRegistryPrivateConfiguration, err := getImageRegistryPrivateConfiguration()
+	imageRegistryPrivateConfiguration, err := client.Secrets("openshift-image-registry").Get("image-registry-private-configuration", metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", registryNamespace, registrySecretName, err)
 	}
@@ -58,7 +75,7 @@ func TestAWS(t *testing.T) {
 
 	// Check that the registry operator custom resource exists
 	// and contains the correct region and a non-nil bucket name
-	imageRegistryOperatorCustomResource, err := getImageRegistryCustomResource()
+	imageRegistryOperatorCustomResource, err := client.ImageRegistries().Get(registryCustomResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get custom resource %s/%s: %#v", registryNamespace, registryCustomResourceName, err)
 	}
@@ -148,7 +165,10 @@ func TestAWS(t *testing.T) {
 		},
 	}
 
-	registryDeployment, err := getRegistryDeployment()
+	registryDeployment, err := client.Deployments("openshift-image-registry").Get("image-registry", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, val := range awsEnvVars {
 		found := false
