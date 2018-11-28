@@ -140,7 +140,6 @@ func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 
 func (c *Controller) Handle(action string, o interface{}) {
 	object, ok := o.(metaapi.Object)
-
 	if !ok {
 		tombstone, ok := o.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -163,21 +162,8 @@ func (c *Controller) Handle(action string, o interface{}) {
 
 	glog.V(1).Infof("Processing %s object %s", action, objectInfo)
 
-	if cr, ok := o.(*regopapi.ImageRegistry); ok {
-		dgst, err := resource.Checksum(cr.Spec)
-		if err != nil {
-			glog.Errorf("unable to generate checksum for ImageRegistry spec: %s", err)
-			dgst = ""
-		}
-
-		curdgst, ok := object.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-		if ok && dgst == curdgst {
-			glog.V(1).Infof("ImageRegistry %s Spec has not changed", object.GetName())
-			return
-		}
-	} else {
+	if _, ok := o.(*regopapi.ImageRegistry); !ok {
 		ownerRef := metaapi.GetControllerOf(object)
-
 		if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
 			return
 		}
@@ -195,15 +181,10 @@ func (c *Controller) sync() error {
 
 	cr, err := client.ImageRegistries().Get(resourceName(c.params.Deployment.Namespace), metaapi.GetOptions{})
 	if err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
+		if errors.IsNotFound(err) {
+			return c.Bootstrap()
 		}
-		glog.Infof("ImageRegistry Name=%s not found. ignore.", resourceName(c.params.Deployment.Namespace))
-		return nil
-	}
-
-	if cr == nil {
-		return c.Bootstrap()
+		return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 	}
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
@@ -245,7 +226,7 @@ func (c *Controller) sync() error {
 		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
 	}
 
-	if applyError != nil {
+	if applyError == nil {
 		svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
 		if err == nil {
 			svcObj := svc.(*coreapi.Service)
@@ -265,7 +246,6 @@ func (c *Controller) sync() error {
 		glog.Infof("%s changed", metautil.TypeAndName(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
-		addImageRegistryChecksum(cr)
 
 		_, err = client.ImageRegistries().Update(cr)
 		if err != nil && !errors.IsConflict(err) {
