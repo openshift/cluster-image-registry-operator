@@ -122,10 +122,11 @@ func TestAWS(t *testing.T) {
 	tagShouldExist := map[string]string{
 		"tectonicClusterID": installConfig.ClusterID,
 	}
-	for k, v := range installConfig.Platform.AWS.UserTags {
-		tagShouldExist[k] = v
+	if installConfig.Platform.AWS != nil {
+		for k, v := range installConfig.Platform.AWS.UserTags {
+			tagShouldExist[k] = v
+		}
 	}
-
 	for tk, tv := range tagShouldExist {
 		found := false
 
