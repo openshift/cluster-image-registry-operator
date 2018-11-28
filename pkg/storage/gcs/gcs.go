@@ -85,7 +85,7 @@ func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
 	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
 }
 
-func (d *driver) CompleteConfiguration() error {
+func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
 	// Apply global config
 	cfg, err := clusterconfig.GetGCSConfig()
 	if err != nil {

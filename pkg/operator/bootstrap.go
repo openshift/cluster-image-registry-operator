@@ -141,7 +141,7 @@ func (c *Controller) Bootstrap() error {
 			return err
 		}
 	} else {
-		err = driver.CompleteConfiguration()
+		err = driver.CompleteConfiguration(&cr.Status)
 		if err != nil {
 			return err
 		}
