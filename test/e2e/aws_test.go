@@ -46,19 +46,19 @@ func TestAWS(t *testing.T) {
 	testframework.MustDeployImageRegistry(t, client, nil)
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 
-	cfg, err := clusterconfig.GetAWSConfig()
-	if err != nil {
-		t.Errorf("unable to get cluster configuration: %#v", err)
-	}
 	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		t.Errorf("unable to get install configuration: %#v", err)
 	}
 
-	// If the storage type is not S3, skip this test.
-	if cfg.Storage.Type != clusterconfig.StorageTypeS3 {
-		t.Logf("Skipping S3 storage configuration tests")
-		return
+	// If we are not running on AWS, skip this test.
+	if installConfig.Platform.AWS == nil {
+		t.Skip()
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig()
+	if err != nil {
+		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
 
 	// Check that the image-registry-private-configuration secret exists and
@@ -122,10 +122,8 @@ func TestAWS(t *testing.T) {
 	tagShouldExist := map[string]string{
 		"tectonicClusterID": installConfig.ClusterID,
 	}
-	if installConfig.Platform.AWS != nil {
-		for k, v := range installConfig.Platform.AWS.UserTags {
-			tagShouldExist[k] = v
-		}
+	for k, v := range installConfig.Platform.AWS.UserTags {
+		tagShouldExist[k] = v
 	}
 	for tk, tv := range tagShouldExist {
 		found := false
