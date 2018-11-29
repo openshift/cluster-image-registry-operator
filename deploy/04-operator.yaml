@@ -14,6 +14,7 @@ spec:
       labels:
         name: cluster-image-registry-operator
     spec:
+      priorityClassName: system-cluster-critical
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
