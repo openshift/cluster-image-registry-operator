@@ -1,14 +1,9 @@
 package filesystem
 
 import (
-	"fmt"
-	"strings"
-
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/coreutil"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 const (
@@ -57,36 +52,5 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 }
 
 func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
-	return nil
-}
-
-func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
-	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
-		if v != d.GetName() {
-			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
-		*modified = true
-	}
-
-	field, err := coreutil.GetVolumeSourceField(d.Config.VolumeSource)
-	if err != nil {
-		return err
-	}
-
-	fieldname := strings.ToLower(field.Name)
-
-	if len(fieldname) > 0 {
-		if v, ok := util.GetStateValue(&cr.Status, "storagefield"); ok {
-			if v != fieldname {
-				return fmt.Errorf("volumeSource type change is not supported: expected storage type %s, but got %s", v, fieldname)
-			}
-		} else {
-			util.SetStateValue(&cr.Status, "storagefield", fieldname)
-			*modified = true
-		}
-	}
-
 	return nil
 }

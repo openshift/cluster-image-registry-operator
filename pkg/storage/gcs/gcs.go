@@ -127,25 +127,3 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 	}
 	return d.createOrUpdatePrivateConfiguration(cfg.Storage.GCS.KeyfileData)
 }
-
-func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
-	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
-		if v != d.GetName() {
-			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
-		*modified = true
-	}
-
-	if v, ok := util.GetStateValue(&cr.Status, "gcs-bucket"); ok {
-		if v != d.Config.Bucket {
-			return fmt.Errorf("GCS bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "gcs-bucket", d.Config.Bucket)
-		*modified = true
-	}
-
-	return nil
-}

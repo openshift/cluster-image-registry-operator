@@ -99,11 +99,6 @@ type ImageRegistrySpec struct {
 	Replicas     int32                       `json:"replicas,omitempty"`
 }
 
-type ImageRegistryStatusState struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
 
@@ -113,6 +108,4 @@ type ImageRegistryStatus struct {
 	// we created the registry storage medium (such as an
 	// S3 Bucket)
 	ManagedStorage bool `json:"managedStorage"`
-
-	State []ImageRegistryStatusState `json:"state"`
 }

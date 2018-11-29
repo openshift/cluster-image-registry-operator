@@ -1,8 +1,6 @@
 package util
 
 import (
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-
 	"github.com/golang/glog"
 
 	coreapi "k8s.io/api/core/v1"
@@ -57,29 +55,5 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 		}
 		_, err = client.Secrets(namespace).Update(cur)
 		return err
-	})
-}
-
-func GetStateValue(status *opapi.ImageRegistryStatus, name string) (value string, found bool) {
-	for _, elem := range status.State {
-		if elem.Name == name {
-			value = elem.Value
-			found = true
-			break
-		}
-	}
-	return
-}
-
-func SetStateValue(status *opapi.ImageRegistryStatus, name, value string) {
-	for i, elem := range status.State {
-		if elem.Name == name {
-			status.State[i].Value = value
-			return
-		}
-	}
-	status.State = append(status.State, opapi.ImageRegistryStatusState{
-		Name:  name,
-		Value: value,
 	})
 }
