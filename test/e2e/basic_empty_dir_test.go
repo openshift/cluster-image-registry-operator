@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"regexp"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,5 +50,22 @@ func TestBasicEmptyDir(t *testing.T) {
 	if deploy.Status.AvailableReplicas == 0 {
 		testframework.DumpObject(t, "deployment", deploy)
 		t.Errorf("error: the deployment doesn't have available replicas")
+	}
+
+	logs, err := testframework.GetOperatorLogs(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badlogs := false
+	if !logs.Contains(regexp.MustCompile(`Cluster Image Registry Operator Version: .+`)) {
+		badlogs = true
+		t.Error("error: the log doesn't contain the operator's version")
+	}
+	if !logs.Contains(regexp.MustCompile(`image-registry changed`)) {
+		badlogs = true
+		t.Error("error: the log doesn't contain changes")
+	}
+	if badlogs {
+		testframework.DumpPodLogs(t, logs)
 	}
 }

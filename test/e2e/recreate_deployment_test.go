@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,16 +46,6 @@ func TestRecreateDeployment(t *testing.T) {
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 
 	t.Logf("deleting the image registry deployment...")
-	deploy := &appsv1.Deployment{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: appsv1.SchemeGroupVersion.String(),
-			Kind:       "Deployment",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      testframework.ImageRegistryDeploymentName,
-			Namespace: testframework.ImageRegistryDeploymentNamespace,
-		},
-	}
 	if err := testframework.DeleteCompletely(
 		func() (metav1.Object, error) {
 			return client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
@@ -76,7 +65,6 @@ func TestRecreateDeployment(t *testing.T) {
 		}
 		t.Logf("get deployment: %s", err)
 		if errors.IsNotFound(err) {
-			deploy = nil
 			return false, nil
 		}
 		return false, err

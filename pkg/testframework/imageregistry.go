@@ -120,13 +120,13 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 	DumpObject(logger, "the image registry resource", cr)
 }
 
-func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
-	logger.Logf("waiting the operator to deploy the registry...")
+func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapi.ImageRegistry, error) {
 	var cr *imageregistryapi.ImageRegistry
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the registry: the resource does not exist")
+			cr = nil
 			return false, nil
 		} else if err != nil {
 			return false, err
@@ -134,23 +134,61 @@ func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
 
 		available := false
 		done := false
+		failing := false
 		for _, cond := range cr.Status.Conditions {
 			switch cond.Type {
 			case operatorapi.OperatorStatusTypeAvailable:
 				available = cond.Status == operatorapi.ConditionTrue
 			case operatorapi.OperatorStatusTypeProgressing:
 				done = cond.Status == operatorapi.ConditionFalse
+			case operatorapi.OperatorStatusTypeFailing:
+				failing = cond.Status == operatorapi.ConditionTrue
 			}
 		}
-		logger.Logf("waiting for the registry: available (%t), done (%t)", available, done)
+		logger.Logf("waiting for the registry: available (%t), done (%t), failing (%t)", available, done, failing)
 
-		return done && available, nil
+		return done && available || failing, nil
 	})
 	if err != nil {
 		DumpObject(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
-		return fmt.Errorf("failed to wait for the image registry to be deployed: %s", err)
+		return cr, fmt.Errorf("failed to wait for the imageregistry resource to be processed: %s", err)
 	}
+	return cr, nil
+}
+
+func MustEnsureImageRegistryIsProcessed(t *testing.T, client *Clientset) *imageregistryapi.ImageRegistry {
+	cr, err := ensureImageRegistryIsProcessed(t, client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cr
+}
+
+func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
+	logger.Logf("waiting the operator to deploy the registry...")
+
+	cr, err := ensureImageRegistryIsProcessed(logger, client)
+	if err != nil {
+		return err
+	}
+
+	available := false
+	done := false
+	for _, cond := range cr.Status.Conditions {
+		switch cond.Type {
+		case operatorapi.OperatorStatusTypeAvailable:
+			available = cond.Status == operatorapi.ConditionTrue
+		case operatorapi.OperatorStatusTypeProgressing:
+			done = cond.Status == operatorapi.ConditionFalse
+		}
+	}
+	if !done || !available {
+		DumpObject(logger, "the latest observed state of the image registry resource", cr)
+		DumpOperatorLogs(logger, client)
+		return fmt.Errorf("the imageregistry resource is processed, but the the image registry is not available")
+	}
+
 	logger.Logf("the image registry resource reports that the registry is deployed and available")
 	return nil
 }

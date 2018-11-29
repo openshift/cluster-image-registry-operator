@@ -19,6 +19,10 @@ func appendFinalizer(cr *regopapi.ImageRegistry, modified *bool) {
 }
 
 func verifyResource(cr *regopapi.ImageRegistry, p *parameters.Globals) error {
+	if cr.Spec.Replicas < 0 {
+		return fmt.Errorf("replicas must be greater than or equal to 0")
+	}
+
 	names := map[string]struct{}{
 		cr.ObjectMeta.Name + "-default-route": {},
 	}
