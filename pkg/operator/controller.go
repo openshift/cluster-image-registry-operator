@@ -235,9 +235,16 @@ func (c *Controller) sync() error {
 		cr.Status.ObservedGeneration = cr.Generation
 
 		_, err = client.ImageRegistries().Update(cr)
-		if err != nil && !errors.IsConflict(err) {
-			glog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+		if err != nil {
+			if !errors.IsConflict(err) {
+				glog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+			}
+			return err
 		}
+	}
+
+	if _, ok := applyError.(permanentError); !ok {
+		return applyError
 	}
 
 	return nil
