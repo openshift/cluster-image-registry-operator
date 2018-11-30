@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +12,25 @@ import (
 
 type PodLog []string
 
+func (log PodLog) Contains(re *regexp.Regexp) bool {
+	for _, line := range log {
+		if re.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
 type PodSetLogs map[string]PodLog
+
+func (psl PodSetLogs) Contains(re *regexp.Regexp) bool {
+	for _, podlog := range psl {
+		if podlog.Contains(re) {
+			return true
+		}
+	}
+	return false
+}
 
 func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector) (PodSetLogs, error) {
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)

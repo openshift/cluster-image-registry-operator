@@ -107,7 +107,7 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 
 	err := verifyResource(cr, &c.params)
 	if err != nil {
-		return fmt.Errorf("unable to complete resource: %s", err)
+		return permanentError{Err: fmt.Errorf("unable to complete resource: %s", err)}
 	}
 
 	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
