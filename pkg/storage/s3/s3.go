@@ -116,7 +116,7 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 		}
 	}
 
-	customResourceStatus.ManagedStorage = true
+	customResourceStatus.Storage.Managed = true
 
 	return nil
 }
@@ -186,5 +186,11 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 			}
 		}
 	}
-	return d.createOrUpdatePrivateConfiguration(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey)
+	if err := d.createOrUpdatePrivateConfiguration(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey); err != nil {
+		return err
+	}
+
+	customResourceStatus.Storage.State.S3 = d.Config
+
+	return nil
 }

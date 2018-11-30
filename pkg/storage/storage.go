@@ -40,7 +40,7 @@ func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 	}
 
 	if cfg.Filesystem != nil && cfg.Filesystem.VolumeSource.EmptyDir != nil {
-		drivers = append(drivers, emptydir.NewDriver(crname, crnamespace, nil))
+		drivers = append(drivers, emptydir.NewDriver(crname, crnamespace, cfg.Filesystem))
 	}
 
 	if cfg.GCS != nil {

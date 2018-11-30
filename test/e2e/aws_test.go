@@ -90,8 +90,8 @@ func TestAWS(t *testing.T) {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", registryNamespace, registryCustomResourceName)
 		}
 
-		if !imageRegistryOperatorCustomResource.Status.ManagedStorage {
-			t.Errorf("custom resource %s/%s contains incorrect data. S3 ManagedStorage was %v but should have been \"true\"", registryNamespace, registryCustomResourceName, imageRegistryOperatorCustomResource.Status.ManagedStorage)
+		if !imageRegistryOperatorCustomResource.Status.Storage.Managed {
+			t.Errorf("custom resource %s/%s contains incorrect data. S3 ManagedStorage was %v but should have been \"true\"", registryNamespace, registryCustomResourceName, imageRegistryOperatorCustomResource.Status.Storage.Managed)
 		}
 	}
 
