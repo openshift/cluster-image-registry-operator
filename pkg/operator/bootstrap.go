@@ -68,8 +68,12 @@ func (c *Controller) Bootstrap() error {
 			OperatorSpec: operatorapi.OperatorSpec{
 				ManagementState: operatorapi.Managed,
 				Version:         "none",
+				Logging: operatorapi.LoggingConfig{
+					Level: 2,
+				},
 			},
 			Storage:  regopapi.ImageRegistryConfigStorage{},
+			TLS:      true,
 			Replicas: 1,
 		}
 	} else if err != nil {
