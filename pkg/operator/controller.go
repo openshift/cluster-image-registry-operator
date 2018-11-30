@@ -19,7 +19,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
-	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
@@ -193,24 +192,26 @@ func (c *Controller) sync() error {
 
 	var statusChanged bool
 	var applyError error
+	removed := false
 	switch cr.Spec.ManagementState {
 	case operatorapi.Removed:
-		err = c.RemoveResources(cr)
-		if err != nil {
-			errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
-			if errOp != nil {
-				glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
-			}
-			conditionProgressing(cr, operatorapi.ConditionTrue, fmt.Sprintf("unable to remove objects: %s", err), &statusChanged)
-		} else {
-			conditionRemoved(cr, operatorapi.ConditionTrue, "", &statusChanged)
-			conditionAvailable(cr, operatorapi.ConditionFalse, "", &statusChanged)
-			conditionProgressing(cr, operatorapi.ConditionFalse, "", &statusChanged)
-			conditionFailing(cr, operatorapi.ConditionFalse, "", &statusChanged)
-		}
+		applyError = c.RemoveResources(cr)
+		removed = true
 	case operatorapi.Managed:
-		conditionRemoved(cr, operatorapi.ConditionFalse, "", &statusChanged)
 		applyError = c.CreateOrUpdateResources(cr, &statusChanged)
+		if applyError == nil {
+			svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
+			if err == nil {
+				svcObj := svc.(*coreapi.Service)
+				svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
+				if cr.Status.InternalRegistryHostname != svcHostname {
+					cr.Status.InternalRegistryHostname = svcHostname
+					statusChanged = true
+				}
+			} else if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get %q service %s", c.params.Service.Name, err)
+			}
+		}
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
@@ -226,21 +227,7 @@ func (c *Controller) sync() error {
 		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
 	}
 
-	if applyError == nil {
-		svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
-		if err == nil {
-			svcObj := svc.(*coreapi.Service)
-			svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
-			if cr.Status.InternalRegistryHostname != svcHostname {
-				cr.Status.InternalRegistryHostname = svcHostname
-				statusChanged = true
-			}
-		} else if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to get %q service %s", c.params.Service.Name, err)
-		}
-	}
-
-	c.syncStatus(cr, deployInterface, applyError, &statusChanged)
+	c.syncStatus(cr, deployInterface, applyError, removed, &statusChanged)
 
 	if statusChanged {
 		glog.Infof("%s changed", metautil.TypeAndName(cr))
