@@ -38,14 +38,14 @@ func TestFailing(t *testing.T) {
 	})
 	cr := testframework.MustEnsureImageRegistryIsProcessed(t, client)
 
-	var failing *operatorapi.OperatorCondition
+	var failing operatorapi.OperatorCondition
 	for _, cond := range cr.Status.Conditions {
 		switch cond.Type {
 		case operatorapi.OperatorStatusTypeFailing:
-			failing = &cond
+			failing = cond
 		}
 	}
-	if failing == nil || failing.Status != operatorapi.ConditionTrue {
+	if failing.Status != operatorapi.ConditionTrue {
 		testframework.DumpObject(t, "the latest observed image registry resource", cr)
 		testframework.DumpOperatorLogs(t, client)
 		t.Fatal("the imageregistry resource is expected to be failing")
