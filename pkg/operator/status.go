@@ -50,42 +50,6 @@ func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.Operator
 	cr.Status.Conditions = conditions
 }
 
-func conditionRemoved(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               regopapi.OperatorStatusTypeRemoved,
-		Status:             status,
-		LastTransitionTime: metaapi.Now(),
-		Message:            m,
-	}, modified)
-}
-
-func conditionAvailable(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeAvailable,
-		Status:             status,
-		LastTransitionTime: metaapi.Now(),
-		Message:            m,
-	}, modified)
-}
-
-func conditionProgressing(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeProgressing,
-		Status:             status,
-		LastTransitionTime: metaapi.Now(),
-		Message:            m,
-	}, modified)
-}
-
-func conditionFailing(cr *regopapi.ImageRegistry, status operatorapi.ConditionStatus, m string, modified *bool) {
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeFailing,
-		Status:             status,
-		LastTransitionTime: metaapi.Now(),
-		Message:            m,
-	}, modified)
-}
-
 func isDeploymentStatusAvailable(o runtime.Object) bool {
 	switch deploy := o.(type) {
 	case *appsapi.DeploymentConfig:
@@ -116,7 +80,7 @@ func isDeploymentStatusComplete(o runtime.Object) bool {
 	return false
 }
 
-func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, applyError error, statusChanged *bool) {
+func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, applyError error, removed bool, statusChanged *bool) {
 	metaObject, _ := o.(metaapi.Object)
 
 	operatorAvailable := osapi.ConditionFalse
@@ -188,5 +152,19 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 		Status:             operatorapi.ConditionStatus(operatorFailing),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorFailingMsg,
+	}, statusChanged)
+
+	operatorRemoved := osapi.ConditionFalse
+	operatorRemovedMsg := ""
+	if removed {
+		operatorRemoved = osapi.ConditionTrue
+		operatorRemovedMsg = "the image registry is removed"
+	}
+
+	updateCondition(cr, &operatorapi.OperatorCondition{
+		Type:               regopapi.OperatorStatusTypeRemoved,
+		Status:             operatorapi.ConditionStatus(operatorRemoved),
+		LastTransitionTime: metaapi.Now(),
+		Message:            operatorRemovedMsg,
 	}, statusChanged)
 }
