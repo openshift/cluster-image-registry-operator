@@ -25,7 +25,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 
 	operatorcontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller"
 	clusterrolebindingscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/clusterrolebindings"
@@ -107,18 +106,6 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	err := verifyResource(cr, &c.params)
 	if err != nil {
 		return permanentError{Err: fmt.Errorf("unable to complete resource: %s", err)}
-	}
-
-	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
-	if err == storage.ErrStorageNotConfigured {
-		return permanentError{Err: err}
-	} else if err != nil {
-		return fmt.Errorf("unable to create storage driver: %s", err)
-	}
-
-	err = driver.ValidateConfiguration(cr, modified)
-	if err != nil {
-		return permanentError{Err: fmt.Errorf("invalid configuration: %s", err)}
 	}
 
 	err = c.generator.Apply(cr, modified)

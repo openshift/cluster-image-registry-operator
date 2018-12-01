@@ -188,34 +188,3 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 	}
 	return d.createOrUpdatePrivateConfiguration(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey)
 }
-
-func (d *driver) ValidateConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
-	if v, ok := util.GetStateValue(&cr.Status, "storagetype"); ok {
-		if v != d.GetName() {
-			return fmt.Errorf("storage type change is not supported: expected storage type %s, but got %s", v, d.GetName())
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "storagetype", d.GetName())
-		*modified = true
-	}
-
-	if v, ok := util.GetStateValue(&cr.Status, "s3-bucket"); ok {
-		if v != d.Config.Bucket {
-			return fmt.Errorf("S3 bucket change is not supported: expected bucket %s, but got %s", v, d.Config.Bucket)
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "s3-bucket", d.Config.Bucket)
-		*modified = true
-	}
-
-	if v, ok := util.GetStateValue(&cr.Status, "s3-region"); ok {
-		if v != d.Config.Region {
-			return fmt.Errorf("S3 region change is not supported: expected region %s, but got %s", v, d.Config.Region)
-		}
-	} else {
-		util.SetStateValue(&cr.Status, "s3-region", d.Config.Region)
-		*modified = true
-	}
-
-	return nil
-}
