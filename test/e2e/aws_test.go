@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
@@ -185,4 +186,22 @@ func TestAWS(t *testing.T) {
 		}
 	}
 
+	// Check that the aws access key and secret key in the system configuration
+	// can be overridden by a user defined secret
+	fakeAWSCredsData := map[string]string{
+		"REGISTRY_STORAGE_S3_ACCESSKEY": "myAccessKey",
+		"REGISTRY_STORAGE_S3_SECRETKEY": "mySecretKey",
+	}
+
+	if err := util.CreateOrUpdateSecret("image-registry-private-configuration-user", "openshift-image-registry", fakeAWSCredsData); err != nil {
+		t.Errorf("unable to create secret \"openshift-image-registry/image-registry-configuration-user\": %#v", err)
+	}
+
+	cfgUser, err := clusterconfig.GetAWSConfig()
+	if err != nil {
+		t.Errorf("unable to get aws configuration: %#v", err)
+	}
+	if fakeAWSCredsData["REGISTRY_STORAGE_S3_ACCESSKEY"] != cfgUser.Storage.S3.AccessKey || fakeAWSCredsData["REGISTRY_STORAGE_S3_SECRETKEY"] != cfgUser.Storage.S3.SecretKey {
+		t.Errorf("expected system configuration to be overridden by the user configuration but it wasn't.")
+	}
 }

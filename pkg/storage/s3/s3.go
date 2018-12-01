@@ -140,12 +140,12 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 }
 
 func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey string) error {
-	data := make(map[string]string)
+	data := map[string]string{
+		"REGISTRY_STORAGE_S3_ACCESSKEY": accessKey,
+		"REGISTRY_STORAGE_S3_SECRETKEY": secretKey,
+	}
 
-	data["REGISTRY_STORAGE_S3_ACCESSKEY"] = accessKey
-	data["REGISTRY_STORAGE_S3_SECRETKEY"] = secretKey
-
-	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
+	return util.CreateOrUpdateSecret("image-registry-private-configuration", "openshift-image-registry", data)
 }
 
 func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {

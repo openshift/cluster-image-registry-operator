@@ -36,7 +36,7 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 
 			cur = &coreapi.Secret{
 				ObjectMeta: metaapi.ObjectMeta{
-					Name:      name + "-private-configuration",
+					Name:      name,
 					Namespace: namespace,
 				},
 			}

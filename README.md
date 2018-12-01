@@ -58,6 +58,16 @@ Provides custom TLS certificates.  Mounted into the registry pod.  Providing thi
 ### image-registry-private-configuration (secret)
 
 Provides credentials needed for storage management/access.
+Automatically generated based on cluster configuration or user provided secret.
+
+For S3 storage it is expected to contain two keys:
+* REGISTRY_STORAGE_S3_ACCESSKEY
+* REGISTRY_STORAGE_S3_SECRETKEY
+
+### image-registry-private-configuration-user (secret)
+
+Provides credentials needed for storage management/access.
+Overrides the cluster wide configuration with user provided credentials.
 
 For S3 storage it is expected to contain two keys:
 * REGISTRY_STORAGE_S3_ACCESSKEY
