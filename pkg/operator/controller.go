@@ -20,7 +20,7 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -51,12 +51,12 @@ func (e permanentError) Error() string {
 }
 
 func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
-	operatorNamespace, err := client.GetWatchNamespace()
+	operatorNamespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
 		glog.Fatalf("Failed to get watch namespace: %v", err)
 	}
 
-	operatorName, err := client.GetOperatorName()
+	operatorName, err := regopclient.GetOperatorName()
 	if err != nil {
 		glog.Fatalf("Failed to get operator name: %v", err)
 	}
