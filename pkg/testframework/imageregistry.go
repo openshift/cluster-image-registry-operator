@@ -21,7 +21,63 @@ const (
 	ImageRegistryDeploymentNamespace = OperatorDeploymentNamespace
 )
 
-func ensureImageRegistryToBeRemoved(client *Clientset) error {
+type ConditionStatus struct {
+	status *operatorapi.ConditionStatus
+}
+
+func NewConditionStatus(cond operatorapi.OperatorCondition) ConditionStatus {
+	return ConditionStatus{
+		status: &cond.Status,
+	}
+}
+
+func (cs ConditionStatus) String() string {
+	if cs.status == nil {
+		return "<unset>"
+	}
+	return string(*cs.status)
+}
+
+func (cs ConditionStatus) IsTrue() bool {
+	return cs.status != nil && *cs.status == operatorapi.ConditionTrue
+}
+
+func (cs ConditionStatus) IsFalse() bool {
+	return cs.status != nil && *cs.status == operatorapi.ConditionFalse
+}
+
+type ImageRegistryConditions struct {
+	Available   ConditionStatus
+	Progressing ConditionStatus
+	Failing     ConditionStatus
+	Removed     ConditionStatus
+}
+
+func GetImageRegistryConditions(cr *imageregistryapi.ImageRegistry) ImageRegistryConditions {
+	conds := ImageRegistryConditions{}
+	for _, cond := range cr.Status.Conditions {
+		switch cond.Type {
+		case operatorapi.OperatorStatusTypeAvailable:
+			conds.Available = NewConditionStatus(cond)
+		case operatorapi.OperatorStatusTypeProgressing:
+			conds.Progressing = NewConditionStatus(cond)
+		case operatorapi.OperatorStatusTypeFailing:
+			conds.Failing = NewConditionStatus(cond)
+		case imageregistryapi.OperatorStatusTypeRemoved:
+			conds.Removed = NewConditionStatus(cond)
+		}
+	}
+	return conds
+}
+
+func (c ImageRegistryConditions) String() string {
+	return fmt.Sprintf(
+		"available (%s), progressing (%s), failing (%s), removed (%s)",
+		c.Available, c.Progressing, c.Failing, c.Removed,
+	)
+}
+
+func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 	if _, err := client.ImageRegistries().Patch(ImageRegistryName, types.MergePatchType, []byte(`{"spec": {"managementState": "Removed"}}`)); err != nil {
 		if errors.IsNotFound(err) {
 			// That's not exactly what we are asked for. And few seconds later
@@ -33,9 +89,25 @@ func ensureImageRegistryToBeRemoved(client *Clientset) error {
 		return err
 	}
 
-	// TODO(dmage): when we have the Removed condition, this code will need to
-	// be updated.
-	time.Sleep(2 * time.Second)
+	var cr *imageregistryapi.ImageRegistry
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			cr = nil
+			return true, nil
+		} else if err != nil {
+			return false, err
+		}
+
+		conds := GetImageRegistryConditions(cr)
+		logger.Logf("waiting for the registry to be removed: %s", conds)
+		return conds.Progressing.IsFalse() && conds.Removed.IsTrue(), nil
+	})
+	if err != nil {
+		DumpObject(logger, "the latest observed state of the image registry resource", cr)
+		DumpOperatorLogs(logger, client)
+		return fmt.Errorf("failed to wait for the imageregistry resource to be removed: %s", err)
+	}
 	return nil
 }
 
@@ -71,7 +143,7 @@ func deleteImageRegistryResource(client *Clientset) error {
 
 func RemoveImageRegistry(logger Logger, client *Clientset) error {
 	logger.Logf("uninstalling the image registry...")
-	if err := ensureImageRegistryToBeRemoved(client); err != nil {
+	if err := ensureImageRegistryToBeRemoved(logger, client); err != nil {
 		return fmt.Errorf("unable to uninstall the image registry: %s", err)
 	}
 	logger.Logf("stopping the operator...")
@@ -132,22 +204,9 @@ func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imagereg
 			return false, err
 		}
 
-		available := false
-		done := false
-		failing := false
-		for _, cond := range cr.Status.Conditions {
-			switch cond.Type {
-			case operatorapi.OperatorStatusTypeAvailable:
-				available = cond.Status == operatorapi.ConditionTrue
-			case operatorapi.OperatorStatusTypeProgressing:
-				done = cond.Status == operatorapi.ConditionFalse
-			case operatorapi.OperatorStatusTypeFailing:
-				failing = cond.Status == operatorapi.ConditionTrue
-			}
-		}
-		logger.Logf("waiting for the registry: available (%t), done (%t), failing (%t)", available, done, failing)
-
-		return done && available || failing, nil
+		conds := GetImageRegistryConditions(cr)
+		logger.Logf("waiting for the registry: %s", conds)
+		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Failing.IsTrue(), nil
 	})
 	if err != nil {
 		DumpObject(logger, "the latest observed state of the image registry resource", cr)
@@ -173,17 +232,8 @@ func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
 		return err
 	}
 
-	available := false
-	done := false
-	for _, cond := range cr.Status.Conditions {
-		switch cond.Type {
-		case operatorapi.OperatorStatusTypeAvailable:
-			available = cond.Status == operatorapi.ConditionTrue
-		case operatorapi.OperatorStatusTypeProgressing:
-			done = cond.Status == operatorapi.ConditionFalse
-		}
-	}
-	if !done || !available {
+	conds := GetImageRegistryConditions(cr)
+	if conds.Progressing.IsTrue() || conds.Available.IsFalse() {
 		DumpObject(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
 		return fmt.Errorf("the imageregistry resource is processed, but the the image registry is not available")

@@ -31,6 +31,15 @@ import (
 )
 
 func TestAWS(t *testing.T) {
+	installConfig, err := clusterconfig.GetInstallConfig()
+	if err != nil {
+		t.Fatalf("unable to get install configuration: %v", err)
+	}
+
+	if installConfig.Platform.AWS == nil {
+		t.Skip("skipping on non-AWS platform")
+	}
+
 	const (
 		registrySecretName         string = "image-registry-private-configuration"
 		registryNamespace          string = "openshift-image-registry"
@@ -45,16 +54,6 @@ func TestAWS(t *testing.T) {
 	defer testframework.MustRemoveImageRegistry(t, client)
 	testframework.MustDeployImageRegistry(t, client, nil)
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-
-	installConfig, err := clusterconfig.GetInstallConfig()
-	if err != nil {
-		t.Errorf("unable to get install configuration: %#v", err)
-	}
-
-	// If we are not running on AWS, skip this test.
-	if installConfig.Platform.AWS == nil {
-		t.Skip()
-	}
 
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
