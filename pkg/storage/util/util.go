@@ -1,6 +1,8 @@
 package util
 
 import (
+	"fmt"
+
 	"github.com/golang/glog"
 
 	coreapi "k8s.io/api/core/v1"
@@ -23,16 +25,14 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 		return err
 	}
 
-	secretName := name + "-private-configuration"
-
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cur, err := client.Secrets(namespace).Get(secretName, metaapi.GetOptions{})
+		cur, err := client.Secrets(namespace).Get(name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return err
 			}
 
-			glog.Warningf("secret %s/%s not found: %s, creating", namespace, secretName, err)
+			glog.Warningf("secret %q not found: %s, creating", fmt.Sprintf("%s/%s", namespace, name), err)
 
 			cur = &coreapi.Secret{
 				ObjectMeta: metaapi.ObjectMeta{

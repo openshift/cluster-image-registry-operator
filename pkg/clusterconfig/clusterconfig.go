@@ -117,7 +117,7 @@ func GetAWSConfig() (*Config, error) {
 	// Look for a user defined secret to get the AWS credentials from first
 	sec, err := client.Secrets(regopapi.OperatorNamespace).Get(regopapi.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
-		glog.Infof("Optional user defined AWS credentials in secret \"%s/%s\" not found, ignoring.", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration)
+		glog.Infof("Optional user defined AWS credentials in secret \"%s/%s\" not found, ignoring.", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser)
 		// If no user defined secret is found, use the system one
 		sec, err = client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
 		if err != nil {
@@ -126,12 +126,12 @@ func GetAWSConfig() (*Config, error) {
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
+			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
 		}
 		if v, ok := sec.Data["aws_secret_access_key"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
+			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
 		}
 	} else if err != nil {
 		return nil, err

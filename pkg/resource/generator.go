@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -16,10 +17,14 @@ import (
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -86,8 +91,47 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 	return mutators, nil
 }
 
+func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) error {
+	client, err := clusterconfig.GetCoreClient()
+	if err != nil {
+		return err
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig()
+	if err != nil {
+		return err
+	}
+
+	var existingAccessKey, existingSecretKey []byte
+
+	sec, err := client.Secrets(regopapi.OperatorNamespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration), err)
+	}
+	if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
+		existingAccessKey = v
+	}
+	if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
+		existingSecretKey = v
+	}
+
+	if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
+		glog.Infof("Updating secret %q with updated S3 credentials.", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
+		data := map[string]string{
+			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
+			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+		}
+		if err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, regopapi.OperatorNamespace, data); err != nil {
+			return err
+		}
+		*modified = true
+	}
+	return nil
+}
+
 func (g *Generator) removeObsoleteRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
 	routeClient, err := routeset.NewForConfig(g.kubeconfig)
+
 	if err != nil {
 		return err
 	}
@@ -166,6 +210,11 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 	err = g.removeObsoleteRoutes(cr, modified)
 	if err != nil {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
+	}
+
+	err = g.syncSecrets(cr, modified)
+	if err != nil {
+		return fmt.Errorf("unable to sync secrets: %s", err)
 	}
 
 	return nil

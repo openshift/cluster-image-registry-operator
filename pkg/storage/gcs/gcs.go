@@ -82,7 +82,7 @@ func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
 
 	data["STORAGE_GCS_KEYFILE"] = keyfileData
 
-	return util.CreateOrUpdateSecret("image-registry", "openshift-image-registry", data)
+	return util.CreateOrUpdateSecret("image-registry-private-configuration", "openshift-image-registry", data)
 }
 
 func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {

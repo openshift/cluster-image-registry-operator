@@ -13,7 +13,7 @@ const (
 	OperatorStatusTypeRemoved             = "Removed"
 	OperatorNamespace                     = "openshift-image-registry"
 	ImageRegistryPrivateConfiguration     = "image-registry-private-configuration"
-	ImageRegistryPrivateConfigurationUser = ImageRegistryPrivateConfiguration + "user"
+	ImageRegistryPrivateConfigurationUser = ImageRegistryPrivateConfiguration + "-user"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
