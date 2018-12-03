@@ -145,7 +145,7 @@ func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey 
 		"REGISTRY_STORAGE_S3_SECRETKEY": secretKey,
 	}
 
-	return util.CreateOrUpdateSecret("image-registry-private-configuration", "openshift-image-registry", data)
+	return util.CreateOrUpdateSecret(d.Name+"-private-configuration", opapi.OperatorNamespace, data)
 }
 
 func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {

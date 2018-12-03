@@ -194,7 +194,7 @@ func TestAWS(t *testing.T) {
 	}
 
 	if err := util.CreateOrUpdateSecret("image-registry-private-configuration-user", "openshift-image-registry", fakeAWSCredsData); err != nil {
-		t.Errorf("unable to create secret \"openshift-image-registry/image-registry-configuration-user\": %#v", err)
+		t.Fatal("unable to create secret \"openshift-image-registry/image-registry-configuration-user\": %#v", err)
 	}
 
 	cfgUser, err := clusterconfig.GetAWSConfig()
