@@ -110,7 +110,17 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 
 	operatorProgressing := osapi.ConditionTrue
 	operatorProgressingMsg := ""
-	if applyError != nil {
+	if cr.Spec.ManagementState == operatorapi.Unmanaged {
+		operatorProgressing = osapi.ConditionFalse
+		operatorProgressingMsg = "unmanaged"
+	} else if removed {
+		if o != nil {
+			operatorProgressingMsg = "the deployment still exists"
+		} else {
+			operatorProgressing = osapi.ConditionFalse
+			operatorProgressingMsg = "everything is removed"
+		}
+	} else if applyError != nil {
 		operatorProgressingMsg = fmt.Sprintf("unable to apply resources: %s", applyError)
 	} else if o == nil {
 		operatorProgressingMsg = "all resources are successfully applied, but the deployment does not exist"
