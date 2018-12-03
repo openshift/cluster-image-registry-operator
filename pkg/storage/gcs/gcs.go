@@ -116,6 +116,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 
 			switch e := err.(type) {
 			case nil:
+				customResourceStatus.Storage.Managed = true
 				break
 			case *googleapi.Error:
 				// Code 429 has already been processed.
@@ -124,6 +125,14 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 				}
 			}
 		}
+
 	}
-	return d.createOrUpdatePrivateConfiguration(cfg.Storage.GCS.KeyfileData)
+	if err := d.createOrUpdatePrivateConfiguration(cfg.Storage.GCS.KeyfileData); err != nil {
+		return err
+	}
+
+	customResourceStatus.Storage.State.GCS = d.Config
+
+	return nil
+
 }

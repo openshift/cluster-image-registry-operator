@@ -99,13 +99,25 @@ type ImageRegistrySpec struct {
 	Replicas     int32                       `json:"replicas,omitempty"`
 }
 
+type ImageRegistryConfigStorageState struct {
+	ImageRegistryConfigStorage `json:",inline"`
+}
+
+type ImageRegistryConfigStorageStatus struct {
+	// Managed is a boolean which denotes whether or not
+	// we created the registry storage medium (such as an
+	// S3 bucket
+	Managed bool `json:"managed"`
+
+	// State is the current state of the registry
+	// storage configuration
+	State ImageRegistryConfigStorageState `json:"state"`
+}
+
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
 
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
 
-	// ManagedStorage is a boolean which denotes whether or not
-	// we created the registry storage medium (such as an
-	// S3 Bucket)
-	ManagedStorage bool `json:"managedStorage"`
+	Storage ImageRegistryConfigStorageStatus `json:"storage"`
 }
