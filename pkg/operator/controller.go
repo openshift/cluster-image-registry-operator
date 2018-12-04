@@ -190,7 +190,7 @@ func (c *Controller) sync() error {
 			svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
 			if err == nil {
 				svcObj := svc.(*coreapi.Service)
-				svcHostname := fmt.Sprintf("%s.%s.svc.cluster.local:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
+				svcHostname := fmt.Sprintf("%s.%s.svc:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
 				if cr.Status.InternalRegistryHostname != svcHostname {
 					cr.Status.InternalRegistryHostname = svcHostname
 					statusChanged = true
