@@ -3,45 +3,96 @@ package resource
 import (
 	"fmt"
 
-	kmeta "k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-type Template struct {
-	Object      runtime.Object
+type Templator interface {
+	GetName() string
+	SetName(string)
+	GetNamespace() string
+	SetNamespace(string)
+	GetAnnotations() map[string]string
+	SetAnnotations(annotations map[string]string)
+	GetStrategy() strategy.Strategy
+	SetStrategy(strategy.Strategy)
+	GetTemplateName() string
+	Expected() (runtime.Object, error)
+	Get() (runtime.Object, error)
+	Create() error
+	Update(runtime.Object) error
+	Delete(*metaapi.DeleteOptions) error
+}
+
+type BaseTemplator struct {
+	Name        string
+	Namespace   string
 	Annotations map[string]string
 	Strategy    strategy.Strategy
-
-	Get    func() (runtime.Object, error)
-	Create func() error
-	Update func(runtime.Object) error
-	Delete func(*metav1.DeleteOptions) error
+	Generator   *Generator
 }
 
-func (t *Template) Name() string {
-	gvk := t.Object.GetObjectKind().GroupVersionKind()
+func (base *BaseTemplator) GetName() string {
+	return base.Name
+}
 
+func (base *BaseTemplator) SetName(s string) {
+	base.Name = s
+}
+
+func (base *BaseTemplator) GetNamespace() string {
+	return base.Namespace
+}
+
+func (base *BaseTemplator) SetNamespace(s string) {
+	base.Namespace = s
+}
+
+func (base *BaseTemplator) GetAnnotations() map[string]string {
+	return base.Annotations
+}
+
+func (base *BaseTemplator) SetAnnotations(annotations map[string]string) {
+	base.Annotations = annotations
+}
+
+func (base *BaseTemplator) GetStrategy() strategy.Strategy {
+	return base.Strategy
+}
+
+func (base *BaseTemplator) SetStrategy(s strategy.Strategy) {
+	base.Strategy = s
+}
+
+func (base *BaseTemplator) GetTemplateName() string {
 	var name string
-	accessor, err := kmeta.Accessor(t.Object)
-	if err != nil {
-		name = fmt.Sprintf("%#+v", t.Object)
-	} else {
-		if namespace := accessor.GetNamespace(); namespace != "" {
-			name = fmt.Sprintf("Namespace=%s, ", namespace)
-		}
-		name += fmt.Sprintf("Name=%s", accessor.GetName())
+
+	if base.Namespace != "" {
+		name = fmt.Sprintf("Namespace=%s, ", base.Namespace)
 	}
 
-	return fmt.Sprintf("%s, %s", gvk, name)
+	name += fmt.Sprintf("Name=%s", base.Name)
+
+	return name
 }
 
-func (t *Template) Expected() runtime.Object {
-	return t.Object.DeepCopyObject()
-}
+func (base *BaseTemplator) UpdateChecksumAnnotation(tmpl runtime.Object, m metaapi.Object) error {
+	dgst, err := Checksum(tmpl)
+	if err != nil {
+		return err
+	}
 
-func (t *Template) Apply(o runtime.Object) (runtime.Object, error) {
-	return t.Strategy.Apply(o, t.Object)
+	annotations := m.GetAnnotations()
+
+	if annotations != nil {
+		annotations = map[string]string{}
+	}
+
+	annotations[parameters.ChecksumOperatorAnnotation] = dgst
+	m.SetAnnotations(annotations)
+
+	return nil
 }
