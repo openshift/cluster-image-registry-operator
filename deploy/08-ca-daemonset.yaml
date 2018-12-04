@@ -30,12 +30,17 @@ spec:
           if [ ! -e /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000 ]; then
             mkdir /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
           fi
+          if [ ! -e /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000 ]; then
+            mkdir /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000
+          fi
           while [ true ];
           do
             if [ -e /tmp/serviceca/service-ca.crt ]; then
               cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
+              cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000
             else 
               rm /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000/service-ca.crt
+              rm /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000/service-ca.crt
             fi
             sleep 60
           done
