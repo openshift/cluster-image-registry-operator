@@ -17,7 +17,6 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -48,7 +47,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return nil
 	}
 
-	glog.Infof("finalizing %s", metautil.TypeAndName(o))
+	glog.Infof("finalizing %s", objectInfo(o))
 
 	err := c.RemoveResources(o)
 	if err != nil {
@@ -69,7 +68,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		if cr == nil {
 			cr, err := client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
+				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
 			}
 			finalizers = []string{}
 			for _, v := range cr.ObjectMeta.Finalizers {
@@ -89,7 +88,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("unable to update finalizers in %s: %s", metautil.TypeAndName(o), err)
+		return fmt.Errorf("unable to update finalizers in %s: %s", objectInfo(o), err)
 	}
 
 	// These errors may indicate a transient error that we can retry in tests.
@@ -126,7 +125,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 				return false, nil
 			}
 
-			err = fmt.Errorf("failed to get %s: %s", metautil.TypeAndName(o), err)
+			err = fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
 			return
 		}
 
@@ -134,7 +133,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("unable to wait for %s deletion: %s", metautil.TypeAndName(o), err)
+		return fmt.Errorf("unable to wait for %s deletion: %s", objectInfo(o), err)
 	}
 
 	return nil
