@@ -94,6 +94,7 @@ type ImageRegistrySpec struct {
 	Storage      ImageRegistryConfigStorage  `json:"storage,omitempty"`
 	Requests     ImageRegistryConfigRequests `json:"requests,omitempty"`
 	TLS          bool                        `json:"tls,omitempty"`
+	CAConfigName string                      `json:"caConfigName,omitempty"`
 	DefaultRoute bool                        `json:"defaultRoute,omitempty"`
 	Routes       []ImageRegistryConfigRoute  `json:"routes,omitempty"`
 	Replicas     int32                       `json:"replicas,omitempty"`

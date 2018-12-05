@@ -12,8 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
-	appslisters "k8s.io/client-go/listers/apps/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -23,18 +21,19 @@ import (
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
-	regoplisters "github.com/openshift/cluster-image-registry-operator/pkg/generated/listers/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
 const (
-	workqueueKey          = "changes"
-	defaultResyncDuration = 10 * time.Minute
+	openshiftConfigNamespace = "openshift-config"
+	workqueueKey             = "changes"
+	defaultResyncDuration    = 10 * time.Minute
 )
 
 type permanentError struct {
@@ -69,26 +68,22 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 
 	p.Service.Name = "image-registry"
 	p.ImageConfig.Name = "cluster"
+	p.CAConfig.Name = "image-registry-certificates"
 
+	listers := &client.Listers{}
 	c := &Controller{
 		kubeconfig:    kubeconfig,
 		params:        p,
-		generator:     resource.NewGenerator(kubeconfig, &p),
+		generator:     resource.NewGenerator(kubeconfig, listers, &p),
 		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, operatorName, operatorNamespace),
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
+		listers:       listers,
 	}
 
-	if err = c.Bootstrap(); err != nil {
-		return nil, err
-	}
+	// Initial event to bootstrap CR if it doesn't exist.
+	c.workqueue.AddRateLimited(workqueueKey)
 
 	return c, nil
-}
-
-type Listers struct {
-	Deployments   appslisters.DeploymentNamespaceLister
-	Services      corelisters.ServiceNamespaceLister
-	ImageRegistry regoplisters.ImageRegistryLister
 }
 
 type Controller struct {
@@ -97,7 +92,7 @@ type Controller struct {
 	generator     *resource.Generator
 	clusterStatus *clusteroperator.StatusHandler
 	workqueue     workqueue.RateLimitingInterface
-	listers       Listers
+	listers       *client.Listers
 }
 
 func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
@@ -125,11 +120,6 @@ func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 }
 
 func (c *Controller) sync() error {
-	client, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
 	cr, err := c.listers.ImageRegistry.Get(resourceName(c.params.Deployment.Namespace))
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -182,6 +172,11 @@ func (c *Controller) sync() error {
 		glog.Infof("status changed: %s", objectInfo(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
+
+		client, err := regopset.NewForConfig(c.kubeconfig)
+		if err != nil {
+			return err
+		}
 
 		_, err = client.Imageregistry().ImageRegistries().Update(cr)
 		if err != nil {
@@ -303,6 +298,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
+	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
 
@@ -339,6 +335,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(openshiftConfigNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			informer := routeInformerFactory.Route().V1().Routes()
 			return informer.Informer()
 		},
@@ -354,6 +355,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 
 	kubeInformerFactory.Start(stopCh)
+	openshiftConfigKubeInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
 

@@ -16,6 +16,7 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -29,15 +30,17 @@ func Checksum(o interface{}) (string, error) {
 
 type templateGenerator func(*regopapi.ImageRegistry) (Template, error)
 
-func NewGenerator(kubeconfig *rest.Config, params *parameters.Globals) *Generator {
+func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
 	return &Generator{
 		kubeconfig: kubeconfig,
+		listers:    listers,
 		params:     params,
 	}
 }
 
 type Generator struct {
 	kubeconfig *rest.Config
+	listers    *client.Listers
 	params     *parameters.Globals
 }
 
@@ -55,6 +58,10 @@ func (g *Generator) makeTemplates(cr *regopapi.ImageRegistry) (ret []Template, e
 	routes := g.getRouteGenerators(cr)
 	for i := range routes {
 		generators = append(generators, routes[i])
+	}
+
+	if cr.Spec.CAConfigName != "" {
+		generators = append(generators, g.makeCAConfig)
 	}
 
 	ret = make([]Template, len(generators)+1)
