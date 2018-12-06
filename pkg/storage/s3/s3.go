@@ -2,6 +2,7 @@ package s3
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -88,16 +89,21 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
+
+	// Create the S3 bucket
 	if _, err := svc.CreateBucket(createBucketInput); err != nil {
 		return err
 	}
 
+	// Wait until the bucket exists
 	if err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}); err != nil {
 		return err
 	}
 
+	// Tag the bucket with the tectonicClusterID
+	// along with any user defined tags from the cluster configuration
 	if installConfig.Platform.AWS != nil {
 		var tagSet []*s3.Tag
 		tagSet = append(tagSet, &s3.Tag{Key: aws.String("tectonicClusterID"), Value: aws.String(installConfig.ClusterID)})
@@ -114,6 +120,18 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 		if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
 			return err
 		}
+	}
+
+	// Enable default encryption on the bucket
+	defaultEncryption := &s3.ServerSideEncryptionByDefault{SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256)}
+	encryptionRule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defaultEncryption}
+	encryptionRules := []*s3.ServerSideEncryptionRule{encryptionRule}
+	encryptionConfig := &s3.ServerSideEncryptionConfiguration{Rules: encryptionRules}
+	bucketEncryptionInput := &s3.PutBucketEncryptionInput{Bucket: aws.String(d.Config.Bucket), ServerSideEncryptionConfiguration: encryptionConfig}
+
+	_, err := svc.PutBucketEncryption(bucketEncryptionInput)
+	if err != nil {
+		return err
 	}
 
 	customResourceStatus.Storage.Managed = true
@@ -158,7 +176,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 
 	if len(d.Config.Bucket) == 0 {
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
+			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.STORAGE_PREFIX, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 			if err := d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
