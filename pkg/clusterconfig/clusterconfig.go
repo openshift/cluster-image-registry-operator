@@ -31,6 +31,7 @@ const (
 	installerConfigNamespace = "kube-system"
 	installerConfigName      = "cluster-config-v1"
 	installerAWSCredsName    = "aws-creds"
+	operatorNamespace        = "openshift-image-registry"
 )
 
 type StorageType string
@@ -112,11 +113,6 @@ func GetAWSConfig() (*Config, error) {
 	cfg.Storage.Type = StorageTypeS3
 	if installConfig.Platform.AWS != nil {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
-	}
-
-	operatorNamespace, err := regopclient.GetWatchNamespace()
-	if err != nil {
-		return nil, err
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first

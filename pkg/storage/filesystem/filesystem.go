@@ -51,8 +51,8 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
-func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
-	customResourceStatus.Storage.State.Filesystem = d.Config
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
+	cr.Status.Storage.State.Filesystem = d.Config
 
 	return nil
 }

@@ -82,10 +82,12 @@ func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
 
 	data["STORAGE_GCS_KEYFILE"] = keyfileData
 
-	return util.CreateOrUpdateSecret("image-registry-private-configuration", "openshift-image-registry", data)
+	_, err := util.CreateOrUpdateSecret("image-registry-private-configuration", "openshift-image-registry", data)
+
+	return err
 }
 
-func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 	// Apply global config
 	cfg, err := clusterconfig.GetGCSConfig()
 	if err != nil {
@@ -116,7 +118,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 
 			switch e := err.(type) {
 			case nil:
-				customResourceStatus.Storage.Managed = true
+				cr.Status.Storage.Managed = true
 				break
 			case *googleapi.Error:
 				// Code 429 has already been processed.
@@ -131,7 +133,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 		return err
 	}
 
-	customResourceStatus.Storage.State.GCS = d.Config
+	cr.Status.Storage.State.GCS = d.Config
 
 	return nil
 

@@ -118,6 +118,11 @@ type ImageRegistryConfigStorageStatus struct {
 	State ImageRegistryConfigStorageState `json:"state"`
 }
 
+const (
+	// StorageExists denotes whether or not the registry storage medium exists
+	StorageExists = "StorageExists"
+)
+
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`
 

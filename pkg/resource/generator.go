@@ -6,6 +6,8 @@ import (
 
 	"github.com/golang/glog"
 
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,16 +18,18 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	kappsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	storageS3 "github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -92,8 +96,60 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 	return mutators, nil
 }
 
+// syncStorage checks:
+// 1.)  to make sure that an existing storage medium still exists and we can access it
+// 2.)  to see if the storage medium name changed and we need to:
+//      a.) check to make sure that we can access the storage or
+//      b.) see if we need to try to create the new storage
+func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) error {
+
+	// If the Image Registry is currently using S3 storage
+	if cr.Spec.Storage.S3 != nil {
+		// Create a new driver with the current configuration
+		// This saves us from having to duplicate code
+		driver := storageS3.NewDriver(cr.Name, cr.Namespace, cr.Spec.Storage.S3)
+
+		// If the bucket name has changed
+		if cr.Status.Storage.State.S3 != nil && cr.Spec.Storage.S3.Bucket != cr.Status.Storage.State.S3.Bucket {
+			driver.Config.Bucket = cr.Spec.Storage.S3.Bucket
+			// Check to see if the bucket exists
+			// and if we can access it
+			if err := driver.CheckBucketExists(cr); err != nil {
+				installConfig, err := clusterconfig.GetInstallConfig()
+				if err != nil {
+					return err
+				}
+				// If the bucket doesn't exist, try to create it
+				if err := driver.CreateAndTagBucket(installConfig, cr); err != nil {
+					return err
+				}
+				// If we got here, image registry resource
+				// was modified by CreateAndTagBucket
+				*modified = true
+			}
+		} else if cr.Spec.Storage.S3.Bucket != "" {
+			// If the bucket name didn't change,
+			// check to see if the current bucket exists
+			if err := driver.CheckBucketExists(cr); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// syncSecrets checks to see if we have updated storage credentials from:
+// 1.) cluster wide cloud credentials
+// 2.) user provided credentials in the image-registry-private-configuration-user secret
+// and updates the image-registry-private-configuration secret that provides
+// those credentials to the registry pod
 func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) error {
 	client, err := clusterconfig.GetCoreClient()
+	if err != nil {
+		return err
+	}
+
+	appsclient, err := kappsset.NewForConfig(g.kubeconfig)
 	if err != nil {
 		return err
 	}
@@ -103,34 +159,62 @@ func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) erro
 		return err
 	}
 
-	operatorNamespace, err := regopclient.GetWatchNamespace()
+	// Get the existing image-registry-private-configuration secret
+	sec, err := client.Secrets(g.params.Deployment.Namespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration), err)
 	}
 
-	var existingAccessKey, existingSecretKey []byte
-
-	sec, err := client.Secrets(operatorNamespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfiguration), err)
-	}
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
-		existingAccessKey = v
-	}
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
-		existingSecretKey = v
-	}
-
-	if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
-		glog.Infof("Updating secret %q with updated S3 credentials.", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
-		data := map[string]string{
-			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
-			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+	// If the Image Registry is currently using S3 storage
+	if cr.Spec.Storage.S3 != nil {
+		// Get the existing SecretKey and AccessKey
+		var existingAccessKey, existingSecretKey []byte
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
+			existingAccessKey = v
 		}
-		if err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, operatorNamespace, data); err != nil {
-			return err
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
+			existingSecretKey = v
 		}
-		*modified = true
+
+		// Check if the existing SecretKey and AccessKey match what we got from the cluster or user configuration
+		if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
+
+			glog.Infof("Updating secret %q with updated S3 credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration))
+			data := map[string]string{
+				"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
+				"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+			}
+
+			// Update the image-registry-private-configuration secret
+			upSec, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
+			if err != nil {
+				return err
+			}
+
+			// Generate a checksum of the updated secret
+			upSecChecksum, err := strategy.Checksum(upSec)
+			if err != nil {
+				return nil
+			}
+
+			// Get the Image Registry deployment
+			deployment, err := appsclient.Deployments(g.params.Deployment.Namespace).Get("image-registry", metaapi.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			// Make sure that the annotations map isn't nil!
+			if deployment.Spec.Template.Annotations == nil {
+				deployment.Spec.Template.Annotations = make(map[string]string)
+			}
+
+			// Update the deployment template with an annotation of the checksum of the secret
+			// to trigger the Image Registry to be redeployed
+			deployment.Spec.Template.Annotations[fmt.Sprintf("%s-checksum", upSec.ObjectMeta.Name)] = upSecChecksum
+			if _, err := appsclient.Deployments(g.params.Deployment.Namespace).Update(deployment); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -221,6 +305,11 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 	err = g.syncSecrets(cr, modified)
 	if err != nil {
 		return fmt.Errorf("unable to sync secrets: %s", err)
+	}
+
+	err = g.syncStorage(cr, modified)
+	if err != nil {
+		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 
 	return nil

@@ -25,7 +25,7 @@ type Driver interface {
 	GetName() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
-	CompleteConfiguration(*opapi.ImageRegistryStatus) error
+	CompleteConfiguration(*opapi.ImageRegistry) error
 }
 
 func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {

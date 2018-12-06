@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	installer "github.com/openshift/installer/pkg/types"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -22,10 +23,37 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
+var (
+	s3Service *s3.S3
+)
+
 type driver struct {
 	Name      string
 	Namespace string
 	Config    *opapi.ImageRegistryConfigStorageS3
+}
+
+func (d *driver) getSVC() (*s3.S3, error) {
+	if s3Service != nil {
+		return s3Service, nil
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	sess, err := session.NewSession(&aws.Config{
+		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
+		Region:      &cfg.Storage.S3.Region,
+	})
+	if err != nil {
+		return nil, err
+	}
+	s3Service := s3.New(sess)
+
+	return s3Service, nil
+
 }
 
 func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageS3) *driver {
@@ -77,22 +105,47 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-// checkBucketExists checks if an S3 bucket with the given name exists
-func (d *driver) checkBucketExists(svc *s3.S3) error {
-	_, err := svc.HeadBucket(&s3.HeadBucketInput{
+// CheckBucketExists checks if an S3 bucket with the given name exists
+// and we can access it
+func (d *driver) CheckBucketExists(cr *opapi.ImageRegistry) error {
+	svc, err := d.getSVC()
+	if err != nil {
+		return err
+	}
+	_, err = svc.HeadBucket(&s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	})
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+		}
+	}
+
+	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "")
+
 	return err
+
 }
 
-// createBucket attempts to create an s3 bucket with the given name
-func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.InstallConfig, customResourceStatus *opapi.ImageRegistryStatus) error {
+// CreateAndTagBucket attempts to create an s3 bucket with the given name
+// and apply any provided tags
+func (d *driver) CreateAndTagBucket(installConfig *installer.InstallConfig, cr *opapi.ImageRegistry) error {
+	svc, err := d.getSVC()
+	if err != nil {
+		return err
+	}
+
 	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
 
 	// Create the S3 bucket
 	if _, err := svc.CreateBucket(createBucketInput); err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+		}
+
 		return err
 	}
 
@@ -100,6 +153,10 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	if err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}); err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+		}
+
 		return err
 	}
 
@@ -119,6 +176,10 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 			},
 		}
 		if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+			}
+
 			return err
 		}
 	}
@@ -130,12 +191,18 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	encryptionConfig := &s3.ServerSideEncryptionConfiguration{Rules: encryptionRules}
 	bucketEncryptionInput := &s3.PutBucketEncryptionInput{Bucket: aws.String(d.Config.Bucket), ServerSideEncryptionConfiguration: encryptionConfig}
 
-	_, err := svc.PutBucketEncryption(bucketEncryptionInput)
+	_, err = svc.PutBucketEncryption(bucketEncryptionInput)
 	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+		}
+
 		return err
 	}
 
-	customResourceStatus.Storage.Managed = true
+	cr.Status.Storage.Managed = true
+
+	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "")
 
 	return nil
 }
@@ -151,10 +218,12 @@ func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey 
 		"REGISTRY_STORAGE_S3_SECRETKEY": secretKey,
 	}
 
-	return util.CreateOrUpdateSecret(d.Name+"-private-configuration", operatorNamespace, data)
+	_, err = util.CreateOrUpdateSecret(opapi.ImageRegistryPrivateConfiguration, operatorNamespace, data)
+
+	return err
 }
 
-func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return err
@@ -164,14 +233,6 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 	if err != nil {
 		return err
 	}
-	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
-		Region:      &cfg.Storage.S3.Region,
-	})
-	if err != nil {
-		return err
-	}
-	svc := s3.New(sess)
 
 	if len(d.Config.Bucket) == 0 {
 		d.Config.Bucket = cfg.Storage.S3.Bucket
@@ -183,12 +244,13 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 	if len(d.Config.Bucket) == 0 {
 		for {
 			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
-			if err := d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
+			if err := d.CreateAndTagBucket(installConfig, cr); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
 						continue
 					default:
+						d.Config.Bucket = ""
 						return err
 					}
 				}
@@ -197,11 +259,11 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 			}
 		}
 	} else {
-		if err := d.checkBucketExists(svc); err != nil {
+		if err := d.CheckBucketExists(cr); err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket:
-					if err = d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
+					if err = d.CreateAndTagBucket(installConfig, cr); err != nil {
 						return err
 					}
 				default:
@@ -210,11 +272,15 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 			}
 		}
 	}
+
 	if err := d.createOrUpdatePrivateConfiguration(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey); err != nil {
 		return err
 	}
 
-	customResourceStatus.Storage.State.S3 = d.Config
+	if err := d.CheckBucketExists(cr); err != nil {
+		return err
+	}
+	cr.Status.Storage.State.S3 = d.Config
 
 	return nil
 }

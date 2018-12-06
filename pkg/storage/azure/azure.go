@@ -59,6 +59,6 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 	return nil
 }

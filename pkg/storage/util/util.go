@@ -5,27 +5,66 @@ import (
 
 	"github.com/golang/glog"
 
+	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
-
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
-func CreateOrUpdateSecret(name string, namespace string, data map[string]string) error {
+func UpdateCondition(cr *regopapi.ImageRegistry, conditionType string, status operatorapi.ConditionStatus, reason string, message string) {
+	found := false
+	condition := &operatorapi.OperatorCondition{
+		Type:               conditionType,
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: metaapi.Now(),
+	}
+	conditions := []operatorapi.OperatorCondition{}
+
+	for _, c := range cr.Status.Conditions {
+		if condition.Type != c.Type {
+			conditions = append(conditions, c)
+			continue
+		}
+		if c.Status != condition.Status {
+			c.Status = condition.Status
+			c.LastTransitionTime = condition.LastTransitionTime
+		}
+		if c.Reason != condition.Reason {
+			c.Reason = condition.Reason
+		}
+		if c.Message != condition.Message {
+			c.Message = condition.Message
+		}
+		conditions = append(conditions, c)
+		found = true
+	}
+
+	if !found {
+		conditions = append(conditions, *condition)
+	}
+
+	cr.Status.Conditions = conditions
+}
+
+func CreateOrUpdateSecret(name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	client, err := coreset.NewForConfig(kubeconfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var updatedSecret *coreapi.Secret
 
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		cur, err := client.Secrets(namespace).Get(name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -53,7 +92,12 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 			_, err := client.Secrets(namespace).Create(cur)
 			return err
 		}
-		_, err = client.Secrets(namespace).Update(cur)
+		updatedSecret, err = client.Secrets(namespace).Update(cur)
 		return err
-	})
+
+	}); err != nil {
+		return nil, err
+	}
+
+	return updatedSecret, err
 }
