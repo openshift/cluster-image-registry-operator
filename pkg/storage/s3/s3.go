@@ -17,6 +17,7 @@ import (
 	installer "github.com/openshift/installer/pkg/types"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -140,12 +141,17 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 }
 
 func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey string) error {
+	operatorNamespace, err := regopclient.GetWatchNamespace()
+	if err != nil {
+		return err
+	}
+
 	data := map[string]string{
 		"REGISTRY_STORAGE_S3_ACCESSKEY": accessKey,
 		"REGISTRY_STORAGE_S3_SECRETKEY": secretKey,
 	}
 
-	return util.CreateOrUpdateSecret(d.Name+"-private-configuration", opapi.OperatorNamespace, data)
+	return util.CreateOrUpdateSecret(d.Name+"-private-configuration", operatorNamespace, data)
 }
 
 func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {

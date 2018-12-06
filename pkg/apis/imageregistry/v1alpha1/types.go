@@ -11,7 +11,6 @@ import (
 
 const (
 	OperatorStatusTypeRemoved             = "Removed"
-	OperatorNamespace                     = "openshift-image-registry"
 	ImageRegistryPrivateConfiguration     = "image-registry-private-configuration"
 	ImageRegistryPrivateConfigurationUser = ImageRegistryPrivateConfiguration + "-user"
 )

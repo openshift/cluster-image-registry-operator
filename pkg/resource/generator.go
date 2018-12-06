@@ -17,6 +17,7 @@ import (
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -102,11 +103,16 @@ func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) erro
 		return err
 	}
 
+	operatorNamespace, err := regopclient.GetWatchNamespace()
+	if err != nil {
+		return err
+	}
+
 	var existingAccessKey, existingSecretKey []byte
 
-	sec, err := client.Secrets(regopapi.OperatorNamespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	sec, err := client.Secrets(operatorNamespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration), err)
+		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfiguration), err)
 	}
 	if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
 		existingAccessKey = v
@@ -116,12 +122,12 @@ func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) erro
 	}
 
 	if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
-		glog.Infof("Updating secret %q with updated S3 credentials.", fmt.Sprintf("%s/%s", regopapi.OperatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
+		glog.Infof("Updating secret %q with updated S3 credentials.", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfiguration))
 		data := map[string]string{
 			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
 			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
 		}
-		if err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, regopapi.OperatorNamespace, data); err != nil {
+		if err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, operatorNamespace, data); err != nil {
 			return err
 		}
 		*modified = true
