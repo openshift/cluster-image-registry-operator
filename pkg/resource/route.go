@@ -3,101 +3,81 @@ package resource
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	corelisters "k8s.io/client-go/listers/core/v1"
 
 	routeapi "github.com/openshift/api/route/v1"
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func (g *Generator) makeDefaultRoute(cr *regopapi.ImageRegistry) (Template, error) {
-	r := &routeapi.Route{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: routeapi.SchemeGroupVersion.String(),
-			Kind:       "Route",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.ObjectMeta.Name + "-default-route",
-			Namespace: g.params.Deployment.Namespace,
-		},
-		Spec: routeapi.RouteSpec{
-			To: routeapi.RouteTargetReference{
-				Kind: "Service",
-				Name: g.params.Service.Name,
-			},
-		},
-	}
+var _ Mutator = &generatorRoute{}
 
-	r.Spec.TLS = &routeapi.TLSConfig{}
-
-	// TLS certificates are served by the front end of the router, so they must be configured into the route,
-	// otherwise the router's default certificate will be used for TLS termination.
-	if cr.Spec.TLS {
-		r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
-	} else {
-		r.Spec.TLS.Termination = routeapi.TLSTerminationEdge
-	}
-
-	addOwnerRefToObject(r, asOwner(cr))
-
-	client, err := routeset.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return Template{}, err
-	}
-
-	return Template{
-		Object:   r,
-		Strategy: strategy.Override{},
-		Get: func() (runtime.Object, error) {
-			return client.Routes(r.Namespace).Get(r.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.Routes(r.Namespace).Create(r)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*routeapi.Route)
-			_, err := client.Routes(r.Namespace).Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.Routes(r.Namespace).Delete(r.Name, opts)
-		},
-	}, nil
+type generatorRoute struct {
+	lister       routelisters.RouteNamespaceLister
+	secretLister corelisters.SecretNamespaceLister
+	client       routeset.RouteV1Interface
+	namespace    string
+	serviceName  string
+	tls          bool
+	owner        metav1.OwnerReference
+	route        regopapi.ImageRegistryConfigRoute
 }
 
-func (g *Generator) makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageRegistryConfigRoute) (Template, error) {
+func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry, route regopapi.ImageRegistryConfigRoute) *generatorRoute {
+	return &generatorRoute{
+		lister:       lister,
+		secretLister: secretLister,
+		client:       client,
+		namespace:    params.Deployment.Namespace,
+		serviceName:  params.Service.Name,
+		tls:          cr.Spec.TLS,
+		owner:        asOwner(cr),
+		route:        route,
+	}
+}
+
+func (gr *generatorRoute) Type() interface{} {
+	return &routeapi.Route{}
+}
+
+func (gr *generatorRoute) GetNamespace() string {
+	return gr.namespace
+}
+
+func (gr *generatorRoute) GetName() string {
+	return gr.route.Name
+}
+
+func (gr *generatorRoute) expected() (*routeapi.Route, error) {
 	r := &routeapi.Route{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: routeapi.SchemeGroupVersion.String(),
-			Kind:       "Route",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      route.Name,
-			Namespace: g.params.Deployment.Namespace,
+			Name:      gr.GetName(),
+			Namespace: gr.GetNamespace(),
 		},
 		Spec: routeapi.RouteSpec{
-			Host: route.Hostname,
+			Host: gr.route.Hostname,
 			To: routeapi.RouteTargetReference{
 				Kind: "Service",
-				Name: g.params.Service.Name,
+				Name: gr.serviceName,
 			},
 		},
 	}
 
 	r.Spec.TLS = &routeapi.TLSConfig{}
-
-	if cr.Spec.TLS {
+	if gr.tls {
 		r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
 	} else {
 		r.Spec.TLS.Termination = routeapi.TLSTerminationEdge
 	}
 
-	if len(route.SecretName) > 0 {
-		secret, err := g.getSecret(route.SecretName, g.params.Deployment.Namespace)
+	if len(gr.route.SecretName) > 0 {
+		secret, err := gr.secretLister.Get(gr.route.SecretName)
 		if err != nil {
-			return Template{}, err
+			return nil, err
 		}
 		if v, ok := secret.StringData["tls.crt"]; ok {
 			r.Spec.TLS.Certificate = v
@@ -110,46 +90,42 @@ func (g *Generator) makeRoute(cr *regopapi.ImageRegistry, route *regopapi.ImageR
 		}
 	}
 
-	addOwnerRefToObject(r, asOwner(cr))
+	addOwnerRefToObject(r, gr.owner)
 
-	client, err := routeset.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return Template{}, err
-	}
-
-	return Template{
-		Object:   r,
-		Strategy: strategy.Override{},
-		Get: func() (runtime.Object, error) {
-			return client.Routes(r.Namespace).Get(r.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.Routes(r.Namespace).Create(r)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*routeapi.Route)
-			_, err := client.Routes(r.Namespace).Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.Routes(r.Namespace).Delete(r.Name, opts)
-		},
-	}, nil
+	return r, nil
 }
 
-func (g *Generator) getRouteGenerators(cr *regopapi.ImageRegistry) map[string]templateGenerator {
-	ret := map[string]templateGenerator{}
+func (gr *generatorRoute) Get() (runtime.Object, error) {
+	return gr.lister.Get(gr.GetName())
+}
 
-	if cr.Spec.DefaultRoute {
-		ret[cr.ObjectMeta.Name+"-default-route"] = g.makeDefaultRoute
+func (gr *generatorRoute) Create() error {
+	route, err := gr.expected()
+	if err != nil {
+		return err
 	}
 
-	for i := range cr.Spec.Routes {
-		ret[cr.Spec.Routes[i].Name] = func(o *regopapi.ImageRegistry) (Template, error) {
-			return g.makeRoute(o, &o.Spec.Routes[i])
-		}
+	_, err = gr.client.Routes(gr.GetNamespace()).Create(route)
+	return err
+}
+
+func (gr *generatorRoute) Update(o runtime.Object) (bool, error) {
+	route := o.(*routeapi.Route)
+
+	n, err := gr.expected()
+	if err != nil {
+		return false, err
 	}
 
-	return ret
+	updated, err := strategy.Override(route, n)
+	if !updated || err != nil {
+		return false, err
+	}
+
+	_, err = gr.client.Routes(gr.GetNamespace()).Update(route)
+	return true, err
+}
+
+func (gr *generatorRoute) Delete(opts *metav1.DeleteOptions) error {
+	return gr.client.Routes(gr.GetNamespace()).Delete(gr.GetName(), opts)
 }

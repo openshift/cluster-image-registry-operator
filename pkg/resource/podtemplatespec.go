@@ -10,8 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	projectset "github.com/openshift/client-go/project/clientset/versioned"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -58,13 +57,8 @@ func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *cor
 	}
 }
 
-func (g *Generator) generateSecurityContext(cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
-	client, err := projectset.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	ns, err := client.ProjectV1().Projects().Get(namespace, metav1.GetOptions{})
+func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+	ns, err := coreClient.Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +83,7 @@ func (g *Generator) generateSecurityContext(cr *v1alpha1.ImageRegistry, namespac
 	}, nil
 }
 
-func (g *Generator) storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
 	driver, err = storage.NewDriver(crname, crnamespace, cfg)
@@ -110,16 +104,27 @@ func (g *Generator) storageConfigure(crname string, crnamespace string, cfg *v1a
 	return
 }
 
-func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodTemplateSpec, map[string]string, error) {
-	env, volumes, mounts, err := g.storageConfigure(cr.Name, g.params.Deployment.Namespace, &cr.Spec.Storage)
+func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.Globals, cr *v1alpha1.ImageRegistry) (corev1.PodTemplateSpec, *dependencies, error) {
+	env, volumes, mounts, err := storageConfigure(cr.Name, params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
 	}
 
-	annotations := map[string]string{}
+	deps := newDependencies()
+	for _, e := range env {
+		if e.ValueFrom == nil {
+			continue
+		}
+		if e.ValueFrom.ConfigMapKeyRef != nil {
+			deps.AddConfigMap(e.ValueFrom.ConfigMapKeyRef.Name)
+		}
+		if e.ValueFrom.SecretKeyRef != nil {
+			deps.AddSecret(e.ValueFrom.SecretKeyRef.Name)
+		}
+	}
 
 	env = append(env,
-		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", g.params.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", params.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
 		corev1.EnvVar{Name: "REGISTRY_LOG_LEVEL", Value: generateLogLevel(cr)},
@@ -127,15 +132,15 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
-		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", g.params.Service.Name, g.params.Deployment.Namespace, g.params.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", params.Service.Name, params.Deployment.Namespace, params.Container.Port)},
 	)
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
 		if cr.Spec.Requests.Read.MaxRunning < 0 {
-			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Read.MaxRunning must be positive number")
+			return corev1.PodTemplateSpec{}, deps, fmt.Errorf("Requests.Read.MaxRunning must be positive number")
 		}
 		if cr.Spec.Requests.Read.MaxInQueue < 0 {
-			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Read.MaxInQueue must be positive number")
+			return corev1.PodTemplateSpec{}, deps, fmt.Errorf("Requests.Read.MaxInQueue must be positive number")
 		}
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Read.MaxRunning)},
@@ -146,10 +151,10 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 
 	if cr.Spec.Requests.Write.MaxRunning != 0 || cr.Spec.Requests.Write.MaxInQueue != 0 {
 		if cr.Spec.Requests.Write.MaxRunning < 0 {
-			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Write.MaxRunning must be positive number")
+			return corev1.PodTemplateSpec{}, deps, fmt.Errorf("Requests.Write.MaxRunning must be positive number")
 		}
 		if cr.Spec.Requests.Write.MaxInQueue < 0 {
-			return corev1.PodTemplateSpec{}, nil, fmt.Errorf("Requests.Write.MaxInQueue must be positive number")
+			return corev1.PodTemplateSpec{}, deps, fmt.Errorf("Requests.Write.MaxInQueue must be positive number")
 		}
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXRUNNING", Value: fmt.Sprintf("%d", cr.Spec.Requests.Write.MaxRunning)},
@@ -158,9 +163,9 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 		)
 	}
 
-	securityContext, err := g.generateSecurityContext(cr, g.params.Deployment.Namespace)
+	securityContext, err := generateSecurityContext(coreClient, cr, params.Deployment.Namespace)
 	if err != nil {
-		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("generate security context for deployment config: %s", err)
+		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
 	//TLS
@@ -183,6 +188,7 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 		}
 		volumes = append(volumes, vol)
 		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/secrets"})
+		deps.AddSecret(vol.VolumeSource.Projected.Sources[0].Secret.LocalObjectReference.Name)
 
 		env = append(env,
 			corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},
@@ -203,12 +209,13 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
+	deps.AddConfigMap(vol.VolumeSource.ConfigMap.LocalObjectReference.Name)
 
 	image := os.Getenv("IMAGE")
 
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: g.params.Deployment.Labels,
+			Labels: params.Deployment.Labels,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations: []corev1.Toleration{
@@ -224,14 +231,14 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 					Image: image,
 					Ports: []corev1.ContainerPort{
 						{
-							ContainerPort: int32(g.params.Container.Port),
+							ContainerPort: int32(params.Container.Port),
 							Protocol:      "TCP",
 						},
 					},
 					Env:            env,
 					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(cr, g.params),
-					ReadinessProbe: generateReadinessProbeConfig(cr, g.params),
+					LivenessProbe:  generateLivenessProbeConfig(cr, params),
+					ReadinessProbe: generateReadinessProbeConfig(cr, params),
 					Resources: corev1.ResourceRequirements{
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -241,10 +248,10 @@ func (g *Generator) makePodTemplateSpec(cr *v1alpha1.ImageRegistry) (corev1.PodT
 				},
 			},
 			Volumes:            volumes,
-			ServiceAccountName: g.params.Pod.ServiceAccount,
+			ServiceAccountName: params.Pod.ServiceAccount,
 			SecurityContext:    securityContext,
 		},
 	}
 
-	return spec, annotations, nil
+	return spec, deps, nil
 }

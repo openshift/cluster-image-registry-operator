@@ -7,67 +7,110 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func (g *Generator) makeService(cr *v1alpha1.ImageRegistry) (Template, error) {
+var _ Mutator = &generatorService{}
+
+type generatorService struct {
+	lister     corelisters.ServiceNamespaceLister
+	client     coreset.CoreV1Interface
+	name       string
+	namespace  string
+	labels     map[string]string
+	port       int
+	secretName string
+	tls        bool
+	owner      metav1.OwnerReference
+}
+
+func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorService {
+	return &generatorService{
+		lister:     lister,
+		client:     client,
+		name:       params.Service.Name,
+		namespace:  params.Deployment.Namespace,
+		labels:     params.Deployment.Labels,
+		port:       params.Container.Port,
+		secretName: cr.Name + "-tls",
+		tls:        cr.Spec.TLS,
+		owner:      asOwner(cr),
+	}
+}
+
+func (gs *generatorService) Type() interface{} {
+	return &corev1.Service{}
+}
+
+func (gs *generatorService) GetNamespace() string {
+	return gs.namespace
+}
+
+func (gs *generatorService) GetName() string {
+	return gs.name
+}
+
+func (gs *generatorService) expected() *corev1.Service {
 	svc := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: corev1.SchemeGroupVersion.String(),
-			Kind:       "Service",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      g.params.Service.Name,
-			Namespace: g.params.Deployment.Namespace,
-			Labels:    g.params.Deployment.Labels,
+			Name:      gs.GetName(),
+			Namespace: gs.GetNamespace(),
+			Labels:    gs.labels,
 		},
 		Spec: corev1.ServiceSpec{
-			Selector: g.params.Deployment.Labels,
+			Selector: gs.labels,
 			Ports: []corev1.ServicePort{
 				{
-					Name:       fmt.Sprintf("%d-tcp", g.params.Container.Port),
-					Port:       int32(g.params.Container.Port),
+					Name:       fmt.Sprintf("%d-tcp", gs.port),
+					Port:       int32(gs.port),
 					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(g.params.Container.Port),
+					TargetPort: intstr.FromInt(gs.port),
 				},
 			},
 		},
 	}
 
-	if cr.Spec.TLS {
+	if gs.tls {
 		svc.ObjectMeta.Annotations = map[string]string{
-			"service.alpha.openshift.io/serving-cert-secret-name": cr.ObjectMeta.Name + "-tls",
+			"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
 		}
 	}
 
-	addOwnerRefToObject(svc, asOwner(cr))
+	addOwnerRefToObject(svc, gs.owner)
 
-	client, err := coreset.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return Template{}, err
+	return svc
+}
+
+func (gs *generatorService) Get() (runtime.Object, error) {
+	return gs.lister.Get(gs.GetName())
+}
+
+func (gs *generatorService) Create() error {
+	svc := gs.expected()
+
+	_, err := gs.client.Services(gs.GetNamespace()).Create(svc)
+	return err
+}
+
+func (gs *generatorService) Update(o runtime.Object) (bool, error) {
+	svc := o.(*corev1.Service)
+
+	n := gs.expected()
+
+	updated, err := strategy.Service(svc, n)
+	if !updated || err != nil {
+		return false, err
 	}
 
-	return Template{
-		Object:   svc,
-		Strategy: strategy.Service{},
-		Get: func() (runtime.Object, error) {
-			return client.Services(svc.Namespace).Get(svc.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.Services(svc.Namespace).Create(svc)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*corev1.Service)
-			_, err := client.Services(svc.Namespace).Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.Services(svc.Namespace).Delete(svc.Name, opts)
-		},
-	}, nil
+	_, err = gs.client.Services(gs.GetNamespace()).Update(svc)
+	return true, err
+}
+
+func (gs *generatorService) Delete(opts *metav1.DeleteOptions) error {
+	return gs.client.Services(gs.GetNamespace()).Delete(gs.GetName(), opts)
 }

@@ -5,54 +5,106 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	corelisters "k8s.io/client-go/listers/core/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func (g *Generator) makeCAConfig(cr *regopapi.ImageRegistry) (Template, error) {
-	conf := &corev1.ConfigMap{
+var _ Mutator = &generatorCAConfig{}
+
+type generatorCAConfig struct {
+	lister                corelisters.ConfigMapNamespaceLister
+	openshiftConfigLister corelisters.ConfigMapNamespaceLister
+	client                coreset.CoreV1Interface
+	name                  string
+	namespace             string
+	caConfigName          string
+	owner                 metav1.OwnerReference
+}
+
+func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorCAConfig {
+	return &generatorCAConfig{
+		lister:       lister,
+		client:       client,
+		name:         params.CAConfig.Name,
+		namespace:    params.Deployment.Namespace,
+		caConfigName: cr.Spec.CAConfigName,
+		owner:        asOwner(cr),
+	}
+}
+
+func (gcac *generatorCAConfig) Type() interface{} {
+	return &corev1.ConfigMap{}
+}
+
+func (gcac *generatorCAConfig) GetNamespace() string {
+	return gcac.namespace
+}
+
+func (gcac *generatorCAConfig) GetName() string {
+	return gcac.name
+}
+
+func (gcac *generatorCAConfig) expected() (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: g.params.CAConfig.Name,
+			Name:      gcac.GetName(),
+			Namespace: gcac.GetNamespace(),
 		},
 	}
 
-	addOwnerRefToObject(conf, asOwner(cr))
+	if gcac.caConfigName != "" {
+		upstreamConfig, err := gcac.openshiftConfigLister.Get(gcac.caConfigName)
+		if err != nil {
+			return nil, err
+		}
 
-	upstreamConfig, err := g.listers.OpenShiftConfig.Get(cr.Spec.CAConfigName)
+		for k, v := range upstreamConfig.Data {
+			cm.Data[k] = v
+		}
+		for k, v := range upstreamConfig.BinaryData {
+			cm.BinaryData[k] = v
+		}
+	}
+
+	addOwnerRefToObject(cm, gcac.owner)
+
+	return cm, nil
+}
+
+func (gcac *generatorCAConfig) Get() (runtime.Object, error) {
+	return gcac.lister.Get(gcac.GetName())
+}
+
+func (gcac *generatorCAConfig) Create() error {
+	cm, err := gcac.expected()
 	if err != nil {
-		return Template{}, err
+		return err
 	}
 
-	for k, v := range upstreamConfig.Data {
-		conf.Data[k] = v
-	}
-	for k, v := range upstreamConfig.BinaryData {
-		conf.BinaryData[k] = v
-	}
+	_, err = gcac.client.ConfigMaps(gcac.GetNamespace()).Create(cm)
+	return err
+}
 
-	client, err := coreset.NewForConfig(g.kubeconfig)
+func (gcac *generatorCAConfig) Update(o runtime.Object) (bool, error) {
+	cm := o.(*corev1.ConfigMap)
+
+	n, err := gcac.expected()
 	if err != nil {
-		return Template{}, err
+		return false, err
 	}
 
-	return Template{
-		Object:   conf,
-		Strategy: strategy.ConfigMap{},
-		Get: func() (runtime.Object, error) {
-			return client.ConfigMaps(g.params.Deployment.Namespace).Get(conf.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.ConfigMaps(g.params.Deployment.Namespace).Create(conf)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*corev1.ConfigMap)
-			_, err := client.ConfigMaps(g.params.Deployment.Namespace).Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.ConfigMaps(g.params.Deployment.Namespace).Delete(conf.Name, opts)
-		},
-	}, nil
+	updated, err := strategy.Override(cm, n)
+	if !updated || err != nil {
+		return false, err
+	}
+
+	_, err = gcac.client.ConfigMaps(gcac.GetNamespace()).Update(cm)
+	return true, err
+}
+
+func (gcac *generatorCAConfig) Delete(opts *metav1.DeleteOptions) error {
+	return gcac.client.ConfigMaps(gcac.GetNamespace()).Delete(gcac.GetName(), opts)
 }

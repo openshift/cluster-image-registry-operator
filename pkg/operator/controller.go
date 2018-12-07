@@ -17,6 +17,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	configset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
@@ -292,6 +294,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
+	configClient, err := configset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
 	regopClient, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
@@ -300,6 +307,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
+	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
 
 	var informers []cache.SharedIndexInformer
@@ -316,22 +324,32 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().Secrets()
+			c.listers.Secrets = informer.Lister().Secrets(c.params.Deployment.Namespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.ConfigMaps = informer.Lister().ConfigMaps(c.params.Deployment.Namespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
+			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := routeInformerFactory.Route().V1().Routes()
+			c.listers.Routes = informer.Lister().Routes(c.params.Deployment.Namespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Rbac().V1().ClusterRoles()
+			c.listers.ClusterRoles = informer.Lister()
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Rbac().V1().ClusterRoleBindings()
+			c.listers.ClusterRoleBindings = informer.Lister()
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
@@ -340,7 +358,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := routeInformerFactory.Route().V1().Routes()
+			informer := configInformerFactory.Config().V1().Images()
+			c.listers.ImageConfigs = informer.Lister()
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
@@ -357,6 +376,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
+	configInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
 
 	glog.Info("waiting for informer caches to sync")
