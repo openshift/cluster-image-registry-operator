@@ -124,6 +124,8 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 	}
 
 	env = append(env,
+		corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP},
+		corev1.EnvVar{Name: "HTTPS_PROXY", Value: cr.Spec.Proxy.HTTPS},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", params.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
