@@ -9,7 +9,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorClusterRoleBinding{}
@@ -32,7 +31,7 @@ func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister,
 	}
 }
 
-func (gcrb *generatorClusterRoleBinding) Type() interface{} {
+func (gcrb *generatorClusterRoleBinding) Type() runtime.Object {
 	return &rbacapi.ClusterRoleBinding{}
 }
 
@@ -44,7 +43,7 @@ func (gcrb *generatorClusterRoleBinding) GetName() string {
 	return "registry-registry-role"
 }
 
-func (gcrb *generatorClusterRoleBinding) expected() *rbacapi.ClusterRoleBinding {
+func (gcrb *generatorClusterRoleBinding) expected() (runtime.Object, error) {
 	crb := &rbacapi.ClusterRoleBinding{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: rbacapi.SchemeGroupVersion.String(),
@@ -68,7 +67,7 @@ func (gcrb *generatorClusterRoleBinding) expected() *rbacapi.ClusterRoleBinding 
 
 	addOwnerRefToObject(crb, gcrb.owner)
 
-	return crb
+	return crb, nil
 }
 
 func (gcrb *generatorClusterRoleBinding) Get() (runtime.Object, error) {
@@ -76,22 +75,15 @@ func (gcrb *generatorClusterRoleBinding) Get() (runtime.Object, error) {
 }
 
 func (gcrb *generatorClusterRoleBinding) Create() error {
-	n := gcrb.expected()
-	_, err := gcrb.client.ClusterRoleBindings().Create(n)
-	return err
+	return commonCreate(gcrb, func(obj runtime.Object) (runtime.Object, error) {
+		return gcrb.client.ClusterRoleBindings().Create(obj.(*rbacapi.ClusterRoleBinding))
+	})
 }
 
 func (gcrb *generatorClusterRoleBinding) Update(o runtime.Object) (bool, error) {
-	crb := o.(*rbacapi.ClusterRoleBinding)
-	n := gcrb.expected()
-
-	updated, err := strategy.Override(crb, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gcrb.client.ClusterRoleBindings().Update(crb)
-	return true, err
+	return commonUpdate(gcrb, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gcrb.client.ClusterRoleBindings().Update(obj.(*rbacapi.ClusterRoleBinding))
+	})
 }
 
 func (gcrb *generatorClusterRoleBinding) Delete(opts *metav1.DeleteOptions) error {

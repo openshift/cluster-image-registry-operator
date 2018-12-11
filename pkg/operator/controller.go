@@ -129,6 +129,7 @@ func (c *Controller) sync() error {
 		}
 		return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 	}
+	cr = cr.DeepCopy() // we don't want to change the cached version
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
 		return c.finalizeResources(cr)
@@ -166,6 +167,8 @@ func (c *Controller) sync() error {
 		deploy = nil
 	} else if err != nil {
 		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
+	} else {
+		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
 	c.syncStatus(cr, deploy, applyError, removed, &statusChanged)

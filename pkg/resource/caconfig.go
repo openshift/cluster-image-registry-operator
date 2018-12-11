@@ -9,7 +9,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorCAConfig{}
@@ -35,7 +34,7 @@ func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshift
 	}
 }
 
-func (gcac *generatorCAConfig) Type() interface{} {
+func (gcac *generatorCAConfig) Type() runtime.Object {
 	return &corev1.ConfigMap{}
 }
 
@@ -47,7 +46,7 @@ func (gcac *generatorCAConfig) GetName() string {
 	return gcac.name
 }
 
-func (gcac *generatorCAConfig) expected() (*corev1.ConfigMap, error) {
+func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcac.GetName(),
@@ -79,30 +78,15 @@ func (gcac *generatorCAConfig) Get() (runtime.Object, error) {
 }
 
 func (gcac *generatorCAConfig) Create() error {
-	cm, err := gcac.expected()
-	if err != nil {
-		return err
-	}
-
-	_, err = gcac.client.ConfigMaps(gcac.GetNamespace()).Create(cm)
-	return err
+	return commonCreate(gcac, func(obj runtime.Object) (runtime.Object, error) {
+		return gcac.client.ConfigMaps(gcac.GetNamespace()).Create(obj.(*corev1.ConfigMap))
+	})
 }
 
 func (gcac *generatorCAConfig) Update(o runtime.Object) (bool, error) {
-	cm := o.(*corev1.ConfigMap)
-
-	n, err := gcac.expected()
-	if err != nil {
-		return false, err
-	}
-
-	updated, err := strategy.Override(cm, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gcac.client.ConfigMaps(gcac.GetNamespace()).Update(cm)
-	return true, err
+	return commonUpdate(gcac, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gcac.client.ConfigMaps(gcac.GetNamespace()).Update(obj.(*corev1.ConfigMap))
+	})
 }
 
 func (gcac *generatorCAConfig) Delete(opts *metav1.DeleteOptions) error {

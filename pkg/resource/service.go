@@ -43,7 +43,7 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 	}
 }
 
-func (gs *generatorService) Type() interface{} {
+func (gs *generatorService) Type() runtime.Object {
 	return &corev1.Service{}
 }
 
@@ -91,15 +91,20 @@ func (gs *generatorService) Get() (runtime.Object, error) {
 }
 
 func (gs *generatorService) Create() error {
-	svc := gs.expected()
+	svc := &corev1.Service{}
+	n := gs.expected()
 
-	_, err := gs.client.Services(gs.GetNamespace()).Create(svc)
+	_, err := strategy.Service(svc, n)
+	if err != nil {
+		return err
+	}
+
+	_, err = gs.client.Services(gs.GetNamespace()).Create(svc)
 	return err
 }
 
 func (gs *generatorService) Update(o runtime.Object) (bool, error) {
 	svc := o.(*corev1.Service)
-
 	n := gs.expected()
 
 	updated, err := strategy.Service(svc, n)

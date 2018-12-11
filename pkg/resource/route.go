@@ -11,7 +11,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorRoute{}
@@ -40,7 +39,7 @@ func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister co
 	}
 }
 
-func (gr *generatorRoute) Type() interface{} {
+func (gr *generatorRoute) Type() runtime.Object {
 	return &routeapi.Route{}
 }
 
@@ -52,7 +51,7 @@ func (gr *generatorRoute) GetName() string {
 	return gr.route.Name
 }
 
-func (gr *generatorRoute) expected() (*routeapi.Route, error) {
+func (gr *generatorRoute) expected() (runtime.Object, error) {
 	r := &routeapi.Route{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gr.GetName(),
@@ -100,30 +99,15 @@ func (gr *generatorRoute) Get() (runtime.Object, error) {
 }
 
 func (gr *generatorRoute) Create() error {
-	route, err := gr.expected()
-	if err != nil {
-		return err
-	}
-
-	_, err = gr.client.Routes(gr.GetNamespace()).Create(route)
-	return err
+	return commonCreate(gr, func(obj runtime.Object) (runtime.Object, error) {
+		return gr.client.Routes(gr.GetNamespace()).Create(obj.(*routeapi.Route))
+	})
 }
 
 func (gr *generatorRoute) Update(o runtime.Object) (bool, error) {
-	route := o.(*routeapi.Route)
-
-	n, err := gr.expected()
-	if err != nil {
-		return false, err
-	}
-
-	updated, err := strategy.Override(route, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gr.client.Routes(gr.GetNamespace()).Update(route)
-	return true, err
+	return commonUpdate(gr, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gr.client.Routes(gr.GetNamespace()).Update(obj.(*routeapi.Route))
+	})
 }
 
 func (gr *generatorRoute) Delete(opts *metav1.DeleteOptions) error {

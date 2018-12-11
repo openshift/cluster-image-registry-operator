@@ -46,6 +46,7 @@ func (d dependencies) Checksum(configMapLister corelisters.ConfigMapNamespaceLis
 		} else if err != nil {
 			return "", err
 		}
+		cm = cm.DeepCopy()
 		cm.TypeMeta = metav1.TypeMeta{}
 		cm.ObjectMeta = metav1.ObjectMeta{}
 		dgst, err := strategy.Checksum(cm)
@@ -67,6 +68,7 @@ func (d dependencies) Checksum(configMapLister corelisters.ConfigMapNamespaceLis
 		} else if err != nil {
 			return "", err
 		}
+		sec = sec.DeepCopy()
 		sec.TypeMeta = metav1.TypeMeta{}
 		sec.ObjectMeta = metav1.ObjectMeta{}
 		dgst, err := strategy.Checksum(sec)

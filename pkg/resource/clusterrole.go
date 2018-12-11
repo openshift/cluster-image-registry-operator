@@ -8,7 +8,6 @@ import (
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorClusterRole{}
@@ -27,7 +26,7 @@ func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacse
 	}
 }
 
-func (gcr *generatorClusterRole) Type() interface{} {
+func (gcr *generatorClusterRole) Type() runtime.Object {
 	return &rbacapi.ClusterRole{}
 }
 
@@ -39,7 +38,7 @@ func (gcr *generatorClusterRole) GetName() string {
 	return "system:registry"
 }
 
-func (gcr *generatorClusterRole) expected() *rbacapi.ClusterRole {
+func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 	role := &rbacapi.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcr.GetName(),
@@ -96,7 +95,7 @@ func (gcr *generatorClusterRole) expected() *rbacapi.ClusterRole {
 
 	addOwnerRefToObject(role, gcr.owner)
 
-	return role
+	return role, nil
 }
 
 func (gcr *generatorClusterRole) Get() (runtime.Object, error) {
@@ -104,22 +103,15 @@ func (gcr *generatorClusterRole) Get() (runtime.Object, error) {
 }
 
 func (gcr *generatorClusterRole) Create() error {
-	clusterRole := gcr.expected()
-	_, err := gcr.client.ClusterRoles().Create(clusterRole)
-	return err
+	return commonCreate(gcr, func(obj runtime.Object) (runtime.Object, error) {
+		return gcr.client.ClusterRoles().Create(obj.(*rbacapi.ClusterRole))
+	})
 }
 
 func (gcr *generatorClusterRole) Update(o runtime.Object) (bool, error) {
-	clusterRole := o.(*rbacapi.ClusterRole)
-	n := gcr.expected()
-
-	updated, err := strategy.Override(clusterRole, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gcr.client.ClusterRoles().Update(clusterRole)
-	return true, err
+	return commonUpdate(gcr, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gcr.client.ClusterRoles().Update(obj.(*rbacapi.ClusterRole))
+	})
 }
 
 func (gcr *generatorClusterRole) Delete(opts *metav1.DeleteOptions) error {

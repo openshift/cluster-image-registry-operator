@@ -11,7 +11,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorDeployment{}
@@ -38,7 +37,7 @@ func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, config
 	}
 }
 
-func (gd *generatorDeployment) Type() interface{} {
+func (gd *generatorDeployment) Type() runtime.Object {
 	return &appsapi.Deployment{}
 }
 
@@ -50,7 +49,7 @@ func (gd *generatorDeployment) GetName() string {
 	return gd.cr.ObjectMeta.Name
 }
 
-func (gd *generatorDeployment) expected() (*appsapi.Deployment, error) {
+func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.params, gd.cr)
 	if err != nil {
 		return nil, err
@@ -91,30 +90,15 @@ func (gd *generatorDeployment) Get() (runtime.Object, error) {
 }
 
 func (gd *generatorDeployment) Create() error {
-	deploy, err := gd.expected()
-	if err != nil {
-		return err
-	}
-
-	_, err = gd.client.Deployments(gd.GetNamespace()).Create(deploy)
-	return err
+	return commonCreate(gd, func(obj runtime.Object) (runtime.Object, error) {
+		return gd.client.Deployments(gd.GetNamespace()).Create(obj.(*appsapi.Deployment))
+	})
 }
 
 func (gd *generatorDeployment) Update(o runtime.Object) (bool, error) {
-	deploy := o.(*appsapi.Deployment)
-
-	n, err := gd.expected()
-	if err != nil {
-		return false, err
-	}
-
-	updated, err := strategy.Override(deploy, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gd.client.Deployments(gd.GetNamespace()).Update(deploy)
-	return true, err
+	return commonUpdate(gd, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gd.client.Deployments(gd.GetNamespace()).Update(obj.(*appsapi.Deployment))
+	})
 }
 
 func (gd *generatorDeployment) Delete(opts *metav1.DeleteOptions) error {

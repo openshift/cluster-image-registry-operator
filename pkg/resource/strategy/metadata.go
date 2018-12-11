@@ -19,6 +19,14 @@ func deepCopyMapStringString(m map[string]string) map[string]string {
 
 func Metadata(oldmeta, newmeta *metav1.ObjectMeta) bool {
 	changed := false
+	if oldmeta.Name != newmeta.Name {
+		oldmeta.Name = newmeta.Name
+		changed = true
+	}
+	if oldmeta.Namespace != newmeta.Namespace {
+		oldmeta.Namespace = newmeta.Namespace
+		changed = true
+	}
 	if !reflect.DeepEqual(oldmeta.Annotations, newmeta.Annotations) {
 		oldmeta.Annotations = deepCopyMapStringString(newmeta.Annotations)
 		changed = true

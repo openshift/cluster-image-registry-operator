@@ -148,7 +148,7 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 				return nil
 			}
 
-			updated, err := gen.Update(o)
+			updated, err := gen.Update(o.DeepCopyObject())
 			if err != nil {
 				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
 			}

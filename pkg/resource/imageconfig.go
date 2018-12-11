@@ -33,7 +33,7 @@ func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.
 	}
 }
 
-func (gic *generatorImageConfig) Type() interface{} {
+func (gic *generatorImageConfig) Type() runtime.Object {
 	return &configapi.Image{}
 }
 

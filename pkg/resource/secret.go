@@ -32,7 +32,7 @@ func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset
 	}
 }
 
-func (gs *generatorSecret) Type() interface{} {
+func (gs *generatorSecret) Type() runtime.Object {
 	return &corev1.Secret{}
 }
 

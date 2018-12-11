@@ -9,7 +9,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorServiceAccount{}
@@ -32,7 +31,7 @@ func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister
 	}
 }
 
-func (gsa *generatorServiceAccount) Type() interface{} {
+func (gsa *generatorServiceAccount) Type() runtime.Object {
 	return &corev1.ServiceAccount{}
 }
 
@@ -44,7 +43,7 @@ func (gsa *generatorServiceAccount) GetName() string {
 	return gsa.name
 }
 
-func (gsa *generatorServiceAccount) expected() (*corev1.ServiceAccount, error) {
+func (gsa *generatorServiceAccount) expected() (runtime.Object, error) {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gsa.GetName(),
@@ -62,30 +61,15 @@ func (gsa *generatorServiceAccount) Get() (runtime.Object, error) {
 }
 
 func (gsa *generatorServiceAccount) Create() error {
-	deploy, err := gsa.expected()
-	if err != nil {
-		return err
-	}
-
-	_, err = gsa.client.ServiceAccounts(gsa.GetNamespace()).Create(deploy)
-	return err
+	return commonCreate(gsa, func(obj runtime.Object) (runtime.Object, error) {
+		return gsa.client.ServiceAccounts(gsa.GetNamespace()).Create(obj.(*corev1.ServiceAccount))
+	})
 }
 
 func (gsa *generatorServiceAccount) Update(o runtime.Object) (bool, error) {
-	sa := o.(*corev1.ServiceAccount)
-
-	n, err := gsa.expected()
-	if err != nil {
-		return false, err
-	}
-
-	updated, err := strategy.Override(sa, n)
-	if !updated || err != nil {
-		return false, err
-	}
-
-	_, err = gsa.client.ServiceAccounts(gsa.GetNamespace()).Update(sa)
-	return true, err
+	return commonUpdate(gsa, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gsa.client.ServiceAccounts(gsa.GetNamespace()).Update(obj.(*corev1.ServiceAccount))
+	})
 }
 
 func (gsa *generatorServiceAccount) Delete(opts *metav1.DeleteOptions) error {
