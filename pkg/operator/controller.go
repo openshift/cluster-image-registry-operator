@@ -202,34 +202,28 @@ func (c *Controller) sync() error {
 func (c *Controller) eventProcessor() {
 	for {
 		obj, shutdown := c.workqueue.Get()
-
 		if shutdown {
 			return
 		}
 
-		err := func(obj interface{}) error {
+		glog.V(1).Infof("get event from workqueue")
+		func() {
 			defer c.workqueue.Done(obj)
 
 			if _, ok := obj.(string); !ok {
 				c.workqueue.Forget(obj)
 				glog.Errorf("expected string in workqueue but got %#v", obj)
-				return nil
+				return
 			}
 
 			if err := c.sync(); err != nil {
 				c.workqueue.AddRateLimited(workqueueKey)
-				return fmt.Errorf("unable to sync: %s, requeuing", err)
+				glog.Errorf("unable to sync: %s, requeuing", err)
+			} else {
+				c.workqueue.Forget(obj)
+				glog.Infof("event from workqueue successfully processed")
 			}
-
-			c.workqueue.Forget(obj)
-
-			glog.Infof("event from workqueue successfully processed")
-			return nil
-		}(obj)
-
-		if err != nil {
-			glog.Errorf("unable to process event: %s", err)
-		}
+		}()
 	}
 }
 
@@ -237,7 +231,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
 			glog.V(1).Infof("add event to workqueue due to %s (add)", objectInfo(o))
-			c.workqueue.AddRateLimited(workqueueKey)
+			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
 			newAccessor, err := kmeta.Accessor(n)
@@ -256,7 +250,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				return
 			}
 			glog.V(1).Infof("add event to workqueue due to %s (update)", objectInfo(n))
-			c.workqueue.AddRateLimited(workqueueKey)
+			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
 			object, ok := o.(metaapi.Object)
@@ -274,7 +268,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				glog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
 			glog.V(1).Infof("add event to workqueue due to %s (delete)", objectInfo(object))
-			c.workqueue.AddRateLimited(workqueueKey)
+			c.workqueue.Add(workqueueKey)
 		},
 	}
 }
