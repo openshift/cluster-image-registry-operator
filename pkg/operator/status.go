@@ -5,11 +5,9 @@ import (
 
 	"github.com/golang/glog"
 
-	kappsapi "k8s.io/api/apps/v1"
+	appsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
-	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -50,46 +48,29 @@ func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.Operator
 	cr.Status.Conditions = conditions
 }
 
-func isDeploymentStatusAvailable(o runtime.Object) bool {
-	switch deploy := o.(type) {
-	case *appsapi.DeploymentConfig:
-		return deploy.Status.AvailableReplicas > 0
-	case *kappsapi.Deployment:
-		return deploy.Status.AvailableReplicas > 0
-	}
-	return false
+func isDeploymentStatusAvailable(deploy *appsapi.Deployment) bool {
+	return deploy.Status.AvailableReplicas > 0
 }
 
-func isDeploymentStatusComplete(o runtime.Object) bool {
-	switch deploy := o.(type) {
-	case *appsapi.DeploymentConfig:
-		return deploy.Status.UpdatedReplicas == deploy.Spec.Replicas &&
-			deploy.Status.Replicas == deploy.Spec.Replicas &&
-			deploy.Status.AvailableReplicas == deploy.Spec.Replicas &&
-			deploy.Status.ObservedGeneration >= deploy.Generation
-	case *kappsapi.Deployment:
-		replicas := int32(1)
-		if deploy.Spec.Replicas != nil {
-			replicas = *(deploy.Spec.Replicas)
-		}
-		return deploy.Status.UpdatedReplicas == replicas &&
-			deploy.Status.Replicas == replicas &&
-			deploy.Status.AvailableReplicas == replicas &&
-			deploy.Status.ObservedGeneration >= deploy.Generation
+func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
+	replicas := int32(1)
+	if deploy.Spec.Replicas != nil {
+		replicas = *(deploy.Spec.Replicas)
 	}
-	return false
+	return deploy.Status.UpdatedReplicas == replicas &&
+		deploy.Status.Replicas == replicas &&
+		deploy.Status.AvailableReplicas == replicas &&
+		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
-func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, applyError error, removed bool, statusChanged *bool) {
-	metaObject, _ := o.(metaapi.Object)
-
+func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
-	if o == nil {
+	if deploy == nil {
 		operatorAvailableMsg = "deployment does not exist"
-	} else if metaObject.GetDeletionTimestamp() != nil {
+	} else if deploy.DeletionTimestamp != nil {
 		operatorAvailableMsg = "deployment is being deleted"
-	} else if !isDeploymentStatusAvailable(o) {
+	} else if !isDeploymentStatusAvailable(deploy) {
 		operatorAvailableMsg = "deployment does not have available replicas"
 	} else {
 		operatorAvailable = osapi.ConditionTrue
@@ -114,7 +95,7 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 		operatorProgressing = osapi.ConditionFalse
 		operatorProgressingMsg = "unmanaged"
 	} else if removed {
-		if o != nil {
+		if deploy != nil {
 			operatorProgressingMsg = "the deployment still exists"
 		} else {
 			operatorProgressing = osapi.ConditionFalse
@@ -122,11 +103,11 @@ func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, o runtime.Object, ap
 		}
 	} else if applyError != nil {
 		operatorProgressingMsg = fmt.Sprintf("unable to apply resources: %s", applyError)
-	} else if o == nil {
+	} else if deploy == nil {
 		operatorProgressingMsg = "all resources are successfully applied, but the deployment does not exist"
-	} else if metaObject.GetDeletionTimestamp() != nil {
+	} else if deploy.DeletionTimestamp != nil {
 		operatorProgressingMsg = "the deployment is being deleted"
-	} else if !isDeploymentStatusComplete(o) {
+	} else if !isDeploymentStatusComplete(deploy) {
 		operatorProgressingMsg = "the deployment has not completed"
 	} else {
 		operatorProgressing = osapi.ConditionFalse

@@ -1,269 +1,197 @@
 package resource
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 
 	"github.com/golang/glog"
 
-	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func Checksum(o interface{}) (string, error) {
-	data, err := json.Marshal(o)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("sha256:%x", sha256.Sum256(data)), nil
-}
-
-type templateGenerator func(*regopapi.ImageRegistry) (Template, error)
-
-func NewGenerator(kubeconfig *rest.Config, params *parameters.Globals) *Generator {
+func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
 	return &Generator{
 		kubeconfig: kubeconfig,
+		listers:    listers,
 		params:     params,
 	}
 }
 
 type Generator struct {
 	kubeconfig *rest.Config
+	listers    *client.Listers
 	params     *parameters.Globals
 }
 
-func (g *Generator) makeTemplates(cr *regopapi.ImageRegistry) (ret []Template, err error) {
-	generators := []templateGenerator{
-		g.makeClusterRole,
-		g.makeClusterRoleBinding,
-		g.makeServiceAccount,
-		g.makeConfigMap,
-		g.makeSecret,
-		g.makeService,
-		g.makeImageConfig,
+func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopapi.ImageRegistry) []Mutator {
+	var mutators []Mutator
+	mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, regopapi.ImageRegistryConfigRoute{
+		Name: cr.Name + "-default-route",
+	}))
+	for _, route := range cr.Spec.Routes {
+		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, route))
 	}
-
-	routes := g.getRouteGenerators(cr)
-	for i := range routes {
-		generators = append(generators, routes[i])
-	}
-
-	ret = make([]Template, len(generators)+1)
-	resourceData := make([]string, len(generators))
-
-	for i, gen := range generators {
-		ret[i], err = gen(cr)
-		if err != nil {
-			return
-		}
-
-		resourceData[i], err = Checksum(ret[i].Expected())
-		if err != nil {
-			err = fmt.Errorf("unable to generate checksum for %s: %s", ret[i].Name(), err)
-			return
-		}
-	}
-
-	deploymentTmpl, err := g.makeDeployment(cr)
-	if err != nil {
-		return
-	}
-
-	dgst, err := Checksum(resourceData)
-	if err != nil {
-		err = fmt.Errorf("unable to generate checksum for %s dependencies: %s", deploymentTmpl.Name(), err)
-		return
-	}
-
-	if deploymentTmpl.Annotations == nil {
-		deploymentTmpl.Annotations = make(map[string]string)
-	}
-
-	deploymentTmpl.Annotations[parameters.ChecksumOperatorDepsAnnotation] = dgst
-
-	ret[len(generators)] = deploymentTmpl
-
-	return
+	return mutators
 }
 
-func (g *Generator) syncRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
-	client, err := routeset.NewForConfig(g.kubeconfig)
+func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
+	coreClient, err := coreset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	appsClient, err := appsset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	rbacClient, err := rbacset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	routeClient, err := routeset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	configClient, err := configset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+
+	var mutators []Mutator
+	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, rbacClient, cr))
+	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, rbacClient, g.params, cr))
+	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, coreClient, g.params, cr))
+	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.OpenShiftConfig, coreClient, g.params, cr))
+	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, coreClient, g.params, cr))
+	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, configClient, g.params, cr))
+	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
+	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, g.params, cr))
+	mutators = append(mutators, g.listRoutes(routeClient, cr)...)
+	return mutators, nil
+}
+
+func (g *Generator) removeObsoleteRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
+	routeClient, err := routeset.NewForConfig(g.kubeconfig)
 	if err != nil {
 		return err
 	}
 
-	routeList, err := client.Routes(g.params.Deployment.Namespace).List(metaapi.ListOptions{})
+	routes, err := g.listers.Routes.List(labels.Everything())
 	if err != nil {
 		return fmt.Errorf("failed to list routes: %s", err)
 	}
 
-	routes := g.getRouteGenerators(cr)
-
-	for name, gen := range routes {
-		tmpl, err := gen(cr)
-		if err != nil {
-			return fmt.Errorf("unable to make template for route %s: %s", name, err)
-		}
-
-		err = g.applyTemplate(tmpl, modified)
-		if err != nil {
-			return fmt.Errorf("unable to apply template %s: %s", tmpl.Name(), err)
-		}
+	routesGenerators := g.listRoutes(routeClient, cr)
+	knownNames := map[string]struct{}{}
+	for _, gen := range routesGenerators {
+		knownNames[gen.GetName()] = struct{}{}
 	}
 
 	gracePeriod := int64(0)
 	propagationPolicy := metaapi.DeletePropagationForeground
-
 	opts := &metaapi.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
 	}
-
-	for _, route := range routeList.Items {
-		if !metaapi.IsControlledBy(&route, cr) {
+	for _, route := range routes {
+		if !metaapi.IsControlledBy(route, cr) {
 			continue
 		}
-		if _, found := routes[route.ObjectMeta.Name]; found {
+		if _, found := knownNames[route.Name]; found {
 			continue
 		}
-		err = client.Routes(g.params.Deployment.Namespace).Delete(route.ObjectMeta.Name, opts)
+		err = routeClient.Routes(g.params.Deployment.Namespace).Delete(route.Name, opts)
 		if err != nil {
 			return err
 		}
 		*modified = true
 	}
-
 	return nil
 }
 
-func (g *Generator) applyTemplate(tmpl Template, modified *bool) error {
-	dgst, err := Checksum(tmpl.Expected())
+func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
+	generators, err := g.list(cr)
 	if err != nil {
-		return fmt.Errorf("unable to generate checksum for %s: %s", tmpl.Name(), err)
+		return fmt.Errorf("unable to get generators: %s", err)
 	}
 
-	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		current, err := tmpl.Get()
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get object %s: %s", tmpl.Name(), err)
-			}
+	for _, gen := range generators {
+		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			o, err := gen.Get()
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
+				}
 
-			glog.Infof("creating object: %s", tmpl.Name())
-
-			err = tmpl.Create()
-			if err == nil {
+				err = gen.Create()
+				if err != nil {
+					return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
+				}
+				glog.Infof("object %s created", Name(gen))
 				*modified = true
 				return nil
 			}
-			return fmt.Errorf("failed to create object %s: %s", tmpl.Name(), err)
-		}
 
-		currentMeta, err := kmeta.Accessor(current)
-		if err != nil {
-			return fmt.Errorf("unable to get meta accessor for current object %s: %s", tmpl.Name(), err)
-		}
-
-		curdgst, ok := currentMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation]
-		if ok && dgst == curdgst {
-			glog.V(1).Infof("object has not changed: %s", tmpl.Name())
-			return nil
-		}
-
-		updated, err := tmpl.Apply(current)
-		if err != nil {
-			return fmt.Errorf("unable to apply template %s: %s", tmpl.Name(), err)
-		}
-
-		updatedMeta, err := kmeta.Accessor(updated)
-		if err != nil {
-			return fmt.Errorf("unable to get meta accessor for updated object %s: %s", tmpl.Name(), err)
-		}
-
-		if updatedMeta.GetAnnotations() == nil {
-			if tmpl.Annotations != nil {
-				updatedMeta.SetAnnotations(tmpl.Annotations)
-			} else {
-				updatedMeta.SetAnnotations(map[string]string{})
+			updated, err := gen.Update(o.DeepCopyObject())
+			if err != nil {
+				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
 			}
-		}
-		updatedMeta.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
-
-		glog.Infof("updating object: %s", tmpl.Name())
-
-		err = tmpl.Update(updated)
-		if err == nil {
-			*modified = true
+			if updated {
+				glog.Infof("object %s updated", Name(gen))
+				*modified = true
+			}
 			return nil
-		}
-		return fmt.Errorf("failed to update object %s: %s", tmpl.Name(), err)
-	})
-}
-
-func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
-	templates, err := g.makeTemplates(cr)
-	if err != nil {
-		return fmt.Errorf("unable to generate templates: %s", err)
-	}
-
-	for _, tpl := range templates {
-		err = g.applyTemplate(tpl, modified)
+		})
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)
 		}
 	}
 
-	err = g.syncRoutes(cr, modified)
+	err = g.removeObsoleteRoutes(cr, modified)
 	if err != nil {
-		return fmt.Errorf("unable to sync routes: %s", err)
+		return fmt.Errorf("unable to remove obsolete routes: %s", err)
 	}
 
-	return nil
-}
-
-func (g *Generator) removeByTemplate(tmpl Template, modified *bool) error {
-	gracePeriod := int64(0)
-	propagationPolicy := metaapi.DeletePropagationForeground
-
-	opts := &metaapi.DeleteOptions{
-		GracePeriodSeconds: &gracePeriod,
-		PropagationPolicy:  &propagationPolicy,
-	}
-
-	glog.Infof("deleting object %s", tmpl.Name())
-
-	err := tmpl.Delete(opts)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return fmt.Errorf("failed to delete %s: %s", tmpl.Name(), err)
-		}
-		return nil
-	}
-	*modified = true
 	return nil
 }
 
 func (g *Generator) Remove(cr *regopapi.ImageRegistry, modified *bool) error {
-	templetes, err := g.makeTemplates(cr)
+	generators, err := g.list(cr)
 	if err != nil {
-		return fmt.Errorf("unable to generate templates: %s", err)
+		return fmt.Errorf("unable to get generators: %s", err)
 	}
 
-	for _, tmpl := range templetes {
-		err = g.removeByTemplate(tmpl, modified)
-		if err != nil {
-			return fmt.Errorf("unable to remove objects: %s", err)
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+	opts := &metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	}
+	for _, gen := range generators {
+		if err := gen.Delete(opts); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+			return fmt.Errorf("failed to delete object %s: %s", Name(gen), err)
 		}
-		glog.Infof("resource %s removed", tmpl.Name())
+		glog.Infof("object %s deleted", Name(gen))
+		*modified = true
 	}
 
 	return nil

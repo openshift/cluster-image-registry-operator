@@ -1,33 +1,30 @@
 package strategy
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-type Service struct{}
-
-var _ Strategy = Service{}
-
-func (s Service) Apply(obj, tmpl runtime.Object) (runtime.Object, error) {
-	o, ok := obj.(*corev1.Service)
-	if !ok {
-		return obj, fmt.Errorf("bad object: got %T, want *corev1.Service", obj)
+func Service(o, n *corev1.Service) (bool, error) {
+	dgst, err := Checksum(n)
+	if err != nil {
+		return false, err
 	}
 
-	t, ok := tmpl.(*corev1.Service)
-	if !ok {
-		return obj, fmt.Errorf("bad template: got %T, want *corev1.Service", tmpl)
+	if o.Annotations[parameters.ChecksumOperatorAnnotation] == dgst {
+		return false, nil
 	}
 
-	o.ObjectMeta.Annotations = t.ObjectMeta.Annotations
-	o.ObjectMeta.Labels = t.ObjectMeta.Labels
-	o.ObjectMeta.OwnerReferences = t.ObjectMeta.OwnerReferences
-	o.Spec.Selector = t.Spec.Selector
-	o.Spec.Type = t.Spec.Type
-	o.Spec.Ports = t.Spec.Ports
+	Metadata(&o.ObjectMeta, &n.ObjectMeta)
+	o.Spec.Selector = n.Spec.Selector
+	o.Spec.Type = n.Spec.Type
+	o.Spec.Ports = n.Spec.Ports
 
-	return o, nil
+	if o.Annotations == nil {
+		o.Annotations = map[string]string{}
+	}
+	o.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
+
+	return true, nil
 }

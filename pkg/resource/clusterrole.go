@@ -4,21 +4,45 @@ import (
 	rbacapi "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
+	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 )
 
-func (g *Generator) makeClusterRole(cr *v1alpha1.ImageRegistry) (Template, error) {
+var _ Mutator = &generatorClusterRole{}
+
+type generatorClusterRole struct {
+	lister rbaclisters.ClusterRoleLister
+	client rbacset.RbacV1Interface
+	owner  metav1.OwnerReference
+}
+
+func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *regopapi.ImageRegistry) *generatorClusterRole {
+	return &generatorClusterRole{
+		lister: lister,
+		client: client,
+		owner:  asOwner(cr),
+	}
+}
+
+func (gcr *generatorClusterRole) Type() runtime.Object {
+	return &rbacapi.ClusterRole{}
+}
+
+func (gcr *generatorClusterRole) GetNamespace() string {
+	return ""
+}
+
+func (gcr *generatorClusterRole) GetName() string {
+	return "system:registry"
+}
+
+func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 	role := &rbacapi.ClusterRole{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: rbacapi.SchemeGroupVersion.String(),
-			Kind:       "ClusterRole",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "system:registry",
+			Name:      gcr.GetName(),
+			Namespace: gcr.GetNamespace(),
 		},
 		Rules: []rbacapi.PolicyRule{
 			{
@@ -69,30 +93,27 @@ func (g *Generator) makeClusterRole(cr *v1alpha1.ImageRegistry) (Template, error
 		},
 	}
 
-	addOwnerRefToObject(role, asOwner(cr))
+	addOwnerRefToObject(role, gcr.owner)
 
-	client, err := rbacset.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return Template{}, err
-	}
+	return role, nil
+}
 
-	return Template{
-		Object:   role,
-		Strategy: strategy.Override{},
-		Get: func() (runtime.Object, error) {
-			return client.ClusterRoles().Get(role.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.ClusterRoles().Create(role)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*rbacapi.ClusterRole)
-			_, err := client.ClusterRoles().Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.ClusterRoles().Delete(role.Name, opts)
-		},
-	}, nil
+func (gcr *generatorClusterRole) Get() (runtime.Object, error) {
+	return gcr.lister.Get(gcr.GetName())
+}
+
+func (gcr *generatorClusterRole) Create() error {
+	return commonCreate(gcr, func(obj runtime.Object) (runtime.Object, error) {
+		return gcr.client.ClusterRoles().Create(obj.(*rbacapi.ClusterRole))
+	})
+}
+
+func (gcr *generatorClusterRole) Update(o runtime.Object) (bool, error) {
+	return commonUpdate(gcr, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gcr.client.ClusterRoles().Update(obj.(*rbacapi.ClusterRole))
+	})
+}
+
+func (gcr *generatorClusterRole) Delete(opts *metav1.DeleteOptions) error {
+	return gcr.client.ClusterRoles().Delete(gcr.GetName(), opts)
 }

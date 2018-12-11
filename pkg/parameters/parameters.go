@@ -30,4 +30,7 @@ type Globals struct {
 	ImageConfig struct {
 		Name string
 	}
+	CAConfig struct {
+		Name string
+	}
 }

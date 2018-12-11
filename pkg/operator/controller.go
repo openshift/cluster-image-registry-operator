@@ -6,40 +6,36 @@ import (
 
 	"github.com/golang/glog"
 
-	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	kubeinformers "k8s.io/client-go/informers"
+	kubeset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	configset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	routeset "github.com/openshift/client-go/route/clientset/versioned"
+	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
-
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
-	"github.com/openshift/cluster-image-registry-operator/pkg/metautil"
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
+	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
-
-	operatorcontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller"
-	clusterrolebindingscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/clusterrolebindings"
-	clusterrolescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/clusterroles"
-	configmapscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/configmaps"
-	deploymentscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/deployments"
-	imageregistrycontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/imageregistry"
-	routescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/routes"
-	secretscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/secrets"
-	servicesaccountscontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/serviceaccounts"
-	servicescontroller "github.com/openshift/cluster-image-registry-operator/pkg/operator/controller/services"
 )
 
 const (
-	WORKQUEUE_KEY = "changes"
+	openshiftConfigNamespace = "openshift-config"
+	workqueueKey             = "changes"
+	defaultResyncDuration    = 10 * time.Minute
 )
 
 type permanentError struct {
@@ -74,18 +70,20 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 
 	p.Service.Name = "image-registry"
 	p.ImageConfig.Name = "cluster"
+	p.CAConfig.Name = "image-registry-certificates"
 
+	listers := &client.Listers{}
 	c := &Controller{
 		kubeconfig:    kubeconfig,
 		params:        p,
-		generator:     resource.NewGenerator(kubeconfig, &p),
+		generator:     resource.NewGenerator(kubeconfig, listers, &p),
 		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, operatorName, operatorNamespace),
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
+		listers:       listers,
 	}
 
-	if err = c.Bootstrap(); err != nil {
-		return nil, err
-	}
+	// Initial event to bootstrap CR if it doesn't exist.
+	c.workqueue.AddRateLimited(workqueueKey)
 
 	return c, nil
 }
@@ -96,8 +94,7 @@ type Controller struct {
 	generator     *resource.Generator
 	clusterStatus *clusteroperator.StatusHandler
 	workqueue     workqueue.RateLimitingInterface
-
-	watchers map[string]operatorcontroller.Watcher
+	listers       *client.Listers
 }
 
 func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
@@ -124,54 +121,15 @@ func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	return c.createOrUpdateResources(cr, modified)
 }
 
-func (c *Controller) Handle(action string, o interface{}) {
-	object, ok := o.(metaapi.Object)
-	if !ok {
-		tombstone, ok := o.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			glog.Errorf("error decoding object, invalid type")
-			return
-		}
-		object, ok = tombstone.Obj.(metaapi.Object)
-		if !ok {
-			glog.Errorf("error decoding object tombstone, invalid type")
-			return
-		}
-		glog.V(4).Infof("Recovered deleted object '%s' from tombstone", object.GetName())
-	}
-
-	objectInfo := fmt.Sprintf("Type=%T ", o)
-	if namespace := object.GetNamespace(); namespace != "" {
-		objectInfo += fmt.Sprintf("Namespace=%s ", namespace)
-	}
-	objectInfo += fmt.Sprintf("Name=%s", object.GetName())
-
-	glog.V(1).Infof("Processing %s object %s", action, objectInfo)
-
-	if _, ok := o.(*regopapi.ImageRegistry); !ok {
-		ownerRef := metaapi.GetControllerOf(object)
-		if ownerRef == nil || ownerRef.Kind != "ImageRegistry" || ownerRef.APIVersion != regopapi.SchemeGroupVersion.String() {
-			return
-		}
-	}
-
-	glog.V(1).Infof("add event to workqueue due to %s (%s)", objectInfo, action)
-	c.workqueue.AddRateLimited(WORKQUEUE_KEY)
-}
-
 func (c *Controller) sync() error {
-	client, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	cr, err := client.ImageRegistries().Get(resourceName(c.params.Deployment.Namespace), metaapi.GetOptions{})
+	cr, err := c.listers.ImageRegistry.Get(resourceName(c.params.Deployment.Namespace))
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
 		}
 		return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 	}
+	cr = cr.DeepCopy() // we don't want to change the cached version
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
 		return c.finalizeResources(cr)
@@ -187,10 +145,9 @@ func (c *Controller) sync() error {
 	case operatorapi.Managed:
 		applyError = c.CreateOrUpdateResources(cr, &statusChanged)
 		if applyError == nil {
-			svc, err := c.watchers["services"].Get(c.params.Service.Name, c.params.Deployment.Namespace)
+			svc, err := c.listers.Services.Get(c.params.Service.Name)
 			if err == nil {
-				svcObj := svc.(*coreapi.Service)
-				svcHostname := fmt.Sprintf("%s.%s.svc:%d", svcObj.Name, svcObj.Namespace, svcObj.Spec.Ports[0].Port)
+				svcHostname := fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
 				if cr.Status.InternalRegistryHostname != svcHostname {
 					cr.Status.InternalRegistryHostname = svcHostname
 					statusChanged = true
@@ -205,26 +162,31 @@ func (c *Controller) sync() error {
 		glog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	var deployInterface runtime.Object
-	deploy, err := c.watchers["deployments"].Get(cr.ObjectMeta.Name, c.params.Deployment.Namespace)
-	deployInterface = deploy
+	deploy, err := c.listers.Deployments.Get(cr.ObjectMeta.Name)
 	if errors.IsNotFound(err) {
-		deployInterface = nil
+		deploy = nil
 	} else if err != nil {
 		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
+	} else {
+		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
-	c.syncStatus(cr, deployInterface, applyError, removed, &statusChanged)
+	c.syncStatus(cr, deploy, applyError, removed, &statusChanged)
 
 	if statusChanged {
-		glog.Infof("%s changed", metautil.TypeAndName(cr))
+		glog.Infof("status changed: %s", objectInfo(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 
-		_, err = client.ImageRegistries().Update(cr)
+		client, err := regopset.NewForConfig(c.kubeconfig)
+		if err != nil {
+			return err
+		}
+
+		_, err = client.Imageregistry().ImageRegistries().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update %s: %s", metautil.TypeAndName(cr), err)
+				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)
 			}
 			return err
 		}
@@ -255,7 +217,7 @@ func (c *Controller) eventProcessor() {
 			}
 
 			if err := c.sync(); err != nil {
-				c.workqueue.AddRateLimited(WORKQUEUE_KEY)
+				c.workqueue.AddRateLimited(workqueueKey)
 				return fmt.Errorf("unable to sync: %s, requeuing", err)
 			}
 
@@ -271,6 +233,52 @@ func (c *Controller) eventProcessor() {
 	}
 }
 
+func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(o interface{}) {
+			glog.V(1).Infof("add event to workqueue due to %s (add)", objectInfo(o))
+			c.workqueue.AddRateLimited(workqueueKey)
+		},
+		UpdateFunc: func(o, n interface{}) {
+			newAccessor, err := kmeta.Accessor(n)
+			if err != nil {
+				glog.Errorf("unable to get accessor for new object: %s", err)
+				return
+			}
+			oldAccessor, err := kmeta.Accessor(o)
+			if err != nil {
+				glog.Errorf("unable to get accessor for old object: %s", err)
+				return
+			}
+			if newAccessor.GetResourceVersion() == oldAccessor.GetResourceVersion() {
+				// Periodic resync will send update events for all known resources.
+				// Two different versions of the same resource will always have different RVs.
+				return
+			}
+			glog.V(1).Infof("add event to workqueue due to %s (update)", objectInfo(n))
+			c.workqueue.AddRateLimited(workqueueKey)
+		},
+		DeleteFunc: func(o interface{}) {
+			object, ok := o.(metaapi.Object)
+			if !ok {
+				tombstone, ok := o.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					glog.Errorf("error decoding object, invalid type")
+					return
+				}
+				object, ok = tombstone.Obj.(metaapi.Object)
+				if !ok {
+					glog.Errorf("error decoding object tombstone, invalid type")
+					return
+				}
+				glog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
+			}
+			glog.V(1).Infof("add event to workqueue due to %s (delete)", objectInfo(object))
+			c.workqueue.AddRateLimited(workqueueKey)
+		},
+	}
+}
+
 func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
@@ -279,26 +287,107 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		glog.Errorf("unable to create cluster operator resource: %s", err)
 	}
 
-	c.watchers = map[string]operatorcontroller.Watcher{
-		"deployments":         &deploymentscontroller.Controller{},
-		"services":            &servicescontroller.Controller{},
-		"secrets":             &secretscontroller.Controller{},
-		"configmaps":          &configmapscontroller.Controller{},
-		"servicesaccounts":    &servicesaccountscontroller.Controller{},
-		"routes":              &routescontroller.Controller{},
-		"clusterroles":        &clusterrolescontroller.Controller{},
-		"clusterrolebindings": &clusterrolebindingscontroller.Controller{},
-		"imageregistry":       &imageregistrycontroller.Controller{},
+	kubeClient, err := kubeset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
 	}
 
-	for _, watcher := range c.watchers {
-		err = watcher.Start(c.Handle, c.params.Deployment.Namespace, stopCh)
-		if err != nil {
-			return err
+	routeClient, err := routeset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	configClient, err := configset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	regopClient, err := regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
+	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
+	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
+	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
+
+	var informers []cache.SharedIndexInformer
+	for _, ctor := range []func() cache.SharedIndexInformer{
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Apps().V1().Deployments()
+			c.listers.Deployments = informer.Lister().Deployments(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().Services()
+			c.listers.Services = informer.Lister().Services(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().Secrets()
+			c.listers.Secrets = informer.Lister().Secrets(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.ConfigMaps = informer.Lister().ConfigMaps(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
+			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := routeInformerFactory.Route().V1().Routes()
+			c.listers.Routes = informer.Lister().Routes(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Rbac().V1().ClusterRoles()
+			c.listers.ClusterRoles = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Rbac().V1().ClusterRoleBindings()
+			c.listers.ClusterRoleBindings = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(openshiftConfigNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := configInformerFactory.Config().V1().Images()
+			c.listers.ImageConfigs = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := regopInformerFactory.Imageregistry().V1alpha1().ImageRegistries()
+			c.listers.ImageRegistry = informer.Lister()
+			return informer.Informer()
+		},
+	} {
+		informer := ctor()
+		informer.AddEventHandler(c.handler())
+		informers = append(informers, informer)
+	}
+
+	kubeInformerFactory.Start(stopCh)
+	openshiftConfigKubeInformerFactory.Start(stopCh)
+	routeInformerFactory.Start(stopCh)
+	configInformerFactory.Start(stopCh)
+	regopInformerFactory.Start(stopCh)
+
+	glog.Info("waiting for informer caches to sync")
+	for _, informer := range informers {
+		if ok := cache.WaitForCacheSync(stopCh, informer.HasSynced); !ok {
+			return fmt.Errorf("failed to wait for caches to sync")
 		}
 	}
-
-	glog.Info("all controllers are running")
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 

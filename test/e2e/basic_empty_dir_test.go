@@ -61,7 +61,7 @@ func TestBasicEmptyDir(t *testing.T) {
 		badlogs = true
 		t.Error("error: the log doesn't contain the operator's version")
 	}
-	if !logs.Contains(regexp.MustCompile(`image-registry changed`)) {
+	if !logs.Contains(regexp.MustCompile(`status changed`)) {
 		badlogs = true
 		t.Error("error: the log doesn't contain changes")
 	}

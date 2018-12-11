@@ -22,6 +22,7 @@ rules:
   - configmaps
   - endpoints
   - events
+  - namespaces
   - persistentvolumeclaims
   - pods
   - secrets
@@ -57,12 +58,6 @@ rules:
   - clusterrolebindings
   verbs:
   - "*"
-- apiGroups:
-  - project.openshift.io
-  resources:
-  - projects
-  verbs:
-  - get
 - apiGroups:
   - ""
   resources:

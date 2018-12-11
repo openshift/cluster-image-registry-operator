@@ -4,51 +4,88 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	configapiv1 "github.com/openshift/api/config/v1"
-	configsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configapi "github.com/openshift/api/config/v1"
+	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
-func (g *Generator) makeImageConfig(cr *v1alpha1.ImageRegistry) (Template, error) {
-	ic := &configapiv1.Image{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: configapiv1.SchemeGroupVersion.String(),
-			Kind:       "Image",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: g.params.ImageConfig.Name,
-		},
-		Status: configapiv1.ImageStatus{
-			InternalRegistryHostname: cr.Status.InternalRegistryHostname,
+var _ Mutator = &generatorImageConfig{}
+
+type generatorImageConfig struct {
+	lister   configlisters.ImageLister
+	client   configset.ConfigV1Interface
+	name     string
+	hostname string
+	owner    metav1.OwnerReference
+}
+
+func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.ConfigV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorImageConfig {
+	return &generatorImageConfig{
+		lister:   lister,
+		client:   client,
+		name:     params.ImageConfig.Name,
+		hostname: cr.Status.InternalRegistryHostname,
+		owner:    asOwner(cr),
+	}
+}
+
+func (gic *generatorImageConfig) Type() runtime.Object {
+	return &configapi.Image{}
+}
+
+func (gic *generatorImageConfig) GetNamespace() string {
+	return ""
+}
+
+func (gic *generatorImageConfig) GetName() string {
+	return gic.name
+}
+
+func (gic *generatorImageConfig) Get() (runtime.Object, error) {
+	return gic.lister.Get(gic.GetName())
+}
+
+func (gic *generatorImageConfig) objectMeta() metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Name:            gic.GetName(),
+		OwnerReferences: []metav1.OwnerReference{gic.owner},
+	}
+}
+
+func (gic *generatorImageConfig) Create() error {
+	ic := &configapi.Image{
+		ObjectMeta: gic.objectMeta(),
+		Status: configapi.ImageStatus{
+			InternalRegistryHostname: gic.hostname,
 		},
 	}
 
-	addOwnerRefToObject(ic, asOwner(cr))
+	_, err := gic.client.Images().Create(ic)
+	return err
+}
 
-	client, err := configsetv1.NewForConfig(g.kubeconfig)
-	if err != nil {
-		return Template{}, err
+func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
+	ic := o.(*configapi.Image)
+
+	newObjectMeta := gic.objectMeta()
+
+	modified := strategy.Metadata(&ic.ObjectMeta, &newObjectMeta)
+	if ic.Status.InternalRegistryHostname != gic.hostname {
+		ic.Status.InternalRegistryHostname = gic.hostname
+		modified = true
+	}
+	if !modified {
+		return false, nil
 	}
 
-	return Template{
-		Object:   ic,
-		Strategy: strategy.ImageConfig{},
-		Get: func() (runtime.Object, error) {
-			return client.Images().Get(ic.Name, metav1.GetOptions{})
-		},
-		Create: func() error {
-			_, err := client.Images().Create(ic)
-			return err
-		},
-		Update: func(o runtime.Object) error {
-			n := o.(*configapiv1.Image)
-			_, err := client.Images().Update(n)
-			return err
-		},
-		Delete: func(opts *metav1.DeleteOptions) error {
-			return client.Images().Delete(ic.Name, opts)
-		},
-	}, nil
+	_, err := gic.client.Images().Update(ic)
+	return true, err
+}
+
+func (gic *generatorImageConfig) Delete(opts *metav1.DeleteOptions) error {
+	return gic.client.Images().Delete(gic.GetName(), opts)
 }
