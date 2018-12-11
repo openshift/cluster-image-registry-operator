@@ -106,7 +106,7 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	// along with any user defined tags from the cluster configuration
 	if installConfig.Platform.AWS != nil {
 		var tagSet []*s3.Tag
-		tagSet = append(tagSet, &s3.Tag{Key: aws.String("tectonicClusterID"), Value: aws.String(installConfig.ClusterID)})
+		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(installConfig.ClusterID)})
 		for k, v := range installConfig.Platform.AWS.UserTags {
 			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
