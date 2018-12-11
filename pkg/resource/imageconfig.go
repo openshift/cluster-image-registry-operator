@@ -10,7 +10,6 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
 var _ Mutator = &generatorImageConfig{}
@@ -51,8 +50,7 @@ func (gic *generatorImageConfig) Get() (runtime.Object, error) {
 
 func (gic *generatorImageConfig) objectMeta() metav1.ObjectMeta {
 	return metav1.ObjectMeta{
-		Name:            gic.GetName(),
-		OwnerReferences: []metav1.OwnerReference{gic.owner},
+		Name: gic.GetName(),
 	}
 }
 
@@ -71,9 +69,7 @@ func (gic *generatorImageConfig) Create() error {
 func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 	ic := o.(*configapi.Image)
 
-	newObjectMeta := gic.objectMeta()
-
-	modified := strategy.Metadata(&ic.ObjectMeta, &newObjectMeta)
+	modified := false
 	if ic.Status.InternalRegistryHostname != gic.hostname {
 		ic.Status.InternalRegistryHostname = gic.hostname
 		modified = true
@@ -82,7 +78,7 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 		return false, nil
 	}
 
-	_, err := gic.client.Images().Update(ic)
+	_, err := gic.client.Images().UpdateStatus(ic)
 	return true, err
 }
 
