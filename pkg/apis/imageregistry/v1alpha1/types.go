@@ -33,8 +33,9 @@ type ImageRegistry struct {
 }
 
 type ImageRegistryConfigProxy struct {
-	HTTP  string `json:"http,omitempty"`
-	HTTPS string `json:"https,omitempty"`
+	HTTP    string `json:"http,omitempty"`
+	HTTPS   string `json:"https,omitempty"`
+	NoProxy string `json:"noProxy,omitempty"`
 }
 
 type ImageRegistryConfigStorageS3 struct {

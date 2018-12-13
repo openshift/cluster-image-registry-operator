@@ -124,8 +124,6 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 	}
 
 	env = append(env,
-		corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP},
-		corev1.EnvVar{Name: "HTTPS_PROXY", Value: cr.Spec.Proxy.HTTPS},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", params.Container.Port)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
@@ -136,6 +134,18 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 		// TODO(dmage): sync with InternalRegistryHostname in origin
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", params.Service.Name, params.Deployment.Namespace, params.Container.Port)},
 	)
+
+	if cr.Spec.Proxy.HTTP != "" {
+		env = append(env, corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP})
+	}
+
+	if cr.Spec.Proxy.HTTPS != "" {
+		env = append(env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: cr.Spec.Proxy.HTTPS})
+	}
+
+	if cr.Spec.Proxy.NoProxy != "" {
+		env = append(env, corev1.EnvVar{Name: "NO_PROXY", Value: cr.Spec.Proxy.NoProxy})
+	}
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {
 		if cr.Spec.Requests.Read.MaxRunning < 0 {
