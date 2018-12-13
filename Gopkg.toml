@@ -38,10 +38,6 @@ required = [
   branch = "origin-4.0-kubernetes-1.11.1"
 
 [[override]]
-  name = "github.com/openshift/cluster-version-operator"
-  revision = "fe673cb712fa5e27001488fc088ac91bb553353d"
-
-[[override]]
   name = "github.com/openshift/client-go"
   revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
 
