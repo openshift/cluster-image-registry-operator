@@ -102,7 +102,7 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 		return err
 	}
 
-	// Tag the bucket with the tectonicClusterID
+	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if installConfig.Platform.AWS != nil {
 		var tagSet []*s3.Tag
