@@ -8,22 +8,20 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	osapi "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
-	osset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
+	osapi "github.com/openshift/api/config/v1"
+	osset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
 type StatusHandler struct {
 	Name       string
-	Namespace  string
 	kubeconfig *restclient.Config
 }
 
-func NewStatusHandler(kubeconfig *restclient.Config, name, namespace string) *StatusHandler {
+func NewStatusHandler(kubeconfig *restclient.Config, name string) *StatusHandler {
 	return &StatusHandler{
 		Name:       name,
-		Namespace:  namespace,
 		kubeconfig: kubeconfig,
 	}
 }
@@ -34,22 +32,21 @@ func (s *StatusHandler) Create() error {
 		return err
 	}
 
-	state, err := client.ClusterOperators(s.Namespace).Get(s.Name, metaapi.GetOptions{})
+	state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 	if !errors.IsNotFound(err) {
 		return err
 	}
 
 	state = &osapi.ClusterOperator{
 		ObjectMeta: metaapi.ObjectMeta{
-			Name:      s.Name,
-			Namespace: s.Namespace,
+			Name: s.Name,
 		},
 		Status: osapi.ClusterOperatorStatus{
 			Version: version.Version,
 		},
 	}
 
-	_, err = client.ClusterOperators(s.Namespace).Create(state)
+	_, err = client.ClusterOperators().Create(state)
 	return err
 }
 
@@ -60,9 +57,9 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 	}
 
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators(s.Namespace).Update
+		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().Update
 
-		state, err := client.ClusterOperators(s.Namespace).Get(s.Name, metaapi.GetOptions{})
+		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
@@ -70,8 +67,7 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 
 			state = &osapi.ClusterOperator{
 				ObjectMeta: metaapi.ObjectMeta{
-					Name:      s.Name,
-					Namespace: s.Namespace,
+					Name: s.Name,
 				},
 				Status: osapi.ClusterOperatorStatus{
 					Conditions: []osapi.ClusterOperatorStatusCondition{
@@ -94,7 +90,7 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 				},
 			}
 
-			sdkFunc = client.ClusterOperators(s.Namespace).Create
+			sdkFunc = client.ClusterOperators().Create
 		}
 
 		modified := updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
