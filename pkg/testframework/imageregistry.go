@@ -12,6 +12,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 )
 
@@ -247,4 +248,54 @@ func MustEnsureImageRegistryIsAvailable(t *testing.T, client *Clientset) {
 	if err := ensureImageRegistryIsAvailable(t, client); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error {
+	var cr *imageregistryapi.ImageRegistry
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			logger.Logf("waiting for the registry: the resource does not exist")
+			cr = nil
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+		if cr == nil || cr.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc:5000" {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		logger.Logf("registry resource was not updated with internal registry hostname: %v", err)
+		return err
+	}
+
+	var cfg *configv1.Image
+	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		var err error
+		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			logger.Logf("waiting for the image config resource: the resource does not exist")
+			cfg = nil
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+		if cfg == nil || cfg.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc:5000" {
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		logger.Logf("cluster image config resource was not updated with internal registry hostname: %v", err)
+	}
+	return err
+}
+
+func MustEnsureInternalRegistryHostnameIsSet(t *testing.T, client *Clientset) {
+	if err := ensureInternalRegistryHostnameIsSet(t, client); err != nil {
+		t.Fatal(err)
+	}
+
 }

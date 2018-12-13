@@ -14,6 +14,7 @@ rules:
   - config.openshift.io
   resources:
   - "images"
+  - "images/status"
   verbs:
   - "*"
 - apiGroups:
@@ -93,7 +94,7 @@ metadata:
   name: default-account-cluster-image-registry-operator
 subjects:
 - kind: ServiceAccount
-  name: default
+  name: cluster-image-registry-operator
   namespace: openshift-image-registry
 roleRef:
   kind: ClusterRole

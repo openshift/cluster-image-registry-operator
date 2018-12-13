@@ -26,3 +26,5 @@ spec:
     listKind: ImageList
     plural: images
     singular: image
+  subresources:
+    status: {}
