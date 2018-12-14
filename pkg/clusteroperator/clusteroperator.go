@@ -55,9 +55,8 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 	if err != nil {
 		return err
 	}
-
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().Update
+		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().UpdateStatus
 
 		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 		if err != nil {
@@ -92,7 +91,6 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 
 			sdkFunc = client.ClusterOperators().Create
 		}
-
 		modified := updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
 			Type:               condtype,
 			Status:             status,

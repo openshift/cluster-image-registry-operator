@@ -80,9 +80,10 @@ rules:
   verbs:
   - "*"
 - apiGroups:
-  - operatorstatus.openshift.io
+  - config.openshift.io
   resources:
   - clusteroperators
+  - clusteroperators/status
   verbs:
   - create
   - get

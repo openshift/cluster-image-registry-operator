@@ -55,6 +55,7 @@ func TestAWS(t *testing.T) {
 	testframework.MustDeployImageRegistry(t, client, nil)
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
