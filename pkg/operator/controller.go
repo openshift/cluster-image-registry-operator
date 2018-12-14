@@ -178,7 +178,7 @@ func (c *Controller) sync() error {
 			return err
 		}
 
-		_, err = client.Imageregistry().ImageRegistries().Update(cr)
+		_, err = client.ImageregistryV1alpha1().ImageRegistries().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)
