@@ -176,7 +176,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 
 	if len(d.Config.Bucket) == 0 {
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.STORAGE_PREFIX, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 			if err := d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
