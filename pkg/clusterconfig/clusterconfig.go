@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	STORAGE_PREFIX = "image-registry"
+	StoragePrefix = "image-registry"
 
 	StorageTypeAzure      StorageType = "azure"
 	StorageTypeGCS        StorageType = "gcs"

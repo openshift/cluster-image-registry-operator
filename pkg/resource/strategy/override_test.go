@@ -54,7 +54,7 @@ func TestOverride(t *testing.T) {
 		t.Errorf("annotation foo: got %q, want %q", val, "bar")
 	}
 	if len(o.OwnerReferences) != 1 || o.OwnerReferences[0].Name != "owner-name" {
-		t.Errorf("unexpected owner references: %q", o.OwnerReferences)
+		t.Errorf("unexpected owner references: %#v", o.OwnerReferences)
 	}
 	if val := o.Spec.HTTPSecret; val != "new-secret" {
 		t.Errorf("httpsecret: got %q, want %q", val, "new-secret")

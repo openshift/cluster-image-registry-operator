@@ -23,7 +23,6 @@ import (
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
@@ -67,7 +66,7 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 	p.ImageConfig.Name = "cluster"
 	p.CAConfig.Name = "image-registry-certificates"
 
-	listers := &client.Listers{}
+	listers := &regopclient.Listers{}
 	c := &Controller{
 		kubeconfig:    kubeconfig,
 		params:        p,
@@ -89,7 +88,7 @@ type Controller struct {
 	generator     *resource.Generator
 	clusterStatus *clusteroperator.StatusHandler
 	workqueue     workqueue.RateLimitingInterface
-	listers       *client.Listers
+	listers       *regopclient.Listers
 }
 
 func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
@@ -178,7 +177,7 @@ func (c *Controller) sync() error {
 			return err
 		}
 
-		_, err = client.Imageregistry().ImageRegistries().Update(cr)
+		_, err = client.ImageregistryV1alpha1().ImageRegistries().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)

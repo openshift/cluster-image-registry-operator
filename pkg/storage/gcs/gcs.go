@@ -110,7 +110,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 		}
 
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.STORAGE_PREFIX, string(uuid.NewUUID()))
+			d.Config.Bucket = fmt.Sprintf("%s-%s", clusterconfig.StoragePrefix, string(uuid.NewUUID()))
 
 			err = client.Bucket(d.Config.Bucket).Create(ctx, projectID, nil)
 
