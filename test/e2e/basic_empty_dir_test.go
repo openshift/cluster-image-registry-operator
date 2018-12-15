@@ -43,6 +43,7 @@ func TestBasicEmptyDir(t *testing.T) {
 	testframework.MustDeployImageRegistry(t, client, cr)
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	deploy, err := client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
 	if err != nil {
