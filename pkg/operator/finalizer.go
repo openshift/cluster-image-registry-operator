@@ -16,6 +16,7 @@ import (
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
@@ -49,7 +50,16 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 
 	glog.Infof("finalizing %s", objectInfo(o))
 
-	err := c.RemoveResources(o)
+	driver, err := storage.NewDriver(o.Name, o.Namespace, &o.Spec.Storage)
+	if err != nil {
+		return err
+	}
+	err = driver.RemoveStorage(o)
+	if err != nil {
+		return err
+	}
+
+	err = c.RemoveResources(o)
 	if err != nil {
 		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry")
 		if errOp != nil {

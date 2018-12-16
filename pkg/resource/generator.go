@@ -114,23 +114,19 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 			driver.Config.Bucket = cr.Spec.Storage.S3.Bucket
 			// Check to see if the bucket exists
 			// and if we can access it
-			if err := driver.CheckBucketExists(cr); err != nil {
-				installConfig, err := clusterconfig.GetInstallConfig()
-				if err != nil {
-					return err
-				}
+			if err := driver.StorageExists(cr); err != nil {
 				// If the bucket doesn't exist, try to create it
-				if err := driver.CreateAndTagBucket(installConfig, cr); err != nil {
+				if err := driver.CreateStorage(cr); err != nil {
 					return err
 				}
 				// If we got here, image registry resource
-				// was modified by CreateAndTagBucket
+				// was modified by CreateStorage
 				*modified = true
 			}
 		} else if cr.Spec.Storage.S3.Bucket != "" {
 			// If the bucket name didn't change,
 			// check to see if the current bucket exists
-			if err := driver.CheckBucketExists(cr); err != nil {
+			if err := driver.StorageExists(cr); err != nil {
 				return err
 			}
 		}

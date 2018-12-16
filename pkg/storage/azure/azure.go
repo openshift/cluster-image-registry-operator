@@ -1,9 +1,12 @@
 package azure
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 type driver struct {
@@ -21,7 +24,7 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 }
 
 func (d *driver) GetName() string {
-	return "azure"
+	return string(clusterconfig.StorageTypeAzure)
 }
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
@@ -53,6 +56,22 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	)
 
 	return
+}
+
+func (d *driver) StorageExists(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
+	if !cr.Status.Storage.Managed {
+		return fmt.Errorf("storage is not managed by the image registry operator, so we can't delete it.")
+	}
+
+	return nil
 }
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {

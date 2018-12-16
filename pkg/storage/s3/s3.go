@@ -24,13 +24,27 @@ import (
 )
 
 var (
-	s3Service *s3.S3
+	s3Service     *s3.S3
+	installConfig *installer.InstallConfig
 )
 
 type driver struct {
 	Name      string
 	Namespace string
 	Config    *opapi.ImageRegistryConfigStorageS3
+}
+
+func (d *driver) getInstallConfig() (*installer.InstallConfig, error) {
+	if installConfig != nil {
+		return installConfig, nil
+	}
+
+	installConfig, err := clusterconfig.GetInstallConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return installConfig, nil
 }
 
 func (d *driver) getSVC() (*s3.S3, error) {
@@ -65,7 +79,7 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 }
 
 func (d *driver) GetName() string {
-	return "s3"
+	return string(clusterconfig.StorageTypeS3)
 }
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
@@ -105,9 +119,9 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-// CheckBucketExists checks if an S3 bucket with the given name exists
+// StorageExists checks if an S3 bucket with the given name exists
 // and we can access it
-func (d *driver) CheckBucketExists(cr *opapi.ImageRegistry) error {
+func (d *driver) StorageExists(cr *opapi.ImageRegistry) error {
 	svc, err := d.getSVC()
 	if err != nil {
 		return err
@@ -128,10 +142,15 @@ func (d *driver) CheckBucketExists(cr *opapi.ImageRegistry) error {
 
 }
 
-// CreateAndTagBucket attempts to create an s3 bucket with the given name
+// CreateStorage attempts to create an s3 bucket with the given name
 // and apply any provided tags
-func (d *driver) CreateAndTagBucket(installConfig *installer.InstallConfig, cr *opapi.ImageRegistry) error {
+func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 	svc, err := d.getSVC()
+	if err != nil {
+		return err
+	}
+
+	ic, err := d.getInstallConfig()
 	if err != nil {
 		return err
 	}
@@ -162,10 +181,10 @@ func (d *driver) CreateAndTagBucket(installConfig *installer.InstallConfig, cr *
 
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
-	if installConfig.Platform.AWS != nil {
+	if ic.Platform.AWS != nil {
 		var tagSet []*s3.Tag
-		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(installConfig.ClusterID)})
-		for k, v := range installConfig.Platform.AWS.UserTags {
+		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(ic.ClusterID)})
+		for k, v := range ic.Platform.AWS.UserTags {
 			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
 
@@ -207,6 +226,32 @@ func (d *driver) CreateAndTagBucket(installConfig *installer.InstallConfig, cr *
 	return nil
 }
 
+// RemoveStorage deletes the storage medium that we created
+func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
+	if !cr.Status.Storage.Managed {
+		return fmt.Errorf("the S3 bucket is not managed by the image registry operator, so we can't delete it.")
+	}
+
+	svc, err := d.getSVC()
+	if err != nil {
+		return err
+	}
+	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
+		Bucket: aws.String(d.Config.Bucket),
+	})
+
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, aerr.Code(), aerr.Error())
+		}
+	}
+
+	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket has been removed.")
+
+	return err
+
+}
+
 func (d *driver) createOrUpdatePrivateConfiguration(accessKey string, secretKey string) error {
 	operatorNamespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
@@ -229,7 +274,7 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 		return err
 	}
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	ic, err := d.getInstallConfig()
 	if err != nil {
 		return err
 	}
@@ -243,8 +288,8 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 
 	if len(d.Config.Bucket) == 0 {
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
-			if err := d.CreateAndTagBucket(installConfig, cr); err != nil {
+			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(ic.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+			if err := d.CreateStorage(cr); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
@@ -259,11 +304,11 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 			}
 		}
 	} else {
-		if err := d.CheckBucketExists(cr); err != nil {
+		if err := d.StorageExists(cr); err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket:
-					if err = d.CreateAndTagBucket(installConfig, cr); err != nil {
+					if err = d.CreateStorage(cr); err != nil {
 						return err
 					}
 				default:
@@ -277,7 +322,7 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 		return err
 	}
 
-	if err := d.CheckBucketExists(cr); err != nil {
+	if err := d.StorageExists(cr); err != nil {
 		return err
 	}
 	cr.Status.Storage.State.S3 = d.Config

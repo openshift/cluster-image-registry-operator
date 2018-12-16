@@ -33,7 +33,7 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 }
 
 func (d *driver) GetName() string {
-	return "gcs"
+	return string(clusterconfig.StorageTypeGCS)
 }
 
 func (d *driver) ConfigEnv() (envs []coreapi.EnvVar, err error) {
@@ -75,6 +75,22 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 	}
 
 	return []coreapi.Volume{vol}, []coreapi.VolumeMount{mount}, nil
+}
+
+func (d *driver) StorageExists(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
+	if !cr.Status.Storage.Managed {
+		return fmt.Errorf("storage is not managed by the image registry operator, so we can't delete it.")
+	}
+
+	return nil
 }
 
 func (d *driver) createOrUpdatePrivateConfiguration(keyfileData string) error {
