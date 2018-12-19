@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
@@ -120,8 +121,13 @@ func TestAWS(t *testing.T) {
 		t.Errorf("unable to get tagging information for s3 bucket: %#v", err)
 	}
 
+	cv, err := util.GetClusterVersionConfig()
+	if err != nil {
+		t.Errorf("unable to get cluster version: %#v", err)
+	}
+
 	tagShouldExist := map[string]string{
-		"openshiftClusterID": installConfig.ClusterID,
+		"openshiftClusterID": string(cv.Spec.ClusterID),
 	}
 	for k, v := range installConfig.Platform.AWS.UserTags {
 		tagShouldExist[k] = v

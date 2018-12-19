@@ -86,6 +86,11 @@ func (d *driver) checkBucketExists(svc *s3.S3) error {
 
 // createBucket attempts to create an s3 bucket with the given name
 func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.InstallConfig, customResourceStatus *opapi.ImageRegistryStatus) error {
+	cv, err := util.GetClusterVersionConfig()
+	if err != nil {
+		return err
+	}
+
 	createBucketInput := &s3.CreateBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}
@@ -106,7 +111,7 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	// along with any user defined tags from the cluster configuration
 	if installConfig.Platform.AWS != nil {
 		var tagSet []*s3.Tag
-		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(installConfig.ClusterID)})
+		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
 		for k, v := range installConfig.Platform.AWS.UserTags {
 			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
@@ -129,7 +134,7 @@ func (d *driver) createAndTagBucket(svc *s3.S3, installConfig *installer.Install
 	encryptionConfig := &s3.ServerSideEncryptionConfiguration{Rules: encryptionRules}
 	bucketEncryptionInput := &s3.PutBucketEncryptionInput{Bucket: aws.String(d.Config.Bucket), ServerSideEncryptionConfiguration: encryptionConfig}
 
-	_, err := svc.PutBucketEncryption(bucketEncryptionInput)
+	_, err = svc.PutBucketEncryption(bucketEncryptionInput)
 	if err != nil {
 		return err
 	}
@@ -158,6 +163,12 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 	if err != nil {
 		return err
 	}
+
+	cv, err := util.GetClusterVersionConfig()
+	if err != nil {
+		return err
+	}
+
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
 		Region:      &cfg.Storage.S3.Region,
@@ -176,7 +187,7 @@ func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistry
 
 	if len(d.Config.Bucket) == 0 {
 		for {
-			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(installConfig.ClusterID, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 			if err := d.createAndTagBucket(svc, installConfig, customResourceStatus); err != nil {
 				if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
