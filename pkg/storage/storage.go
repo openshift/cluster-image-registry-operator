@@ -5,6 +5,7 @@ import (
 
 	"github.com/golang/glog"
 
+	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
@@ -22,10 +23,16 @@ var (
 )
 
 type Driver interface {
-	GetName() string
+	GetType() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
-	CompleteConfiguration(*opapi.ImageRegistryStatus) error
+	CompleteConfiguration(*opapi.ImageRegistry) error
+	CreateStorage(*opapi.ImageRegistry) error
+	StorageExists(*opapi.ImageRegistry) (bool, error)
+	RemoveStorage(*opapi.ImageRegistry) error
+	StorageChanged(*opapi.ImageRegistry) bool
+	GetStorageName(*opapi.ImageRegistry) (string, error)
+	SyncSecrets(*coreapi.Secret) (map[string]string, error)
 }
 
 func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
@@ -64,7 +71,7 @@ func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 
 	var names []string
 	for _, drv := range drivers {
-		names = append(names, drv.GetName())
+		names = append(names, drv.GetType())
 	}
 
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)

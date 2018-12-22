@@ -35,7 +35,10 @@ func resourceName(namespace string) string {
 }
 
 func (c *Controller) Bootstrap() error {
-
+	client, err := regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
 	crList, err := c.listers.ImageRegistry.List(labels.Everything())
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -122,22 +125,18 @@ func (c *Controller) Bootstrap() error {
 	}
 
 	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
-	if err != nil {
-		if err != storage.ErrStorageNotConfigured {
-			return err
-		}
-	} else {
-		err = driver.CompleteConfiguration(&cr.Status)
-		if err != nil {
-			return err
-		}
+	if err != nil && err != storage.ErrStorageNotConfigured {
+		return err
 	}
 
-	client, err := regopset.NewForConfig(c.kubeconfig)
+	err = driver.CompleteConfiguration(cr)
+	_, cerr := client.ImageRegistries().Create(cr)
+	if cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return err
 	}
 
-	_, err = client.ImageRegistries().Create(cr)
-	return err
+	return nil
 }

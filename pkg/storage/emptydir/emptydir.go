@@ -1,9 +1,11 @@
 package emptydir
 
 import (
+	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 const (
@@ -24,8 +26,12 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 	}
 }
 
-func (d *driver) GetName() string {
-	return "emptydir"
+func (d *driver) GetType() string {
+	return string(clusterconfig.StorageTypeEmptyDir)
+}
+
+func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
+	return nil, nil
 }
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
@@ -51,9 +57,29 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
-func (d *driver) CompleteConfiguration(customResourceStatus *opapi.ImageRegistryStatus) error {
+func (d *driver) StorageExists(cr *opapi.ImageRegistry) (bool, error) {
+	return false, nil
+}
 
-	customResourceStatus.Storage.State.Filesystem = d.Config
+func (d *driver) StorageChanged(cr *opapi.ImageRegistry) bool {
+	return false
+}
+
+func (d *driver) GetStorageName(cr *opapi.ImageRegistry) (string, error) {
+	return "", nil
+}
+
+func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
+	return nil
+}
+
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
+
+	cr.Status.Storage.State.Filesystem = d.Config
 
 	return nil
 }
