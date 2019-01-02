@@ -5,10 +5,14 @@ import (
 	"strings"
 
 	installer "github.com/openshift/installer/pkg/types"
+
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
+
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
@@ -25,6 +29,7 @@ const (
 	installerConfigNamespace = "kube-system"
 	installerConfigName      = "cluster-config-v1"
 	installerAWSCredsName    = "aws-creds"
+	operatorNamespace        = "openshift-image-registry"
 )
 
 type StorageType string
@@ -102,21 +107,44 @@ func GetAWSConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cfg.Storage.Type = StorageTypeS3
 	if installConfig.Platform.AWS != nil {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 	}
-	sec, err := client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to read aws-creds secret: %v", err)
-	}
 
-	cfg.Storage.Type = StorageTypeS3
-	if v, ok := sec.Data["aws_access_key_id"]; ok {
-		cfg.Storage.S3.AccessKey = string(v)
-	}
-	if v, ok := sec.Data["aws_secret_access_key"]; ok {
-		cfg.Storage.S3.SecretKey = string(v)
+	// Look for a user defined secret to get the AWS credentials from first
+	sec, err := client.Secrets(operatorNamespace).Get(regopapi.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		// If no user defined secret is found, use the system one
+		sec, err = client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName), err)
+		}
+		if v, ok := sec.Data["aws_access_key_id"]; ok {
+			cfg.Storage.S3.AccessKey = string(v)
+		} else {
+			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
+		}
+		if v, ok := sec.Data["aws_secret_access_key"]; ok {
+			cfg.Storage.S3.SecretKey = string(v)
+		} else {
+			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
+		}
+	} else if err != nil {
+		return nil, err
+	} else {
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
+			cfg.Storage.S3.AccessKey = string(v)
+		} else {
+			return nil, fmt.Errorf("Secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+		}
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
+			cfg.Storage.S3.SecretKey = string(v)
+		} else {
+			return nil, fmt.Errorf("Secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+
+		}
 	}
 
 	return cfg, nil

@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/private/protocol"
+	"github.com/aws/aws-sdk-go/private/protocol/restjson"
 )
 
 const opCreateConfigurationSet = "CreateConfigurationSet"
@@ -47,6 +49,7 @@ func (c *PinpointSMSVoice) CreateConfigurationSetRequest(input *CreateConfigurat
 
 	output = &CreateConfigurationSetOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -136,6 +139,7 @@ func (c *PinpointSMSVoice) CreateConfigurationSetEventDestinationRequest(input *
 
 	output = &CreateConfigurationSetEventDestinationOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -226,6 +230,7 @@ func (c *PinpointSMSVoice) DeleteConfigurationSetRequest(input *DeleteConfigurat
 
 	output = &DeleteConfigurationSetOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -312,6 +317,7 @@ func (c *PinpointSMSVoice) DeleteConfigurationSetEventDestinationRequest(input *
 
 	output = &DeleteConfigurationSetEventDestinationOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -570,6 +576,7 @@ func (c *PinpointSMSVoice) UpdateConfigurationSetEventDestinationRequest(input *
 
 	output = &UpdateConfigurationSetEventDestinationOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -646,7 +653,7 @@ func (s *CallInstructionsMessageType) SetText(v string) *CallInstructionsMessage
 	return s
 }
 
-// An object that contains information about a event destination that sends
+// An object that contains information about an event destination that sends
 // data to Amazon CloudWatch Logs.
 type CloudWatchLogsDestination struct {
 	_ struct{} `type:"structure"`
@@ -711,6 +718,9 @@ func (s *CreateConfigurationSetEventDestinationInput) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "CreateConfigurationSetEventDestinationInput"}
 	if s.ConfigurationSetName == nil {
 		invalidParams.Add(request.NewErrParamRequired("ConfigurationSetName"))
+	}
+	if s.ConfigurationSetName != nil && len(*s.ConfigurationSetName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ConfigurationSetName", 1))
 	}
 
 	if invalidParams.Len() > 0 {
@@ -818,8 +828,14 @@ func (s *DeleteConfigurationSetEventDestinationInput) Validate() error {
 	if s.ConfigurationSetName == nil {
 		invalidParams.Add(request.NewErrParamRequired("ConfigurationSetName"))
 	}
+	if s.ConfigurationSetName != nil && len(*s.ConfigurationSetName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ConfigurationSetName", 1))
+	}
 	if s.EventDestinationName == nil {
 		invalidParams.Add(request.NewErrParamRequired("EventDestinationName"))
+	}
+	if s.EventDestinationName != nil && len(*s.EventDestinationName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("EventDestinationName", 1))
 	}
 
 	if invalidParams.Len() > 0 {
@@ -878,6 +894,9 @@ func (s *DeleteConfigurationSetInput) Validate() error {
 	if s.ConfigurationSetName == nil {
 		invalidParams.Add(request.NewErrParamRequired("ConfigurationSetName"))
 	}
+	if s.ConfigurationSetName != nil && len(*s.ConfigurationSetName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ConfigurationSetName", 1))
+	}
 
 	if invalidParams.Len() > 0 {
 		return invalidParams
@@ -910,7 +929,7 @@ func (s DeleteConfigurationSetOutput) GoString() string {
 type EventDestination struct {
 	_ struct{} `type:"structure"`
 
-	// An object that contains information about a event destination that sends
+	// An object that contains information about an event destination that sends
 	// data to Amazon CloudWatch Logs.
 	CloudWatchLogsDestination *CloudWatchLogsDestination `type:"structure"`
 
@@ -919,7 +938,7 @@ type EventDestination struct {
 	// destination.
 	Enabled *bool `type:"boolean"`
 
-	// An object that contains information about a event destination that sends
+	// An object that contains information about an event destination that sends
 	// data to Amazon Kinesis Data Firehose.
 	KinesisFirehoseDestination *KinesisFirehoseDestination `type:"structure"`
 
@@ -929,6 +948,10 @@ type EventDestination struct {
 
 	// A name that identifies the event destination configuration.
 	Name *string `type:"string"`
+
+	// An object that contains information about an event destination that sends
+	// data to Amazon SNS.
+	SnsDestination *SnsDestination `type:"structure"`
 }
 
 // String returns the string representation
@@ -971,11 +994,17 @@ func (s *EventDestination) SetName(v string) *EventDestination {
 	return s
 }
 
+// SetSnsDestination sets the SnsDestination field's value.
+func (s *EventDestination) SetSnsDestination(v *SnsDestination) *EventDestination {
+	s.SnsDestination = v
+	return s
+}
+
 // An object that defines a single event destination.
 type EventDestinationDefinition struct {
 	_ struct{} `type:"structure"`
 
-	// An object that contains information about a event destination that sends
+	// An object that contains information about an event destination that sends
 	// data to Amazon CloudWatch Logs.
 	CloudWatchLogsDestination *CloudWatchLogsDestination `type:"structure"`
 
@@ -984,13 +1013,17 @@ type EventDestinationDefinition struct {
 	// destination.
 	Enabled *bool `type:"boolean"`
 
-	// An object that contains information about a event destination that sends
+	// An object that contains information about an event destination that sends
 	// data to Amazon Kinesis Data Firehose.
 	KinesisFirehoseDestination *KinesisFirehoseDestination `type:"structure"`
 
 	// An array of EventDestination objects. Each EventDestination object includes
 	// ARNs and other information that define an event destination.
 	MatchingEventTypes []*string `type:"list"`
+
+	// An object that contains information about an event destination that sends
+	// data to Amazon SNS.
+	SnsDestination *SnsDestination `type:"structure"`
 }
 
 // String returns the string representation
@@ -1027,6 +1060,12 @@ func (s *EventDestinationDefinition) SetMatchingEventTypes(v []*string) *EventDe
 	return s
 }
 
+// SetSnsDestination sets the SnsDestination field's value.
+func (s *EventDestinationDefinition) SetSnsDestination(v *SnsDestination) *EventDestinationDefinition {
+	s.SnsDestination = v
+	return s
+}
+
 type GetConfigurationSetEventDestinationsInput struct {
 	_ struct{} `type:"structure"`
 
@@ -1049,6 +1088,9 @@ func (s *GetConfigurationSetEventDestinationsInput) Validate() error {
 	invalidParams := request.ErrInvalidParams{Context: "GetConfigurationSetEventDestinationsInput"}
 	if s.ConfigurationSetName == nil {
 		invalidParams.Add(request.NewErrParamRequired("ConfigurationSetName"))
+	}
+	if s.ConfigurationSetName != nil && len(*s.ConfigurationSetName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ConfigurationSetName", 1))
 	}
 
 	if invalidParams.Len() > 0 {
@@ -1088,7 +1130,7 @@ func (s *GetConfigurationSetEventDestinationsOutput) SetEventDestinations(v []*E
 	return s
 }
 
-// An object that contains information about a event destination that sends
+// An object that contains information about an event destination that sends
 // data to Amazon Kinesis Data Firehose.
 type KinesisFirehoseDestination struct {
 	_ struct{} `type:"structure"`
@@ -1135,6 +1177,8 @@ type PlainTextMessageType struct {
 	// The plain (not SSML-formatted) text to deliver to the recipient.
 	Text *string `type:"string"`
 
+	// The name of the voice that you want to use to deliver the message. For a
+	// complete list of supported voices, see the Amazon Polly Developer Guide.
 	VoiceId *string `type:"string"`
 }
 
@@ -1300,6 +1344,32 @@ func (s *SendVoiceMessageOutput) SetMessageId(v string) *SendVoiceMessageOutput 
 	return s
 }
 
+// An object that contains information about an event destination that sends
+// data to Amazon SNS.
+type SnsDestination struct {
+	_ struct{} `type:"structure"`
+
+	// The Amazon Resource Name (ARN) of the Amazon SNS topic that you want to publish
+	// events to.
+	TopicArn *string `type:"string"`
+}
+
+// String returns the string representation
+func (s SnsDestination) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s SnsDestination) GoString() string {
+	return s.String()
+}
+
+// SetTopicArn sets the TopicArn field's value.
+func (s *SnsDestination) SetTopicArn(v string) *SnsDestination {
+	s.TopicArn = &v
+	return s
+}
+
 // An object that defines a request to update an existing event destination.
 type UpdateConfigurationSetEventDestinationInput struct {
 	_ struct{} `type:"structure"`
@@ -1330,8 +1400,14 @@ func (s *UpdateConfigurationSetEventDestinationInput) Validate() error {
 	if s.ConfigurationSetName == nil {
 		invalidParams.Add(request.NewErrParamRequired("ConfigurationSetName"))
 	}
+	if s.ConfigurationSetName != nil && len(*s.ConfigurationSetName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ConfigurationSetName", 1))
+	}
 	if s.EventDestinationName == nil {
 		invalidParams.Add(request.NewErrParamRequired("EventDestinationName"))
+	}
+	if s.EventDestinationName != nil && len(*s.EventDestinationName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("EventDestinationName", 1))
 	}
 
 	if invalidParams.Len() > 0 {

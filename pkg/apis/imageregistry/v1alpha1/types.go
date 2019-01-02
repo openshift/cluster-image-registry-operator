@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	OperatorStatusTypeRemoved = "Removed"
+	OperatorStatusTypeRemoved             = "Removed"
+	ImageRegistryPrivateConfiguration     = "image-registry-private-configuration"
+	ImageRegistryPrivateConfigurationUser = ImageRegistryPrivateConfiguration + "-user"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -115,6 +117,19 @@ type ImageRegistryConfigStorageStatus struct {
 	// storage configuration
 	State ImageRegistryConfigStorageState `json:"state"`
 }
+
+const (
+	// StorageExists denotes whether or not the registry storage medium exists
+	StorageExists = "StorageExists"
+
+	// StorageTagged denotes whether or not the registry storage medium
+	// that we created was tagged correctly
+	StorageTagged = "StorageTagged"
+
+	// StorageEncrypted denotes whether or not the registry storage medium
+	// that we created has encryption enabled
+	StorageEncrypted = "StorageEncrypted"
+)
 
 type ImageRegistryStatus struct {
 	operatorsv1alpha1api.OperatorStatus `json:",inline"`

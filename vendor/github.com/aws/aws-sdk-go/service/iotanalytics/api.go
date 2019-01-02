@@ -143,6 +143,7 @@ func (c *IoTAnalytics) CancelPipelineReprocessingRequest(input *CancelPipelineRe
 
 	output = &CancelPipelineReprocessingOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -707,8 +708,7 @@ func (c *IoTAnalytics) DeleteChannelRequest(input *DeleteChannelInput) (req *req
 
 	output = &DeleteChannelOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -800,8 +800,7 @@ func (c *IoTAnalytics) DeleteDatasetRequest(input *DeleteDatasetInput) (req *req
 
 	output = &DeleteDatasetOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -896,8 +895,7 @@ func (c *IoTAnalytics) DeleteDatasetContentRequest(input *DeleteDatasetContentIn
 
 	output = &DeleteDatasetContentOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -989,8 +987,7 @@ func (c *IoTAnalytics) DeleteDatastoreRequest(input *DeleteDatastoreInput) (req 
 
 	output = &DeleteDatastoreOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -1082,8 +1079,7 @@ func (c *IoTAnalytics) DeletePipelineRequest(input *DeletePipelineInput) (req *r
 
 	output = &DeletePipelineOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -2538,8 +2534,7 @@ func (c *IoTAnalytics) PutLoggingOptionsRequest(input *PutLoggingOptionsInput) (
 
 	output = &PutLoggingOptionsOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -2908,6 +2903,7 @@ func (c *IoTAnalytics) TagResourceRequest(input *TagResourceInput) (req *request
 
 	output = &TagResourceOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3003,6 +2999,7 @@ func (c *IoTAnalytics) UntagResourceRequest(input *UntagResourceInput) (req *req
 
 	output = &UntagResourceOutput{}
 	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3097,8 +3094,7 @@ func (c *IoTAnalytics) UpdateChannelRequest(input *UpdateChannelInput) (req *req
 
 	output = &UpdateChannelOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3190,8 +3186,7 @@ func (c *IoTAnalytics) UpdateDatasetRequest(input *UpdateDatasetInput) (req *req
 
 	output = &UpdateDatasetOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3283,8 +3278,7 @@ func (c *IoTAnalytics) UpdateDatastoreRequest(input *UpdateDatastoreInput) (req 
 
 	output = &UpdateDatastoreOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3376,8 +3370,7 @@ func (c *IoTAnalytics) UpdatePipelineRequest(input *UpdatePipelineInput) (req *r
 
 	output = &UpdatePipelineOutput{}
 	req = c.newRequest(op, input, output)
-	req.Handlers.Unmarshal.Remove(restjson.UnmarshalHandler)
-	req.Handlers.Unmarshal.PushBackNamed(protocol.UnmarshalDiscardBodyHandler)
+	req.Handlers.Unmarshal.Swap(restjson.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
 	return
 }
 
@@ -3676,6 +3669,9 @@ func (s *CancelPipelineReprocessingInput) Validate() error {
 	}
 	if s.ReprocessingId == nil {
 		invalidParams.Add(request.NewErrParamRequired("ReprocessingId"))
+	}
+	if s.ReprocessingId != nil && len(*s.ReprocessingId) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("ReprocessingId", 1))
 	}
 
 	if invalidParams.Len() > 0 {
@@ -4218,6 +4214,8 @@ type CreateDatasetInput struct {
 	// Actions is a required field
 	Actions []*DatasetAction `locationName:"actions" min:"1" type:"list" required:"true"`
 
+	ContentDeliveryRules []*DatasetContentDeliveryRule `locationName:"contentDeliveryRules" type:"list"`
+
 	// The name of the data set.
 	//
 	// DatasetName is a required field
@@ -4276,6 +4274,16 @@ func (s *CreateDatasetInput) Validate() error {
 			}
 		}
 	}
+	if s.ContentDeliveryRules != nil {
+		for i, v := range s.ContentDeliveryRules {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "ContentDeliveryRules", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
 	if s.RetentionPeriod != nil {
 		if err := s.RetentionPeriod.Validate(); err != nil {
 			invalidParams.AddNested("RetentionPeriod", err.(request.ErrInvalidParams))
@@ -4311,6 +4319,12 @@ func (s *CreateDatasetInput) Validate() error {
 // SetActions sets the Actions field's value.
 func (s *CreateDatasetInput) SetActions(v []*DatasetAction) *CreateDatasetInput {
 	s.Actions = v
+	return s
+}
+
+// SetContentDeliveryRules sets the ContentDeliveryRules field's value.
+func (s *CreateDatasetInput) SetContentDeliveryRules(v []*DatasetContentDeliveryRule) *CreateDatasetInput {
+	s.ContentDeliveryRules = v
 	return s
 }
 
@@ -4635,6 +4649,8 @@ type Dataset struct {
 	// The ARN of the data set.
 	Arn *string `locationName:"arn" type:"string"`
 
+	ContentDeliveryRules []*DatasetContentDeliveryRule `locationName:"contentDeliveryRules" type:"list"`
+
 	// When the data set was created.
 	CreationTime *time.Time `locationName:"creationTime" type:"timestamp"`
 
@@ -4674,6 +4690,12 @@ func (s *Dataset) SetActions(v []*DatasetAction) *Dataset {
 // SetArn sets the Arn field's value.
 func (s *Dataset) SetArn(v string) *Dataset {
 	s.Arn = &v
+	return s
+}
+
+// SetContentDeliveryRules sets the ContentDeliveryRules field's value.
+func (s *Dataset) SetContentDeliveryRules(v []*DatasetContentDeliveryRule) *Dataset {
+	s.ContentDeliveryRules = v
 	return s
 }
 
@@ -4811,6 +4833,92 @@ func (s *DatasetActionSummary) SetActionName(v string) *DatasetActionSummary {
 // SetActionType sets the ActionType field's value.
 func (s *DatasetActionSummary) SetActionType(v string) *DatasetActionSummary {
 	s.ActionType = &v
+	return s
+}
+
+type DatasetContentDeliveryDestination struct {
+	_ struct{} `type:"structure"`
+
+	IotEventsDestinationConfiguration *IotEventsDestinationConfiguration `locationName:"iotEventsDestinationConfiguration" type:"structure"`
+}
+
+// String returns the string representation
+func (s DatasetContentDeliveryDestination) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DatasetContentDeliveryDestination) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DatasetContentDeliveryDestination) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DatasetContentDeliveryDestination"}
+	if s.IotEventsDestinationConfiguration != nil {
+		if err := s.IotEventsDestinationConfiguration.Validate(); err != nil {
+			invalidParams.AddNested("IotEventsDestinationConfiguration", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetIotEventsDestinationConfiguration sets the IotEventsDestinationConfiguration field's value.
+func (s *DatasetContentDeliveryDestination) SetIotEventsDestinationConfiguration(v *IotEventsDestinationConfiguration) *DatasetContentDeliveryDestination {
+	s.IotEventsDestinationConfiguration = v
+	return s
+}
+
+type DatasetContentDeliveryRule struct {
+	_ struct{} `type:"structure"`
+
+	// Destination is a required field
+	Destination *DatasetContentDeliveryDestination `locationName:"destination" type:"structure" required:"true"`
+
+	EntryName *string `locationName:"entryName" type:"string"`
+}
+
+// String returns the string representation
+func (s DatasetContentDeliveryRule) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DatasetContentDeliveryRule) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DatasetContentDeliveryRule) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DatasetContentDeliveryRule"}
+	if s.Destination == nil {
+		invalidParams.Add(request.NewErrParamRequired("Destination"))
+	}
+	if s.Destination != nil {
+		if err := s.Destination.Validate(); err != nil {
+			invalidParams.AddNested("Destination", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetDestination sets the Destination field's value.
+func (s *DatasetContentDeliveryRule) SetDestination(v *DatasetContentDeliveryDestination) *DatasetContentDeliveryRule {
+	s.Destination = v
+	return s
+}
+
+// SetEntryName sets the EntryName field's value.
+func (s *DatasetContentDeliveryRule) SetEntryName(v string) *DatasetContentDeliveryRule {
+	s.EntryName = &v
 	return s
 }
 
@@ -6399,6 +6507,60 @@ func (s *GetDatasetContentOutput) SetStatus(v *DatasetContentStatus) *GetDataset
 // SetTimestamp sets the Timestamp field's value.
 func (s *GetDatasetContentOutput) SetTimestamp(v time.Time) *GetDatasetContentOutput {
 	s.Timestamp = &v
+	return s
+}
+
+type IotEventsDestinationConfiguration struct {
+	_ struct{} `type:"structure"`
+
+	// InputName is a required field
+	InputName *string `locationName:"inputName" min:"1" type:"string" required:"true"`
+
+	// RoleArn is a required field
+	RoleArn *string `locationName:"roleArn" min:"20" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s IotEventsDestinationConfiguration) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s IotEventsDestinationConfiguration) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *IotEventsDestinationConfiguration) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "IotEventsDestinationConfiguration"}
+	if s.InputName == nil {
+		invalidParams.Add(request.NewErrParamRequired("InputName"))
+	}
+	if s.InputName != nil && len(*s.InputName) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("InputName", 1))
+	}
+	if s.RoleArn == nil {
+		invalidParams.Add(request.NewErrParamRequired("RoleArn"))
+	}
+	if s.RoleArn != nil && len(*s.RoleArn) < 20 {
+		invalidParams.Add(request.NewErrParamMinLen("RoleArn", 20))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetInputName sets the InputName field's value.
+func (s *IotEventsDestinationConfiguration) SetInputName(v string) *IotEventsDestinationConfiguration {
+	s.InputName = &v
+	return s
+}
+
+// SetRoleArn sets the RoleArn field's value.
+func (s *IotEventsDestinationConfiguration) SetRoleArn(v string) *IotEventsDestinationConfiguration {
+	s.RoleArn = &v
 	return s
 }
 
@@ -8610,6 +8772,8 @@ type UpdateDatasetInput struct {
 	// Actions is a required field
 	Actions []*DatasetAction `locationName:"actions" min:"1" type:"list" required:"true"`
 
+	ContentDeliveryRules []*DatasetContentDeliveryRule `locationName:"contentDeliveryRules" type:"list"`
+
 	// The name of the data set to update.
 	//
 	// DatasetName is a required field
@@ -8658,6 +8822,16 @@ func (s *UpdateDatasetInput) Validate() error {
 			}
 		}
 	}
+	if s.ContentDeliveryRules != nil {
+		for i, v := range s.ContentDeliveryRules {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "ContentDeliveryRules", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
 	if s.RetentionPeriod != nil {
 		if err := s.RetentionPeriod.Validate(); err != nil {
 			invalidParams.AddNested("RetentionPeriod", err.(request.ErrInvalidParams))
@@ -8683,6 +8857,12 @@ func (s *UpdateDatasetInput) Validate() error {
 // SetActions sets the Actions field's value.
 func (s *UpdateDatasetInput) SetActions(v []*DatasetAction) *UpdateDatasetInput {
 	s.Actions = v
+	return s
+}
+
+// SetContentDeliveryRules sets the ContentDeliveryRules field's value.
+func (s *UpdateDatasetInput) SetContentDeliveryRules(v []*DatasetContentDeliveryRule) *UpdateDatasetInput {
+	s.ContentDeliveryRules = v
 	return s
 }
 

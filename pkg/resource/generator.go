@@ -2,8 +2,9 @@ package resource
 
 import (
 	"fmt"
-
 	"github.com/golang/glog"
+
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,11 +16,14 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -86,8 +90,95 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 	return mutators, nil
 }
 
+// syncStorage checks:
+// 1.)  to make sure that an existing storage medium still exists and we can access it
+// 2.)  to see if the storage medium name changed and we need to:
+//      a.) check to make sure that we can access the storage or
+//      b.) see if we need to try to create the new storage
+func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) error {
+	var runCreate bool
+	*modified = true
+	// Create a driver with the current configuration
+	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
+	if err != nil {
+		return err
+	}
+
+	// If the storage medium name is blank, we need to create it
+	name, err := driver.GetStorageName(cr)
+	if err != nil {
+		return err
+	}
+	if len(name) == 0 {
+		runCreate = true
+	} else if driver.StorageChanged(cr) {
+		exists, err := driver.StorageExists(cr)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			runCreate = true
+		}
+	} else {
+		exists, err := driver.StorageExists(cr)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			runCreate = true
+		}
+	}
+
+	if runCreate {
+		if err := driver.CreateStorage(cr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// syncSecrets checks to see if we have updated storage credentials from:
+// 1.) user provided credentials in the image-registry-private-configuration-user secret
+// and updates the image-registry-private-configuration secret which provides
+// those credentials to the registry pod
+func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) error {
+	client, err := clusterconfig.GetCoreClient()
+	if err != nil {
+		return err
+	}
+
+	// Get the existing image-registry-private-configuration secret
+	sec, err := client.Secrets(g.params.Deployment.Namespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration), err)
+	}
+
+	// Create a driver with the current configuration
+	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
+	if err != nil {
+		return err
+	}
+
+	data, err := driver.SyncSecrets(sec)
+	if err != nil {
+		return err
+	}
+	if data != nil {
+		glog.Infof("Updating secret %q with updated credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration))
+
+		// Update the image-registry-private-configuration secret
+		_, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (g *Generator) removeObsoleteRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
 	routeClient, err := routeset.NewForConfig(g.kubeconfig)
+
 	if err != nil {
 		return err
 	}
@@ -166,6 +257,17 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 	err = g.removeObsoleteRoutes(cr, modified)
 	if err != nil {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
+	}
+
+	// Make sure that we always sync secrets before we sync storage
+	err = g.syncSecrets(cr, modified)
+	if err != nil {
+		return fmt.Errorf("unable to sync secrets: %s", err)
+	}
+
+	err = g.syncStorage(cr, modified)
+	if err != nil {
+		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 
 	return nil

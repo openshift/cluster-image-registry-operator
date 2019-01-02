@@ -52,6 +52,10 @@ func (a *API) customizationPasses() {
 		// to provide endpoint them selves.
 		"cloudsearchdomain": disableEndpointResolving,
 		"iotdataplane":      disableEndpointResolving,
+
+		// MTurk smoke test is invalid. The service requires AWS account to be
+		// linked to Amazon Mechanical Turk Account.
+		"mturk": supressSmokeTest,
 	}
 
 	for k := range mergeServices {
@@ -61,6 +65,10 @@ func (a *API) customizationPasses() {
 	if fn := svcCustomizations[a.PackageName()]; fn != nil {
 		fn(a)
 	}
+}
+
+func supressSmokeTest(a *API) {
+	a.SmokeTests.TestCases = []SmokeTestCase{}
 }
 
 // s3Customizations customizes the API generation to replace values specific to S3.
@@ -173,7 +181,7 @@ func mergeServicesCustomizations(a *API) {
 
 	for n := range a.Shapes {
 		if _, ok := serviceAPI.Shapes[n]; ok {
-			a.Shapes[n].resolvePkg = "github.com/aws/aws-sdk-go/service/" + info.dstName
+			a.Shapes[n].resolvePkg = SDKImportRoot+"/service/" + info.dstName
 		}
 	}
 }
