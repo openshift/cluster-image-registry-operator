@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

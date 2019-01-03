@@ -4,8 +4,8 @@ package fake
 
 import (
 	clientset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
-	imageregistryv1alpha1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
-	fakeimageregistryv1alpha1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1/fake"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
+	fakeimageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -55,12 +55,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// ImageregistryV1alpha1 retrieves the ImageregistryV1alpha1Client
-func (c *Clientset) ImageregistryV1alpha1() imageregistryv1alpha1.ImageregistryV1alpha1Interface {
-	return &fakeimageregistryv1alpha1.FakeImageregistryV1alpha1{Fake: &c.Fake}
+// ImageregistryV1 retrieves the ImageregistryV1Client
+func (c *Clientset) ImageregistryV1() imageregistryv1.ImageregistryV1Interface {
+	return &fakeimageregistryv1.FakeImageregistryV1{Fake: &c.Fake}
 }
 
-// Imageregistry retrieves the ImageregistryV1alpha1Client
-func (c *Clientset) Imageregistry() imageregistryv1alpha1.ImageregistryV1alpha1Interface {
-	return &fakeimageregistryv1alpha1.FakeImageregistryV1alpha1{Fake: &c.Fake}
+// Imageregistry retrieves the ImageregistryV1Client
+func (c *Clientset) Imageregistry() imageregistryv1.ImageregistryV1Interface {
+	return &fakeimageregistryv1.FakeImageregistryV1{Fake: &c.Fake}
 }

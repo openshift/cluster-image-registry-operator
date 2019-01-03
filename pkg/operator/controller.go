@@ -22,7 +22,7 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
@@ -177,7 +177,7 @@ func (c *Controller) sync() error {
 			return err
 		}
 
-		_, err = client.ImageregistryV1alpha1().ImageRegistries().Update(cr)
+		_, err = client.ImageregistryV1().ImageRegistries().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)
@@ -354,7 +354,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1alpha1().ImageRegistries()
+			informer := regopInformerFactory.Imageregistry().V1().ImageRegistries()
 			c.listers.ImageRegistry = informer.Lister()
 			return informer.Informer()
 		},

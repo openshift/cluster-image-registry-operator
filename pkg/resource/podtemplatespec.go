@@ -12,12 +12,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
-func generateLogLevel(cr *v1alpha1.ImageRegistry) string {
+func generateLogLevel(cr *v1.ImageRegistry) string {
 	switch cr.Spec.Logging.Level {
 	case 0:
 		return "error"
@@ -29,18 +29,18 @@ func generateLogLevel(cr *v1alpha1.ImageRegistry) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateLivenessProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(cr, p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateReadinessProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	return generateProbeConfig(cr, p)
 }
 
-func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
 	if cr.Spec.TLS {
 		scheme = corev1.URISchemeHTTPS
@@ -57,7 +57,7 @@ func generateProbeConfig(cr *v1alpha1.ImageRegistry, p *parameters.Globals) *cor
 	}
 }
 
-func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1alpha1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
 	ns, err := coreClient.Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1alpha1.Im
 	}, nil
 }
 
-func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
+func storageConfigure(crname string, crnamespace string, cfg *v1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
 	driver, err = storage.NewDriver(crname, crnamespace, cfg)
@@ -104,7 +104,7 @@ func storageConfigure(crname string, crnamespace string, cfg *v1alpha1.ImageRegi
 	return
 }
 
-func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.Globals, cr *v1alpha1.ImageRegistry) (corev1.PodTemplateSpec, *dependencies, error) {
+func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.Globals, cr *v1.ImageRegistry) (corev1.PodTemplateSpec, *dependencies, error) {
 	env, volumes, mounts, err := storageConfigure(cr.Name, params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err

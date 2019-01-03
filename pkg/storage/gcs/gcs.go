@@ -14,7 +14,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/uuid"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 

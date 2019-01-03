@@ -11,7 +11,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
 	osapi "github.com/openshift/api/config/v1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition, modified *bool) {

@@ -15,8 +15,8 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
-	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"

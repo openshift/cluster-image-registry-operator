@@ -14,7 +14,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
 	configv1 "github.com/openshift/api/config/v1"
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 const (

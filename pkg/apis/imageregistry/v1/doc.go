@@ -1,3 +1,3 @@
 // +k8s:deepcopy-gen=package
 // +groupName=imageregistry.operator.openshift.io
-package v1alpha1
+package v1
