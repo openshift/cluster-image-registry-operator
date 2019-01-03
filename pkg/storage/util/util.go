@@ -129,5 +129,5 @@ func GetClusterVersionConfig() (*configv1.ClusterVersion, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client.Config().ClusterVersions().Get("version", metav1.GetOptions{})
+	return client.ConfigV1().ClusterVersions().Get("version", metav1.GetOptions{})
 }
