@@ -124,12 +124,12 @@ func GetAWSConfig() (*Config, error) {
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
 		}
 		if v, ok := sec.Data["aws_secret_access_key"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", installerConfigNamespace, installerAWSCredsName))
 		}
 	} else if err != nil {
 		return nil, err
@@ -137,12 +137,12 @@ func GetAWSConfig() (*Config, error) {
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
 		}
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("Secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
 
 		}
 	}
