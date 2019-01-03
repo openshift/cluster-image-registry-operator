@@ -13,6 +13,7 @@ import (
 
 type Listers struct {
 	Deployments         appslisters.DeploymentNamespaceLister
+	DaemonSets          appslisters.DaemonSetNamespaceLister
 	Services            corelisters.ServiceNamespaceLister
 	Secrets             corelisters.SecretNamespaceLister
 	ConfigMaps          corelisters.ConfigMapNamespaceLister

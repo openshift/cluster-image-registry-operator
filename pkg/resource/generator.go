@@ -84,6 +84,7 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.OpenShiftConfig, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, configClient, g.params, cr))
+	mutators = append(mutators, newGeneratorNodeCADaemonSet(g.listers.DaemonSets, appsClient, g.params, cr))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, g.params, cr))
 	mutators = append(mutators, g.listRoutes(routeClient, cr)...)
