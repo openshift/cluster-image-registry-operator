@@ -25,12 +25,13 @@ type generatorCAConfig struct {
 
 func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorCAConfig {
 	return &generatorCAConfig{
-		lister:       lister,
-		client:       client,
-		name:         params.CAConfig.Name,
-		namespace:    params.Deployment.Namespace,
-		caConfigName: cr.Spec.CAConfigName,
-		owner:        asOwner(cr),
+		lister:                lister,
+		openshiftConfigLister: openshiftConfigLister,
+		client:                client,
+		name:                  params.CAConfig.Name,
+		namespace:             params.Deployment.Namespace,
+		caConfigName:          cr.Spec.CAConfigName,
+		owner:                 asOwner(cr),
 	}
 }
 

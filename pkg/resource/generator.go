@@ -97,7 +97,6 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 //      b.) see if we need to try to create the new storage
 func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) error {
 	var runCreate bool
-	*modified = true
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
 	if err != nil {
@@ -105,14 +104,14 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 	}
 
 	// If the storage medium name is blank, we need to create it
-	name, err := driver.GetStorageName(cr)
+	name, err := driver.GetStorageName(cr, modified)
 	if err != nil {
 		return err
 	}
 	if len(name) == 0 {
 		runCreate = true
-	} else if driver.StorageChanged(cr) {
-		exists, err := driver.StorageExists(cr)
+	} else if driver.StorageChanged(cr, modified) {
+		exists, err := driver.StorageExists(cr, modified)
 		if err != nil {
 			return err
 		}
@@ -120,7 +119,7 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 			runCreate = true
 		}
 	} else {
-		exists, err := driver.StorageExists(cr)
+		exists, err := driver.StorageExists(cr, modified)
 		if err != nil {
 			return err
 		}
@@ -130,7 +129,7 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 	}
 
 	if runCreate {
-		if err := driver.CreateStorage(cr); err != nil {
+		if err := driver.CreateStorage(cr, modified); err != nil {
 			return err
 		}
 	}

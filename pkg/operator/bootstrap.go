@@ -129,7 +129,8 @@ func (c *Controller) Bootstrap() error {
 		return err
 	}
 
-	err = driver.CompleteConfiguration(cr)
+	modified := false
+	err = driver.CompleteConfiguration(cr, &modified)
 	_, cerr := client.ImageRegistries().Create(cr)
 	if cerr != nil {
 		return cerr

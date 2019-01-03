@@ -68,8 +68,8 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
 			}
 		}
-
-		if err := driver.RemoveStorage(cr); err != nil {
+		modified := false
+		if err := driver.RemoveStorage(cr, &modified); err != nil {
 			cr = nil
 			return err
 		}
