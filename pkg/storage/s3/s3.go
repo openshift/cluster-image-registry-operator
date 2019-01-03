@@ -303,6 +303,35 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 		util.UpdateCondition(cr, opapi.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "Default encryption was successfully enabled on the S3 bucket")
 	}
 
+	// Enable default incomplete multipart upload cleanup after one (1) day
+	_, err = svc.PutBucketLifecycleConfiguration(&s3.PutBucketLifecycleConfigurationInput{
+		Bucket: aws.String(d.Config.Bucket),
+		LifecycleConfiguration: &s3.BucketLifecycleConfiguration{
+			Rules: []*s3.LifecycleRule{
+				{
+					ID:     aws.String("cleanup-incomplete-multipart-registry-uploads"),
+					Status: aws.String("Enabled"),
+					Filter: &s3.LifecycleRuleFilter{
+						Prefix: aws.String(""),
+					},
+					AbortIncompleteMultipartUpload: &s3.AbortIncompleteMultipartUpload{
+						DaysAfterInitiation: aws.Int64(1),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, opapi.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+
+		} else {
+			util.UpdateCondition(cr, opapi.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+		}
+	} else {
+		util.UpdateCondition(cr, opapi.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful", "Default cleanup of incomplete multipart uploads after one (1) day was successfully enabled")
+	}
+
 	cr.Status.Storage.State.S3 = d.Config
 	cr.Status.Storage.Managed = true
 

@@ -129,6 +129,10 @@ const (
 	// StorageEncrypted denotes whether or not the registry storage medium
 	// that we created has encryption enabled
 	StorageEncrypted = "StorageEncrypted"
+
+	// StorageIncompleteUploadCleanupEnabled denotes whethere or not the registry storage
+	// medium is configured to automatically cleanup incomplete uploads
+	StorageIncompleteUploadCleanupEnabled = "StorageIncompleteUploadCleanupEnabled"
 )
 
 type ImageRegistryStatus struct {

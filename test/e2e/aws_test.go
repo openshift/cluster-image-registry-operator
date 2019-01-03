@@ -128,6 +128,14 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
+	// Wait for the image registry resource to have an updated StorageIncompleteUploadCleanupEnabled condition
+	errs = conditionExistsWithStatusAndReason(client, regopapi.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful")
+	if len(errs) != 0 {
+		for _, err := range errs {
+			t.Errorf("%#v", err)
+		}
+	}
+
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(string(accessKey), string(secretKey), ""),
@@ -178,6 +186,46 @@ func TestAWSDefaults(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("s3 bucket does not have the tag \"%s\": got %#v", tk, getBucketTaggingResult.TagSet)
+		}
+	}
+
+	// Check that the S3 bucket has the correct lifecycle configuration
+	getBucketLifecycleConfigurationResult, err := svc.GetBucketLifecycleConfiguration(&s3.GetBucketLifecycleConfigurationInput{
+		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			t.Errorf("unable to get lifecycle information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
+		} else {
+
+			t.Errorf("unknown error occurred getting lifecycle information for S3 bucket: %#v", err)
+		}
+	}
+	wantedLifecycleConfiguration := &s3.BucketLifecycleConfiguration{
+		Rules: []*s3.LifecycleRule{
+			{
+				ID:     aws.String("cleanup-incomplete-multipart-registry-uploads"),
+				Status: aws.String("Enabled"),
+				Filter: &s3.LifecycleRuleFilter{
+					Prefix: aws.String(""),
+				},
+				AbortIncompleteMultipartUpload: &s3.AbortIncompleteMultipartUpload{
+					DaysAfterInitiation: aws.Int64(1),
+				},
+			},
+		},
+	}
+	for _, wantedRule := range wantedLifecycleConfiguration.Rules {
+		found := false
+
+		for _, gotRule := range getBucketLifecycleConfigurationResult.Rules {
+			if reflect.DeepEqual(wantedRule, gotRule) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("s3 lifecycle rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedRule, getBucketLifecycleConfigurationResult)
 		}
 	}
 
