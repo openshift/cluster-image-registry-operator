@@ -173,6 +173,7 @@ func TestAWSDefaults(t *testing.T) {
 				if *v.Value != tv {
 					t.Errorf("s3 bucket has the wrong value for tag \"%s\": wanted %s, got %s", tk, *v.Value, tv)
 				}
+				break
 			}
 		}
 		if !found {

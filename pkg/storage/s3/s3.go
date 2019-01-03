@@ -67,7 +67,6 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 }
 
 // GetType returns the name of the storage driver
-// maybe this should have been GetType?
 func (d *driver) GetType() string {
 	return string(clusterconfig.StorageTypeS3)
 }
@@ -217,11 +216,10 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 		}
 
-		createBucketInput := &s3.CreateBucketInput{
+		_, err := svc.CreateBucket(&s3.CreateBucketInput{
 			Bucket: aws.String(d.Config.Bucket),
-		}
-
-		if _, err := svc.CreateBucket(createBucketInput); err != nil {
+		})
+		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeBucketAlreadyExists:
@@ -264,16 +262,14 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
 		}
 
-		tagBucketInput := &s3.PutBucketTaggingInput{
+		_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
 			Tagging: &s3.Tagging{
 				TagSet: tagSet,
 			},
-		}
-		if _, err := svc.PutBucketTagging(tagBucketInput); err != nil {
+		})
+		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
-				// If we can't set the UserTags on the bucket don't return an error
-				// just set the StorageTagged condition to false
 				util.UpdateCondition(cr, opapi.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
 			} else {
 				util.UpdateCondition(cr, opapi.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
@@ -284,17 +280,21 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 	}
 
 	// Enable default encryption on the bucket
-	defaultEncryption := &s3.ServerSideEncryptionByDefault{SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256)}
-	encryptionRule := &s3.ServerSideEncryptionRule{ApplyServerSideEncryptionByDefault: defaultEncryption}
-	encryptionRules := []*s3.ServerSideEncryptionRule{encryptionRule}
-	encryptionConfig := &s3.ServerSideEncryptionConfiguration{Rules: encryptionRules}
-	bucketEncryptionInput := &s3.PutBucketEncryptionInput{Bucket: aws.String(d.Config.Bucket), ServerSideEncryptionConfiguration: encryptionConfig}
-
-	_, err = svc.PutBucketEncryption(bucketEncryptionInput)
+	_, err = svc.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+		Bucket: aws.String(d.Config.Bucket),
+		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+			Rules: []*s3.ServerSideEncryptionRule{
+				&s3.ServerSideEncryptionRule{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+					},
+				},
+			},
+		},
+	})
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
-			// If we can't set default encryption on the bucket don't return an error
-			// just set the StorageEncrypted condition to false
+
 			util.UpdateCondition(cr, opapi.StorageEncrypted, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
 		} else {
 			util.UpdateCondition(cr, opapi.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
