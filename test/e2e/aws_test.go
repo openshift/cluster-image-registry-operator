@@ -337,10 +337,6 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
-	cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
-	if err != nil {
-		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, err)
-	}
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	if _, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfigurationUser, testframework.ImageRegistryDeploymentNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", testframework.ImageRegistryDeploymentNamespace, regopapi.ImageRegistryPrivateConfigurationUser), err)
@@ -380,7 +376,30 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+}
 
+func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
+	installConfig, err := clusterconfig.GetInstallConfig()
+	if err != nil {
+		t.Fatalf("unable to get install configuration: %v", err)
+	}
+
+	if installConfig.Platform.AWS == nil {
+		t.Skip("skipping on non-AWS platform")
+	}
+
+	client := testframework.MustNewClientset(t, nil)
+
+	defer testframework.MustRemoveImageRegistry(t, client)
+	testframework.MustDeployImageRegistry(t, client, nil)
+	testframework.MustEnsureImageRegistryIsAvailable(t, client)
+	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+
+	cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, err)
+	}
 	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it)
 	err = client.ImageRegistries().Delete(testframework.ImageRegistryName, &metav1.DeleteOptions{})
 	if err != nil {
@@ -412,4 +431,5 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	if exists {
 		t.Errorf("s3 bucket should have been deleted, but it wasn't")
 	}
+
 }

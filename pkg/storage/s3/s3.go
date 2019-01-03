@@ -141,7 +141,7 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 // StorageExists checks if an S3 bucket with the given name exists
 // and we can access it
 func (d *driver) StorageExists(cr *opapi.ImageRegistry) (bool, error) {
-	if d.Config.Bucket == "" {
+	if len(cr.Status.Storage.State.S3.Bucket) == 0 {
 		return false, nil
 	}
 
@@ -150,7 +150,7 @@ func (d *driver) StorageExists(cr *opapi.ImageRegistry) (bool, error) {
 		return false, err
 	}
 	_, err = svc.HeadBucket(&s3.HeadBucketInput{
-		Bucket: aws.String(d.Config.Bucket),
+		Bucket: aws.String(cr.Status.Storage.State.S3.Bucket),
 	})
 
 	if err != nil {
@@ -187,10 +187,10 @@ func (d *driver) StorageChanged(cr *opapi.ImageRegistry) bool {
 
 // GetStorageName returns the current storage bucket that we are using
 func (d *driver) GetStorageName(cr *opapi.ImageRegistry) (string, error) {
-	if cr.Spec.Storage.S3 != nil {
-		return cr.Spec.Storage.S3.Bucket, nil
+	if cr.Status.Storage.State.S3 != nil {
+		return cr.Status.Storage.State.S3.Bucket, nil
 	}
-	return "", fmt.Errorf("unable to retrieve bucket name from image registry resource: %#v", cr.Spec.Storage)
+	return "", fmt.Errorf("unable to retrieve bucket name from image registry resource: %#v", cr.Status.Storage)
 }
 
 // CreateStorage attempts to create an s3 bucket
@@ -344,6 +344,8 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
 func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
 	if !cr.Status.Storage.Managed {
 		return nil
+	} else if len(cr.Status.Storage.State.S3.Bucket) == 0 {
+		return nil
 	}
 
 	svc, err := d.getSVC()
@@ -351,7 +353,7 @@ func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
 		return err
 	}
 	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
-		Bucket: aws.String(d.Config.Bucket),
+		Bucket: aws.String(cr.Status.Storage.State.S3.Bucket),
 	})
 
 	if err != nil {

@@ -50,12 +50,31 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 
 	glog.Infof("finalizing %s", objectInfo(o))
 
+	client, err := regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
 	driver, err := storage.NewDriver(o.Name, o.Namespace, &o.Spec.Storage)
 	if err != nil {
 		return err
 	}
 
-	err = driver.RemoveStorage(o)
+	cr := o
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if cr == nil {
+			cr, err = client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
+			}
+		}
+
+		if err := driver.RemoveStorage(cr); err != nil {
+			cr = nil
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove storage")
 		if errOp != nil {
@@ -73,12 +92,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return fmt.Errorf("unable to finalize resource: %s", err)
 	}
 
-	client, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	cr := o
+	cr = o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
 			cr, err := client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
