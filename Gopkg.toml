@@ -43,7 +43,7 @@ required = [
 
 [[override]]
   name = "github.com/openshift/api"
-  revision = "ffac7eec5e7f87c6a9fcbc766e3b024ed3ef39ea"
+  revision = "1a0ca44421509b47daf1e17f2e96025b3a314c3b"
 
 [[constraint]]
   name = "github.com/openshift/image-registry"
