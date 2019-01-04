@@ -33,10 +33,10 @@ func conditionExistsWithStatusAndReason(client *testframework.Clientset, conditi
 			if condition.Type == conditionType {
 				conditionExists = true
 				if condition.Status != conditionStatus {
-					errs = append(errs, fmt.Errorf("condition %s status should be \"%v\" but was %v instead.", conditionType, conditionStatus, condition.Status))
+					errs = append(errs, fmt.Errorf("condition %s status should be \"%v\" but was %v instead", conditionType, conditionStatus, condition.Status))
 				}
 				if condition.Reason != conditionReason {
-					errs = append(errs, fmt.Errorf("condition %s reason should have been \"%s\" but was %s instead.", conditionType, conditionReason, condition.Reason))
+					errs = append(errs, fmt.Errorf("condition %s reason should have been \"%s\" but was %s instead", conditionType, conditionReason, condition.Reason))
 
 				}
 			}

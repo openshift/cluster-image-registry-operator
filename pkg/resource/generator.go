@@ -142,13 +142,13 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 // and updates the image-registry-private-configuration secret which provides
 // those credentials to the registry pod
 func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) error {
-	client, err := clusterconfig.GetCoreClient()
+	coreClient, err := clusterconfig.GetCoreClient()
 	if err != nil {
 		return err
 	}
 
 	// Get the existing image-registry-private-configuration secret
-	sec, err := client.Secrets(g.params.Deployment.Namespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	sec, err := coreClient.Secrets(g.params.Deployment.Namespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration), err)
 	}
