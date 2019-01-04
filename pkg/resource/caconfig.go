@@ -25,12 +25,13 @@ type generatorCAConfig struct {
 
 func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorCAConfig {
 	return &generatorCAConfig{
-		lister:       lister,
-		client:       client,
-		name:         params.CAConfig.Name,
-		namespace:    params.Deployment.Namespace,
-		caConfigName: cr.Spec.CAConfigName,
-		owner:        asOwner(cr),
+		lister:                lister,
+		openshiftConfigLister: openshiftConfigLister,
+		client:                client,
+		name:                  params.CAConfig.Name,
+		namespace:             params.Deployment.Namespace,
+		caConfigName:          cr.Spec.CAConfigName,
+		owner:                 asOwner(cr),
 	}
 }
 
@@ -49,9 +50,12 @@ func (gcac *generatorCAConfig) GetName() string {
 func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gcac.GetName(),
-			Namespace: gcac.GetNamespace(),
+			Name:        gcac.GetName(),
+			Namespace:   gcac.GetNamespace(),
+			Annotations: map[string]string{"service.alpha.openshift.io/inject-cabundle": "true"},
 		},
+		Data:       map[string]string{},
+		BinaryData: map[string][]byte{},
 	}
 
 	if gcac.caConfigName != "" {
