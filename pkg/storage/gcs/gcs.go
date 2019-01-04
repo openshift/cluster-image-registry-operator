@@ -103,26 +103,26 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 	return []coreapi.Volume{vol}, []coreapi.VolumeMount{mount}, nil
 }
 
-func (d *driver) StorageExists(cr *opapi.ImageRegistry) (bool, error) {
+func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, error) {
 	return false, nil
 }
 
-func (d *driver) StorageChanged(cr *opapi.ImageRegistry) bool {
+func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
 	return false
 }
 
-func (d *driver) GetStorageName(cr *opapi.ImageRegistry) (string, error) {
+func (d *driver) GetStorageName(cr *opapi.ImageRegistry, modified *bool) (string, error) {
 	if cr.Spec.Storage.GCS != nil {
 		return cr.Spec.Storage.GCS.Bucket, nil
 	}
 	return "", fmt.Errorf("unable to retrieve bucket name from image registry resource: %#v", cr.Spec.Storage)
 }
 
-func (d *driver) CreateStorage(cr *opapi.ImageRegistry) error {
+func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
+func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
 	if !cr.Status.Storage.Managed {
 		return nil
 	}
@@ -130,7 +130,7 @@ func (d *driver) RemoveStorage(cr *opapi.ImageRegistry) error {
 	return nil
 }
 
-func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
+func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
 	// Apply global config
 	cfg, err := clusterconfig.GetGCSConfig()
 	if err != nil {
@@ -174,6 +174,7 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry) error {
 	}
 
 	cr.Status.Storage.State.GCS = d.Config
+	*modified = true
 
 	return nil
 

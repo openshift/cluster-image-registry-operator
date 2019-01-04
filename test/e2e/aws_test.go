@@ -412,7 +412,8 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 
 	var exists bool
 	err = wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
-		exists, err := driver.StorageExists(cr)
+		modified := true
+		exists, err := driver.StorageExists(cr, &modified)
 		if aerr, ok := err.(awserr.Error); ok {
 			t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())
 		}
