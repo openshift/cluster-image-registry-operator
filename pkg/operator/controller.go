@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"

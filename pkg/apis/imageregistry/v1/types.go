@@ -6,7 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	operatorsv1alpha1api "github.com/openshift/api/operator/v1alpha1"
+	operatorsv1api "github.com/openshift/api/operator/v1"
 )
 
 const (
@@ -90,17 +90,17 @@ type ImageRegistryConfigRoute struct {
 }
 
 type ImageRegistrySpec struct {
-	operatorsv1alpha1api.OperatorSpec `json:",inline"`
-
-	HTTPSecret   string                      `json:"httpSecret,omitempty"`
-	Proxy        ImageRegistryConfigProxy    `json:"proxy,omitempty"`
-	Storage      ImageRegistryConfigStorage  `json:"storage,omitempty"`
-	Requests     ImageRegistryConfigRequests `json:"requests,omitempty"`
-	TLS          bool                        `json:"tls,omitempty"`
-	CAConfigName string                      `json:"caConfigName,omitempty"`
-	DefaultRoute bool                        `json:"defaultRoute,omitempty"`
-	Routes       []ImageRegistryConfigRoute  `json:"routes,omitempty"`
-	Replicas     int32                       `json:"replicas,omitempty"`
+	ManagementState operatorsv1api.ManagementState `json:"managementState"`
+	HTTPSecret      string                         `json:"httpSecret,omitempty"`
+	Proxy           ImageRegistryConfigProxy       `json:"proxy,omitempty"`
+	Storage         ImageRegistryConfigStorage     `json:"storage,omitempty"`
+	Requests        ImageRegistryConfigRequests    `json:"requests,omitempty"`
+	TLS             bool                           `json:"tls,omitempty"`
+	CAConfigName    string                         `json:"caConfigName,omitempty"`
+	DefaultRoute    bool                           `json:"defaultRoute,omitempty"`
+	Routes          []ImageRegistryConfigRoute     `json:"routes,omitempty"`
+	Replicas        int32                          `json:"replicas,omitempty"`
+	LogLevel        int64                          `json:"logging,omitempty"`
 }
 
 type ImageRegistryConfigStorageState struct {
@@ -136,7 +136,7 @@ const (
 )
 
 type ImageRegistryStatus struct {
-	operatorsv1alpha1api.OperatorStatus `json:",inline"`
+	operatorsv1api.OperatorStatus `json:",inline"`
 
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
 

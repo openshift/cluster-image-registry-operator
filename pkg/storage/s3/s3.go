@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"

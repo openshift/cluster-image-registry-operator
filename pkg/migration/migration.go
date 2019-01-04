@@ -13,7 +13,7 @@ import (
 	coreapi "k8s.io/api/core/v1"
 
 	appsapi "github.com/openshift/api/apps/v1"
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
@@ -308,14 +308,10 @@ storage:
 	}
 
 	return imageregistryapi.ImageRegistrySpec{
-		OperatorSpec: operatorapi.OperatorSpec{
-			ManagementState: operatorapi.Managed,
-			Version:         "none",
-			ImagePullSpec:   registry.Image,
-		},
-		HTTPSecret: config.HTTP.Secret,
-		Proxy:      imageregistryapi.ImageRegistryConfigProxy{}, // TODO
-		Storage:    storage,
+		ManagementState: operatorapi.Managed,
+		HTTPSecret:      config.HTTP.Secret,
+		Proxy:           imageregistryapi.ImageRegistryConfigProxy{}, // TODO
+		Storage:         storage,
 		Requests: imageregistryapi.ImageRegistryConfigRequests{
 			Read: imageregistryapi.ImageRegistryConfigRequestsLimits{
 				MaxRunning:     extraConfig.Requests.Read.MaxRunning,

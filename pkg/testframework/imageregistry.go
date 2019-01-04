@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	osapi "github.com/openshift/api/config/v1"
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -306,13 +306,13 @@ func hasExpectedClusterOperatorConditions(status *configv1.ClusterOperator) bool
 	gotProgressing := false
 	gotFailing := false
 	for _, c := range status.Status.Conditions {
-		if c.Type == operatorapi.OperatorStatusTypeAvailable && c.Status == osapi.ConditionTrue {
+		if c.Type == osapi.OperatorAvailable && c.Status == osapi.ConditionTrue {
 			gotAvailable = true
 		}
-		if c.Type == operatorapi.OperatorStatusTypeProgressing && c.Status == osapi.ConditionFalse {
+		if c.Type == osapi.OperatorProgressing && c.Status == osapi.ConditionFalse {
 			gotProgressing = true
 		}
-		if c.Type == operatorapi.OperatorStatusTypeFailing && c.Status == osapi.ConditionFalse {
+		if c.Type == osapi.OperatorFailing && c.Status == osapi.ConditionFalse {
 			gotFailing = true
 		}
 	}

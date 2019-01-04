@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -65,16 +65,11 @@ func (c *Controller) Bootstrap() error {
 	dc, err := appsclient.DeploymentConfigs(c.params.Deployment.Namespace).Get(resourceName(c.params.Deployment.Namespace), metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		spec = regopapi.ImageRegistrySpec{
-			OperatorSpec: operatorapi.OperatorSpec{
-				ManagementState: operatorapi.Managed,
-				Version:         "none",
-				Logging: operatorapi.LoggingConfig{
-					Level: 2,
-				},
-			},
-			Storage:  regopapi.ImageRegistryConfigStorage{},
-			TLS:      true,
-			Replicas: 1,
+			ManagementState: operatorapi.Managed,
+			LogLevel:        2,
+			Storage:         regopapi.ImageRegistryConfigStorage{},
+			TLS:             true,
+			Replicas:        1,
 		}
 	} else if err != nil {
 		return fmt.Errorf("unable to check if the deployment already exists: %s", err)

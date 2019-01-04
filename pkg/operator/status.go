@@ -8,7 +8,7 @@ import (
 	appsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	osapi "github.com/openshift/api/config/v1"
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
