@@ -15,7 +15,7 @@ import (
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 )
 

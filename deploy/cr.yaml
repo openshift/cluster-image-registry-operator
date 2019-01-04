@@ -1,5 +1,5 @@
 ---
-apiVersion: imageregistry.operator.openshift.io/v1alpha1
+apiVersion: imageregistry.operator.openshift.io/v1
 kind: ImageRegistry
 metadata:
   name: image-registry

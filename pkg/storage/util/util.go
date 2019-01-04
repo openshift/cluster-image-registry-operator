@@ -11,7 +11,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1alpha1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 
 	coreapi "k8s.io/api/core/v1"

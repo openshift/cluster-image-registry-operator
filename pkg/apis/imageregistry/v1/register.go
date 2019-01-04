@@ -1,4 +1,4 @@
-package v1alpha1
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	version   = "v1alpha1"
+	version   = "v1"
 	groupName = "imageregistry.operator.openshift.io"
 )
 

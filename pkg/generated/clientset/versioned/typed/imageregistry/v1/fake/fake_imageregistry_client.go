@@ -3,22 +3,22 @@
 package fake
 
 import (
-	v1alpha1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	v1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeImageregistryV1alpha1 struct {
+type FakeImageregistryV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeImageregistryV1alpha1) ImageRegistries() v1alpha1.ImageRegistryInterface {
+func (c *FakeImageregistryV1) ImageRegistries() v1.ImageRegistryInterface {
 	return &FakeImageRegistries{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeImageregistryV1alpha1) RESTClient() rest.Interface {
+func (c *FakeImageregistryV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

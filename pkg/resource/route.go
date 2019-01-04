@@ -9,7 +9,7 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

@@ -6,7 +6,7 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1alpha1"
+	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 

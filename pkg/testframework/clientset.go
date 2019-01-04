@@ -10,7 +10,7 @@ import (
 
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	clientimageregistryv1alpha1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1alpha1"
+	clientimageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 )
 
 // Clientset is a set of Kubernetes clients.
@@ -18,7 +18,7 @@ type Clientset struct {
 	clientcorev1.CoreV1Interface
 	clientappsv1.AppsV1Interface
 	clientconfigv1.ConfigV1Interface
-	clientimageregistryv1alpha1.ImageregistryV1alpha1Interface
+	clientimageregistryv1.ImageregistryV1Interface
 }
 
 // NewClientset creates a set of Kubernetes clients. The default kubeconfig is
@@ -44,7 +44,7 @@ func NewClientset(kubeconfig *restclient.Config) (clientset *Clientset, err erro
 	if err != nil {
 		return
 	}
-	clientset.ImageregistryV1alpha1Interface, err = clientimageregistryv1alpha1.NewForConfig(kubeconfig)
+	clientset.ImageregistryV1Interface, err = clientimageregistryv1.NewForConfig(kubeconfig)
 	if err != nil {
 		return
 	}
