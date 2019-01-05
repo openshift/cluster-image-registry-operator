@@ -55,7 +55,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return err
 	}
 
-	driver, err := storage.NewDriver(o.Name, o.Namespace, &o.Spec.Storage)
+	driver, err := storage.NewDriver(o.ObjectMeta.Name, o.ObjectMeta.Namespace, &o.Status.Storage)
 	if err != nil {
 		return err
 	}
@@ -65,13 +65,21 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		if cr == nil {
 			cr, err = client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
+				return fmt.Errorf("failed to get %s, retrying: %v", objectInfo(o), err)
 			}
+			driver.UpdateFromStorage(cr.Status.Storage)
 		}
 		modified := false
-		if err := driver.RemoveStorage(cr, &modified); err != nil {
+
+		if err := driver.RemoveStorage(o, &modified); err != nil {
 			cr = nil
-			return err
+			return fmt.Errorf("unable to remove storage, retrying: %v", err)
+		}
+		if modified {
+			_, err := client.ImageRegistries().Update(o)
+			if err != nil {
+				return fmt.Errorf("unable to update %s, retrying: %v", objectInfo(o), err)
+			}
 		}
 		return nil
 	})

@@ -99,8 +99,8 @@ func TestAWSDefaults(t *testing.T) {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName)
 		}
 
-		if !cr.Status.Storage.Managed {
-			t.Errorf("custom resource %s/%s contains incorrect data. Status.Storage.Managed was %v but should have been \"true\"", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, cr.Status.Storage.Managed)
+		if !cr.Status.StorageManaged {
+			t.Errorf("custom resource %s/%s contains incorrect data. Status.StorageManaged was %v but should have been \"true\"", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, cr.Status.StorageManaged)
 		}
 	}
 

@@ -5,8 +5,11 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"k8s.io/client-go/util/retry"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -41,14 +44,22 @@ func TestUnmanaged(t *testing.T) {
 	})
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 
-	cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	var cr *imageregistryapi.ImageRegistry
+	var err error
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		cr, err = client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	cr.Spec.ManagementState = operatorapi.Unmanaged
+		cr.Spec.ManagementState = operatorapi.Unmanaged
 
-	cr, err = client.ImageRegistries().Update(cr)
+		cr, err = client.ImageRegistries().Update(cr)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
