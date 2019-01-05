@@ -7,7 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	operatorapi "github.com/openshift/api/operator/v1alpha1"
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
@@ -27,9 +27,7 @@ func TestBasicEmptyDir(t *testing.T) {
 			Name: testframework.ImageRegistryName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
-			OperatorSpec: operatorapi.OperatorSpec{
-				ManagementState: operatorapi.Managed,
-			},
+			ManagementState: operatorapi.Managed,
 			Storage: imageregistryapi.ImageRegistryConfigStorage{
 				Filesystem: &imageregistryapi.ImageRegistryConfigStorageFilesystem{
 					VolumeSource: corev1.VolumeSource{

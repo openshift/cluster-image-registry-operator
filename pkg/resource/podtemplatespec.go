@@ -18,7 +18,7 @@ import (
 )
 
 func generateLogLevel(cr *v1.ImageRegistry) string {
-	switch cr.Spec.Logging.Level {
+	switch cr.Spec.LogLevel {
 	case 0:
 		return "error"
 	case 1:
