@@ -309,6 +309,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Apps().V1().DaemonSets()
+			c.listers.DaemonSets = informer.Lister().DaemonSets(c.params.Deployment.Namespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().Services()
 			c.listers.Services = informer.Lister().Services(c.params.Deployment.Namespace)
 			return informer.Informer()

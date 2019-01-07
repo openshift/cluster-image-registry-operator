@@ -2,7 +2,7 @@
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: registry-ca-hostmapper
+  name: nodecadaemon
   namespace: openshift-image-registry
 rules:
 - apiGroups:
@@ -17,13 +17,13 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: registry-ca-hostmapper
+  name: nodecadaemon
   namespace: openshift-image-registry
 subjects:
 - kind: ServiceAccount
-  name: registry-ca-hostmapper
+  name: nodecadaemon
   namespace: openshift-image-registry
 roleRef:
   kind: Role
-  name: registry-ca-hostmapper
+  name: nodecadaemon
   apiGroup: rbac.authorization.k8s.io
