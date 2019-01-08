@@ -32,6 +32,8 @@ spec:
       labels:
         name: nodecadaemon
     spec:      
+      nodeSelector:
+        beta.kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
       tolerations:
       - effect: NoSchedule
