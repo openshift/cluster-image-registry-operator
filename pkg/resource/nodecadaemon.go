@@ -21,16 +21,16 @@ const (
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: nodecadaemon
+  name: node-ca
   namespace: openshift-image-registry
 spec:
   selector:
     matchLabels:
-      name: nodecadaemon
+      name: node-ca
   template:
     metadata:
       labels:
-        name: nodecadaemon
+        name: node-ca
     spec:      
       nodeSelector:
         beta.kubernetes.io/os: linux
@@ -39,9 +39,9 @@ spec:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
         operator: Exists
-      serviceAccountName: nodecadaemon
+      serviceAccountName: node-ca
       containers:
-      - name: nodecadaemon
+      - name: node-ca
         securityContext:
           privileged: true
         image: docker.io/openshift/origin-cluster-image-registry-operator:latest
@@ -109,7 +109,7 @@ func (ds *generatorNodeCADaemonSet) GetNamespace() string {
 }
 
 func (ds *generatorNodeCADaemonSet) GetName() string {
-	return "nodecadaemon"
+	return "node-ca"
 }
 
 func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {

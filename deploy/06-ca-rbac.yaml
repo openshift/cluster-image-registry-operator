@@ -2,7 +2,7 @@
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: nodecadaemon
+  name: node-ca
   namespace: openshift-image-registry
 rules:
 - apiGroups:
@@ -17,13 +17,13 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: nodecadaemon
+  name: node-ca
   namespace: openshift-image-registry
 subjects:
 - kind: ServiceAccount
-  name: nodecadaemon
+  name: node-ca
   namespace: openshift-image-registry
 roleRef:
   kind: Role
-  name: nodecadaemon
+  name: node-ca
   apiGroup: rbac.authorization.k8s.io
