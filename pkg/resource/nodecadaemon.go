@@ -131,11 +131,11 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 
 	modified := false
 	exists := false
-	for _, env := range daemonSet.Spec.Template.Spec.Containers[0].Env {
+	for i, env := range daemonSet.Spec.Template.Spec.Containers[0].Env {
 		if env.Name == "internalRegistryHostname" {
 			exists = true
 			if env.Value != ds.hostname {
-				env.Value = ds.hostname
+				daemonSet.Spec.Template.Spec.Containers[0].Env[i].Value = ds.hostname
 				modified = true
 			}
 			break
