@@ -1,8 +1,6 @@
 package azure
 
 import (
-	"fmt"
-
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
@@ -22,6 +20,10 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 		Namespace: crnamespace,
 		Config:    c,
 	}
+}
+
+func (d *driver) UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage) {
+	d.Config = cfg.Azure.DeepCopy()
 }
 
 func (d *driver) GetType() string {
@@ -71,11 +73,11 @@ func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
 	return false
 }
 
-func (d *driver) GetStorageName(cr *opapi.ImageRegistry, modified *bool) (string, error) {
-	if cr.Spec.Storage.Azure != nil {
-		return cr.Spec.Storage.Azure.Container, nil
+func (d *driver) GetStorageName() string {
+	if d.Config == nil {
+		return ""
 	}
-	return "", fmt.Errorf("unable to retrieve container name from image registry resource: %#v", cr.Spec.Storage)
+	return d.Config.Container
 }
 
 func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
@@ -83,7 +85,7 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 }
 
 func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
-	if !cr.Status.Storage.Managed {
+	if !cr.Status.StorageManaged {
 		return nil
 	}
 

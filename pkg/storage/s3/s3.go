@@ -3,6 +3,7 @@ package s3
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -33,9 +34,9 @@ type driver struct {
 	Config    *opapi.ImageRegistryConfigStorageS3
 }
 
-// getSVC returns a service client that allows us to interact
+// getS3Service returns a client that allows us to interact
 // with the aws S3 service
-func (d *driver) getSVC() (*s3.S3, error) {
+func (d *driver) getS3Service() (*s3.S3, error) {
 	if s3Service != nil {
 		return s3Service, nil
 	}
@@ -47,17 +48,20 @@ func (d *driver) getSVC() (*s3.S3, error) {
 
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
-		Region:      &cfg.Storage.S3.Region,
+		Region:      &d.Config.Region,
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	s3Service := s3.New(sess)
 
 	return s3Service, nil
 
 }
 
+// NewDriver creates a new s3 storage driver
+// Used during bootstrapping
 func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageS3) *driver {
 	return &driver{
 		Name:      crname,
@@ -66,11 +70,18 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 	}
 }
 
-// GetType returns the name of the storage driver
+// UpdateFromStorage updates the driver from an image registry resource
+func (d *driver) UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage) {
+	d.Config = cfg.S3.DeepCopy()
+}
+
+// GetType returns the type of the storage driver
 func (d *driver) GetType() string {
 	return string(clusterconfig.StorageTypeS3)
 }
 
+// ConfigEnv configures the environment variables that will be
+// used in the image registry deployment
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	envs = append(envs,
 		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
@@ -132,27 +143,68 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
 			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
 		}
-		return data, nil
 
+		return data, nil
 	}
+
 	return nil, nil
+}
+
+// bucketExists checks whether or not the s3 bucket exists
+func (d *driver) bucketExists(bucketName string) (bool, error) {
+	if len(bucketName) == 0 {
+		return false, nil
+	}
+
+	svc, err := d.getS3Service()
+	if err != nil {
+		return false, err
+	}
+
+	_, err = svc.HeadBucket(&s3.HeadBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// getBucketLocation returns the region that the bucket exists in
+func (d *driver) getBucketLocation(bucketName string) (string, error) {
+	if len(bucketName) == 0 {
+		return "", fmt.Errorf("the bucket name is blank")
+	}
+
+	svc, err := d.getS3Service()
+	if err != nil {
+		return "", err
+	}
+	getBucketLocationResult, err := svc.GetBucketLocation(&s3.GetBucketLocationInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if *getBucketLocationResult.LocationConstraint == "" {
+		*getBucketLocationResult.LocationConstraint = "us-east-1"
+	} else if *getBucketLocationResult.LocationConstraint == "EU" {
+		*getBucketLocationResult.LocationConstraint = "eu-west-1"
+	}
+
+	return *getBucketLocationResult.LocationConstraint, nil
 }
 
 // StorageExists checks if an S3 bucket with the given name exists
 // and we can access it
 func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, error) {
-	if len(cr.Status.Storage.State.S3.Bucket) == 0 {
+	if len(d.Config.Bucket) == 0 {
 		return false, nil
 	}
 
-	svc, err := d.getSVC()
-	if err != nil {
-		return false, err
-	}
-	_, err = svc.HeadBucket(&s3.HeadBucketInput{
-		Bucket: aws.String(cr.Status.Storage.State.S3.Bucket),
-	})
-
+	bucketExists, err := d.bucketExists(d.Config.Bucket)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
@@ -167,36 +219,33 @@ func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, e
 	}
 
 	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "", modified)
-	return true, nil
+	return bucketExists, nil
 
 }
 
 // StorageChanged checks to see if the name of the storage medium
 // has changed
 func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
-	var storageChanged bool
-
-	if cr.Status.Storage.State.S3 == nil || cr.Status.Storage.State.S3.Bucket != cr.Spec.Storage.S3.Bucket {
-		storageChanged = true
+	if !reflect.DeepEqual(cr.Status.Storage.S3, cr.Spec.Storage.S3) {
+		util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionUnknown, "S3 Configuration Changed", "S3 storage is in an unknown state", modified)
+		return true
 	}
 
-	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionUnknown, "S3 Bucket Changed", "S3 bucket is in an unknown state", modified)
-
-	return storageChanged
+	return false
 }
 
 // GetStorageName returns the current storage bucket that we are using
-func (d *driver) GetStorageName(cr *opapi.ImageRegistry, modified *bool) (string, error) {
-	if cr.Status.Storage.State.S3 != nil {
-		return cr.Status.Storage.State.S3.Bucket, nil
+func (d *driver) GetStorageName() string {
+	if d.Config == nil {
+		return ""
 	}
-	return "", fmt.Errorf("unable to retrieve bucket name from image registry resource: %#v", cr.Status.Storage)
+	return d.Config.Bucket
 }
 
 // CreateStorage attempts to create an s3 bucket
 // and apply any provided tags
 func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
-	svc, err := d.getSVC()
+	svc, err := d.getS3Service()
 	if err != nil {
 		return err
 	}
@@ -211,35 +260,69 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 		return err
 	}
 
-	for i := 0; i < 5000; i++ {
-		if len(d.Config.Bucket) == 0 {
-			d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
-		}
-
-		_, err := svc.CreateBucket(&s3.CreateBucketInput{
-			Bucket: aws.String(d.Config.Bucket),
-		})
+	// If a bucket name is supplied, and it already exists and we can access it
+	// just update the config
+	var bucketExists bool
+	if len(d.Config.Bucket) != 0 {
+		bucketExists, err = d.bucketExists(d.Config.Bucket)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
-				case s3.ErrCodeBucketAlreadyExists:
-					if cr.Spec.Storage.S3.Bucket != "" {
-						break
-					}
-					d.Config.Bucket = ""
-					continue
-				default:
+				case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
+					// If the bucket doesn't exist that's ok, we'll try to create it
 					util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+				default:
+					util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error(), modified)
 					return err
 				}
 			}
 		}
-		break
 	}
+	if len(d.Config.Bucket) != 0 && bucketExists {
+		*cr.Status.Storage.S3 = *d.Config
+		util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "User supplied S3 bucket exists and is accessible", modified)
 
-	if len(cr.Spec.Storage.S3.Bucket) == 0 && len(d.Config.Bucket) == 0 {
-		util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "", modified)
-		return fmt.Errorf("unable to generate a unique s3 bucket name")
+	} else {
+		generatedName := false
+		for i := 0; i < 5000; i++ {
+			// If the bucket name is blank, let's generate one
+			if len(d.Config.Bucket) == 0 {
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				generatedName = true
+			}
+
+			_, err := svc.CreateBucket(&s3.CreateBucketInput{
+				Bucket: aws.String(d.Config.Bucket),
+			})
+			if err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					switch aerr.Code() {
+					case s3.ErrCodeBucketAlreadyExists:
+						if d.Config.Bucket != "" && !generatedName {
+							util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, "Unable to Access Bucket", "The bucket exists, but we do not have permission to access it", modified)
+							break
+						}
+						d.Config.Bucket = ""
+						continue
+					default:
+						util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+						return err
+					}
+				}
+			}
+			cr.Status.StorageManaged = true
+			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Spec.Storage.S3 = d.Config.DeepCopy()
+
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created", modified)
+
+			break
+		}
+
+		if len(d.Config.Bucket) == 0 {
+			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "", modified)
+			return fmt.Errorf("unable to generate a unique s3 bucket name")
+		}
 	}
 
 	// Wait until the bucket exists
@@ -330,39 +413,40 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 		util.UpdateCondition(cr, opapi.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful", "Default cleanup of incomplete multipart uploads after one (1) day was successfully enabled", modified)
 	}
 
-	cr.Status.Storage.State.S3 = d.Config
-	cr.Status.Storage.Managed = true
-
-	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created", modified)
-
 	return nil
 }
 
 // RemoveStorage deletes the storage medium that we created
 func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
-	if !cr.Status.Storage.Managed {
-		return nil
-	} else if len(cr.Status.Storage.State.S3.Bucket) == 0 {
+	if !cr.Status.StorageManaged || len(d.Config.Bucket) == 0 {
 		return nil
 	}
 
-	svc, err := d.getSVC()
+	svc, err := d.getS3Service()
 	if err != nil {
 		return err
 	}
 	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
-		Bucket: aws.String(cr.Status.Storage.State.S3.Bucket),
+		Bucket: aws.String(d.Config.Bucket),
 	})
 
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionUnknown, aerr.Code(), aerr.Error(), modified)
 		}
+		return err
+	}
+
+	cr.Spec.Storage.S3.Bucket = ""
+	d.Config.Bucket = ""
+	cr.Status.Storage.S3 = d.Config.DeepCopy()
+	if d.StorageChanged(cr, modified) {
+		*modified = true
 	}
 
 	util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket has been removed.", modified)
 
-	return err
+	return nil
 
 }
 
@@ -372,15 +456,17 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) 
 		return err
 	}
 
-	if len(d.Config.Bucket) == 0 {
-		d.Config.Bucket = cfg.Storage.S3.Bucket
-	}
-
 	if len(d.Config.Region) == 0 {
 		d.Config.Region = cfg.Storage.S3.Region
 	}
-
-	cr.Status.Storage.State.S3 = d.Config
+	if cr.Spec.Storage.S3 == nil {
+		cr.Spec.Storage.S3 = &opapi.ImageRegistryConfigStorageS3{}
+	}
+	if cr.Status.Storage.S3 == nil {
+		cr.Status.Storage.S3 = &opapi.ImageRegistryConfigStorageS3{}
+	}
+	cr.Spec.Storage.S3 = d.Config.DeepCopy()
 	*modified = true
+
 	return nil
 }

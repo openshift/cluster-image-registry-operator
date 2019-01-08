@@ -103,21 +103,6 @@ type ImageRegistrySpec struct {
 	LogLevel        int64                          `json:"logging,omitempty"`
 }
 
-type ImageRegistryConfigStorageState struct {
-	ImageRegistryConfigStorage `json:",inline"`
-}
-
-type ImageRegistryConfigStorageStatus struct {
-	// Managed is a boolean which denotes whether or not
-	// we created the registry storage medium (such as an
-	// S3 bucket
-	Managed bool `json:"managed"`
-
-	// State is the current state of the registry
-	// storage configuration
-	State ImageRegistryConfigStorageState `json:"state"`
-}
-
 const (
 	// StorageExists denotes whether or not the registry storage medium exists
 	StorageExists = "StorageExists"
@@ -138,7 +123,12 @@ const (
 type ImageRegistryStatus struct {
 	operatorsv1api.OperatorStatus `json:",inline"`
 
+	// StorageManaged is a boolean which denotes whether or not
+	// we created the registry storage medium (such as an
+	// S3 bucket)
+	StorageManaged bool `json:"storageManaged"`
+
 	InternalRegistryHostname string `json:"internalRegistryHostname"`
 
-	Storage ImageRegistryConfigStorageStatus `json:"storage"`
+	Storage ImageRegistryConfigStorage `json:"storage"`
 }

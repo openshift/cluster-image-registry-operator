@@ -32,6 +32,10 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 	}
 }
 
+func (d *driver) UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage) {
+	d.Config = cfg.GCS.DeepCopy()
+}
+
 func (d *driver) GetType() string {
 	return string(clusterconfig.StorageTypeGCS)
 }
@@ -111,11 +115,11 @@ func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
 	return false
 }
 
-func (d *driver) GetStorageName(cr *opapi.ImageRegistry, modified *bool) (string, error) {
-	if cr.Spec.Storage.GCS != nil {
-		return cr.Spec.Storage.GCS.Bucket, nil
+func (d *driver) GetStorageName() string {
+	if d.Config == nil {
+		return ""
 	}
-	return "", fmt.Errorf("unable to retrieve bucket name from image registry resource: %#v", cr.Spec.Storage)
+	return d.Config.Bucket
 }
 
 func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
@@ -123,7 +127,7 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 }
 
 func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
-	if !cr.Status.Storage.Managed {
+	if !cr.Status.StorageManaged {
 		return nil
 	}
 
@@ -161,7 +165,7 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) 
 
 			switch e := err.(type) {
 			case nil:
-				cr.Status.Storage.Managed = true
+				cr.Status.StorageManaged = true
 				break
 			case *googleapi.Error:
 				// Code 429 has already been processed.
@@ -173,7 +177,7 @@ func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) 
 
 	}
 
-	cr.Status.Storage.State.GCS = d.Config
+	cr.Status.Storage.GCS = d.Config.DeepCopy()
 	*modified = true
 
 	return nil
