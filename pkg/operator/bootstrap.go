@@ -31,7 +31,7 @@ func resourceName(namespace string) string {
 	if namespace == "default" {
 		return "docker-registry"
 	}
-	return "image-registry"
+	return regopapi.ImageRegistryResourceName
 }
 
 func (c *Controller) Bootstrap() error {
@@ -101,7 +101,7 @@ func (c *Controller) Bootstrap() error {
 
 	glog.Infof("generating registry custom resource")
 
-	cr := &regopapi.ImageRegistry{
+	cr := &regopapi.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       resourceName(c.params.Deployment.Namespace),
 			Namespace:  c.params.Deployment.Namespace,
@@ -126,7 +126,7 @@ func (c *Controller) Bootstrap() error {
 
 	modified := false
 	err = driver.CompleteConfiguration(cr, &modified)
-	_, cerr := client.ImageRegistries().Create(cr)
+	_, cerr := client.Configs().Create(cr)
 	if cerr != nil {
 		return cerr
 	}

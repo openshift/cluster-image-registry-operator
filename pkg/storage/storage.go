@@ -26,11 +26,11 @@ type Driver interface {
 	GetType() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
-	CompleteConfiguration(*opapi.ImageRegistry, *bool) error
-	CreateStorage(*opapi.ImageRegistry, *bool) error
-	StorageExists(*opapi.ImageRegistry, *bool) (bool, error)
-	RemoveStorage(*opapi.ImageRegistry, *bool) error
-	StorageChanged(*opapi.ImageRegistry, *bool) bool
+	CompleteConfiguration(*opapi.Config, *bool) error
+	CreateStorage(*opapi.Config, *bool) error
+	StorageExists(*opapi.Config, *bool) (bool, error)
+	RemoveStorage(*opapi.Config, *bool) error
+	StorageChanged(*opapi.Config, *bool) bool
 	GetStorageName() string
 	SyncSecrets(*coreapi.Secret) (map[string]string, error)
 	UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage)

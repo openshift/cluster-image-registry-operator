@@ -21,7 +21,7 @@ type generatorServiceAccount struct {
 	owner     metav1.OwnerReference
 }
 
-func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorServiceAccount {
+func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorServiceAccount {
 	return &generatorServiceAccount{
 		lister:    lister,
 		client:    client,

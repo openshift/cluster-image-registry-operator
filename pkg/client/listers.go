@@ -23,5 +23,5 @@ type Listers struct {
 	ClusterRoleBindings rbaclisters.ClusterRoleBindingLister
 	OpenShiftConfig     corelisters.ConfigMapNamespaceLister
 	ImageConfigs        configlisters.ImageLister
-	ImageRegistry       regoplisters.ImageRegistryLister
+	ImageRegistry       regoplisters.ConfigLister
 }

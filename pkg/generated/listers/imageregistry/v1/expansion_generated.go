@@ -2,6 +2,6 @@
 
 package v1
 
-// ImageRegistryListerExpansion allows custom methods to be added to
-// ImageRegistryLister.
-type ImageRegistryListerExpansion interface{}
+// ConfigListerExpansion allows custom methods to be added to
+// ConfigLister.
+type ConfigListerExpansion interface{}

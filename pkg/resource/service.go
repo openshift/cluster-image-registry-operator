@@ -29,7 +29,7 @@ type generatorService struct {
 	owner      metav1.OwnerReference
 }
 
-func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorService {
+func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorService {
 	return &generatorService{
 		lister:     lister,
 		client:     client,
@@ -37,7 +37,7 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		namespace:  params.Deployment.Namespace,
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
-		secretName: cr.Name + "-tls",
+		secretName: regopapi.ImageRegistryName + "-tls",
 		tls:        cr.Spec.TLS,
 		owner:      asOwner(cr),
 	}

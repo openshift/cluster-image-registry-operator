@@ -62,9 +62,9 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.Service.Name = "image-registry"
+	p.Service.Name = regopapi.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
-	p.CAConfig.Name = "image-registry-certificates"
+	p.CAConfig.Name = regopapi.ImageRegistryCertificatesName
 
 	listers := &regopclient.Listers{}
 	c := &Controller{
@@ -91,7 +91,7 @@ type Controller struct {
 	listers       *regopclient.Listers
 }
 
-func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
+func (c *Controller) createOrUpdateResources(cr *regopapi.Config, modified *bool) error {
 	appendFinalizer(cr, modified)
 
 	err := verifyResource(cr, &c.params)
@@ -107,7 +107,7 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.ImageRegistry, modifie
 	return nil
 }
 
-func (c *Controller) CreateOrUpdateResources(cr *regopapi.ImageRegistry, modified *bool) error {
+func (c *Controller) CreateOrUpdateResources(cr *regopapi.Config, modified *bool) error {
 	if cr.Spec.ManagementState != operatorapi.Managed {
 		return nil
 	}
@@ -156,11 +156,11 @@ func (c *Controller) sync() error {
 		glog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	deploy, err := c.listers.Deployments.Get(cr.ObjectMeta.Name)
+	deploy, err := c.listers.Deployments.Get(regopapi.ImageRegistryName)
 	if errors.IsNotFound(err) {
 		deploy = nil
 	} else if err != nil {
-		return fmt.Errorf("failed to get %q deployment: %s", cr.ObjectMeta.Name, err)
+		return fmt.Errorf("failed to get %q deployment: %s", regopapi.ImageRegistryName, err)
 	} else {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
@@ -177,7 +177,7 @@ func (c *Controller) sync() error {
 			return err
 		}
 
-		_, err = client.ImageregistryV1().ImageRegistries().Update(cr)
+		_, err = client.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)
@@ -359,7 +359,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().ImageRegistries()
+			informer := regopInformerFactory.Imageregistry().V1().Configs()
 			c.listers.ImageRegistry = informer.Lister()
 			return informer.Informer()
 		},

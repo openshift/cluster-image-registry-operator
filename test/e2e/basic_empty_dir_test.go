@@ -18,13 +18,13 @@ func TestBasicEmptyDir(t *testing.T) {
 
 	defer testframework.MustRemoveImageRegistry(t, client)
 
-	cr := &imageregistryapi.ImageRegistry{
+	cr := &imageregistryapi.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
+			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryName,
+			Name: testframework.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,

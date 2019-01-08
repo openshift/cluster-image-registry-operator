@@ -22,10 +22,10 @@ type generatorDeployment struct {
 	coreClient      coreset.CoreV1Interface
 	client          appsset.AppsV1Interface
 	params          *parameters.Globals
-	cr              *regopapi.ImageRegistry
+	cr              *regopapi.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorDeployment {
+func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorDeployment {
 	return &generatorDeployment{
 		lister:          lister,
 		configMapLister: configMapLister,
@@ -46,7 +46,7 @@ func (gd *generatorDeployment) GetNamespace() string {
 }
 
 func (gd *generatorDeployment) GetName() string {
-	return gd.cr.ObjectMeta.Name
+	return regopapi.ImageRegistryName
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {

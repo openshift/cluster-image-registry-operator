@@ -18,9 +18,9 @@ func TestFailing(t *testing.T) {
 
 	defer testframework.MustRemoveImageRegistry(t, client)
 
-	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.ImageRegistry{
+	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryName,
+			Name: testframework.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,

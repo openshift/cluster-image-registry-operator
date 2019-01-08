@@ -2,4 +2,4 @@
 
 package v1
 
-type ImageRegistryExpansion interface{}
+type ConfigExpansion interface{}

@@ -23,7 +23,7 @@ type generatorCAConfig struct {
 	owner                 metav1.OwnerReference
 }
 
-func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorCAConfig {
+func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorCAConfig {
 	return &generatorCAConfig{
 		lister:                lister,
 		openshiftConfigLister: openshiftConfigLister,

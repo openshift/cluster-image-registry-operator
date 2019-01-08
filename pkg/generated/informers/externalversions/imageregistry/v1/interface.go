@@ -8,8 +8,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// ImageRegistries returns a ImageRegistryInformer.
-	ImageRegistries() ImageRegistryInformer
+	// Configs returns a ConfigInformer.
+	Configs() ConfigInformer
 }
 
 type version struct {
@@ -23,7 +23,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ImageRegistries returns a ImageRegistryInformer.
-func (v *version) ImageRegistries() ImageRegistryInformer {
-	return &imageRegistryInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+// Configs returns a ConfigInformer.
+func (v *version) Configs() ConfigInformer {
+	return &configInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

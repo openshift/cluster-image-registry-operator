@@ -22,7 +22,7 @@ func conditionExistsWithStatusAndReason(client *testframework.Clientset, conditi
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+		cr, err := client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil

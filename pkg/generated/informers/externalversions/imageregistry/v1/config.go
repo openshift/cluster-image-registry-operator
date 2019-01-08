@@ -15,58 +15,58 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// ImageRegistryInformer provides access to a shared informer and lister for
-// ImageRegistries.
-type ImageRegistryInformer interface {
+// ConfigInformer provides access to a shared informer and lister for
+// Configs.
+type ConfigInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ImageRegistryLister
+	Lister() v1.ConfigLister
 }
 
-type imageRegistryInformer struct {
+type configInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewImageRegistryInformer constructs a new informer for ImageRegistry type.
+// NewConfigInformer constructs a new informer for Config type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewImageRegistryInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredImageRegistryInformer(client, resyncPeriod, indexers, nil)
+func NewConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredConfigInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredImageRegistryInformer constructs a new informer for ImageRegistry type.
+// NewFilteredConfigInformer constructs a new informer for Config type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredImageRegistryInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageregistryV1().ImageRegistries().List(options)
+				return client.ImageregistryV1().Configs().List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageregistryV1().ImageRegistries().Watch(options)
+				return client.ImageregistryV1().Configs().Watch(options)
 			},
 		},
-		&imageregistryv1.ImageRegistry{},
+		&imageregistryv1.Config{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *imageRegistryInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredImageRegistryInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *configInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredConfigInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *imageRegistryInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&imageregistryv1.ImageRegistry{}, f.defaultInformer)
+func (f *configInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&imageregistryv1.Config{}, f.defaultInformer)
 }
 
-func (f *imageRegistryInformer) Lister() v1.ImageRegistryLister {
-	return v1.NewImageRegistryLister(f.Informer().GetIndexer())
+func (f *configInformer) Lister() v1.ConfigLister {
+	return v1.NewConfigLister(f.Informer().GetIndexer())
 }

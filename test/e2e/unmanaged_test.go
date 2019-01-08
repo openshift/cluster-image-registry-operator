@@ -22,13 +22,13 @@ func TestUnmanaged(t *testing.T) {
 
 	defer testframework.MustRemoveImageRegistry(t, client)
 
-	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.ImageRegistry{
+	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
-			Kind:       "ImageRegistry",
+			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryName,
+			Name: testframework.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -44,17 +44,17 @@ func TestUnmanaged(t *testing.T) {
 	})
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 
-	var cr *imageregistryapi.ImageRegistry
+	var cr *imageregistryapi.Config
 	var err error
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cr, err = client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		cr.Spec.ManagementState = operatorapi.Unmanaged
 
-		cr, err = client.ImageRegistries().Update(cr)
+		cr, err = client.Configs().Update(cr)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func TestUnmanaged(t *testing.T) {
 	}
 
 	err = wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}

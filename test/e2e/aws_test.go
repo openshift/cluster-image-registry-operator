@@ -16,6 +16,7 @@ package e2e
 
 import (
 	"fmt"
+	"k8s.io/client-go/util/retry"
 	"reflect"
 	"testing"
 	"time"
@@ -84,23 +85,23 @@ func TestAWSDefaults(t *testing.T) {
 
 	// Check that the image registry resource exists
 	// and contains the correct region and a non-empty bucket name
-	cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+	cr, err := client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
-		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, err)
+		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName, err)
 	}
 	if cr.Spec.Storage.S3 == nil {
-		t.Errorf("custom resource %s/%s is missing the S3 configuration", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName)
+		t.Errorf("custom resource %s/%s is missing the S3 configuration", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName)
 	} else {
 		if cr.Spec.Storage.S3.Region != cfg.Storage.S3.Region {
-			t.Errorf("custom resource %s/%s contains incorrect data. S3 Region was %v but should have been %v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, cfg.Storage.S3.Region, cr.Spec.Storage.S3)
+			t.Errorf("custom resource %s/%s contains incorrect data. S3 Region was %v but should have been %v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName, cfg.Storage.S3.Region, cr.Spec.Storage.S3)
 
 		}
 		if cr.Spec.Storage.S3.Bucket == "" {
-			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName)
+			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName)
 		}
 
 		if !cr.Status.StorageManaged {
-			t.Errorf("custom resource %s/%s contains incorrect data. Status.StorageManaged was %v but should have been \"true\"", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, cr.Status.StorageManaged)
+			t.Errorf("custom resource %s/%s contains incorrect data. Status.StorageManaged was %v but should have been \"true\"", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName, cr.Status.StorageManaged)
 		}
 	}
 
@@ -229,7 +230,7 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
-	registryDeployment, err := client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryName, metav1.GetOptions{})
+	registryDeployment, err := client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,8 +339,14 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	if _, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfigurationUser, testframework.ImageRegistryDeploymentNamespace, fakeAWSCredsData); err != nil {
-		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", testframework.ImageRegistryDeploymentNamespace, regopapi.ImageRegistryPrivateConfigurationUser), err)
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if _, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfigurationUser, testframework.ImageRegistryDeploymentNamespace, fakeAWSCredsData); err != nil {
+			return fmt.Errorf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", testframework.ImageRegistryDeploymentNamespace, regopapi.ImageRegistryPrivateConfigurationUser), err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	// Check that the user provided credentials override the system provided ones
@@ -396,12 +403,12 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
-	cr, err := client.ImageRegistries().Get(testframework.ImageRegistryName, metav1.GetOptions{})
+	cr, err := client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
-		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryName, err)
+		t.Errorf("unable to get custom resource %s/%s: %#v", testframework.ImageRegistryDeploymentNamespace, testframework.ImageRegistryResourceName, err)
 	}
 	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it)
-	err = client.ImageRegistries().Delete(testframework.ImageRegistryName, &metav1.DeleteOptions{})
+	err = client.Configs().Delete(testframework.ImageRegistryResourceName, &metav1.DeleteOptions{})
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}

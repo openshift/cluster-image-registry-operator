@@ -40,7 +40,7 @@ type Generator struct {
 	params     *parameters.Globals
 }
 
-func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopapi.ImageRegistry) []Mutator {
+func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopapi.Config) []Mutator {
 	var mutators []Mutator
 	mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, regopapi.ImageRegistryConfigRoute{
 		Name: cr.Name + "-default-route",
@@ -51,7 +51,7 @@ func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopa
 	return mutators
 }
 
-func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
+func (g *Generator) list(cr *regopapi.Config) ([]Mutator, error) {
 	coreClient, err := coreset.NewForConfig(g.kubeconfig)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (g *Generator) list(cr *regopapi.ImageRegistry) ([]Mutator, error) {
 // 2.)  to see if the storage medium name changed and we need to:
 //      a.) check to make sure that we can access the storage or
 //      b.) see if we need to try to create the new storage
-func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) error {
+func (g *Generator) syncStorage(cr *regopapi.Config, modified *bool) error {
 	var runCreate bool
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Spec.Storage)
@@ -130,7 +130,7 @@ func (g *Generator) syncStorage(cr *regopapi.ImageRegistry, modified *bool) erro
 // 1.) user provided credentials in the image-registry-private-configuration-user secret
 // and updates the image-registry-private-configuration secret which provides
 // those credentials to the registry pod
-func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) error {
+func (g *Generator) syncSecrets(cr *regopapi.Config, modified *bool) error {
 	coreClient, err := clusterconfig.GetCoreClient()
 	if err != nil {
 		return err
@@ -165,7 +165,7 @@ func (g *Generator) syncSecrets(cr *regopapi.ImageRegistry, modified *bool) erro
 	return nil
 }
 
-func (g *Generator) removeObsoleteRoutes(cr *regopapi.ImageRegistry, modified *bool) error {
+func (g *Generator) removeObsoleteRoutes(cr *regopapi.Config, modified *bool) error {
 	routeClient, err := routeset.NewForConfig(g.kubeconfig)
 
 	if err != nil {
@@ -205,7 +205,7 @@ func (g *Generator) removeObsoleteRoutes(cr *regopapi.ImageRegistry, modified *b
 	return nil
 }
 
-func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
+func (g *Generator) Apply(cr *regopapi.Config, modified *bool) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
@@ -262,7 +262,7 @@ func (g *Generator) Apply(cr *regopapi.ImageRegistry, modified *bool) error {
 	return nil
 }
 
-func (g *Generator) Remove(cr *regopapi.ImageRegistry, modified *bool) error {
+func (g *Generator) Remove(cr *regopapi.Config, modified *bool) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)

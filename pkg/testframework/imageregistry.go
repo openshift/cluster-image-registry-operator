@@ -18,9 +18,9 @@ import (
 )
 
 const (
-	ImageRegistryName                = "image-registry"
-	ImageRegistryDeploymentName      = ImageRegistryName
-	ImageRegistryDeploymentNamespace = OperatorDeploymentNamespace
+	ImageRegistryResourceName        = imageregistryapi.ImageRegistryResourceName
+	ImageRegistryDeploymentName      = imageregistryapi.ImageRegistryName
+	ImageRegistryDeploymentNamespace = imageregistryapi.ImageRegistryOperatorNamespace
 )
 
 type ConditionStatus struct {
@@ -55,7 +55,7 @@ type ImageRegistryConditions struct {
 	Removed     ConditionStatus
 }
 
-func GetImageRegistryConditions(cr *imageregistryapi.ImageRegistry) ImageRegistryConditions {
+func GetImageRegistryConditions(cr *imageregistryapi.Config) ImageRegistryConditions {
 	conds := ImageRegistryConditions{}
 	for _, cond := range cr.Status.Conditions {
 		switch cond.Type {
@@ -80,7 +80,7 @@ func (c ImageRegistryConditions) String() string {
 }
 
 func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
-	if _, err := client.ImageRegistries().Patch(ImageRegistryName, types.MergePatchType, []byte(`{"spec": {"managementState": "Removed"}}`)); err != nil {
+	if _, err := client.Configs().Patch(ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"managementState": "Removed"}}`)); err != nil {
 		if errors.IsNotFound(err) {
 			// That's not exactly what we are asked for. And few seconds later
 			// the operator may bootstrap it. However, if the operator is
@@ -91,9 +91,9 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 		return err
 	}
 
-	var cr *imageregistryapi.ImageRegistry
+	var cr *imageregistryapi.Config
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			cr = nil
 			return true, nil
@@ -115,7 +115,7 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 
 func deleteImageRegistryResource(client *Clientset) error {
 	// TODO(dmage): the finalizer should be removed by the operator
-	cr, err := client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+	cr, err := client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -123,16 +123,16 @@ func deleteImageRegistryResource(client *Clientset) error {
 		return err
 	}
 	cr.Finalizers = nil
-	if _, err := client.ImageRegistries().Update(cr); err != nil {
+	if _, err := client.Configs().Update(cr); err != nil {
 		return err
 	}
 
 	if err := DeleteCompletely(
 		func() (metav1.Object, error) {
-			return client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+			return client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 		},
 		func(deleteOptions *metav1.DeleteOptions) error {
-			return client.ImageRegistries().Delete(ImageRegistryName, deleteOptions)
+			return client.Configs().Delete(ImageRegistryResourceName, deleteOptions)
 		},
 	); err != nil {
 		if errors.IsNotFound(err) {
@@ -165,10 +165,10 @@ func MustRemoveImageRegistry(t *testing.T, client *Clientset) {
 	}
 }
 
-func DeployImageRegistry(logger Logger, client *Clientset, cr *imageregistryapi.ImageRegistry) error {
+func DeployImageRegistry(logger Logger, client *Clientset, cr *imageregistryapi.Config) error {
 	if cr != nil {
 		logger.Logf("creating the image registry resource...")
-		if _, err := client.ImageRegistries().Create(cr); err != nil {
+		if _, err := client.Configs().Create(cr); err != nil {
 			return fmt.Errorf("unable to create the image registry resource: %s", err)
 		}
 	}
@@ -179,14 +179,14 @@ func DeployImageRegistry(logger Logger, client *Clientset, cr *imageregistryapi.
 	return nil
 }
 
-func MustDeployImageRegistry(t *testing.T, client *Clientset, cr *imageregistryapi.ImageRegistry) {
+func MustDeployImageRegistry(t *testing.T, client *Clientset, cr *imageregistryapi.Config) {
 	if err := DeployImageRegistry(t, client, cr); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func DumpImageRegistryResource(logger Logger, client *Clientset) {
-	cr, err := client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+	cr, err := client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		logger.Logf("unable to dump the image registry resource: %s", err)
 		return
@@ -194,10 +194,10 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 	DumpObject(logger, "the image registry resource", cr)
 }
 
-func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapi.ImageRegistry, error) {
-	var cr *imageregistryapi.ImageRegistry
+func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapi.Config, error) {
+	var cr *imageregistryapi.Config
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the registry: the resource does not exist")
 			cr = nil
@@ -218,7 +218,7 @@ func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imagereg
 	return cr, nil
 }
 
-func MustEnsureImageRegistryIsProcessed(t *testing.T, client *Clientset) *imageregistryapi.ImageRegistry {
+func MustEnsureImageRegistryIsProcessed(t *testing.T, client *Clientset) *imageregistryapi.Config {
 	cr, err := ensureImageRegistryIsProcessed(t, client)
 	if err != nil {
 		t.Fatal(err)
@@ -227,7 +227,7 @@ func MustEnsureImageRegistryIsProcessed(t *testing.T, client *Clientset) *imager
 }
 
 func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
-	logger.Logf("waiting the operator to deploy the registry...")
+	logger.Logf("waiting for the operator to deploy the registry...")
 
 	cr, err := ensureImageRegistryIsProcessed(logger, client)
 	if err != nil {
@@ -252,9 +252,9 @@ func MustEnsureImageRegistryIsAvailable(t *testing.T, client *Clientset) {
 }
 
 func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error {
-	var cr *imageregistryapi.ImageRegistry
+	var cr *imageregistryapi.Config
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.ImageRegistries().Get(ImageRegistryName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the registry: the resource does not exist")
 			cr = nil

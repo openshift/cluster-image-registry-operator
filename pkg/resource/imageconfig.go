@@ -22,7 +22,7 @@ type generatorImageConfig struct {
 	owner    metav1.OwnerReference
 }
 
-func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.ConfigV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorImageConfig {
+func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.ConfigV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorImageConfig {
 	return &generatorImageConfig{
 		lister:   lister,
 		client:   client,
