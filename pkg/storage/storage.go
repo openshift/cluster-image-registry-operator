@@ -36,31 +36,31 @@ type Driver interface {
 	UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage)
 }
 
-func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
+func newDriver(cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
 	var drivers []Driver
 
 	if cfg.Azure != nil {
-		drivers = append(drivers, azure.NewDriver(crname, crnamespace, cfg.Azure))
+		drivers = append(drivers, azure.NewDriver(cfg.Azure))
 	}
 
 	if cfg.Filesystem != nil && cfg.Filesystem.VolumeSource.EmptyDir == nil {
-		drivers = append(drivers, filesystem.NewDriver(crname, crnamespace, cfg.Filesystem))
+		drivers = append(drivers, filesystem.NewDriver(cfg.Filesystem))
 	}
 
 	if cfg.Filesystem != nil && cfg.Filesystem.VolumeSource.EmptyDir != nil {
-		drivers = append(drivers, emptydir.NewDriver(crname, crnamespace, cfg.Filesystem))
+		drivers = append(drivers, emptydir.NewDriver(cfg.Filesystem))
 	}
 
 	if cfg.GCS != nil {
-		drivers = append(drivers, gcs.NewDriver(crname, crnamespace, cfg.GCS))
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS))
 	}
 
 	if cfg.S3 != nil {
-		drivers = append(drivers, s3.NewDriver(crname, crnamespace, cfg.S3))
+		drivers = append(drivers, s3.NewDriver(cfg.S3))
 	}
 
 	if cfg.Swift != nil {
-		drivers = append(drivers, swift.NewDriver(crname, crnamespace, cfg.Swift))
+		drivers = append(drivers, swift.NewDriver(cfg.Swift))
 	}
 
 	switch len(drivers) {
@@ -78,8 +78,8 @@ func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
-func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
-	drv, err := newDriver(crname, crnamespace, cfg)
+func NewDriver(cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
+	drv, err := newDriver(cfg)
 	if err == ErrStorageNotConfigured {
 		storageType, err := getPlatformStorage()
 		if err != nil {
@@ -106,7 +106,7 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 			glog.Errorf("unknown storage backend: %s", storageType)
 			return nil, ErrStorageNotConfigured
 		}
-		return newDriver(crname, crnamespace, cfg)
+		return newDriver(cfg)
 	}
 	return drv, nil
 }

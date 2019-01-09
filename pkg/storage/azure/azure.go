@@ -9,15 +9,11 @@ import (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
 	Config    *opapi.ImageRegistryConfigStorageAzure
 }
 
-func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageAzure) *driver {
+func NewDriver(c *opapi.ImageRegistryConfigStorageAzure) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
 		Config:    c,
 	}
 }
@@ -43,7 +39,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
 				},
@@ -54,7 +50,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
 				},

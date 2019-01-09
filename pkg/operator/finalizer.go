@@ -55,7 +55,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 		return err
 	}
 
-	driver, err := storage.NewDriver(o.ObjectMeta.Name, o.ObjectMeta.Namespace, &o.Status.Storage)
+	driver, err := storage.NewDriver(&o.Status.Storage)
 	if err != nil {
 		return err
 	}

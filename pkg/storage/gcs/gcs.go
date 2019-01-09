@@ -19,15 +19,11 @@ import (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
 	Config    *opapi.ImageRegistryConfigStorageGCS
 }
 
-func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageGCS) *driver {
+func NewDriver(c *opapi.ImageRegistryConfigStorageGCS) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
 		Config:    c,
 	}
 }
@@ -84,7 +80,7 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 					{
 						Secret: &coreapi.SecretProjection{
 							LocalObjectReference: coreapi.LocalObjectReference{
-								Name: d.Name + "-private-configuration",
+								Name: opapi.ImageRegistryPrivateConfiguration,
 							},
 							Items: []coreapi.KeyToPath{
 								{

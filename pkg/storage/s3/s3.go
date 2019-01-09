@@ -29,8 +29,6 @@ var (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
 	Config    *opapi.ImageRegistryConfigStorageS3
 }
 
@@ -62,10 +60,8 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageS3) *driver {
+func NewDriver(c *opapi.ImageRegistryConfigStorageS3) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
 		Config:    c,
 	}
 }
@@ -94,7 +90,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_S3_ACCESSKEY",
 				},
@@ -105,7 +101,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_S3_SECRETKEY",
 				},

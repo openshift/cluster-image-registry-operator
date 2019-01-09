@@ -405,7 +405,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
-	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
 		t.Fatal("unable to create new s3 driver")
 	}

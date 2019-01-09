@@ -86,7 +86,7 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1.ImageReg
 func storageConfigure(crname string, crnamespace string, cfg *v1.ImageRegistryConfigStorage) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
 	var driver storage.Driver
 
-	driver, err = storage.NewDriver(crname, crnamespace, cfg)
+	driver, err = storage.NewDriver(cfg)
 	if err != nil {
 		return
 	}
