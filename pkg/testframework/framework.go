@@ -57,7 +57,7 @@ func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func
 		return err
 	}
 
-	return wait.Poll(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
+	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		obj, err = getObject()
 		if err != nil {
 			if errors.IsNotFound(err) {
