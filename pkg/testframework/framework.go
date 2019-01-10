@@ -15,7 +15,9 @@ var (
 	// AsyncOperationTimeout is how long we want to wait for asynchronous
 	// operations to complete. ForeverTestTimeout is not long enough to create
 	// several replicas and get them available on a slow machine.
-	AsyncOperationTimeout = 120 * time.Second
+	// Setting this to 5 minutes:w
+	
+	AsyncOperationTimeout = 5 * time.Minute
 )
 
 // Logger is an interface to report events from tests. It is implemented by

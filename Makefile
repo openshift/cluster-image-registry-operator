@@ -21,7 +21,7 @@ test-unit:
 	go test ./cmd/... ./pkg/...
 
 test-e2e:
-	GOCACHE=off go test -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
+	GOCACHE=off go test -timeout 20m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 
 verify:
 	hack/verify.sh
