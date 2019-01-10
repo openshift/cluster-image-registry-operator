@@ -63,6 +63,7 @@ spec:
                 fi
                 echo $f
                 ca_file_path="/tmp/serviceca/${f}"
+                f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
                 reg_dir_path="/etc/docker/certs.d/${f}"
                 if [ -e "${reg_dir_path}" ]; then
                     cp -u $ca_file_path $reg_dir_path/ca.crt
@@ -79,7 +80,8 @@ spec:
                 if [ "${d}" == "image-registry.openshift-image-registry.svc.cluster.local:5000" ]; then
                     continue
                 fi
-                reg_conf_path="/tmp/serviceca/${d}"
+                dp=$(echo $d | sed  -r 's/(.*):/\1\.\./')
+                reg_conf_path="/tmp/serviceca/${dp}"
                 if [ ! -e "${reg_conf_path}" ]; then
                     rm -rf /etc/docker/certs.d/$d
                 fi
