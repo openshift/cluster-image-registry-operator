@@ -325,7 +325,7 @@ storage:
 			},
 		},
 		TLS:          tls,
-		DefaultRoute: false,                                         // TODO
+		DefaultRoute: false,                                        // TODO
 		Routes:       []imageregistryv1.ImageRegistryConfigRoute{}, // TODO
 		Replicas:     dc.Spec.Replicas,
 	}, tlsSecret, nil

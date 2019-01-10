@@ -67,14 +67,14 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 	if deploy == nil {
-		operatorAvailableMsg = "deployment does not exist"
+		operatorAvailableMsg = "Deployment does not exist"
 	} else if deploy.DeletionTimestamp != nil {
-		operatorAvailableMsg = "deployment is being deleted"
+		operatorAvailableMsg = "Deployment is being deleted"
 	} else if !isDeploymentStatusAvailable(deploy) {
-		operatorAvailableMsg = "deployment does not have available replicas"
+		operatorAvailableMsg = "Deployment does not have available replicas"
 	} else {
 		operatorAvailable = osapi.ConditionTrue
-		operatorAvailableMsg = "deployment has minimum availability"
+		operatorAvailableMsg = "Deployment has minimum availability"
 	}
 
 	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
@@ -93,25 +93,25 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	operatorProgressingMsg := ""
 	if cr.Spec.ManagementState == operatorapi.Unmanaged {
 		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "unmanaged"
+		operatorProgressingMsg = "Unmanaged"
 	} else if removed {
 		if deploy != nil {
-			operatorProgressingMsg = "the deployment still exists"
+			operatorProgressingMsg = "The deployment still exists"
 		} else {
 			operatorProgressing = osapi.ConditionFalse
-			operatorProgressingMsg = "everything is removed"
+			operatorProgressingMsg = "Everything is removed"
 		}
 	} else if applyError != nil {
-		operatorProgressingMsg = fmt.Sprintf("unable to apply resources: %s", applyError)
+		operatorProgressingMsg = fmt.Sprintf("Unable to apply resources: %s", applyError)
 	} else if deploy == nil {
-		operatorProgressingMsg = "all resources are successfully applied, but the deployment does not exist"
+		operatorProgressingMsg = "All resources are successfully applied, but the deployment does not exist"
 	} else if deploy.DeletionTimestamp != nil {
-		operatorProgressingMsg = "the deployment is being deleted"
+		operatorProgressingMsg = "The deployment is being deleted"
 	} else if !isDeploymentStatusComplete(deploy) {
-		operatorProgressingMsg = "the deployment has not completed"
+		operatorProgressingMsg = "The deployment has not completed"
 	} else {
 		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "everything is ready"
+		operatorProgressingMsg = "Everything is ready"
 	}
 
 	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
@@ -149,7 +149,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	operatorRemovedMsg := ""
 	if removed {
 		operatorRemoved = osapi.ConditionTrue
-		operatorRemovedMsg = "the image registry is removed"
+		operatorRemovedMsg = "The image registry is removed"
 	}
 
 	updateCondition(cr, &operatorapi.OperatorCondition{
