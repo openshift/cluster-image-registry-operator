@@ -14,7 +14,7 @@ import (
 
 	appsapi "github.com/openshift/api/apps/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
 )
 
@@ -65,7 +65,7 @@ func TestNewImageRegistrySpecFromDeploymentConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			var expectedSpec imageregistryapi.ImageRegistrySpec
+			var expectedSpec imageregistryv1.ImageRegistrySpec
 			if err := resourceFromFile(&expectedSpec, "./testdata/"+testName+"/imageregistryspec.yaml"); err != nil {
 				t.Fatal(err)
 			}

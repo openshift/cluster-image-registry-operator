@@ -15,7 +15,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
@@ -31,7 +31,7 @@ func resourceName(namespace string) string {
 	if namespace == "default" {
 		return "docker-registry"
 	}
-	return regopapi.ImageRegistryResourceName
+	return imageregistryv1.ImageRegistryResourceName
 }
 
 func (c *Controller) Bootstrap() error {
@@ -55,7 +55,7 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("only one registry custom resource expected in %s namespace, got %d", c.params.Deployment.Namespace, len(crList))
 	}
 
-	var spec regopapi.ImageRegistrySpec
+	var spec imageregistryv1.ImageRegistrySpec
 
 	appsclient, err := appsset.NewForConfig(c.kubeconfig)
 	if err != nil {
@@ -64,10 +64,10 @@ func (c *Controller) Bootstrap() error {
 
 	dc, err := appsclient.DeploymentConfigs(c.params.Deployment.Namespace).Get(resourceName(c.params.Deployment.Namespace), metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		spec = regopapi.ImageRegistrySpec{
+		spec = imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
 			LogLevel:        2,
-			Storage:         regopapi.ImageRegistryConfigStorage{},
+			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
 			TLS:             true,
 			Replicas:        1,
 		}
@@ -101,14 +101,14 @@ func (c *Controller) Bootstrap() error {
 
 	glog.Infof("generating registry custom resource")
 
-	cr := &regopapi.Config{
+	cr := &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       resourceName(c.params.Deployment.Namespace),
 			Namespace:  c.params.Deployment.Namespace,
 			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec:   spec,
-		Status: regopapi.ImageRegistryStatus{},
+		Status: imageregistryv1.ImageRegistryStatus{},
 	}
 
 	if len(cr.Spec.HTTPSecret) == 0 {

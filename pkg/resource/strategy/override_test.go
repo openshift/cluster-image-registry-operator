@@ -5,11 +5,11 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 func TestOverride(t *testing.T) {
-	o := &imageregistryapi.Config{
+	o := &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "foo",
 			ResourceVersion: "12345",
@@ -17,11 +17,11 @@ func TestOverride(t *testing.T) {
 				"hello": "world",
 			},
 		},
-		Spec: imageregistryapi.ImageRegistrySpec{
+		Spec: imageregistryv1.ImageRegistrySpec{
 			HTTPSecret: "secret",
 		},
 	}
-	n := &imageregistryapi.Config{
+	n := &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
 			Annotations: map[string]string{
@@ -33,7 +33,7 @@ func TestOverride(t *testing.T) {
 				},
 			},
 		},
-		Spec: imageregistryapi.ImageRegistrySpec{
+		Spec: imageregistryv1.ImageRegistrySpec{
 			HTTPSecret: "new-secret",
 		},
 	}

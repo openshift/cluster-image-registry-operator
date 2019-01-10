@@ -7,7 +7,7 @@ import (
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 var _ Mutator = &generatorClusterRole{}
@@ -18,7 +18,7 @@ type generatorClusterRole struct {
 	owner  metav1.OwnerReference
 }
 
-func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *regopapi.Config) *generatorClusterRole {
+func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *imageregistryv1.Config) *generatorClusterRole {
 	return &generatorClusterRole{
 		lister: lister,
 		client: client,

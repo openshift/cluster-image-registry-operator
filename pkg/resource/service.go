@@ -10,7 +10,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
@@ -29,7 +29,7 @@ type generatorService struct {
 	owner      metav1.OwnerReference
 }
 
-func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorService {
+func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorService {
 	return &generatorService{
 		lister:     lister,
 		client:     client,
@@ -37,7 +37,7 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		namespace:  params.Deployment.Namespace,
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
-		secretName: regopapi.ImageRegistryName + "-tls",
+		secretName: imageregistryv1.ImageRegistryName + "-tls",
 		tls:        cr.Spec.TLS,
 		owner:      asOwner(cr),
 	}

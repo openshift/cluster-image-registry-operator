@@ -12,7 +12,7 @@ import (
 
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
@@ -111,7 +111,7 @@ func GetAWSConfig() (*Config, error) {
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := client.Secrets(regopapi.ImageRegistryOperatorNamespace).Get(regopapi.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
+	sec, err := client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		// If no user defined secret is found, use the system one
 		sec, err = client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
@@ -134,12 +134,12 @@ func GetAWSConfig() (*Config, error) {
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", regopapi.ImageRegistryOperatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
 		}
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", regopapi.ImageRegistryOperatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
 
 		}
 	}

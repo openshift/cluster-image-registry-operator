@@ -9,7 +9,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
@@ -18,14 +18,14 @@ func TestFailing(t *testing.T) {
 
 	defer testframework.MustRemoveImageRegistry(t, client)
 
-	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.Config{
+	testframework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapi.ImageRegistryResourceName,
+			Name: imageregistryv1.ImageRegistryResourceName,
 		},
-		Spec: imageregistryapi.ImageRegistrySpec{
+		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
-			Storage: imageregistryapi.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapi.ImageRegistryConfigStorageFilesystem{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				Filesystem: &imageregistryv1.ImageRegistryConfigStorageFilesystem{
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},

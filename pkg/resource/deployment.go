@@ -9,7 +9,7 @@ import (
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -22,10 +22,10 @@ type generatorDeployment struct {
 	coreClient      coreset.CoreV1Interface
 	client          appsset.AppsV1Interface
 	params          *parameters.Globals
-	cr              *regopapi.Config
+	cr              *imageregistryv1.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorDeployment {
+func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
 		lister:          lister,
 		configMapLister: configMapLister,
@@ -46,7 +46,7 @@ func (gd *generatorDeployment) GetNamespace() string {
 }
 
 func (gd *generatorDeployment) GetName() string {
-	return regopapi.ImageRegistryName
+	return imageregistryv1.ImageRegistryName
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {

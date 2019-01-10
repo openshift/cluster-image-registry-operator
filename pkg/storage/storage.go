@@ -8,7 +8,7 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
@@ -26,17 +26,17 @@ type Driver interface {
 	GetType() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
-	CompleteConfiguration(*opapi.Config, *bool) error
-	CreateStorage(*opapi.Config, *bool) error
-	StorageExists(*opapi.Config, *bool) (bool, error)
-	RemoveStorage(*opapi.Config, *bool) error
-	StorageChanged(*opapi.Config, *bool) bool
+	CompleteConfiguration(*imageregistryv1.Config, *bool) error
+	CreateStorage(*imageregistryv1.Config, *bool) error
+	StorageExists(*imageregistryv1.Config, *bool) (bool, error)
+	RemoveStorage(*imageregistryv1.Config, *bool) error
+	StorageChanged(*imageregistryv1.Config, *bool) bool
 	GetStorageName() string
 	SyncSecrets(*coreapi.Secret) (map[string]string, error)
-	UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage)
+	UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage)
 }
 
-func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
+func newDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
 	var drivers []Driver
 
 	if cfg.Azure != nil {
@@ -78,7 +78,7 @@ func newDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
-func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfigStorage) (Driver, error) {
+func NewDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
 	drv, err := newDriver(crname, crnamespace, cfg)
 	if err == ErrStorageNotConfigured {
 		storageType, err := getPlatformStorage()
@@ -87,21 +87,21 @@ func NewDriver(crname string, crnamespace string, cfg *opapi.ImageRegistryConfig
 		}
 		switch storageType {
 		case clusterconfig.StorageTypeAzure:
-			cfg.Azure = &opapi.ImageRegistryConfigStorageAzure{}
+			cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
 		case clusterconfig.StorageTypeFileSystem:
-			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{}
+			cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{}
 		case clusterconfig.StorageTypeEmptyDir:
-			cfg.Filesystem = &opapi.ImageRegistryConfigStorageFilesystem{
+			cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{
 				VolumeSource: corev1.VolumeSource{
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			}
 		case clusterconfig.StorageTypeGCS:
-			cfg.GCS = &opapi.ImageRegistryConfigStorageGCS{}
+			cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 		case clusterconfig.StorageTypeS3:
-			cfg.S3 = &opapi.ImageRegistryConfigStorageS3{}
+			cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 		case clusterconfig.StorageTypeSwift:
-			cfg.Swift = &opapi.ImageRegistryConfigStorageSwift{}
+			cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 		default:
 			glog.Errorf("unknown storage backend: %s", storageType)
 			return nil, ErrStorageNotConfigured

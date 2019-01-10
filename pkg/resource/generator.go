@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,9 +40,9 @@ type Generator struct {
 	params     *parameters.Globals
 }
 
-func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopapi.Config) []Mutator {
+func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *imageregistryv1.Config) []Mutator {
 	var mutators []Mutator
-	mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, regopapi.ImageRegistryConfigRoute{
+	mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
 		Name: cr.Name + "-default-route",
 	}))
 	for _, route := range cr.Spec.Routes {
@@ -51,7 +51,7 @@ func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *regopa
 	return mutators
 }
 
-func (g *Generator) list(cr *regopapi.Config) ([]Mutator, error) {
+func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	coreClient, err := coreset.NewForConfig(g.kubeconfig)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (g *Generator) list(cr *regopapi.Config) ([]Mutator, error) {
 // 2.)  to see if the storage medium name changed and we need to:
 //      a.) check to make sure that we can access the storage or
 //      b.) see if we need to try to create the new storage
-func (g *Generator) syncStorage(cr *regopapi.Config, modified *bool) error {
+func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) error {
 	var runCreate bool
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Spec.Storage)
@@ -130,16 +130,16 @@ func (g *Generator) syncStorage(cr *regopapi.Config, modified *bool) error {
 // 1.) user provided credentials in the image-registry-private-configuration-user secret
 // and updates the image-registry-private-configuration secret which provides
 // those credentials to the registry pod
-func (g *Generator) syncSecrets(cr *regopapi.Config, modified *bool) error {
+func (g *Generator) syncSecrets(cr *imageregistryv1.Config, modified *bool) error {
 	coreClient, err := clusterconfig.GetCoreClient()
 	if err != nil {
 		return err
 	}
 
 	// Get the existing image-registry-private-configuration secret
-	sec, err := coreClient.Secrets(g.params.Deployment.Namespace).Get(regopapi.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	sec, err := coreClient.Secrets(g.params.Deployment.Namespace).Get(imageregistryv1.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration), err)
+		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, imageregistryv1.ImageRegistryPrivateConfiguration), err)
 	}
 
 	// Create a driver with the current configuration
@@ -153,10 +153,10 @@ func (g *Generator) syncSecrets(cr *regopapi.Config, modified *bool) error {
 		return err
 	}
 	if data != nil {
-		glog.Infof("Updating secret %q with updated credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, regopapi.ImageRegistryPrivateConfiguration))
+		glog.Infof("Updating secret %q with updated credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, imageregistryv1.ImageRegistryPrivateConfiguration))
 
 		// Update the image-registry-private-configuration secret
-		_, err := util.CreateOrUpdateSecret(regopapi.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
+		_, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
 		if err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func (g *Generator) syncSecrets(cr *regopapi.Config, modified *bool) error {
 	return nil
 }
 
-func (g *Generator) removeObsoleteRoutes(cr *regopapi.Config, modified *bool) error {
+func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config, modified *bool) error {
 	routeClient, err := routeset.NewForConfig(g.kubeconfig)
 
 	if err != nil {
@@ -205,7 +205,7 @@ func (g *Generator) removeObsoleteRoutes(cr *regopapi.Config, modified *bool) er
 	return nil
 }
 
-func (g *Generator) Apply(cr *regopapi.Config, modified *bool) error {
+func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
@@ -262,7 +262,7 @@ func (g *Generator) Apply(cr *regopapi.Config, modified *bool) error {
 	return nil
 }
 
-func (g *Generator) Remove(cr *regopapi.Config, modified *bool) error {
+func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)

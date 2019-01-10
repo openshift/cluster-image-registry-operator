@@ -11,10 +11,10 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	osapi "github.com/openshift/api/config/v1"
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
-func updateCondition(cr *regopapi.Config, condition *operatorapi.OperatorCondition, modified *bool) {
+func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.OperatorCondition, modified *bool) {
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
 
@@ -63,7 +63,7 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
-func (c *Controller) syncStatus(cr *regopapi.Config, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
+func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 	if deploy == nil {
@@ -153,7 +153,7 @@ func (c *Controller) syncStatus(cr *regopapi.Config, deploy *appsapi.Deployment,
 	}
 
 	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               regopapi.OperatorStatusTypeRemoved,
+		Type:               imageregistryv1.OperatorStatusTypeRemoved,
 		Status:             operatorapi.ConditionStatus(operatorRemoved),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorRemovedMsg,

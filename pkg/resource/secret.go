@@ -7,7 +7,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
@@ -22,11 +22,11 @@ type generatorSecret struct {
 	owner     metav1.OwnerReference
 }
 
-func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorSecret {
+func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorSecret {
 	return &generatorSecret{
 		lister:    lister,
 		client:    client,
-		name:      regopapi.ImageRegistryPrivateConfiguration,
+		name:      imageregistryv1.ImageRegistryPrivateConfiguration,
 		namespace: params.Deployment.Namespace,
 		owner:     asOwner(cr),
 	}
@@ -41,7 +41,7 @@ func (gs *generatorSecret) GetNamespace() string {
 }
 
 func (gs *generatorSecret) GetName() string {
-	return regopapi.ImageRegistryName
+	return imageregistryv1.ImageRegistryName
 }
 
 func (gs *generatorSecret) expected() (*corev1.Secret, error) {
