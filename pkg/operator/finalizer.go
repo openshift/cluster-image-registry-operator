@@ -21,7 +21,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) RemoveResources(o *regopapi.Config) error {
 	modified := false
 
 	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
@@ -32,7 +32,7 @@ func (c *Controller) RemoveResources(o *regopapi.ImageRegistry) error {
 	return c.generator.Remove(o, &modified)
 }
 
-func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
+func (c *Controller) finalizeResources(o *regopapi.Config) error {
 	if o.ObjectMeta.DeletionTimestamp == nil {
 		return nil
 	}
@@ -63,7 +63,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
-			cr, err = client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
+			cr, err = client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get %s, retrying: %v", objectInfo(o), err)
 			}
@@ -76,7 +76,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 			return fmt.Errorf("unable to remove storage, retrying: %v", err)
 		}
 		if modified {
-			_, err := client.ImageRegistries().Update(o)
+			_, err := client.Configs().Update(o)
 			if err != nil {
 				return fmt.Errorf("unable to update %s, retrying: %v", objectInfo(o), err)
 			}
@@ -103,7 +103,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	cr = o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
-			cr, err := client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
+			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
 			}
@@ -117,7 +117,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 
 		cr.ObjectMeta.Finalizers = finalizers
 
-		_, err := client.ImageRegistries().Update(cr)
+		_, err := client.Configs().Update(cr)
 		if err != nil {
 			cr = nil
 			return err
@@ -141,7 +141,7 @@ func (c *Controller) finalizeResources(o *regopapi.ImageRegistry) error {
 	retryTime := 3 * time.Second
 
 	err = wait.PollInfinite(retryTime, func() (stop bool, err error) {
-		_, err = client.ImageRegistries().Get(o.Name, metav1.GetOptions{})
+		_, err = client.Configs().Get(o.Name, metav1.GetOptions{})
 		if err == nil {
 			return
 		}

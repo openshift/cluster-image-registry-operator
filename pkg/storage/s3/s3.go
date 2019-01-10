@@ -94,7 +94,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_S3_ACCESSKEY",
 				},
@@ -105,7 +105,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: opapi.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_S3_SECRETKEY",
 				},
@@ -199,7 +199,7 @@ func (d *driver) getBucketLocation(bucketName string) (string, error) {
 
 // StorageExists checks if an S3 bucket with the given name exists
 // and we can access it
-func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, error) {
+func (d *driver) StorageExists(cr *opapi.Config, modified *bool) (bool, error) {
 	if len(d.Config.Bucket) == 0 {
 		return false, nil
 	}
@@ -225,7 +225,7 @@ func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, e
 
 // StorageChanged checks to see if the name of the storage medium
 // has changed
-func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
+func (d *driver) StorageChanged(cr *opapi.Config, modified *bool) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.S3, cr.Spec.Storage.S3) {
 		util.UpdateCondition(cr, opapi.StorageExists, operatorapi.ConditionUnknown, "S3 Configuration Changed", "S3 storage is in an unknown state", modified)
 		return true
@@ -244,7 +244,7 @@ func (d *driver) GetStorageName() string {
 
 // CreateStorage attempts to create an s3 bucket
 // and apply any provided tags
-func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) CreateStorage(cr *opapi.Config, modified *bool) error {
 	svc, err := d.getS3Service()
 	if err != nil {
 		return err
@@ -287,7 +287,7 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", clusterconfig.StoragePrefix, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", opapi.ImageRegistryName, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 				generatedName = true
 			}
 
@@ -417,7 +417,7 @@ func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
 }
 
 // RemoveStorage deletes the storage medium that we created
-func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) RemoveStorage(cr *opapi.Config, modified *bool) error {
 	if !cr.Status.StorageManaged || len(d.Config.Bucket) == 0 {
 		return nil
 	}
@@ -450,7 +450,7 @@ func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
 
 }
 
-func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *opapi.Config, modified *bool) error {
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return err

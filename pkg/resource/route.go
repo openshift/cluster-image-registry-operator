@@ -26,7 +26,7 @@ type generatorRoute struct {
 	route        regopapi.ImageRegistryConfigRoute
 }
 
-func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry, route regopapi.ImageRegistryConfigRoute) *generatorRoute {
+func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *regopapi.Config, route regopapi.ImageRegistryConfigRoute) *generatorRoute {
 	return &generatorRoute{
 		lister:       lister,
 		secretLister: secretLister,

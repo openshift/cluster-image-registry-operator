@@ -22,11 +22,11 @@ type generatorSecret struct {
 	owner     metav1.OwnerReference
 }
 
-func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorSecret {
+func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorSecret {
 	return &generatorSecret{
 		lister:    lister,
 		client:    client,
-		name:      cr.Name + "-private-configuration",
+		name:      regopapi.ImageRegistryPrivateConfiguration,
 		namespace: params.Deployment.Namespace,
 		owner:     asOwner(cr),
 	}
@@ -41,7 +41,7 @@ func (gs *generatorSecret) GetNamespace() string {
 }
 
 func (gs *generatorSecret) GetName() string {
-	return gs.name
+	return regopapi.ImageRegistryName
 }
 
 func (gs *generatorSecret) expected() (*corev1.Secret, error) {

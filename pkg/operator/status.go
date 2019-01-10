@@ -14,7 +14,7 @@ import (
 	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
-func updateCondition(cr *regopapi.ImageRegistry, condition *operatorapi.OperatorCondition, modified *bool) {
+func updateCondition(cr *regopapi.Config, condition *operatorapi.OperatorCondition, modified *bool) {
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
 
@@ -63,7 +63,7 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
-func (c *Controller) syncStatus(cr *regopapi.ImageRegistry, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
+func (c *Controller) syncStatus(cr *regopapi.Config, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 	if deploy == nil {

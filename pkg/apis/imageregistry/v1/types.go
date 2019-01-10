@@ -11,23 +11,28 @@ import (
 
 const (
 	OperatorStatusTypeRemoved             = "Removed"
-	ImageRegistryPrivateConfiguration     = "image-registry-private-configuration"
+	ImageRegistryName                     = "image-registry"
+	ImageRegistryResourceName             = "instance"
+	ImageRegistryCertificatesName         = ImageRegistryName + "-certificates"
+	ImageRegistryPrivateConfiguration     = ImageRegistryName + "-private-configuration"
 	ImageRegistryPrivateConfigurationUser = ImageRegistryPrivateConfiguration + "-user"
+
+	ImageRegistryOperatorNamespace = "openshift-image-registry"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ImageRegistryList struct {
+type ConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-	Items           []ImageRegistry `json:"items"`
+	Items           []Config `json:"items"`
 }
 
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type ImageRegistry struct {
+type Config struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 	Spec              ImageRegistrySpec   `json:"spec"`

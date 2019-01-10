@@ -91,7 +91,7 @@ type generatorNodeCADaemonSet struct {
 	params   *parameters.Globals
 }
 
-func newGeneratorNodeCADaemonSet(lister appslisters.DaemonSetNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorNodeCADaemonSet {
+func newGeneratorNodeCADaemonSet(lister appslisters.DaemonSetNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorNodeCADaemonSet {
 	return &generatorNodeCADaemonSet{
 		lister:   lister,
 		client:   client,

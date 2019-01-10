@@ -21,7 +21,7 @@ type generatorClusterRoleBinding struct {
 	owner       metav1.OwnerReference
 }
 
-func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals, cr *regopapi.ImageRegistry) *generatorClusterRoleBinding {
+func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorClusterRoleBinding {
 	return &generatorClusterRoleBinding{
 		lister:      lister,
 		client:      client,

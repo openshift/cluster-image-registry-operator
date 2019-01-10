@@ -29,7 +29,7 @@ import (
 )
 
 // UpdateCondition will update or add the provided condition and updated the modified parameter if it changed the resource
-func UpdateCondition(cr *regopapi.ImageRegistry, conditionType string, status operatorapi.ConditionStatus, reason string, message string, modified *bool) {
+func UpdateCondition(cr *regopapi.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string, modified *bool) {
 	found := false
 	condition := &operatorapi.OperatorCondition{
 		Type:               conditionType,

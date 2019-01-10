@@ -17,8 +17,6 @@ import (
 )
 
 const (
-	StoragePrefix = "image-registry"
-
 	StorageTypeAzure      StorageType = "azure"
 	StorageTypeGCS        StorageType = "gcs"
 	StorageTypeS3         StorageType = "s3"
@@ -29,7 +27,6 @@ const (
 	installerConfigNamespace = "kube-system"
 	installerConfigName      = "cluster-config-v1"
 	installerAWSCredsName    = "aws-creds"
-	operatorNamespace        = "openshift-image-registry"
 )
 
 type StorageType string
@@ -114,7 +111,7 @@ func GetAWSConfig() (*Config, error) {
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := client.Secrets(operatorNamespace).Get(regopapi.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
+	sec, err := client.Secrets(regopapi.ImageRegistryOperatorNamespace).Get(regopapi.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		// If no user defined secret is found, use the system one
 		sec, err = client.Secrets(installerConfigNamespace).Get(installerAWSCredsName, metav1.GetOptions{})
@@ -137,12 +134,12 @@ func GetAWSConfig() (*Config, error) {
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", regopapi.ImageRegistryOperatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
 		}
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", operatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", regopapi.ImageRegistryOperatorNamespace, regopapi.ImageRegistryPrivateConfigurationUser))
 
 		}
 	}

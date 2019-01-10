@@ -11,7 +11,7 @@ import (
 
 type ImageregistryV1Interface interface {
 	RESTClient() rest.Interface
-	ImageRegistriesGetter
+	ConfigsGetter
 }
 
 // ImageregistryV1Client is used to interact with features provided by the imageregistry.operator.openshift.io group.
@@ -19,8 +19,8 @@ type ImageregistryV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ImageregistryV1Client) ImageRegistries() ImageRegistryInterface {
-	return newImageRegistries(c)
+func (c *ImageregistryV1Client) Configs() ConfigInterface {
+	return newConfigs(c)
 }
 
 // NewForConfig creates a new ImageregistryV1Client for the given config.

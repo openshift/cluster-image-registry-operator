@@ -12,8 +12,8 @@ type FakeImageregistryV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeImageregistryV1) ImageRegistries() v1.ImageRegistryInterface {
-	return &FakeImageRegistries{c}
+func (c *FakeImageregistryV1) Configs() v1.ConfigInterface {
+	return &FakeConfigs{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

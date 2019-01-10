@@ -17,7 +17,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
-func generateLogLevel(cr *v1.ImageRegistry) string {
+func generateLogLevel(cr *v1.Config) string {
 	switch cr.Spec.LogLevel {
 	case 0:
 		return "error"
@@ -29,18 +29,18 @@ func generateLogLevel(cr *v1.ImageRegistry) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateLivenessProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(cr, p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateReadinessProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
 	return generateProbeConfig(cr, p)
 }
 
-func generateProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
 	var scheme corev1.URIScheme
 	if cr.Spec.TLS {
 		scheme = corev1.URISchemeHTTPS
@@ -57,7 +57,7 @@ func generateProbeConfig(cr *v1.ImageRegistry, p *parameters.Globals) *corev1.Pr
 	}
 }
 
-func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1.ImageRegistry, namespace string) (*corev1.PodSecurityContext, error) {
+func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1.Config, namespace string) (*corev1.PodSecurityContext, error) {
 	ns, err := coreClient.Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func storageConfigure(crname string, crnamespace string, cfg *v1.ImageRegistryCo
 	return
 }
 
-func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.Globals, cr *v1.ImageRegistry) (corev1.PodTemplateSpec, *dependencies, error) {
+func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.Globals, cr *v1.Config) (corev1.PodTemplateSpec, *dependencies, error) {
 	env, volumes, mounts, err := storageConfigure(cr.Name, params.Deployment.Namespace, &cr.Spec.Storage)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
@@ -190,7 +190,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 						{
 							Secret: &corev1.SecretProjection{
 								LocalObjectReference: corev1.LocalObjectReference{
-									Name: cr.ObjectMeta.Name + "-tls",
+									Name: v1.ImageRegistryName + "-tls",
 								},
 							},
 						},
@@ -214,7 +214,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: cr.ObjectMeta.Name + "-certificates",
+					Name: v1.ImageRegistryCertificatesName,
 				},
 			},
 		},

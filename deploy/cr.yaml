@@ -1,8 +1,8 @@
 ---
 apiVersion: imageregistry.operator.openshift.io/v1
-kind: ImageRegistry
+kind: Config
 metadata:
-  name: image-registry
+  name: instance
   namespace: openshift-image-registry
   finalizers:
   - imageregistry.operator.openshift.io/finalizer

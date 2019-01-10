@@ -65,11 +65,11 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	return
 }
 
-func (d *driver) StorageExists(cr *opapi.ImageRegistry, modified *bool) (bool, error) {
+func (d *driver) StorageExists(cr *opapi.Config, modified *bool) (bool, error) {
 	return false, nil
 }
 
-func (d *driver) StorageChanged(cr *opapi.ImageRegistry, modified *bool) bool {
+func (d *driver) StorageChanged(cr *opapi.Config, modified *bool) bool {
 	return false
 }
 
@@ -77,11 +77,11 @@ func (d *driver) GetStorageName() string {
 	return ""
 }
 
-func (d *driver) CreateStorage(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) CreateStorage(cr *opapi.Config, modified *bool) error {
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) RemoveStorage(cr *opapi.Config, modified *bool) error {
 	if !cr.Status.StorageManaged {
 		return nil
 	}
@@ -93,6 +93,6 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-func (d *driver) CompleteConfiguration(cr *opapi.ImageRegistry, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *opapi.Config, modified *bool) error {
 	return nil
 }

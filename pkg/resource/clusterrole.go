@@ -18,7 +18,7 @@ type generatorClusterRole struct {
 	owner  metav1.OwnerReference
 }
 
-func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *regopapi.ImageRegistry) *generatorClusterRole {
+func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *regopapi.Config) *generatorClusterRole {
 	return &generatorClusterRole{
 		lister: lister,
 		client: client,

@@ -9,7 +9,7 @@ import (
 )
 
 func TestOverride(t *testing.T) {
-	o := &imageregistryapi.ImageRegistry{
+	o := &imageregistryapi.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "foo",
 			ResourceVersion: "12345",
@@ -21,7 +21,7 @@ func TestOverride(t *testing.T) {
 			HTTPSecret: "secret",
 		},
 	}
-	n := &imageregistryapi.ImageRegistry{
+	n := &imageregistryapi.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "foo",
 			Annotations: map[string]string{

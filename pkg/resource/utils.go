@@ -12,12 +12,12 @@ func addOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
 }
 
 // asOwner returns an OwnerReference set as the CR
-func asOwner(cr *v1.ImageRegistry) metav1.OwnerReference {
+func asOwner(cr *v1.Config) metav1.OwnerReference {
 	blockOwnerDeletion := true
 	isController := true
 	return metav1.OwnerReference{
 		APIVersion:         v1.SchemeGroupVersion.String(),
-		Kind:               "ImageRegistry",
+		Kind:               "Config",
 		Name:               cr.GetName(),
 		UID:                cr.GetUID(),
 		BlockOwnerDeletion: &blockOwnerDeletion,
