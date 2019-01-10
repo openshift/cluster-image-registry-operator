@@ -20,7 +20,7 @@ func TestFailing(t *testing.T) {
 
 	testframework.MustDeployImageRegistry(t, client, &imageregistryapi.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryResourceName,
+			Name: imageregistryapi.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,

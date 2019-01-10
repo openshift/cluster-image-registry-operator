@@ -28,7 +28,7 @@ func TestUnmanaged(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryResourceName,
+			Name: imageregistryapi.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -47,7 +47,7 @@ func TestUnmanaged(t *testing.T) {
 	var cr *imageregistryapi.Config
 	var err error
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cr, err = client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(imageregistryapi.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,13 +66,13 @@ func TestUnmanaged(t *testing.T) {
 
 	// TODO(dmage): wait for the resource to be observed
 
-	err = client.Deployments(testframework.ImageRegistryDeploymentNamespace).Delete(testframework.ImageRegistryDeploymentName, &metav1.DeleteOptions{})
+	err = client.Deployments(imageregistryapi.ImageRegistryOperatorNamespace).Delete(imageregistryapi.ImageRegistryName, &metav1.DeleteOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	err = wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(imageregistryapi.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}

@@ -26,7 +26,7 @@ func TestRecreateDeployment(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryResourceName,
+			Name: imageregistryapi.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -46,10 +46,10 @@ func TestRecreateDeployment(t *testing.T) {
 	t.Logf("deleting the image registry deployment...")
 	if err := testframework.DeleteCompletely(
 		func() (metav1.Object, error) {
-			return client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
+			return client.Deployments(imageregistryapi.ImageRegistryOperatorNamespace).Get(imageregistryapi.ImageRegistryName, metav1.GetOptions{})
 		},
 		func(deleteOptions *metav1.DeleteOptions) error {
-			return client.Deployments(testframework.ImageRegistryDeploymentNamespace).Delete(testframework.ImageRegistryDeploymentName, deleteOptions)
+			return client.Deployments(imageregistryapi.ImageRegistryOperatorNamespace).Delete(imageregistryapi.ImageRegistryName, deleteOptions)
 		},
 	); err != nil {
 		t.Fatalf("unable to delete the deployment: %s", err)
@@ -57,7 +57,7 @@ func TestRecreateDeployment(t *testing.T) {
 
 	t.Logf("waiting the operator to recreate the deployment...")
 	err := wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
+		_, err = client.Deployments(imageregistryapi.ImageRegistryOperatorNamespace).Get(imageregistryapi.ImageRegistryName, metav1.GetOptions{})
 		if err == nil {
 			return true, nil
 		}

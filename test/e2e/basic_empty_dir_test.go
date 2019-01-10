@@ -24,7 +24,7 @@ func TestBasicEmptyDir(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryResourceName,
+			Name: imageregistryapi.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapi.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -43,7 +43,7 @@ func TestBasicEmptyDir(t *testing.T) {
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
-	deploy, err := client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
+	deploy, err := client.Deployments(imageregistryapi.ImageRegistryOperatorNamespace).Get(imageregistryapi.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
