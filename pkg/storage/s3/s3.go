@@ -36,6 +36,7 @@ type driver struct {
 
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
+// Non destructive comment
 func (d *driver) getS3Service() (*s3.S3, error) {
 	if s3Service != nil {
 		return s3Service, nil
