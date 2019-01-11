@@ -437,10 +437,26 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error
 		return err
 	}
 
-	cr.Spec.Storage.S3.Bucket = ""
+	// Wait until the bucket does not exist
+	if err := svc.WaitUntilBucketNotExists(&s3.HeadBucketInput{
+		Bucket: aws.String(d.Config.Bucket),
+	}); err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, aerr.Code(), aerr.Error(), modified)
+		}
+
+		return err
+	}
+
+	if len(cr.Spec.Storage.S3.Bucket) != 0 {
+		cr.Spec.Storage.S3.Bucket = ""
+		*modified = true
+	}
+
 	d.Config.Bucket = ""
-	cr.Status.Storage.S3 = d.Config.DeepCopy()
-	if d.StorageChanged(cr, modified) {
+
+	if !reflect.DeepEqual(cr.Status.Storage.S3, d.Config) {
+		cr.Status.Storage.S3 = d.Config.DeepCopy()
 		*modified = true
 	}
 

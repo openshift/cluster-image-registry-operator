@@ -86,6 +86,7 @@ func (d *driver) GetStorageName() string {
 func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error {
 	if !reflect.DeepEqual(cr.Status.Storage.Filesystem, cr.Spec.Storage.Filesystem) {
 		cr.Status.Storage.Filesystem = d.Config.DeepCopy()
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created", modified)
 		*modified = true
 	}
 
