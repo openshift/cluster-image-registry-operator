@@ -65,6 +65,7 @@ func TestAWSDefaults(t *testing.T) {
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	testframework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {

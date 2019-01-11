@@ -1,10 +1,11 @@
 package e2e_test
 
 import (
-	"regexp"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -13,7 +14,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
-func TestBasicEmptyDir(t *testing.T) {
+func TestConfiguration(t *testing.T) {
 	client := testframework.MustNewClientset(t, nil)
 
 	defer testframework.MustRemoveImageRegistry(t, client)
@@ -36,37 +37,38 @@ func TestBasicEmptyDir(t *testing.T) {
 				},
 			},
 			Replicas: 1,
+			Resources: &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					"memory": resource.MustParse("512Mi"),
+				},
+			},
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/master": "",
+			},
 		},
 	}
 	testframework.MustDeployImageRegistry(t, client, cr)
 	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
-	testframework.MustEnsureOperatorIsNotHotLooping(t, client)
 
-	deploy, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
+	pods, err := client.Pods(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if deploy.Status.AvailableReplicas == 0 {
-		testframework.DumpObject(t, "deployment", deploy)
-		t.Errorf("error: the deployment doesn't have available replicas")
+	if len(pods.Items) == 0 {
+		t.Errorf("no pods found in registry namespace")
 	}
 
-	logs, err := testframework.GetOperatorLogs(client)
-	if err != nil {
-		t.Fatal(err)
+	for _, pod := range pods.Items {
+		if strings.HasPrefix(pod.Name, "image-registry") {
+			mem, ok := pod.Spec.Containers[0].Resources.Limits["memory"]
+			if !ok {
+				t.Errorf("no memory limit set on registry pod: %#v", pod)
+			}
+			if mem.String() != "512Mi" {
+				t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
+			}
+		}
 	}
-	badlogs := false
-	if !logs.Contains(regexp.MustCompile(`Cluster Image Registry Operator Version: .+`)) {
-		badlogs = true
-		t.Error("error: the log doesn't contain the operator's version")
-	}
-	if !logs.Contains(regexp.MustCompile(`status changed`)) {
-		badlogs = true
-		t.Error("error: the log doesn't contain changes")
-	}
-	if badlogs {
-		testframework.DumpPodLogs(t, logs)
-	}
+
 }

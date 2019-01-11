@@ -116,6 +116,12 @@ type ImageRegistrySpec struct {
 
 	// LogLevel determines the level of logging enabled in the registry
 	LogLevel int64 `json:"logging,omitempty"`
+
+	// Resources defines the resource requests+limits for the registry pod
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// NodeSelector defines the node selection constraints for the registry pod
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 }
 
 type ImageRegistryStatus struct {
