@@ -57,6 +57,35 @@ spec:
           fi
           while [ true ];
           do
+            for f in $(ls /tmp/serviceca); do
+                if [ "${f}" == "service-ca.crt" ]; then
+                    continue
+                fi
+                echo $f
+                ca_file_path="/tmp/serviceca/${f}"
+                f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
+                reg_dir_path="/etc/docker/certs.d/${f}"
+                if [ -e "${reg_dir_path}" ]; then
+                    cp -u $ca_file_path $reg_dir_path/ca.crt
+                else
+                    mkdir $reg_dir_path
+                    cp $ca_file_path $reg_dir_path/ca.crt
+                fi
+            done
+            for d in $(ls /etc/docker/certs.d); do
+                echo $d
+                if [ "${d}" == "image-registry.openshift-image-registry.svc:5000" ]; then
+                    continue
+                fi
+                if [ "${d}" == "image-registry.openshift-image-registry.svc.cluster.local:5000" ]; then
+                    continue
+                fi
+                dp=$(echo $d | sed  -r 's/(.*):/\1\.\./')
+                reg_conf_path="/tmp/serviceca/${dp}"
+                if [ ! -e "${reg_conf_path}" ]; then
+                    rm -rf /etc/docker/certs.d/$d
+                fi
+            done
             if [ -e /tmp/serviceca/service-ca.crt ]; then
               cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
               cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000
