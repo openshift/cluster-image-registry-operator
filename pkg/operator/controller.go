@@ -22,7 +22,7 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
@@ -62,9 +62,9 @@ func NewController(kubeconfig *restclient.Config, namespace string) (*Controller
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.Service.Name = regopapi.ImageRegistryName
+	p.Service.Name = imageregistryv1.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
-	p.CAConfig.Name = regopapi.ImageRegistryCertificatesName
+	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
 
 	listers := &regopclient.Listers{}
 	c := &Controller{
@@ -91,7 +91,7 @@ type Controller struct {
 	listers       *regopclient.Listers
 }
 
-func (c *Controller) createOrUpdateResources(cr *regopapi.Config, modified *bool) error {
+func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modified *bool) error {
 	appendFinalizer(cr, modified)
 
 	err := verifyResource(cr, &c.params)
@@ -107,7 +107,7 @@ func (c *Controller) createOrUpdateResources(cr *regopapi.Config, modified *bool
 	return nil
 }
 
-func (c *Controller) CreateOrUpdateResources(cr *regopapi.Config, modified *bool) error {
+func (c *Controller) CreateOrUpdateResources(cr *imageregistryv1.Config, modified *bool) error {
 	if cr.Spec.ManagementState != operatorapi.Managed {
 		return nil
 	}
@@ -156,11 +156,11 @@ func (c *Controller) sync() error {
 		glog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	deploy, err := c.listers.Deployments.Get(regopapi.ImageRegistryName)
+	deploy, err := c.listers.Deployments.Get(imageregistryv1.ImageRegistryName)
 	if errors.IsNotFound(err) {
 		deploy = nil
 	} else if err != nil {
-		return fmt.Errorf("failed to get %q deployment: %s", regopapi.ImageRegistryName, err)
+		return fmt.Errorf("failed to get %q deployment: %s", imageregistryv1.ImageRegistryName, err)
 	} else {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}

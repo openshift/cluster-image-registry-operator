@@ -15,7 +15,9 @@ var (
 	// AsyncOperationTimeout is how long we want to wait for asynchronous
 	// operations to complete. ForeverTestTimeout is not long enough to create
 	// several replicas and get them available on a slow machine.
-	AsyncOperationTimeout = 120 * time.Second
+	// Setting this to 5 minutes:w
+	
+	AsyncOperationTimeout = 5 * time.Minute
 )
 
 // Logger is an interface to report events from tests. It is implemented by
@@ -57,7 +59,7 @@ func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func
 		return err
 	}
 
-	return wait.Poll(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
+	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		obj, err = getObject()
 		if err != nil {
 			if errors.IsNotFound(err) {

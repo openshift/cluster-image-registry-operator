@@ -15,7 +15,7 @@ import (
 	appsapi "github.com/openshift/api/apps/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/migration/dependency"
 )
 
@@ -65,8 +65,8 @@ func migrateParameters(params map[string]interface{}, rules map[string]interface
 	return nil
 }
 
-func newImageRegistryConfigStorage(config *configuration.Configuration, dc *appsapi.DeploymentConfig, registry coreapi.Container) (imageregistryapi.ImageRegistryConfigStorage, error) {
-	var emptyConfig imageregistryapi.ImageRegistryConfigStorage
+func newImageRegistryConfigStorage(config *configuration.Configuration, dc *appsapi.DeploymentConfig, registry coreapi.Container) (imageregistryv1.ImageRegistryConfigStorage, error) {
+	var emptyConfig imageregistryv1.ImageRegistryConfigStorage
 
 	storageType := config.Storage.Type()
 	params := config.Storage.Parameters()
@@ -104,13 +104,13 @@ func newImageRegistryConfigStorage(config *configuration.Configuration, dc *apps
 			}
 		}
 
-		return imageregistryapi.ImageRegistryConfigStorage{
-			Filesystem: &imageregistryapi.ImageRegistryConfigStorageFilesystem{
+		return imageregistryv1.ImageRegistryConfigStorage{
+			Filesystem: &imageregistryv1.ImageRegistryConfigStorageFilesystem{
 				VolumeSource: volumeSource,
 			},
 		}, nil
 	case "s3":
-		storageS3 := &imageregistryapi.ImageRegistryConfigStorageS3{}
+		storageS3 := &imageregistryv1.ImageRegistryConfigStorageS3{}
 		err := migrateParameters(params, map[string]interface{}{
 			"bucket": func(bucket string, ok bool) error {
 				storageS3.Bucket = bucket
@@ -132,11 +132,11 @@ func newImageRegistryConfigStorage(config *configuration.Configuration, dc *apps
 		if err != nil {
 			return emptyConfig, fmt.Errorf("failed to migrate parameters for the storage %s: %s", storageType, err)
 		}
-		return imageregistryapi.ImageRegistryConfigStorage{
+		return imageregistryv1.ImageRegistryConfigStorage{
 			S3: storageS3,
 		}, nil
 	case "azure":
-		storageAzure := &imageregistryapi.ImageRegistryConfigStorageAzure{}
+		storageAzure := &imageregistryv1.ImageRegistryConfigStorageAzure{}
 		err := migrateParameters(params, map[string]interface{}{
 			"container": func(container string, ok bool) error {
 				storageAzure.Container = container
@@ -146,11 +146,11 @@ func newImageRegistryConfigStorage(config *configuration.Configuration, dc *apps
 		if err != nil {
 			return emptyConfig, fmt.Errorf("failed to migrate parameters for the storage %s: %s", storageType, err)
 		}
-		return imageregistryapi.ImageRegistryConfigStorage{
+		return imageregistryv1.ImageRegistryConfigStorage{
 			Azure: storageAzure,
 		}, nil
 	case "gcs":
-		storageGCS := &imageregistryapi.ImageRegistryConfigStorageGCS{}
+		storageGCS := &imageregistryv1.ImageRegistryConfigStorageGCS{}
 		err := migrateParameters(params, map[string]interface{}{
 			"bucket": func(bucket string, ok bool) error {
 				storageGCS.Bucket = bucket
@@ -160,11 +160,11 @@ func newImageRegistryConfigStorage(config *configuration.Configuration, dc *apps
 		if err != nil {
 			return emptyConfig, fmt.Errorf("failed to migrate parameters for the storage %s: %s", storageType, err)
 		}
-		return imageregistryapi.ImageRegistryConfigStorage{
+		return imageregistryv1.ImageRegistryConfigStorage{
 			GCS: storageGCS,
 		}, nil
 	case "swift":
-		storageSwift := &imageregistryapi.ImageRegistryConfigStorageSwift{}
+		storageSwift := &imageregistryv1.ImageRegistryConfigStorageSwift{}
 		err := migrateParameters(params, map[string]interface{}{
 			"authurl": func(authURL string, ok bool) error {
 				storageSwift.AuthURL = authURL
@@ -178,7 +178,7 @@ func newImageRegistryConfigStorage(config *configuration.Configuration, dc *apps
 		if err != nil {
 			return emptyConfig, fmt.Errorf("failed to migrate parameters for the storage %s: %s", storageType, err)
 		}
-		return imageregistryapi.ImageRegistryConfigStorage{
+		return imageregistryv1.ImageRegistryConfigStorage{
 			Swift: storageSwift,
 		}, nil
 	default:
@@ -221,11 +221,11 @@ func isEnvVarSupported(name string) bool {
 		name == "OPENSHIFT_DEFAULT_REGISTRY"
 }
 
-func NewImageRegistrySpecFromDeploymentConfig(dc *appsapi.DeploymentConfig, resources dependency.NamespacedResources) (imageregistryapi.ImageRegistrySpec, *coreapi.Secret, error) {
-	fail := func(format string, a ...interface{}) (imageregistryapi.ImageRegistrySpec, *coreapi.Secret, error) {
+func NewImageRegistrySpecFromDeploymentConfig(dc *appsapi.DeploymentConfig, resources dependency.NamespacedResources) (imageregistryv1.ImageRegistrySpec, *coreapi.Secret, error) {
+	fail := func(format string, a ...interface{}) (imageregistryv1.ImageRegistrySpec, *coreapi.Secret, error) {
 		format = "unable to create an image registry spec from the DeploymentConfig %s/%s: " + format
 		a = append([]interface{}{dc.Namespace, dc.Name}, a...)
-		return imageregistryapi.ImageRegistrySpec{}, nil, fmt.Errorf(format, a...)
+		return imageregistryv1.ImageRegistrySpec{}, nil, fmt.Errorf(format, a...)
 	}
 
 	containers := dc.Spec.Template.Spec.Containers
@@ -307,26 +307,26 @@ storage:
 		return fail("unable to process TLS configuration: %s", err)
 	}
 
-	return imageregistryapi.ImageRegistrySpec{
+	return imageregistryv1.ImageRegistrySpec{
 		ManagementState: operatorapi.Managed,
 		HTTPSecret:      config.HTTP.Secret,
-		Proxy:           imageregistryapi.ImageRegistryConfigProxy{}, // TODO
+		Proxy:           imageregistryv1.ImageRegistryConfigProxy{}, // TODO
 		Storage:         storage,
-		Requests: imageregistryapi.ImageRegistryConfigRequests{
-			Read: imageregistryapi.ImageRegistryConfigRequestsLimits{
+		Requests: imageregistryv1.ImageRegistryConfigRequests{
+			Read: imageregistryv1.ImageRegistryConfigRequestsLimits{
 				MaxRunning:     extraConfig.Requests.Read.MaxRunning,
 				MaxInQueue:     extraConfig.Requests.Read.MaxInQueue,
 				MaxWaitInQueue: extraConfig.Requests.Read.MaxWaitInQueue,
 			},
-			Write: imageregistryapi.ImageRegistryConfigRequestsLimits{
+			Write: imageregistryv1.ImageRegistryConfigRequestsLimits{
 				MaxRunning:     extraConfig.Requests.Write.MaxRunning,
 				MaxInQueue:     extraConfig.Requests.Write.MaxInQueue,
 				MaxWaitInQueue: extraConfig.Requests.Write.MaxWaitInQueue,
 			},
 		},
 		TLS:          tls,
-		DefaultRoute: false,                                         // TODO
-		Routes:       []imageregistryapi.ImageRegistryConfigRoute{}, // TODO
+		DefaultRoute: false,                                        // TODO
+		Routes:       []imageregistryv1.ImageRegistryConfigRoute{}, // TODO
 		Replicas:     dc.Spec.Replicas,
 	}, tlsSecret, nil
 }

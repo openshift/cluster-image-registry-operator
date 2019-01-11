@@ -14,14 +14,14 @@ import (
 
 	osapi "github.com/openshift/api/config/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func (c *Controller) RemoveResources(o *regopapi.Config) error {
+func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
 	modified := false
 
 	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
@@ -32,7 +32,7 @@ func (c *Controller) RemoveResources(o *regopapi.Config) error {
 	return c.generator.Remove(o, &modified)
 }
 
-func (c *Controller) finalizeResources(o *regopapi.Config) error {
+func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	if o.ObjectMeta.DeletionTimestamp == nil {
 		return nil
 	}

@@ -11,7 +11,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 
 	coreapi "k8s.io/api/core/v1"
@@ -29,7 +29,7 @@ import (
 )
 
 // UpdateCondition will update or add the provided condition and updated the modified parameter if it changed the resource
-func UpdateCondition(cr *regopapi.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string, modified *bool) {
+func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string, modified *bool) {
 	found := false
 	condition := &operatorapi.OperatorCondition{
 		Type:               conditionType,

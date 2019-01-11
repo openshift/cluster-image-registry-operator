@@ -12,7 +12,7 @@ import (
 
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -120,7 +120,7 @@ type generatorNodeCADaemonSet struct {
 	params   *parameters.Globals
 }
 
-func newGeneratorNodeCADaemonSet(lister appslisters.DaemonSetNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorNodeCADaemonSet {
+func newGeneratorNodeCADaemonSet(lister appslisters.DaemonSetNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorNodeCADaemonSet {
 	return &generatorNodeCADaemonSet{
 		lister:   lister,
 		client:   client,

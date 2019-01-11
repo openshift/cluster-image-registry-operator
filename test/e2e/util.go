@@ -10,6 +10,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
@@ -22,7 +23,7 @@ func conditionExistsWithStatusAndReason(client *testframework.Clientset, conditi
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := client.Configs().Get(testframework.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil

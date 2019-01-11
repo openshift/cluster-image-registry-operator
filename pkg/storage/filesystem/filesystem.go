@@ -4,7 +4,7 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
-	opapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
@@ -15,10 +15,10 @@ const (
 type driver struct {
 	Name      string
 	Namespace string
-	Config    *opapi.ImageRegistryConfigStorageFilesystem
+	Config    *imageregistryv1.ImageRegistryConfigStorageFilesystem
 }
 
-func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigStorageFilesystem) *driver {
+func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageFilesystem) *driver {
 	return &driver{
 		Name:      crname,
 		Namespace: crnamespace,
@@ -26,7 +26,7 @@ func NewDriver(crname string, crnamespace string, c *opapi.ImageRegistryConfigSt
 	}
 }
 
-func (d *driver) UpdateFromStorage(cfg opapi.ImageRegistryConfigStorage) {
+func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
 	d.Config = cfg.Filesystem.DeepCopy()
 }
 
@@ -61,11 +61,11 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
-func (d *driver) StorageExists(cr *opapi.Config, modified *bool) (bool, error) {
+func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool, error) {
 	return false, nil
 }
 
-func (d *driver) StorageChanged(cr *opapi.Config, modified *bool) bool {
+func (d *driver) StorageChanged(cr *imageregistryv1.Config, modified *bool) bool {
 	return false
 }
 
@@ -73,11 +73,11 @@ func (d *driver) GetStorageName() string {
 	return ""
 }
 
-func (d *driver) CreateStorage(cr *opapi.Config, modified *bool) error {
+func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error {
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *opapi.Config, modified *bool) error {
+func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error {
 	if !cr.Status.StorageManaged {
 		return nil
 	}
@@ -85,7 +85,7 @@ func (d *driver) RemoveStorage(cr *opapi.Config, modified *bool) error {
 	return nil
 }
 
-func (d *driver) CompleteConfiguration(cr *opapi.Config, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
 	cr.Status.Storage.Filesystem = d.Config.DeepCopy()
 	*modified = true
 	return nil

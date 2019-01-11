@@ -7,7 +7,7 @@ import (
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -21,7 +21,7 @@ type generatorClusterRoleBinding struct {
 	owner       metav1.OwnerReference
 }
 
-func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorClusterRoleBinding {
+func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorClusterRoleBinding {
 	return &generatorClusterRoleBinding{
 		lister:      lister,
 		client:      client,

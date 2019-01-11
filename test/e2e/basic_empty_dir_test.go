@@ -9,7 +9,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
@@ -18,18 +18,18 @@ func TestBasicEmptyDir(t *testing.T) {
 
 	defer testframework.MustRemoveImageRegistry(t, client)
 
-	cr := &imageregistryapi.Config{
+	cr := &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapi.SchemeGroupVersion.String(),
+			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: testframework.ImageRegistryResourceName,
+			Name: imageregistryv1.ImageRegistryResourceName,
 		},
-		Spec: imageregistryapi.ImageRegistrySpec{
+		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
-			Storage: imageregistryapi.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapi.ImageRegistryConfigStorageFilesystem{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				Filesystem: &imageregistryv1.ImageRegistryConfigStorageFilesystem{
 					VolumeSource: corev1.VolumeSource{
 						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
@@ -43,7 +43,7 @@ func TestBasicEmptyDir(t *testing.T) {
 	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
-	deploy, err := client.Deployments(testframework.ImageRegistryDeploymentNamespace).Get(testframework.ImageRegistryDeploymentName, metav1.GetOptions{})
+	deploy, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -22,7 +22,7 @@ type generatorImageConfig struct {
 	owner    metav1.OwnerReference
 }
 
-func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.ConfigV1Interface, params *parameters.Globals, cr *regopapi.Config) *generatorImageConfig {
+func newGeneratorImageConfig(lister configlisters.ImageLister, client configset.ConfigV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorImageConfig {
 	return &generatorImageConfig{
 		lister:   lister,
 		client:   client,

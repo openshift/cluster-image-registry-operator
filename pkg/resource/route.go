@@ -9,7 +9,7 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -23,10 +23,10 @@ type generatorRoute struct {
 	serviceName  string
 	tls          bool
 	owner        metav1.OwnerReference
-	route        regopapi.ImageRegistryConfigRoute
+	route        imageregistryv1.ImageRegistryConfigRoute
 }
 
-func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *regopapi.Config, route regopapi.ImageRegistryConfigRoute) *generatorRoute {
+func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *imageregistryv1.Config, route imageregistryv1.ImageRegistryConfigRoute) *generatorRoute {
 	return &generatorRoute{
 		lister:       lister,
 		secretLister: secretLister,

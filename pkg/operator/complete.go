@@ -3,11 +3,11 @@ package operator
 import (
 	"fmt"
 
-	regopapi "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func appendFinalizer(cr *regopapi.Config, modified *bool) {
+func appendFinalizer(cr *imageregistryv1.Config, modified *bool) {
 	for i := range cr.ObjectMeta.Finalizers {
 		if cr.ObjectMeta.Finalizers[i] == parameters.ImageRegistryOperatorResourceFinalizer {
 			return
@@ -18,13 +18,13 @@ func appendFinalizer(cr *regopapi.Config, modified *bool) {
 	*modified = true
 }
 
-func verifyResource(cr *regopapi.Config, p *parameters.Globals) error {
+func verifyResource(cr *imageregistryv1.Config, p *parameters.Globals) error {
 	if cr.Spec.Replicas < 0 {
 		return fmt.Errorf("replicas must be greater than or equal to 0")
 	}
 
 	names := map[string]struct{}{
-		regopapi.ImageRegistryName + "-default-route": {},
+		imageregistryv1.ImageRegistryName + "-default-route": {},
 	}
 
 	for _, routeSpec := range cr.Spec.Routes {
