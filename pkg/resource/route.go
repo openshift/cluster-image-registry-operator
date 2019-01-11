@@ -21,7 +21,6 @@ type generatorRoute struct {
 	client       routeset.RouteV1Interface
 	namespace    string
 	serviceName  string
-	tls          bool
 	owner        metav1.OwnerReference
 	route        imageregistryv1.ImageRegistryConfigRoute
 }
@@ -33,7 +32,6 @@ func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister co
 		client:       client,
 		namespace:    params.Deployment.Namespace,
 		serviceName:  params.Service.Name,
-		tls:          cr.Spec.TLS,
 		owner:        asOwner(cr),
 		route:        route,
 	}
@@ -67,11 +65,7 @@ func (gr *generatorRoute) expected() (runtime.Object, error) {
 	}
 
 	r.Spec.TLS = &routeapi.TLSConfig{}
-	if gr.tls {
-		r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
-	} else {
-		r.Spec.TLS.Termination = routeapi.TLSTerminationEdge
-	}
+	r.Spec.TLS.Termination = routeapi.TLSTerminationReencrypt
 
 	if len(gr.route.SecretName) > 0 {
 		secret, err := gr.secretLister.Get(gr.route.SecretName)

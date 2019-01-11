@@ -68,7 +68,6 @@ func (c *Controller) Bootstrap() error {
 			ManagementState: operatorapi.Managed,
 			LogLevel:        2,
 			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
-			TLS:             true,
 			Replicas:        1,
 		}
 	} else if err != nil {

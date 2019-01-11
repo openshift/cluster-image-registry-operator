@@ -25,7 +25,6 @@ type generatorService struct {
 	labels     map[string]string
 	port       int
 	secretName string
-	tls        bool
 	owner      metav1.OwnerReference
 }
 
@@ -38,7 +37,6 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
 		secretName: imageregistryv1.ImageRegistryName + "-tls",
-		tls:        cr.Spec.TLS,
 		owner:      asOwner(cr),
 	}
 }
@@ -75,10 +73,8 @@ func (gs *generatorService) expected() *corev1.Service {
 		},
 	}
 
-	if gs.tls {
-		svc.ObjectMeta.Annotations = map[string]string{
-			"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
-		}
+	svc.ObjectMeta.Annotations = map[string]string{
+		"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
 	}
 
 	addOwnerRefToObject(svc, gs.owner)
