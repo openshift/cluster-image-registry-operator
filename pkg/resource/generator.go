@@ -104,9 +104,7 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) erro
 		return err
 	}
 
-	if len(driver.GetStorageName()) == 0 {
-		runCreate = true
-	} else if driver.StorageChanged(cr, modified) {
+	if driver.StorageChanged(cr, modified) {
 		runCreate = true
 	} else {
 		exists, err := driver.StorageExists(cr, modified)

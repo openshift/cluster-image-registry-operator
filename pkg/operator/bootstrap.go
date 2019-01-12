@@ -125,7 +125,10 @@ func (c *Controller) Bootstrap() error {
 	}
 
 	modified := false
-	err = driver.CompleteConfiguration(cr, &modified)
+	err = nil
+	if driver != nil {
+		err = driver.CompleteConfiguration(cr, &modified)
+	}
 	_, cerr := client.Configs().Create(cr)
 	if cerr != nil {
 		return cerr
