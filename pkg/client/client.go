@@ -33,7 +33,7 @@ const (
 //
 // * $HOME/.kube/config if exists
 func GetConfig() (*rest.Config, error) {
-	// If an env variable is specified with the config locaiton, use that
+	// If an env variable is specified with the config location, use that
 	if len(os.Getenv("KUBECONFIG")) > 0 {
 		return clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
 	}
