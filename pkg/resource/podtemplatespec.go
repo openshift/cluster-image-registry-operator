@@ -41,15 +41,11 @@ func generateReadinessProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.
 }
 
 func generateProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
-	var scheme corev1.URIScheme
-	if cr.Spec.TLS {
-		scheme = corev1.URISchemeHTTPS
-	}
 	return &corev1.Probe{
 		TimeoutSeconds: int32(p.Healthz.TimeoutSeconds),
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Scheme: scheme,
+				Scheme: corev1.URISchemeHTTPS,
 				Path:   p.Healthz.Route,
 				Port:   intstr.FromInt(p.Container.Port),
 			},
@@ -180,36 +176,33 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
 
-	//TLS
-	if cr.Spec.TLS {
-		vol := corev1.Volume{
-			Name: "registry-tls",
-			VolumeSource: corev1.VolumeSource{
-				Projected: &corev1.ProjectedVolumeSource{
-					Sources: []corev1.VolumeProjection{
-						{
-							Secret: &corev1.SecretProjection{
-								LocalObjectReference: corev1.LocalObjectReference{
-									Name: v1.ImageRegistryName + "-tls",
-								},
+	vol := corev1.Volume{
+		Name: "registry-tls",
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						Secret: &corev1.SecretProjection{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: v1.ImageRegistryName + "-tls",
 							},
 						},
 					},
 				},
 			},
-		}
-		volumes = append(volumes, vol)
-		mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/secrets"})
-		deps.AddSecret(vol.VolumeSource.Projected.Sources[0].Secret.LocalObjectReference.Name)
-
-		env = append(env,
-			corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},
-			corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
-		)
+		},
 	}
+	volumes = append(volumes, vol)
+	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/secrets"})
+	deps.AddSecret(vol.VolumeSource.Projected.Sources[0].Secret.LocalObjectReference.Name)
+
+	env = append(env,
+		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
+	)
 
 	// Certificates
-	vol := corev1.Volume{
+	vol = corev1.Volume{
 		Name: "registry-certificates",
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{

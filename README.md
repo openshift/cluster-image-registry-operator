@@ -31,8 +31,6 @@ The image-registry resource offers the following configuration fields:
 * Requests
   * API Request Limit details
   * Controls how many parallel requests a given registry instance will handle before queuing additional requests
-* TLS
-  * Determines whether the registry service uses TLS encryption.  When set to true, service serving certs are used to provider the certificate.
 * DefaultRoute
   * Determines whether or not an external route is defined using the default hostname.  If enabled, the route uses re-encrypt encryption.
   * Defaults to false today
@@ -47,17 +45,14 @@ The image-registry resource offers the following configuration fields:
 
 In addition to the image-registry resource, additional config is provided to the operator via separate configmap + secret resources located within the openshift-image-registry namespace:
 
-### certs (configmap)
+### image-registry-certificates (configmap)
 
 Provides additional CAs for contacting upstream registries.  Mounted to `/etc/pki/ca-trust/source/anchors` in the registry pod.
 
-### image-registry-tls (secret)
+### image-registry-private-configuration-user (secret)
 
-Provides custom TLS certificates.  Mounted into the registry pod.  Providing this secret means service serving certificates are not used.
-
-### image-registry-private-configuration (secret)
-
-Provides credentials needed for storage management/access.
+Provides credentials needed for storage management/access, overrides the default
+credentials used by the operator, if default credentials were found.
 
 For S3 storage it is expected to contain two keys:
 * REGISTRY_STORAGE_S3_ACCESSKEY
@@ -69,15 +64,11 @@ The registry operator reports status in two places:
 
 A ClusterOperator resource is defined in the cluster scope which reflects the state of the registry operator at a high level.  Retrievable via:
 
-    oc get clusteroperators.operatorstatus.openshift.io/cluster-image-registry-operator -n openshift-image-registry -o yaml -n openshift-image-registry
-
-Note: this will soon change to:
-
     oc get clusteroperators.config.openshift.io/cluster-image-registry-operator -o yaml -n openshift-image-registry
 
 The image-registry resource itself has a status section with detailed conditions indicating the state of the managed registry, you can view this via:
 
-    oc get imageregistries.imageregistry.operator.openshift.io/image-registry  -o yaml -n openshift-image-registry
+    oc get configs.imageregistry.operator.openshift.io/instance  -o yaml -n openshift-image-registry
 
 
 **If you cannot access your registry, check the following:**
@@ -93,7 +84,7 @@ Is the registry deployed?  Check for a registry deployment + corresponding pod i
 
 **If there is no registry deployment, check the image-registry resource instance for any error conditions:**
 
-    oc get imageregistries.imageregistry.operator.openshift.io/image-registry -o yaml -n openshift-image-registry
+    oc get configs.imageregistry.operator.openshift.io/instance -o yaml -n openshift-image-registry
 
 **If there is no image-registry resource at all, check if the image-registry operator deployment exists:**
 

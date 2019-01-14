@@ -302,7 +302,8 @@ storage:
 		return fail("unable to make configuration for the storage: %s", err)
 	}
 
-	tls, tlsSecret, err := migrateTLS(config, podFileGetter)
+	//tls, tlsSecret, err := migrateTLS(config, podFileGetter)
+	_, tlsSecret, err := migrateTLS(config, podFileGetter)
 	if err != nil {
 		return fail("unable to process TLS configuration: %s", err)
 	}
@@ -324,7 +325,7 @@ storage:
 				MaxWaitInQueue: extraConfig.Requests.Write.MaxWaitInQueue,
 			},
 		},
-		TLS:          tls,
+		//TLS:          tls,
 		DefaultRoute: false,                                        // TODO
 		Routes:       []imageregistryv1.ImageRegistryConfigRoute{}, // TODO
 		Replicas:     dc.Spec.Replicas,
