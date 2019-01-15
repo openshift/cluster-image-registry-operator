@@ -42,9 +42,11 @@ type Generator struct {
 
 func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *imageregistryv1.Config) []Mutator {
 	var mutators []Mutator
-	mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
-		Name: cr.Name + "-default-route",
-	}))
+	if cr.Spec.DefaultRoute {
+		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
+			Name: cr.Name + "-default-route",
+		}))
+	}
 	for _, route := range cr.Spec.Routes {
 		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, route))
 	}
