@@ -46,7 +46,7 @@ func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *imager
 	var mutators []Mutator
 	if cr.Spec.DefaultRoute {
 		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, routeClient, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
-			Name: cr.Name + "-default-route",
+			Name: imageregistryv1.DefaultRouteName,
 		}))
 	}
 	for _, route := range cr.Spec.Routes {
@@ -87,7 +87,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.OpenShiftConfig, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, coreClient, g.params, cr))
-	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, configClient, g.params, cr))
+	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, configClient, g.params, cr))
 	mutators = append(mutators, newGeneratorNodeCADaemonSet(g.listers.DaemonSets, appsClient, g.params, cr))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, g.params, cr))
