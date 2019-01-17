@@ -127,6 +127,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_METRICS_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", params.Service.Name, params.Deployment.Namespace, params.Container.Port)},
 	)
