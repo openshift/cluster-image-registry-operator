@@ -16,9 +16,8 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
@@ -48,47 +47,11 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return nil
 	}
 
-	glog.Infof("finalizing %s", objectInfo(o))
+	glog.Infof("finalizing %s", util.ObjectInfo(o))
 
 	client, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
-	}
-
-	driver, err := storage.NewDriver(o.ObjectMeta.Name, o.ObjectMeta.Namespace, &o.Status.Storage)
-	if err != nil {
-		return err
-	}
-
-	cr := o
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		if cr == nil {
-			cr, err = client.Configs().Get(o.Name, metav1.GetOptions{})
-			if err != nil {
-				return fmt.Errorf("failed to get %s, retrying: %v", objectInfo(o), err)
-			}
-			driver.UpdateFromStorage(cr.Status.Storage)
-		}
-		modified := false
-
-		if err := driver.RemoveStorage(o, &modified); err != nil {
-			cr = nil
-			return fmt.Errorf("unable to remove storage, retrying: %v", err)
-		}
-		if modified {
-			_, err := client.Configs().Update(o)
-			if err != nil {
-				return fmt.Errorf("unable to update %s, retrying: %v", objectInfo(o), err)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove storage")
-		if errOp != nil {
-			glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
-		}
-		return fmt.Errorf("unable to finalize resource: %s", err)
 	}
 
 	err = c.RemoveResources(o)
@@ -100,12 +63,12 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return fmt.Errorf("unable to finalize resource: %s", err)
 	}
 
-	cr = o
+	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
 			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
+				return fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
 			}
 			finalizers = []string{}
 			for _, v := range cr.ObjectMeta.Finalizers {
@@ -125,7 +88,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("unable to update finalizers in %s: %s", objectInfo(o), err)
+		return fmt.Errorf("unable to update finalizers in %s: %s", util.ObjectInfo(o), err)
 	}
 
 	// These errors may indicate a transient error that we can retry in tests.
@@ -162,7 +125,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 				return false, nil
 			}
 
-			err = fmt.Errorf("failed to get %s: %s", objectInfo(o), err)
+			err = fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
 			return
 		}
 
@@ -170,7 +133,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("unable to wait for %s deletion: %s", objectInfo(o), err)
+		return fmt.Errorf("unable to wait for %s deletion: %s", util.ObjectInfo(o), err)
 	}
 
 	return nil

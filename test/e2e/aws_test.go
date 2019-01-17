@@ -16,7 +16,6 @@ package e2e
 
 import (
 	"fmt"
-	"k8s.io/client-go/util/retry"
 	"reflect"
 	"testing"
 	"time"
@@ -339,11 +338,12 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+	err = wait.PollImmediate(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
 		if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
-			return fmt.Errorf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser), err)
+			t.Logf("unable to create secret: %s", err)
+			return false, nil
 		}
-		return nil
+		return true, nil
 	})
 	if err != nil {
 		t.Fatal(err)
