@@ -338,79 +338,85 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
-	if ic.Platform.AWS != nil {
-		var tagSet []*s3.Tag
-		tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
-		for k, v := range ic.Platform.AWS.UserTags {
-			tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
-		}
-
-		_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
-			Bucket: aws.String(d.Config.Bucket),
-			Tagging: &s3.Tagging{
-				TagSet: tagSet,
-			},
-		})
-		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
-			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+	if cr.Status.StorageManaged {
+		if ic.Platform.AWS != nil {
+			var tagSet []*s3.Tag
+			tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
+			for k, v := range ic.Platform.AWS.UserTags {
+				tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
 			}
-		} else {
-			util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "UserTags were successfully applied to the S3 bucket", modified)
+
+			_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
+				Bucket: aws.String(d.Config.Bucket),
+				Tagging: &s3.Tagging{
+					TagSet: tagSet,
+				},
+			})
+			if err != nil {
+				if aerr, ok := err.(awserr.Error); ok {
+					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+				} else {
+					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+				}
+			} else {
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "UserTags were successfully applied to the S3 bucket", modified)
+			}
 		}
 	}
 
 	// Enable default encryption on the bucket
-	_, err = svc.PutBucketEncryption(&s3.PutBucketEncryptionInput{
-		Bucket: aws.String(d.Config.Bucket),
-		ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
-			Rules: []*s3.ServerSideEncryptionRule{
-				{
-					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+	if cr.Status.StorageManaged {
+		_, err = svc.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+			Bucket: aws.String(d.Config.Bucket),
+			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{
+					{
+						ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+							SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+						},
 					},
 				},
 			},
-		},
-	})
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+			} else {
+				util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+			}
 		} else {
-			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "Default encryption was successfully enabled on the S3 bucket", modified)
 		}
-	} else {
-		util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "Default encryption was successfully enabled on the S3 bucket", modified)
 	}
 
 	// Enable default incomplete multipart upload cleanup after one (1) day
-	_, err = svc.PutBucketLifecycleConfiguration(&s3.PutBucketLifecycleConfigurationInput{
-		Bucket: aws.String(d.Config.Bucket),
-		LifecycleConfiguration: &s3.BucketLifecycleConfiguration{
-			Rules: []*s3.LifecycleRule{
-				{
-					ID:     aws.String("cleanup-incomplete-multipart-registry-uploads"),
-					Status: aws.String("Enabled"),
-					Filter: &s3.LifecycleRuleFilter{
-						Prefix: aws.String(""),
-					},
-					AbortIncompleteMultipartUpload: &s3.AbortIncompleteMultipartUpload{
-						DaysAfterInitiation: aws.Int64(1),
+	if cr.Status.StorageManaged {
+		_, err = svc.PutBucketLifecycleConfiguration(&s3.PutBucketLifecycleConfigurationInput{
+			Bucket: aws.String(d.Config.Bucket),
+			LifecycleConfiguration: &s3.BucketLifecycleConfiguration{
+				Rules: []*s3.LifecycleRule{
+					{
+						ID:     aws.String("cleanup-incomplete-multipart-registry-uploads"),
+						Status: aws.String("Enabled"),
+						Filter: &s3.LifecycleRuleFilter{
+							Prefix: aws.String(""),
+						},
+						AbortIncompleteMultipartUpload: &s3.AbortIncompleteMultipartUpload{
+							DaysAfterInitiation: aws.Int64(1),
+						},
 					},
 				},
 			},
-		},
-	})
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
+			} else {
+				util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+			}
 		} else {
-			util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
+			util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful", "Default cleanup of incomplete multipart uploads after one (1) day was successfully enabled", modified)
 		}
-	} else {
-		util.UpdateCondition(cr, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful", "Default cleanup of incomplete multipart uploads after one (1) day was successfully enabled", modified)
 	}
 
 	return nil
