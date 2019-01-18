@@ -3,6 +3,8 @@ package resource
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"time"
 
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
@@ -23,7 +25,7 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	storageutil "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -156,7 +158,7 @@ func (g *Generator) syncSecrets(cr *imageregistryv1.Config, modified *bool) erro
 		glog.Infof("Updating secret %q with updated credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, imageregistryv1.ImageRegistryPrivateConfiguration))
 
 		// Update the image-registry-private-configuration secret
-		_, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
+		_, err := storageutil.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
 		if err != nil {
 			return err
 		}
@@ -283,6 +285,27 @@ func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
 		}
 		glog.Infof("object %s deleted", Name(gen))
 		*modified = true
+	}
+
+	driver, err := storage.NewDriver(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Status.Storage)
+	if err != nil {
+		return err
+	}
+
+	var derr error
+	var retriable bool
+	err = wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
+		if retriable, derr = driver.RemoveStorage(cr, modified); derr != nil {
+			if retriable {
+				return false, nil
+			} else {
+				return true, derr
+			}
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to remove storage: %s, %s", err, derr)
 	}
 
 	return nil

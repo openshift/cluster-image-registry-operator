@@ -29,6 +29,7 @@ import (
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 const (
@@ -168,7 +169,7 @@ func (c *Controller) sync() error {
 	c.syncStatus(cr, deploy, applyError, removed, &statusChanged)
 
 	if statusChanged {
-		glog.Infof("status changed: %s", objectInfo(cr))
+		glog.Infof("status changed: %s", util.ObjectInfo(cr))
 
 		cr.Status.ObservedGeneration = cr.Generation
 
@@ -180,7 +181,7 @@ func (c *Controller) sync() error {
 		_, err = client.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update %s: %s", objectInfo(cr), err)
+				glog.Errorf("unable to update %s: %s", util.ObjectInfo(cr), err)
 			}
 			return err
 		}
@@ -224,7 +225,7 @@ func (c *Controller) eventProcessor() {
 func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
-			glog.V(1).Infof("add event to workqueue due to %s (add)", objectInfo(o))
+			glog.V(1).Infof("add event to workqueue due to %s (add)", util.ObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
@@ -243,7 +244,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				// Two different versions of the same resource will always have different RVs.
 				return
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (update)", objectInfo(n))
+			glog.V(1).Infof("add event to workqueue due to %s (update)", util.ObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -261,7 +262,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				}
 				glog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (delete)", objectInfo(object))
+			glog.V(1).Infof("add event to workqueue due to %s (delete)", util.ObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
 	}

@@ -77,12 +77,12 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool, error) {
 	if !cr.Status.StorageManaged {
-		return nil
+		return false, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {

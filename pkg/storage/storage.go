@@ -29,7 +29,7 @@ type Driver interface {
 	CompleteConfiguration(*imageregistryv1.Config, *bool) error
 	CreateStorage(*imageregistryv1.Config, *bool) error
 	StorageExists(*imageregistryv1.Config, *bool) (bool, error)
-	RemoveStorage(*imageregistryv1.Config, *bool) error
+	RemoveStorage(*imageregistryv1.Config, *bool) (bool, error)
 	StorageChanged(*imageregistryv1.Config, *bool) bool
 	GetStorageName() string
 	SyncSecrets(*coreapi.Secret) (map[string]string, error)

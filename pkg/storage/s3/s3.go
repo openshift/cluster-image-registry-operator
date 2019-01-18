@@ -423,14 +423,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 }
 
 // RemoveStorage deletes the storage medium that we created
-func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool, error) {
 	if !cr.Status.StorageManaged || len(d.Config.Bucket) == 0 {
-		return nil
+		return false, nil
 	}
 
 	svc, err := d.getS3Service()
 	if err != nil {
-		return err
+		return false, err
 	}
 	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
@@ -439,8 +439,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, aerr.Code(), aerr.Error(), modified)
+			return false, err
 		}
-		return err
+		return true, err
 	}
 
 	// Wait until the bucket does not exist
@@ -451,7 +452,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, aerr.Code(), aerr.Error(), modified)
 		}
 
-		return err
+		return false, err
 	}
 
 	if len(cr.Spec.Storage.S3.Bucket) != 0 {
@@ -468,7 +469,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) error
 
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket has been removed.", modified)
 
-	return nil
+	return false, nil
 
 }
 
