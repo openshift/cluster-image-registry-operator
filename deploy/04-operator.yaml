@@ -29,6 +29,9 @@ spec:
           command:
           - cluster-image-registry-operator
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
           env:
             - name: WATCH_NAMESPACE
               valueFrom:
