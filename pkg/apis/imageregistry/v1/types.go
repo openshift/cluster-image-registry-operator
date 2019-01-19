@@ -11,6 +11,9 @@ import (
 
 const (
 
+	// DefaultRouteName is the name of the default route created for the registry
+	// when a default route is requested from the operator
+	DefaultRouteName = "default-route"
 	// ImageRegistryName is the name of the image-registry workload resource (deployment)
 	ImageRegistryName = "image-registry"
 

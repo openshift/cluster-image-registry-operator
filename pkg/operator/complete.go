@@ -24,7 +24,7 @@ func verifyResource(cr *imageregistryv1.Config, p *parameters.Globals) error {
 	}
 
 	names := map[string]struct{}{
-		imageregistryv1.ImageRegistryName + "-default-route": {},
+		imageregistryv1.DefaultRouteName: {},
 	}
 
 	for _, routeSpec := range cr.Spec.Routes {
