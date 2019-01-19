@@ -218,6 +218,16 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 
 	image := os.Getenv("IMAGE")
 
+	resources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("256Mi"),
+		},
+	}
+	if cr.Spec.Resources != nil {
+		resources = *cr.Spec.Resources
+	}
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: params.Deployment.Labels,
@@ -230,6 +240,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 					Effect:   "NoSchedule",
 				},
 			},
+			NodeSelector: cr.Spec.NodeSelector,
 			Containers: []corev1.Container{
 				{
 					Name:  "registry",
@@ -244,12 +255,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, params *parameters.
 					VolumeMounts:   mounts,
 					LivenessProbe:  generateLivenessProbeConfig(cr, params),
 					ReadinessProbe: generateReadinessProbeConfig(cr, params),
-					Resources: corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("100m"),
-							corev1.ResourceMemory: resource.MustParse("256Mi"),
-						},
-					},
+					Resources:      resources,
 				},
 			},
 			Volumes:            volumes,

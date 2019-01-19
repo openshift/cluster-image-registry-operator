@@ -342,3 +342,24 @@ func MustEnsureClusterOperatorStatusIsSet(t *testing.T, client *Clientset) {
 		t.Fatal(err)
 	}
 }
+
+func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
+	// Allow the operator a few seconds to stabilize
+	time.Sleep(15 * time.Second)
+	cfg, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+	if err != nil || cfg == nil {
+		t.Errorf("failed to retrieve registry operator config: %v", err)
+	}
+	oldVersion := cfg.ResourceVersion
+
+	// wait 15s and then ensure that ResourceVersion is not updated. If it was updated then something
+	// is updating the registry config resource when we should be at steady state.
+	time.Sleep(15 * time.Second)
+	cfg, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+	if err != nil || cfg == nil {
+		t.Errorf("failed to retrieve registry operator config: %v", err)
+	}
+	if oldVersion != cfg.ResourceVersion {
+		t.Errorf("registry config resource version was updated when it should have been stable, went from %s to %s", oldVersion, cfg.ResourceVersion)
+	}
+}
