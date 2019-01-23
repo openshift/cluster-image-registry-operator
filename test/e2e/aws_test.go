@@ -238,7 +238,7 @@ func TestAWSDefaults(t *testing.T) {
 	// exist in the image registry deployment and
 	// contain the correct values
 	awsEnvVars := []corev1.EnvVar{
-		{Name: "REGISTRY_STORAGE", Value: string(cfg.Storage.Type), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE", Value: "s3", ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(cr.Spec.Storage.S3.Bucket), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(cr.Spec.Storage.S3.Region), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
@@ -413,7 +413,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
-	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
 		t.Fatal("unable to create new s3 driver")
 	}

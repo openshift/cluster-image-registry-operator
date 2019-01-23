@@ -1,7 +1,6 @@
 package gcs
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -28,30 +27,16 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS) *driver {
 	}
 }
 
-// SyncSecrets checks if the storage access secrets have been updated
-// and returns a map of keys/data to update, or nil if they have not been
-func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
+// Secrets returns a storage access secrets.
+func (d *driver) Secrets() (map[string]string, error) {
 	cfg, err := clusterconfig.GetGCSConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the existing KeyFileData
-	var existingKeyfileData []byte
-	if v, ok := sec.Data["STORAGE_GCS_KEYFILE"]; ok {
-		existingKeyfileData = v
-	}
-
-	// Check if the existing SecretKey and AccessKey match what we got from the cluster or user configuration
-	if !bytes.Equal([]byte(cfg.Storage.GCS.KeyfileData), existingKeyfileData) {
-
-		data := map[string]string{
-			"STORAGE_GCS_KEYFILE": cfg.Storage.GCS.KeyfileData,
-		}
-		return data, nil
-
-	}
-	return nil, nil
+	return map[string]string{
+		"STORAGE_GCS_KEYFILE": cfg.Storage.GCS.KeyfileData,
+	}, nil
 }
 
 func (d *driver) ConfigEnv() (envs []coreapi.EnvVar, err error) {

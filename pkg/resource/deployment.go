@@ -11,6 +11,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorDeployment{}
@@ -21,17 +22,19 @@ type generatorDeployment struct {
 	secretLister    corelisters.SecretNamespaceLister
 	coreClient      coreset.CoreV1Interface
 	client          appsset.AppsV1Interface
+	driver          storage.Driver
 	params          *parameters.Globals
 	cr              *imageregistryv1.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
+func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
 		lister:          lister,
 		configMapLister: configMapLister,
 		secretLister:    secretLister,
 		coreClient:      coreClient,
 		client:          client,
+		driver:          driver,
 		params:          params,
 		cr:              cr,
 	}
@@ -50,7 +53,7 @@ func (gd *generatorDeployment) GetName() string {
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {
-	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.params, gd.cr)
+	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.driver, gd.params, gd.cr)
 	if err != nil {
 		return nil, err
 	}

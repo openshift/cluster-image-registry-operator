@@ -1,7 +1,6 @@
 package azure
 
 import (
-	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -17,7 +16,7 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageAzure) *driver {
 	}
 }
 
-func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
+func (d *driver) Secrets() (map[string]string, error) {
 	return nil, nil
 }
 
