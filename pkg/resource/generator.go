@@ -103,7 +103,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) error {
 	var runCreate bool
 	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (g *Generator) syncSecrets(cr *imageregistryv1.Config, modified *bool) erro
 	}
 
 	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(cr.Name, cr.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
 		*modified = true
 	}
 
-	driver, err := storage.NewDriver(cr.ObjectMeta.Name, cr.ObjectMeta.Namespace, &cr.Status.Storage)
+	driver, err := storage.NewDriver(&cr.Status.Storage)
 	if err != nil {
 		return err
 	}

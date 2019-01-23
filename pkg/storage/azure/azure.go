@@ -5,25 +5,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageAzure
+	Config *imageregistryv1.ImageRegistryConfigStorageAzure
 }
 
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageAzure) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageAzure) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
+		Config: c,
 	}
-}
-
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeAzure)
 }
 
 func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
@@ -32,14 +23,14 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
+		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "azure"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: d.Config.Container},
 		corev1.EnvVar{
 			Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME",
 				},
@@ -50,7 +41,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
 				},

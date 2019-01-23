@@ -19,21 +19,13 @@ import (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageGCS
+	Config *imageregistryv1.ImageRegistryConfigStorageGCS
 }
 
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageGCS) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
+		Config: c,
 	}
-}
-
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeGCS)
 }
 
 // SyncSecrets checks if the storage access secrets have been updated
@@ -64,7 +56,7 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 
 func (d *driver) ConfigEnv() (envs []coreapi.EnvVar, err error) {
 	envs = append(envs,
-		coreapi.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
+		coreapi.EnvVar{Name: "REGISTRY_STORAGE", Value: "gcs"},
 		coreapi.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: d.Config.Bucket},
 		coreapi.EnvVar{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile"},
 	)
@@ -80,7 +72,7 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 					{
 						Secret: &coreapi.SecretProjection{
 							LocalObjectReference: coreapi.LocalObjectReference{
-								Name: d.Name + "-private-configuration",
+								Name: imageregistryv1.ImageRegistryPrivateConfiguration,
 							},
 							Items: []coreapi.KeyToPath{
 								{

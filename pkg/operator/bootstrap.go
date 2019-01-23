@@ -118,7 +118,7 @@ func (c *Controller) Bootstrap() error {
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
 
-	driver, err := storage.NewDriver(cr.Name, c.params.Deployment.Namespace, &cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage)
 	if err != nil && err != storage.ErrStorageNotConfigured {
 		return err
 	}

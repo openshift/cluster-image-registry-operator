@@ -23,7 +23,6 @@ var (
 )
 
 type Driver interface {
-	GetType() string
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
 	CompleteConfiguration(*imageregistryv1.Config, *bool) error
@@ -34,31 +33,38 @@ type Driver interface {
 	SyncSecrets(*coreapi.Secret) (map[string]string, error)
 }
 
-func newDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
+func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
+	var names []string
 	var drivers []Driver
 
 	if cfg.Azure != nil {
-		drivers = append(drivers, azure.NewDriver(crname, crnamespace, cfg.Azure))
+		names = append(names, "Azure")
+		drivers = append(drivers, azure.NewDriver(cfg.Azure))
 	}
 
 	if cfg.Filesystem != nil && cfg.Filesystem.VolumeSource.EmptyDir == nil {
-		drivers = append(drivers, filesystem.NewDriver(crname, crnamespace, cfg.Filesystem))
+		names = append(names, "Filesystem")
+		drivers = append(drivers, filesystem.NewDriver(cfg.Filesystem))
 	}
 
 	if cfg.Filesystem != nil && cfg.Filesystem.VolumeSource.EmptyDir != nil {
-		drivers = append(drivers, emptydir.NewDriver(crname, crnamespace, cfg.Filesystem))
+		names = append(names, "Filesystem:EmptyDir")
+		drivers = append(drivers, emptydir.NewDriver(cfg.Filesystem))
 	}
 
 	if cfg.GCS != nil {
-		drivers = append(drivers, gcs.NewDriver(crname, crnamespace, cfg.GCS))
+		names = append(names, "GCS")
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS))
 	}
 
 	if cfg.S3 != nil {
-		drivers = append(drivers, s3.NewDriver(crname, crnamespace, cfg.S3))
+		names = append(names, "S3")
+		drivers = append(drivers, s3.NewDriver(cfg.S3))
 	}
 
 	if cfg.Swift != nil {
-		drivers = append(drivers, swift.NewDriver(crname, crnamespace, cfg.Swift))
+		names = append(names, "Swift")
+		drivers = append(drivers, swift.NewDriver(cfg.Swift))
 	}
 
 	switch len(drivers) {
@@ -68,67 +74,50 @@ func newDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegi
 		return drivers[0], nil
 	}
 
-	var names []string
-	for _, drv := range drivers {
-		names = append(names, drv.GetType())
-	}
-
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
-func NewDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
-	drv, err := newDriver(crname, crnamespace, cfg)
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {
+	drv, err := newDriver(cfg)
 	if err == ErrStorageNotConfigured {
-		storageType, err := getPlatformStorage()
-		if err != nil {
-			return nil, fmt.Errorf("unable to get storage type from cluster install config: %s", err)
+		*cfg, err = getPlatformStorage()
+		if err == ErrStorageNotConfigured {
+			glog.Errorf("unable to determine default storage configuration from cluster install config")
+			return nil, err
+		} else if err != nil {
+			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
-		switch storageType {
-		case clusterconfig.StorageTypeAzure:
-			cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
-		case clusterconfig.StorageTypeFileSystem:
-			cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{}
-		case clusterconfig.StorageTypeEmptyDir:
-			cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			}
-		case clusterconfig.StorageTypeGCS:
-			cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
-		case clusterconfig.StorageTypeS3:
-			cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-		case clusterconfig.StorageTypeSwift:
-			cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
-		default:
-			glog.Errorf("unknown storage backend: %s", storageType)
-			return nil, ErrStorageNotConfigured
-		}
-		return newDriver(crname, crnamespace, cfg)
+		return newDriver(cfg)
 	}
 	return drv, nil
 }
 
-// getPlatformStorage returns the storage type that should be used
-// based on the cloudplatform we are running on, as determined
-// from the installer configuration.
-func getPlatformStorage() (clusterconfig.StorageType, error) {
+// getPlatformStorage returns the storage configuration that should be used
+// based on the cloudplatform we are running on, as determined from the
+// installer configuration.
+func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
+	var cfg imageregistryv1.ImageRegistryConfigStorage
+
 	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
-		return "", err
+		return cfg, err
 	}
 
-	// if we can't determine what platform we're on, fallback to creating
-	// a PVC for the registry.
 	switch {
 	case installConfig.Platform.Libvirt != nil:
-		return clusterconfig.StorageTypeEmptyDir, nil
+		cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		}
 	case installConfig.Platform.AWS != nil:
-		return clusterconfig.StorageTypeS3, nil
-		// case installConfig.Platform.OpenStack != nil:
-		// 	return clusterconfig.StorageTypeSwift, nil
+		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	default:
-		//return clusterconfig.StorageTypeFileSystem, nil
-		return "", nil
+		// if we can't determine what platform we're on, fallback to creating
+		// a PVC for the registry.
+		// TODO: implement this idea
+		return cfg, nil
 	}
+
+	return cfg, nil
 }
