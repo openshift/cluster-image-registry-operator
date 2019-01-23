@@ -11,6 +11,7 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorCAConfig{}
@@ -35,7 +36,7 @@ func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConf
 		imageConfigName:       params.ImageConfig.Name,
 		name:                  params.CAConfig.Name,
 		namespace:             params.Deployment.Namespace,
-		owner:                 asOwner(cr),
+		owner:                 util.AsOwner(cr),
 	}
 }
 
@@ -81,7 +82,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
-	addOwnerRefToObject(cm, gcac.owner)
+	util.AddOwnerRefToObject(cm, gcac.owner)
 
 	return cm, nil
 }

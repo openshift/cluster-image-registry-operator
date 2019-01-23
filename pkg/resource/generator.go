@@ -171,6 +171,11 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 }
 
 func (g *Generator) Apply(cr *imageregistryv1.Config) error {
+	err := g.syncStorage(cr)
+	if err != nil {
+		return fmt.Errorf("unable to sync storage configuration: %s", err)
+	}
+
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
@@ -212,11 +217,6 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 	err = g.removeObsoleteRoutes(cr)
 	if err != nil {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
-	}
-
-	err = g.syncStorage(cr)
-	if err != nil {
-		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 
 	return nil

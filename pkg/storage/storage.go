@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/filesystem"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
 )
@@ -63,6 +64,15 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 	if cfg.Swift != nil {
 		names = append(names, "Swift")
 		drivers = append(drivers, swift.NewDriver(cfg.Swift, listers))
+	}
+
+	if cfg.PVC != nil {
+		drv, err := pvc.NewDriver(cfg.PVC)
+		if err != nil {
+			return nil, err
+		}
+		names = append(names, "PVC")
+		drivers = append(drivers, drv)
 	}
 
 	switch len(drivers) {
@@ -117,10 +127,7 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 			},
 		}
 	default:
-		// if we can't determine what platform we're on, fallback to creating
-		// a PVC for the registry.
-		// TODO: implement this idea
-		return cfg, nil
+		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{}
 	}
 
 	return cfg, nil

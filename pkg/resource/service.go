@@ -13,6 +13,7 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorService{}
@@ -37,7 +38,7 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
 		secretName: imageregistryv1.ImageRegistryName + "-tls",
-		owner:      asOwner(cr),
+		owner:      util.AsOwner(cr),
 	}
 }
 
@@ -77,7 +78,7 @@ func (gs *generatorService) expected() *corev1.Service {
 		"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
 	}
 
-	addOwnerRefToObject(svc, gs.owner)
+	util.AddOwnerRefToObject(svc, gs.owner)
 
 	return svc
 }

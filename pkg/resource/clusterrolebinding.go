@@ -9,6 +9,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorClusterRoleBinding{}
@@ -27,7 +28,7 @@ func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister,
 		client:      client,
 		saName:      params.Pod.ServiceAccount,
 		saNamespace: params.Deployment.Namespace,
-		owner:       asOwner(cr),
+		owner:       util.AsOwner(cr),
 	}
 }
 
@@ -65,7 +66,7 @@ func (gcrb *generatorClusterRoleBinding) expected() (runtime.Object, error) {
 		},
 	}
 
-	addOwnerRefToObject(crb, gcrb.owner)
+	util.AddOwnerRefToObject(crb, gcrb.owner)
 
 	return crb, nil
 }

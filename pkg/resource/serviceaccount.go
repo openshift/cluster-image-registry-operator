@@ -9,6 +9,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorServiceAccount{}
@@ -27,7 +28,7 @@ func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister
 		client:    client,
 		name:      params.Pod.ServiceAccount,
 		namespace: params.Deployment.Namespace,
-		owner:     asOwner(cr),
+		owner:     util.AsOwner(cr),
 	}
 }
 
@@ -51,7 +52,7 @@ func (gsa *generatorServiceAccount) expected() (runtime.Object, error) {
 		},
 	}
 
-	addOwnerRefToObject(sa, gsa.owner)
+	util.AddOwnerRefToObject(sa, gsa.owner)
 
 	return sa, nil
 }

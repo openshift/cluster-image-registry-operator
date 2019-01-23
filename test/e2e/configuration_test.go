@@ -39,7 +39,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 			Replicas: 1,
 			Resources: &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
-					"memory": resource.MustParse("512Mi"),
+					corev1.ResourceMemory: resource.MustParse("512Mi"),
 				},
 			},
 			NodeSelector: map[string]string{
@@ -61,9 +61,10 @@ func TestPodResourceConfiguration(t *testing.T) {
 
 	for _, deployment := range deployments.Items {
 		if strings.HasPrefix(deployment.Name, "image-registry") {
-			mem, ok := deployment.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
+			mem, ok := deployment.Spec.Template.Spec.Containers[0].Resources.Limits[corev1.ResourceMemory]
 			if !ok {
-				t.Errorf("no memory limit set on registry deployment: %#v", deployment)
+				framework.DumpYAML(t, "deployment", deployment)
+				t.Errorf("no memory limit set on registry deployment")
 			}
 			if mem.String() != "512Mi" {
 				t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
