@@ -31,9 +31,7 @@ type Driver interface {
 	StorageExists(*imageregistryv1.Config, *bool) (bool, error)
 	RemoveStorage(*imageregistryv1.Config, *bool) (bool, error)
 	StorageChanged(*imageregistryv1.Config, *bool) bool
-	GetStorageName() string
 	SyncSecrets(*coreapi.Secret) (map[string]string, error)
-	UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage)
 }
 
 func newDriver(crname string, crnamespace string, cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) {

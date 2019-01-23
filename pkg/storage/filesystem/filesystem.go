@@ -26,10 +26,6 @@ func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegist
 	}
 }
 
-func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
-	d.Config = cfg.Filesystem.DeepCopy()
-}
-
 func (d *driver) GetType() string {
 	return string(clusterconfig.StorageTypeFileSystem)
 }
@@ -67,10 +63,6 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config, modified *bool) bool {
 	return false
-}
-
-func (d *driver) GetStorageName() string {
-	return ""
 }
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error {

@@ -32,12 +32,12 @@ func (s *StatusHandler) Create() error {
 		return err
 	}
 
-	state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
+	_, err = client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 	if !errors.IsNotFound(err) {
 		return err
 	}
 
-	state = &osapi.ClusterOperator{
+	state := &osapi.ClusterOperator{
 		ObjectMeta: metaapi.ObjectMeta{
 			Name: s.Name,
 		},
