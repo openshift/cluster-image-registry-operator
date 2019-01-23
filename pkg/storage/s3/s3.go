@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -110,35 +108,17 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-// SyncSecrets checks if the storage access secrets have been updated
-// and returns a map of keys/data to update, or nil if they have not been
-func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
+// Secrets returns a map of the storage access secrets.
+func (d *driver) Secrets() (map[string]string, error) {
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the existing SecretKey and AccessKey
-	var existingAccessKey, existingSecretKey []byte
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
-		existingAccessKey = v
-	}
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
-		existingSecretKey = v
-	}
-
-	// Check if the existing SecretKey and AccessKey match what we got from the cluster or user configuration
-	if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
-
-		data := map[string]string{
-			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
-			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
-		}
-
-		return data, nil
-	}
-
-	return nil, nil
+	return map[string]string{
+		"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
+		"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+	}, nil
 }
 
 // bucketExists checks whether or not the s3 bucket exists

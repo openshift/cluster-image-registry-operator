@@ -3,9 +3,6 @@ package storage
 import (
 	"fmt"
 
-	"github.com/golang/glog"
-
-	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -25,13 +22,13 @@ var (
 type Driver interface {
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
+	Secrets() (map[string]string, error)
 	CompleteConfiguration(*imageregistryv1.Config, *bool) error
 	CreateStorage(*imageregistryv1.Config, *bool) error
 	StorageExists(*imageregistryv1.Config, *bool) (bool, error)
 	RemoveStorage(*imageregistryv1.Config, *bool) (bool, error)
 	StorageChanged(*imageregistryv1.Config, *bool) bool
 	GetStorageName() string
-	SyncSecrets(*coreapi.Secret) (map[string]string, error)
 	UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage)
 }
 
@@ -83,10 +80,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage) (Driver, error) 
 	drv, err := newDriver(cfg)
 	if err == ErrStorageNotConfigured {
 		*cfg, err = getPlatformStorage()
-		if err == ErrStorageNotConfigured {
-			glog.Errorf("unable to determine default storage configuration from cluster install config")
-			return nil, err
-		} else if err != nil {
+		if err != nil {
 			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
 		return newDriver(cfg)

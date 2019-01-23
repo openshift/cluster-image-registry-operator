@@ -2,9 +2,10 @@ package resource
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"time"
 
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
@@ -20,12 +21,9 @@ import (
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	storageutil "github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -81,16 +79,21 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 		return nil, err
 	}
 
+	driver, err := storage.NewDriver(&cr.Status.Storage)
+	if err != nil {
+		return nil, err
+	}
+
 	var mutators []Mutator
 	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, rbacClient, cr))
 	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, rbacClient, g.params, cr))
 	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.OpenShiftConfig, coreClient, g.params, cr))
-	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, coreClient, g.params, cr))
+	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, coreClient, driver, g.params, cr))
 	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, configClient, g.params, cr))
 	mutators = append(mutators, newGeneratorNodeCADaemonSet(g.listers.DaemonSets, appsClient, g.params, cr))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
-	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, g.params, cr))
+	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(routeClient, cr)...)
 	return mutators, nil
 }
@@ -125,45 +128,6 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) erro
 			return err
 		}
 	}
-	return nil
-}
-
-// syncSecrets checks to see if we have updated storage credentials from:
-// 1.) user provided credentials in the image-registry-private-configuration-user secret
-// and updates the image-registry-private-configuration secret which provides
-// those credentials to the registry pod
-func (g *Generator) syncSecrets(cr *imageregistryv1.Config, modified *bool) error {
-	coreClient, err := clusterconfig.GetCoreClient()
-	if err != nil {
-		return err
-	}
-
-	// Get the existing image-registry-private-configuration secret
-	sec, err := coreClient.Secrets(g.params.Deployment.Namespace).Get(imageregistryv1.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
-	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("unable to get secret %q: %v", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, imageregistryv1.ImageRegistryPrivateConfiguration), err)
-	}
-
-	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(&cr.Spec.Storage)
-	if err != nil {
-		return err
-	}
-
-	data, err := driver.SyncSecrets(sec)
-	if err != nil {
-		return err
-	}
-	if data != nil {
-		glog.Infof("Updating secret %q with updated credentials.", fmt.Sprintf("%s/%s", g.params.Deployment.Namespace, imageregistryv1.ImageRegistryPrivateConfiguration))
-
-		// Update the image-registry-private-configuration secret
-		_, err := storageutil.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfiguration, g.params.Deployment.Namespace, data)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -248,12 +212,6 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 	err = g.removeObsoleteRoutes(cr, modified)
 	if err != nil {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
-	}
-
-	// Make sure that we always sync secrets before we sync storage
-	err = g.syncSecrets(cr, modified)
-	if err != nil {
-		return fmt.Errorf("unable to sync secrets: %s", err)
 	}
 
 	err = g.syncStorage(cr, modified)
