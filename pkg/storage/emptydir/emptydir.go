@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
@@ -18,25 +17,17 @@ const (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageFilesystem
+	Config *imageregistryv1.ImageRegistryConfigStorageFilesystem
 }
 
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageFilesystem) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageFilesystem) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
+		Config: c,
 	}
 }
 
 func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
 	d.Config = cfg.Filesystem.DeepCopy()
-}
-
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeEmptyDir)
 }
 
 func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {

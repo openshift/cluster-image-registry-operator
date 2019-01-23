@@ -5,29 +5,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageSwift
+	Config *imageregistryv1.ImageRegistryConfigStorageSwift
 }
 
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageSwift) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageSwift) *driver {
 	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
+		Config: c,
 	}
 }
 
 func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
 	d.Config = cfg.Swift.DeepCopy()
-}
-
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeSwift)
 }
 
 func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
@@ -36,7 +27,7 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
+		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: d.Config.Container},
 		corev1.EnvVar{
@@ -44,7 +35,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
 				},
@@ -55,7 +46,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: d.Name + "-private-configuration",
+						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
 				},

@@ -29,9 +29,15 @@ var (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageS3
+	Config *imageregistryv1.ImageRegistryConfigStorageS3
+}
+
+// NewDriver creates a new s3 storage driver
+// Used during bootstrapping
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3) *driver {
+	return &driver{
+		Config: c,
+	}
 }
 
 // getS3Service returns a client that allows us to interact
@@ -60,31 +66,16 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 }
 
-// NewDriver creates a new s3 storage driver
-// Used during bootstrapping
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageS3) *driver {
-	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
-	}
-}
-
 // UpdateFromStorage updates the driver from an image registry resource
 func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
 	d.Config = cfg.S3.DeepCopy()
-}
-
-// GetType returns the type of the storage driver
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeS3)
 }
 
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
+		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint},

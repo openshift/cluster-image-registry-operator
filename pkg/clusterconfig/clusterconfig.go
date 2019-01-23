@@ -17,13 +17,6 @@ import (
 )
 
 const (
-	StorageTypeAzure      StorageType = "azure"
-	StorageTypeGCS        StorageType = "gcs"
-	StorageTypeS3         StorageType = "s3"
-	StorageTypeEmptyDir   StorageType = "emptydir"
-	StorageTypeFileSystem StorageType = "filesystem"
-	StorageTypeSwift      StorageType = "swift"
-
 	installerConfigNamespace = "kube-system"
 	installerConfigName      = "cluster-config-v1"
 	installerAWSCredsName    = "aws-creds"
@@ -50,7 +43,6 @@ type S3 struct {
 }
 
 type Storage struct {
-	Type  StorageType
 	Azure Azure
 	GCS   GCS
 	S3    S3
@@ -105,7 +97,6 @@ func GetAWSConfig() (*Config, error) {
 		return nil, err
 	}
 
-	cfg.Storage.Type = StorageTypeS3
 	if installConfig.Platform.AWS != nil {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 	}
@@ -149,6 +140,5 @@ func GetAWSConfig() (*Config, error) {
 
 func GetGCSConfig() (*Config, error) {
 	cfg := &Config{}
-	cfg.Storage.Type = StorageTypeGCS
 	return cfg, nil
 }
