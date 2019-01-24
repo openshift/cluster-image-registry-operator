@@ -43,7 +43,7 @@ func (gs *generatorSecret) GetNamespace() string {
 }
 
 func (gs *generatorSecret) GetName() string {
-	return imageregistryv1.ImageRegistryName
+	return gs.name
 }
 
 func (gs *generatorSecret) expected() (runtime.Object, error) {
