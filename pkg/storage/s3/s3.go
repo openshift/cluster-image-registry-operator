@@ -151,24 +151,21 @@ func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
 }
 
 // bucketExists checks whether or not the s3 bucket exists
-func (d *driver) bucketExists(bucketName string) (bool, error) {
+func (d *driver) bucketExists(bucketName string) error {
 	if len(bucketName) == 0 {
-		return false, nil
+		return nil
 	}
 
 	svc, err := d.getS3Service()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	_, err = svc.HeadBucket(&s3.HeadBucketInput{
 		Bucket: aws.String(bucketName),
 	})
-	if err != nil {
-		return false, err
-	}
 
-	return true, nil
+	return err
 }
 
 // getBucketLocation returns the region that the bucket exists in
@@ -204,22 +201,21 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool
 		return false, nil
 	}
 
-	bucketExists, err := d.bucketExists(d.Config.Bucket)
+	err := d.bucketExists(d.Config.Bucket)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error(), modified)
 				return false, nil
-			default:
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error(), modified)
-				return false, err
 			}
 		}
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error(), modified)
+		return false, err
 	}
 
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "", modified)
-	return bucketExists, nil
+	return true, nil
 
 }
 
@@ -264,7 +260,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 	// just update the config
 	var bucketExists bool
 	if len(d.Config.Bucket) != 0 {
-		bucketExists, err = d.bucketExists(d.Config.Bucket)
+		err = d.bucketExists(d.Config.Bucket)
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
@@ -275,8 +271,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error(), modified)
 					return err
 				}
+			} else {
+				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error(), modified)
+				return err
 			}
+		} else {
+			bucketExists = true
 		}
+
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		*cr.Status.Storage.S3 = *d.Config
@@ -438,6 +440,10 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool
 
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() == s3.ErrCodeNoSuchBucket {
+				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket did not exist.", modified)
+				return false, nil
+			}
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, aerr.Code(), aerr.Error(), modified)
 			return false, err
 		}
