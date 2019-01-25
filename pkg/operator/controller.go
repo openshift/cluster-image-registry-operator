@@ -108,14 +108,6 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modifie
 	return nil
 }
 
-func (c *Controller) CreateOrUpdateResources(cr *imageregistryv1.Config, modified *bool) error {
-	if cr.Spec.ManagementState != operatorapi.Managed {
-		return nil
-	}
-
-	return c.createOrUpdateResources(cr, modified)
-}
-
 func (c *Controller) sync() error {
 	cr, err := c.listers.ImageRegistry.Get(resourceName(c.params.Deployment.Namespace))
 	if err != nil {
@@ -138,7 +130,7 @@ func (c *Controller) sync() error {
 		applyError = c.RemoveResources(cr)
 		removed = true
 	case operatorapi.Managed:
-		applyError = c.CreateOrUpdateResources(cr, &statusChanged)
+		applyError = c.createOrUpdateResources(cr, &statusChanged)
 		if applyError == nil {
 			svc, err := c.listers.Services.Get(c.params.Service.Name)
 			if err == nil {

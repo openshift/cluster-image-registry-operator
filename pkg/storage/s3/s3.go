@@ -70,11 +70,6 @@ func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegist
 	}
 }
 
-// UpdateFromStorage updates the driver from an image registry resource
-func (d *driver) UpdateFromStorage(cfg imageregistryv1.ImageRegistryConfigStorage) {
-	d.Config = cfg.S3.DeepCopy()
-}
-
 // GetType returns the type of the storage driver
 func (d *driver) GetType() string {
 	return string(clusterconfig.StorageTypeS3)
@@ -168,32 +163,6 @@ func (d *driver) bucketExists(bucketName string) error {
 	return err
 }
 
-// getBucketLocation returns the region that the bucket exists in
-func (d *driver) getBucketLocation(bucketName string) (string, error) {
-	if len(bucketName) == 0 {
-		return "", fmt.Errorf("the bucket name is blank")
-	}
-
-	svc, err := d.getS3Service()
-	if err != nil {
-		return "", err
-	}
-	getBucketLocationResult, err := svc.GetBucketLocation(&s3.GetBucketLocationInput{
-		Bucket: aws.String(bucketName),
-	})
-	if err != nil {
-		return "", err
-	}
-
-	if *getBucketLocationResult.LocationConstraint == "" {
-		*getBucketLocationResult.LocationConstraint = "us-east-1"
-	} else if *getBucketLocationResult.LocationConstraint == "EU" {
-		*getBucketLocationResult.LocationConstraint = "eu-west-1"
-	}
-
-	return *getBucketLocationResult.LocationConstraint, nil
-}
-
 // StorageExists checks if an S3 bucket with the given name exists
 // and we can access it
 func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool, error) {
@@ -228,14 +197,6 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config, modified *bool) bool
 	}
 
 	return false
-}
-
-// GetStorageName returns the current storage bucket that we are using
-func (d *driver) GetStorageName() string {
-	if d.Config == nil {
-		return ""
-	}
-	return d.Config.Bucket
 }
 
 // CreateStorage attempts to create an s3 bucket
