@@ -143,7 +143,7 @@ func RemoveImageRegistry(logger Logger, client *Clientset) error {
 		return fmt.Errorf("unable to uninstall the image registry: %s", err)
 	}
 	logger.Logf("stopping the operator...")
-	if err := stopOperator(client); err != nil {
+	if err := stopOperator(logger, client); err != nil {
 		return fmt.Errorf("unable to stop the operator: %s", err)
 	}
 	logger.Logf("deleting the image registry resource...")
@@ -346,8 +346,17 @@ func MustEnsureClusterOperatorStatusIsSet(t *testing.T, client *Clientset) {
 func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	// Allow the operator a few seconds to stabilize
 	time.Sleep(15 * time.Second)
-	cfg, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
-	if err != nil || cfg == nil {
+	var cfg *imageregistryv1.Config
+	var err error
+	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
+		cfg, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		if err != nil || cfg == nil {
+			t.Logf("failed to retrieve registry operator config: %v", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if cfg == nil || err != nil {
 		t.Errorf("failed to retrieve registry operator config: %v", err)
 	}
 	oldVersion := cfg.ResourceVersion
@@ -355,8 +364,15 @@ func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	// wait 15s and then ensure that ResourceVersion is not updated. If it was updated then something
 	// is updating the registry config resource when we should be at steady state.
 	time.Sleep(15 * time.Second)
-	cfg, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
-	if err != nil || cfg == nil {
+	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
+		cfg, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		if err != nil || cfg == nil {
+			t.Logf("failed to retrieve registry operator config: %v", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if cfg == nil || err != nil {
 		t.Errorf("failed to retrieve registry operator config: %v", err)
 	}
 	if oldVersion != cfg.ResourceVersion {

@@ -1,6 +1,7 @@
 package testframework
 
 import (
+	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,9 +21,18 @@ func startOperator(client *Clientset) error {
 	return nil
 }
 
-func stopOperator(client *Clientset) error {
-	if _, err := client.Deployments(OperatorDeploymentNamespace).Patch(OperatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": "0"}}`)); err != nil {
-		return err
+func stopOperator(logger Logger, client *Clientset) error {
+	var err error
+	var realErr error
+	err = wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
+		if _, realErr = client.Deployments(OperatorDeploymentNamespace).Patch(OperatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": "0"}}`)); err != nil {
+			logger.Logf("failed to patch operator to zero replicas: %v", realErr)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to patch operator to zero replicas: %v", err)
 	}
 
 	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
