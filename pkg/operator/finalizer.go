@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -65,7 +66,9 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
-			cr, err := c.listers.RegistryConfigs.Get(o.Name)
+			// Skip using the cache here so we don't have as many
+			// retries due to slow cache updates
+			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
 			}

@@ -79,7 +79,9 @@ func CreateOrUpdateSecret(listers *regopclient.Listers, name string, namespace s
 	var updatedSecret *coreapi.Secret
 
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cur, err := listers.Secrets.Get(name)
+		// Skip using the cache here so we don't have as many
+		// retries due to slow cache updates
+		cur, err := client.Secrets(namespace).Get(name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return err
