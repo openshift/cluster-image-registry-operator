@@ -65,7 +65,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
-			cr, err := c.listers.Config.Get(o.Name)
+			cr, err := c.listers.RegistryConfigs.Get(o.Name)
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
 			}
@@ -103,7 +103,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	retryTime := 3 * time.Second
 
 	err = wait.PollInfinite(retryTime, func() (stop bool, err error) {
-		_, err = c.listers.Config.Get(o.Name)
+		_, err = c.listers.RegistryConfigs.Get(o.Name)
 		if err == nil {
 			return
 		}

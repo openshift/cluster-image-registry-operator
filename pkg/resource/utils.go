@@ -17,7 +17,7 @@ func asOwner(cr *v1.Config) metav1.OwnerReference {
 	isController := true
 	return metav1.OwnerReference{
 		APIVersion:         v1.SchemeGroupVersion.String(),
-		Kind:               "Config",
+		Kind:               "RegistryConfigs",
 		Name:               cr.GetName(),
 		UID:                cr.GetUID(),
 		BlockOwnerDeletion: &blockOwnerDeletion,

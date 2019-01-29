@@ -27,14 +27,14 @@ type configInformer struct {
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewConfigInformer constructs a new informer for Config type.
+// NewConfigInformer constructs a new informer for RegistryConfigs type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewFilteredConfigInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredConfigInformer constructs a new informer for Config type.
+// NewFilteredConfigInformer constructs a new informer for RegistryConfigs type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredConfigInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {

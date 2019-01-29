@@ -23,7 +23,7 @@ func TestRecreateDeployment(t *testing.T) {
 	cr := &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+			Kind:       "RegistryConfigs",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: imageregistryv1.ImageRegistryResourceName,

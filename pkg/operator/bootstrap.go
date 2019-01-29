@@ -38,7 +38,7 @@ func (c *Controller) Bootstrap() error {
 	if err != nil {
 		return err
 	}
-	crList, err := c.listers.Config.List(labels.Everything())
+	crList, err := c.listers.RegistryConfigs.List(labels.Everything())
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to list registry custom resources: %s", err)

@@ -24,7 +24,7 @@ type Listers struct {
 	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
 	OpenShiftConfig     kcorelisters.ConfigMapNamespaceLister
 	ImageConfigs        configlisters.ImageLister
-	Config              regoplisters.ConfigLister
+	RegistryConfigs     regoplisters.ConfigLister
 	InstallerSecrets    kcorelisters.SecretNamespaceLister
 	DeploymentConfigs   appslisters.DeploymentConfigNamespaceLister
 }

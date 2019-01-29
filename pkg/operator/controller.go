@@ -112,7 +112,7 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modifie
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.listers.Config.Get(resourceName(c.params.Deployment.Namespace))
+	cr, err := c.listers.RegistryConfigs.Get(resourceName(c.params.Deployment.Namespace))
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
@@ -363,7 +363,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		},
 		func() cache.SharedIndexInformer {
 			informer := regopInformerFactory.Imageregistry().V1().Configs()
-			c.listers.Config = informer.Lister()
+			c.listers.RegistryConfigs = informer.Lister()
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {

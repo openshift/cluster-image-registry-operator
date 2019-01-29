@@ -19,7 +19,7 @@ type FakeConfigs struct {
 
 var configsResource = schema.GroupVersionResource{Group: "imageregistry.operator.openshift.io", Version: "v1", Resource: "configs"}
 
-var configsKind = schema.GroupVersionKind{Group: "imageregistry.operator.openshift.io", Version: "v1", Kind: "Config"}
+var configsKind = schema.GroupVersionKind{Group: "imageregistry.operator.openshift.io", Version: "v1", Kind: "RegistryConfigs"}
 
 // Get takes name of the config, and returns the corresponding config object, and an error if there is any.
 func (c *FakeConfigs) Get(name string, options v1.GetOptions) (result *imageregistryv1.Config, err error) {
