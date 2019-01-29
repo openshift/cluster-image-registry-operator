@@ -196,6 +196,9 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 
 			updated, err := gen.Update(o.DeepCopyObject())
 			if err != nil {
+				if errors.IsConflict(err) {
+					return err
+				}
 				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
 			}
 			if updated {
