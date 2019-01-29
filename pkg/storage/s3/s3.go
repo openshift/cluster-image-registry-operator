@@ -1,7 +1,6 @@
 package s3
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"strings"
@@ -14,7 +13,6 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	coreapi "k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -29,9 +27,15 @@ var (
 )
 
 type driver struct {
-	Name      string
-	Namespace string
-	Config    *imageregistryv1.ImageRegistryConfigStorageS3
+	Config *imageregistryv1.ImageRegistryConfigStorageS3
+}
+
+// NewDriver creates a new s3 storage driver
+// Used during bootstrapping
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3) *driver {
+	return &driver{
+		Config: c,
+	}
 }
 
 // getS3Service returns a client that allows us to interact
@@ -60,26 +64,11 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 }
 
-// NewDriver creates a new s3 storage driver
-// Used during bootstrapping
-func NewDriver(crname string, crnamespace string, c *imageregistryv1.ImageRegistryConfigStorageS3) *driver {
-	return &driver{
-		Name:      crname,
-		Namespace: crnamespace,
-		Config:    c,
-	}
-}
-
-// GetType returns the type of the storage driver
-func (d *driver) GetType() string {
-	return string(clusterconfig.StorageTypeS3)
-}
-
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: d.GetType()},
+		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint},
@@ -114,35 +103,17 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-// SyncSecrets checks if the storage access secrets have been updated
-// and returns a map of keys/data to update, or nil if they have not been
-func (d *driver) SyncSecrets(sec *coreapi.Secret) (map[string]string, error) {
+// Secrets returns a map of the storage access secrets.
+func (d *driver) Secrets() (map[string]string, error) {
 	cfg, err := clusterconfig.GetAWSConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the existing SecretKey and AccessKey
-	var existingAccessKey, existingSecretKey []byte
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
-		existingAccessKey = v
-	}
-	if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
-		existingSecretKey = v
-	}
-
-	// Check if the existing SecretKey and AccessKey match what we got from the cluster or user configuration
-	if !bytes.Equal([]byte(cfg.Storage.S3.AccessKey), existingAccessKey) || !bytes.Equal([]byte(cfg.Storage.S3.SecretKey), existingSecretKey) {
-
-		data := map[string]string{
-			"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
-			"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
-		}
-
-		return data, nil
-	}
-
-	return nil, nil
+	return map[string]string{
+		"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
+		"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+	}, nil
 }
 
 // bucketExists checks whether or not the s3 bucket exists

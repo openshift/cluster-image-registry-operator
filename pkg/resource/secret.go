@@ -9,7 +9,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorSecret{}
@@ -17,15 +17,17 @@ var _ Mutator = &generatorSecret{}
 type generatorSecret struct {
 	lister    corelisters.SecretNamespaceLister
 	client    coreset.CoreV1Interface
+	driver    storage.Driver
 	name      string
 	namespace string
 	owner     metav1.OwnerReference
 }
 
-func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorSecret {
+func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorSecret {
 	return &generatorSecret{
 		lister:    lister,
 		client:    client,
+		driver:    driver,
 		name:      imageregistryv1.ImageRegistryPrivateConfiguration,
 		namespace: params.Deployment.Namespace,
 		owner:     asOwner(cr),
@@ -41,16 +43,23 @@ func (gs *generatorSecret) GetNamespace() string {
 }
 
 func (gs *generatorSecret) GetName() string {
-	return imageregistryv1.ImageRegistryName
+	return gs.name
 }
 
-func (gs *generatorSecret) expected() (*corev1.Secret, error) {
+func (gs *generatorSecret) expected() (runtime.Object, error) {
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gs.GetName(),
 			Namespace: gs.GetNamespace(),
 		},
 	}
+
+	data, err := gs.driver.Secrets()
+	if err != nil {
+		return nil, err
+	}
+
+	sec.StringData = data
 
 	addOwnerRefToObject(sec, gs.owner)
 
@@ -62,30 +71,15 @@ func (gs *generatorSecret) Get() (runtime.Object, error) {
 }
 
 func (gs *generatorSecret) Create() error {
-	sec, err := gs.expected()
-	if err != nil {
-		return err
-	}
-
-	_, err = gs.client.Secrets(gs.GetNamespace()).Create(sec)
-	return err
+	return commonCreate(gs, func(obj runtime.Object) (runtime.Object, error) {
+		return gs.client.Secrets(gs.GetNamespace()).Create(obj.(*corev1.Secret))
+	})
 }
 
 func (gs *generatorSecret) Update(o runtime.Object) (bool, error) {
-	sec := o.(*corev1.Secret)
-
-	n, err := gs.expected()
-	if err != nil {
-		return false, err
-	}
-
-	updated := strategy.Metadata(&sec.ObjectMeta, &n.ObjectMeta)
-	if !updated {
-		return false, nil
-	}
-
-	_, err = gs.client.Secrets(gs.GetNamespace()).Update(sec)
-	return true, err
+	return commonUpdate(gs, o, func(obj runtime.Object) (runtime.Object, error) {
+		return gs.client.Secrets(gs.GetNamespace()).Update(obj.(*corev1.Secret))
+	})
 }
 
 func (gs *generatorSecret) Delete(opts *metav1.DeleteOptions) error {
