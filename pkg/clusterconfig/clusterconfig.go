@@ -87,11 +87,7 @@ func GetInstallConfig() (*installer.InstallConfig, error) {
 	return installConfig, nil
 }
 
-func GetAWSConfig() (*Config, error) {
-	client, err := GetCoreClient()
-	if err != nil {
-		return nil, err
-	}
+func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
 
 	installConfig, err := GetInstallConfig()
@@ -103,8 +99,13 @@ func GetAWSConfig() (*Config, error) {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 	}
 
+	client, err := GetCoreClient()
+	if err != nil {
+		return nil, err
+	}
+
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryPrivateConfigurationUser, metav1.GetOptions{})
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		pollErr := wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
 			sec, err = client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(cloudCredentialsName, metav1.GetOptions{})
@@ -117,9 +118,11 @@ func GetAWSConfig() (*Config, error) {
 			}
 			return true, nil
 		})
+
 		if sec == nil || pollErr != nil {
 			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName), err)
 		}
+
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {

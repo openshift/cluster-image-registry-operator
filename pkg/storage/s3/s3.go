@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -27,14 +28,16 @@ var (
 )
 
 type driver struct {
-	Config *imageregistryv1.ImageRegistryConfigStorageS3
+	Config  *imageregistryv1.ImageRegistryConfigStorageS3
+	Listers *regopclient.Listers
 }
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
 	return &driver{
-		Config: c,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
@@ -45,7 +48,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return s3Service, nil
 	}
 
-	cfg, err := clusterconfig.GetAWSConfig()
+	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +108,7 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 
 // Secrets returns a map of the storage access secrets.
 func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := clusterconfig.GetAWSConfig()
+	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +181,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 		return err
 	}
 
-	ic, err := util.GetInstallConfig()
+	ic, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		return err
 	}
@@ -412,7 +415,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool
 }
 
 func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
-	cfg, err := clusterconfig.GetAWSConfig()
+	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
 	if err != nil {
 		return err
 	}

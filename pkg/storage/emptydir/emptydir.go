@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
@@ -16,12 +17,14 @@ const (
 )
 
 type driver struct {
-	Config *imageregistryv1.ImageRegistryConfigStorageFilesystem
+	Config  *imageregistryv1.ImageRegistryConfigStorageFilesystem
+	Listers *regopclient.Listers
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageFilesystem) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageFilesystem, listers *regopclient.Listers) *driver {
 	return &driver{
-		Config: c,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
