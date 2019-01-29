@@ -76,7 +76,7 @@ type ConfigList struct {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// RegistryConfigs is the configuration object for a registry instance managed by
+// Config is the configuration object for a registry instance managed by
 // the registry operator
 type Config struct {
 	metav1.TypeMeta   `json:",inline"`

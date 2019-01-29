@@ -27,7 +27,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 	cr := &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "RegistryConfigs",
+			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: imageregistryv1.ImageRegistryResourceName,
@@ -85,7 +85,7 @@ func TestRouteConfiguration(t *testing.T) {
 	cr := &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "RegistryConfigs",
+			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: imageregistryv1.ImageRegistryResourceName,

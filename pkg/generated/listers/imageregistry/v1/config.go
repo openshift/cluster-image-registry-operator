@@ -13,7 +13,7 @@ import (
 type ConfigLister interface {
 	// List lists all Configs in the indexer.
 	List(selector labels.Selector) (ret []*v1.Config, err error)
-	// Get retrieves the RegistryConfigs from the index for a given name.
+	// Get retrieves the Config from the index for a given name.
 	Get(name string) (*v1.Config, error)
 	ConfigListerExpansion
 }
@@ -36,7 +36,7 @@ func (s *configLister) List(selector labels.Selector) (ret []*v1.Config, err err
 	return ret, err
 }
 
-// Get retrieves the RegistryConfigs from the index for a given name.
+// Get retrieves the Config from the index for a given name.
 func (s *configLister) Get(name string) (*v1.Config, error) {
 	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {

@@ -17,7 +17,7 @@ type ConfigsGetter interface {
 	Configs() ConfigInterface
 }
 
-// ConfigInterface has methods to work with RegistryConfigs resources.
+// ConfigInterface has methods to work with Config resources.
 type ConfigInterface interface {
 	Create(*v1.Config) (*v1.Config, error)
 	Update(*v1.Config) (*v1.Config, error)
