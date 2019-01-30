@@ -131,7 +131,7 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) erro
 	return nil
 }
 
-func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config, modified *bool) error {
+func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 	routeClient, err := routeset.NewForConfig(g.kubeconfig)
 
 	if err != nil {
@@ -166,7 +166,6 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config, modified *b
 		if err != nil {
 			return err
 		}
-		*modified = true
 	}
 	return nil
 }
@@ -190,17 +189,18 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 					return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
 				}
 				glog.Infof("object %s created", Name(gen))
-				*modified = true
 				return nil
 			}
 
 			updated, err := gen.Update(o.DeepCopyObject())
 			if err != nil {
+				if errors.IsConflict(err) {
+					return err
+				}
 				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
 			}
 			if updated {
 				glog.Infof("object %s updated", Name(gen))
-				*modified = true
 			}
 			return nil
 		})
@@ -209,7 +209,7 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 		}
 	}
 
-	err = g.removeObsoleteRoutes(cr, modified)
+	err = g.removeObsoleteRoutes(cr)
 	if err != nil {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
 	}
