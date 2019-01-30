@@ -58,7 +58,7 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 				APIGroups: []string{ /* "", */ "image.openshift.io"},
 				Resources: []string{
 					"imagestreamimages",
-					/* "imagestreams/layers", */
+					"imagestreams/layers",
 					"imagestreams/secrets",
 				},
 			},
