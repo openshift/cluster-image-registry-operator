@@ -67,9 +67,11 @@ func (gic *generatorImageConfig) objectMeta() metav1.ObjectMeta {
 func (gic *generatorImageConfig) Create() error {
 	ic := &configapi.Image{
 		ObjectMeta: gic.objectMeta(),
-		Status: configapi.ImageStatus{
-			InternalRegistryHostname: gic.hostname,
-		},
+	}
+
+	ic, err := gic.configClient.Images().Create(ic)
+	if err != nil {
+		return err
 	}
 
 	externalHostnames, err := gic.getRouteHostnames()
@@ -77,11 +79,8 @@ func (gic *generatorImageConfig) Create() error {
 		return err
 	}
 	ic.Status.ExternalRegistryHostnames = externalHostnames
+	ic.Status.InternalRegistryHostname = gic.hostname
 
-	_, err = gic.configClient.Images().Create(ic)
-	if err != nil {
-		return err
-	}
 	// Create strips status fields, so need to explicitly set status separately
 	_, err = gic.configClient.Images().UpdateStatus(ic)
 	return err
