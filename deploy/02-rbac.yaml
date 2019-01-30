@@ -5,6 +5,12 @@ metadata:
   name: cluster-image-registry-operator
 rules:
 - apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - "*"
+- apiGroups:
   - imageregistry.operator.openshift.io
   resources:
   - "*"

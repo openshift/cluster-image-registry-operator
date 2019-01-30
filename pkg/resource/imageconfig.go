@@ -1,13 +1,18 @@
 package resource
 
 import (
+	"encoding/json"
 	"reflect"
 	"sort"
 	"strings"
 
+	"github.com/golang/glog"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	apiextclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 
 	configapi "github.com/openshift/api/config/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -15,6 +20,7 @@ import (
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -111,6 +117,24 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 	}
 
 	_, err = gic.configClient.Images().UpdateStatus(ic)
+	if err != nil {
+		cfg, err := regopclient.GetConfig()
+		if err != nil {
+			glog.Fatalf("Error building kubeconfig: %s", err)
+		}
+		apiextclient := apiextclient.NewForConfigOrDie(cfg)
+		crd, err := apiextclient.CustomResourceDefinitions().Get("images.config.openshift.io", metav1.GetOptions{})
+		if err != nil {
+			glog.Infof("unable to get image config CRD: %s", err)
+		} else {
+			crdbuf, err := json.Marshal(crd)
+			if err != nil {
+				glog.Infof("image config CRD: %#+v", crd)
+			} else {
+				glog.Infof("image config CRD: %s", crdbuf)
+			}
+		}
+	}
 	return true, err
 }
 
