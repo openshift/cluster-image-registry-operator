@@ -246,28 +246,8 @@ func MustEnsureImageRegistryIsAvailable(t *testing.T, client *Clientset) {
 }
 
 func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error {
-	var cr *imageregistryv1.Config
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			logger.Logf("waiting for the registry: the resource does not exist")
-			cr = nil
-			return false, nil
-		} else if err != nil {
-			return false, err
-		}
-		if cr == nil || cr.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc:5000" {
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		logger.Logf("registry resource was not updated with internal registry hostname: %v", err)
-		return err
-	}
-
 	var cfg *configv1.Image
-	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
 		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
 		if errors.IsNotFound(err) {

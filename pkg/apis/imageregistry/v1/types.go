@@ -135,10 +135,6 @@ type ImageRegistryStatus struct {
 	// S3 bucket)
 	StorageManaged bool `json:"storageManaged"`
 
-	// InternalRegistryHostname identifies the service hostname used
-	// to access the registry instance from within the cluster
-	InternalRegistryHostname string `json:"internalRegistryHostname"`
-
 	// Storage indicates the current applied storage configuration of the registry
 	Storage ImageRegistryConfigStorage `json:"storage"`
 }

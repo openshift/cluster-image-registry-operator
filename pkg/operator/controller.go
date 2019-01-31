@@ -134,18 +134,6 @@ func (c *Controller) sync() error {
 		removed = true
 	case operatorapi.Managed:
 		applyError = c.createOrUpdateResources(cr, &statusChanged)
-		if applyError == nil {
-			svc, err := c.listers.Services.Get(c.params.Service.Name)
-			if err == nil {
-				svcHostname := fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
-				if cr.Status.InternalRegistryHostname != svcHostname {
-					cr.Status.InternalRegistryHostname = svcHostname
-					statusChanged = true
-				}
-			} else if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get %q service %s", c.params.Service.Name, err)
-			}
-		}
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
