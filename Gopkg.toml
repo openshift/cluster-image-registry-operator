@@ -15,27 +15,27 @@ required = [
 [[override]]
   name = "k8s.io/code-generator"
   source = "https://github.com/openshift/kubernetes-code-generator.git"
-  branch = "origin-4.0-kubernetes-1.11.1"
+  branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/api"
   source = "https://github.com/openshift/kubernetes-api.git"
-  branch = "origin-4.0-kubernetes-1.11.1"
+  branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
   source = "https://github.com/openshift/kubernetes-apiextensions-apiserver.git"
-  branch = "origin-4.0-kubernetes-1.11.1"
+  branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/apimachinery"
   source = "https://github.com/openshift/kubernetes-apimachinery.git"
-  branch = "origin-4.0-kubernetes-1.11.1"
+  branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
   name = "k8s.io/client-go"
   source = "https://github.com/openshift/kubernetes-client-go.git"
-  branch = "origin-4.0-kubernetes-1.11.1"
+  branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
   name = "github.com/openshift/client-go"
