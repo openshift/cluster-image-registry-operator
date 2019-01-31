@@ -5,10 +5,6 @@ import (
 
 	"github.com/golang/glog"
 
-	installer "github.com/openshift/installer/pkg/types"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
-
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -70,7 +66,7 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
-func CreateOrUpdateSecret(name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
+func CreateOrUpdateSecret(listers *regopclient.Listers, name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return nil, err
@@ -83,6 +79,8 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 	var updatedSecret *coreapi.Secret
 
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		// Skip using the cache here so we don't have as many
+		// retries due to slow cache updates
 		cur, err := client.Secrets(namespace).Get(name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -118,10 +116,6 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 	}
 
 	return updatedSecret, err
-}
-
-func GetInstallConfig() (*installer.InstallConfig, error) {
-	return clusterconfig.GetInstallConfig()
 }
 
 func GetClusterVersionConfig() (*configv1.ClusterVersion, error) {

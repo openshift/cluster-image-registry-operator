@@ -1,10 +1,11 @@
 package client
 
 import (
-	appslisters "k8s.io/client-go/listers/apps/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
-	rbaclisters "k8s.io/client-go/listers/rbac/v1"
+	kappslisters "k8s.io/client-go/listers/apps/v1"
+	kcorelisters "k8s.io/client-go/listers/core/v1"
+	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
+	appslisters "github.com/openshift/client-go/apps/listers/apps/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
@@ -12,16 +13,18 @@ import (
 )
 
 type Listers struct {
-	Deployments         appslisters.DeploymentNamespaceLister
-	DaemonSets          appslisters.DaemonSetNamespaceLister
-	Services            corelisters.ServiceNamespaceLister
-	Secrets             corelisters.SecretNamespaceLister
-	ConfigMaps          corelisters.ConfigMapNamespaceLister
-	ServiceAccounts     corelisters.ServiceAccountNamespaceLister
+	Deployments         kappslisters.DeploymentNamespaceLister
+	DaemonSets          kappslisters.DaemonSetNamespaceLister
+	Services            kcorelisters.ServiceNamespaceLister
+	Secrets             kcorelisters.SecretNamespaceLister
+	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
+	ServiceAccounts     kcorelisters.ServiceAccountNamespaceLister
 	Routes              routelisters.RouteNamespaceLister
-	ClusterRoles        rbaclisters.ClusterRoleLister
-	ClusterRoleBindings rbaclisters.ClusterRoleBindingLister
-	OpenShiftConfig     corelisters.ConfigMapNamespaceLister
+	ClusterRoles        krbaclisters.ClusterRoleLister
+	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
+	OpenShiftConfig     kcorelisters.ConfigMapNamespaceLister
 	ImageConfigs        configlisters.ImageLister
-	ImageRegistry       regoplisters.ConfigLister
+	RegistryConfigs     regoplisters.ConfigLister
+	InstallerSecrets    kcorelisters.SecretNamespaceLister
+	DeploymentConfigs   appslisters.DeploymentConfigNamespaceLister
 }

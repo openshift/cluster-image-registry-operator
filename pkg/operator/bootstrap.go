@@ -13,7 +13,6 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	operatorapi "github.com/openshift/api/operator/v1"
-	appsset "github.com/openshift/client-go/apps/clientset/versioned/typed/apps/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
@@ -39,7 +38,7 @@ func (c *Controller) Bootstrap() error {
 	if err != nil {
 		return err
 	}
-	crList, err := c.listers.ImageRegistry.List(labels.Everything())
+	crList, err := c.listers.RegistryConfigs.List(labels.Everything())
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return fmt.Errorf("failed to list registry custom resources: %s", err)
@@ -57,12 +56,7 @@ func (c *Controller) Bootstrap() error {
 
 	var spec imageregistryv1.ImageRegistrySpec
 
-	appsclient, err := appsset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	dc, err := appsclient.DeploymentConfigs(c.params.Deployment.Namespace).Get(resourceName(c.params.Deployment.Namespace), metav1.GetOptions{})
+	dc, err := c.listers.DeploymentConfigs.Get(resourceName(c.params.Deployment.Namespace))
 	if errors.IsNotFound(err) {
 		spec = imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -118,7 +112,7 @@ func (c *Controller) Bootstrap() error {
 		cr.Spec.HTTPSecret = fmt.Sprintf("%x", string(secretBytes[:]))
 	}
 
-	driver, err := storage.NewDriver(&cr.Spec.Storage)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, c.listers)
 	if err != nil && err != storage.ErrStorageNotConfigured {
 		return err
 	}

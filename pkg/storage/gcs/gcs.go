@@ -14,16 +14,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 )
 
 type driver struct {
-	Config *imageregistryv1.ImageRegistryConfigStorageGCS
+	Config  *imageregistryv1.ImageRegistryConfigStorageGCS
+	Listers *regopclient.Listers
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS, listers *regopclient.Listers) *driver {
 	return &driver{
-		Config: c,
+		Config:  c,
+		Listers: listers,
 	}
 }
 

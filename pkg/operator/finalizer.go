@@ -66,6 +66,8 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	cr := o
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		if cr == nil {
+			// Skip using the cache here so we don't have as many
+			// retries due to slow cache updates
 			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
@@ -104,7 +106,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	retryTime := 3 * time.Second
 
 	err = wait.PollInfinite(retryTime, func() (stop bool, err error) {
-		_, err = client.Configs().Get(o.Name, metav1.GetOptions{})
+		_, err = c.listers.RegistryConfigs.Get(o.Name)
 		if err == nil {
 			return
 		}
