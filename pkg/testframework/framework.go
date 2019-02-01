@@ -1,6 +1,7 @@
 package testframework
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,6 +28,56 @@ type Logger interface {
 }
 
 var _ Logger = &testing.T{}
+
+// loopLogger hides repeated messages from the log.
+type loopLogger struct {
+	logger   Logger
+	count    int
+	prevMsg  string
+	prevTime string
+}
+
+func newLoopLogger(logger Logger) *loopLogger {
+	return &loopLogger{
+		logger:   logger,
+		count:    0,
+		prevMsg:  "",
+		prevTime: "",
+	}
+}
+
+func (l *loopLogger) time() string {
+	return time.Now().Format("15:04:05")
+}
+
+func (l *loopLogger) Logf(format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	if msg == l.prevMsg {
+		l.count++
+		l.prevTime = l.time()
+		return
+	}
+	l.Flush()
+	l.count = 1
+	l.prevMsg = msg
+	l.prevTime = l.time()
+	if t, ok := l.logger.(*testing.T); ok {
+		t.Helper()
+	}
+	l.logger.Logf("%s %s", l.prevTime, l.prevMsg)
+}
+
+func (l *loopLogger) Flush() {
+	if l.count > 1 {
+		if t, ok := l.logger.(*testing.T); ok {
+			t.Helper()
+		}
+		l.logger.Logf("%s %s (x%d)", l.prevTime, l.prevMsg, l.count-1)
+	}
+	l.count = 0
+	l.prevMsg = ""
+	l.prevTime = ""
+}
 
 // DumpObject prints the object to the test log.
 func DumpObject(logger Logger, prefix string, obj interface{}) {

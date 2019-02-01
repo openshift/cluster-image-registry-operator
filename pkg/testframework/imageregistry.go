@@ -86,6 +86,7 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 	}
 
 	var cr *imageregistryv1.Config
+	loopLogger := newLoopLogger(logger)
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -96,9 +97,10 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 		}
 
 		conds := GetImageRegistryConditions(cr)
-		logger.Logf("waiting for the registry to be removed: %s", conds)
+		loopLogger.Logf("waiting for the registry to be removed: %s", conds)
 		return conds.Progressing.IsFalse() && conds.Removed.IsTrue(), nil
 	})
+	loopLogger.Flush()
 	if err != nil {
 		DumpObject(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
@@ -190,10 +192,11 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 
 func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryv1.Config, error) {
 	var cr *imageregistryv1.Config
+	loopLogger := newLoopLogger(logger)
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			logger.Logf("waiting for the registry: the resource does not exist")
+			loopLogger.Logf("waiting for the registry: the resource does not exist")
 			cr = nil
 			return false, nil
 		} else if err != nil {
@@ -201,9 +204,10 @@ func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imagereg
 		}
 
 		conds := GetImageRegistryConditions(cr)
-		logger.Logf("waiting for the registry: %s", conds)
+		loopLogger.Logf("waiting for the registry: %s", conds)
 		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Failing.IsTrue(), nil
 	})
+	loopLogger.Flush()
 	if err != nil {
 		DumpObject(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
