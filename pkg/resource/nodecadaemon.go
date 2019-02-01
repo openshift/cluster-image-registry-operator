@@ -9,10 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
+	kcorelisters "k8s.io/client-go/listers/core/v1"
 
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -52,8 +52,8 @@ spec:
           if [ ! -e /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000 ]; then
             mkdir /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
           fi
-          if [ ! -e /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000 ]; then
-            mkdir /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000
+          if [ ! -e /etc/docker/certs.d/${internalRegistryHostname} ]; then
+            mkdir /etc/docker/certs.d/${internalRegistryHostname}
           fi
           while [ true ];
           do
@@ -74,7 +74,7 @@ spec:
             done
             for d in $(ls /etc/docker/certs.d); do
                 echo $d
-                if [ "${d}" == "image-registry.openshift-image-registry.svc:5000" ]; then
+                if [ "${d}" == "${internalRegistryHostname}" ]; then
                     continue
                 fi
                 if [ "${d}" == "image-registry.openshift-image-registry.svc.cluster.local:5000" ]; then
@@ -88,10 +88,10 @@ spec:
             done
             if [ -e /tmp/serviceca/service-ca.crt ]; then
               cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
-              cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000
+              cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/${internalRegistryHostname}
             else 
               rm /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000/service-ca.crt
-              rm /etc/docker/certs.d/image-registry.openshift-image-registry.svc:5000/service-ca.crt
+              rm /etc/docker/certs.d/${internalRegistryHostname}/service-ca.crt
             fi
             sleep 60
           done
@@ -113,19 +113,19 @@ spec:
 var _ Mutator = &generatorNodeCADaemonSet{}
 
 type generatorNodeCADaemonSet struct {
-	lister   appslisters.DaemonSetNamespaceLister
-	client   appsclientv1.AppsV1Interface
-	hostname string
-	owner    metav1.OwnerReference
-	params   *parameters.Globals
+	daemonSetLister appslisters.DaemonSetNamespaceLister
+	serviceLister   kcorelisters.ServiceNamespaceLister
+	client          appsclientv1.AppsV1Interface
+	owner           metav1.OwnerReference
+	params          *parameters.Globals
 }
 
-func newGeneratorNodeCADaemonSet(lister appslisters.DaemonSetNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorNodeCADaemonSet {
+func newGeneratorNodeCADaemonSet(daemonSetLister appslisters.DaemonSetNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals) *generatorNodeCADaemonSet {
 	return &generatorNodeCADaemonSet{
-		lister:   lister,
-		client:   client,
-		params:   params,
-		hostname: cr.Status.InternalRegistryHostname,
+		daemonSetLister: daemonSetLister,
+		serviceLister:   serviceLister,
+		client:          client,
+		params:          params,
 	}
 }
 
@@ -142,30 +142,42 @@ func (ds *generatorNodeCADaemonSet) GetName() string {
 }
 
 func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
-	return ds.lister.Get(ds.GetName())
+	return ds.daemonSetLister.Get(ds.GetName())
 }
 
 func (ds *generatorNodeCADaemonSet) Create() error {
+
+	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
+	if err != nil {
+		return err
+	}
+
 	daemonSet := resourceread.ReadDaemonSetV1OrDie([]byte(nodeCADaemonSetDefinition))
 	env := corev1.EnvVar{
 		Name:  "internalRegistryHostname",
-		Value: ds.hostname,
+		Value: internalHostname,
 	}
+
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
 	daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, env)
-	_, err := ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
+	_, err = ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
 	return err
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
+	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
+	if err != nil {
+		return false, err
+	}
+
 	daemonSet := o.(*appsv1.DaemonSet)
 	modified := false
 	exists := false
 	for i, env := range daemonSet.Spec.Template.Spec.Containers[0].Env {
 		if env.Name == "internalRegistryHostname" {
 			exists = true
-			if env.Value != ds.hostname {
-				daemonSet.Spec.Template.Spec.Containers[0].Env[i].Value = ds.hostname
+			if env.Value != internalHostname {
+				daemonSet.Spec.Template.Spec.Containers[0].Env[i].Value = internalHostname
 				modified = true
 			}
 			break
@@ -174,7 +186,7 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 	if !exists {
 		env := corev1.EnvVar{
 			Name:  "internalRegistryHostname",
-			Value: ds.hostname,
+			Value: internalHostname,
 		}
 		daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, env)
 		modified = true
@@ -184,8 +196,8 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 		return false, nil
 	}
 
-	_, err := ds.client.DaemonSets(ds.GetNamespace()).Update(daemonSet)
-	return true, err
+	_, err = ds.client.DaemonSets(ds.GetNamespace()).Update(daemonSet)
+	return err == nil, err
 }
 
 func (ds *generatorNodeCADaemonSet) Delete(opts *metav1.DeleteOptions) error {

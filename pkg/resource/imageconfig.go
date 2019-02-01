@@ -1,13 +1,16 @@
 package resource
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kcorelisters "k8s.io/client-go/listers/core/v1"
 
 	configapi "github.com/openshift/api/config/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -21,24 +24,26 @@ import (
 var _ Mutator = &generatorImageConfig{}
 
 type generatorImageConfig struct {
-	configLister configlisters.ImageLister
-	routeLister  routelisters.RouteNamespaceLister
-	configClient configset.ConfigV1Interface
-	name         string
-	namespace    string
-	hostname     string
-	owner        metav1.OwnerReference
+	configLister  configlisters.ImageLister
+	routeLister   routelisters.RouteNamespaceLister
+	serviceLister kcorelisters.ServiceNamespaceLister
+	configClient  configset.ConfigV1Interface
+	name          string
+	namespace     string
+	serviceName   string
+	owner         metav1.OwnerReference
 }
 
-func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, configClient configset.ConfigV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorImageConfig {
+func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, configClient configset.ConfigV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorImageConfig {
 	return &generatorImageConfig{
-		configLister: configLister,
-		routeLister:  routeLister,
-		configClient: configClient,
-		name:         params.ImageConfig.Name,
-		namespace:    params.Deployment.Namespace,
-		hostname:     cr.Status.InternalRegistryHostname,
-		owner:        asOwner(cr),
+		configLister:  configLister,
+		routeLister:   routeLister,
+		serviceLister: serviceLister,
+		configClient:  configClient,
+		name:          params.ImageConfig.Name,
+		namespace:     params.Deployment.Namespace,
+		serviceName:   params.Service.Name,
+		owner:         asOwner(cr),
 	}
 }
 
@@ -79,7 +84,12 @@ func (gic *generatorImageConfig) Create() error {
 		return err
 	}
 	ic.Status.ExternalRegistryHostnames = externalHostnames
-	ic.Status.InternalRegistryHostname = gic.hostname
+
+	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
+	if err != nil {
+		return err
+	}
+	ic.Status.InternalRegistryHostname = internalHostname
 
 	// Create strips status fields, so need to explicitly set status separately
 	_, err = gic.configClient.Images().UpdateStatus(ic)
@@ -100,8 +110,13 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 		modified = true
 	}
 
-	if ic.Status.InternalRegistryHostname != gic.hostname {
-		ic.Status.InternalRegistryHostname = gic.hostname
+	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
+	if err != nil {
+		return false, err
+	}
+
+	if ic.Status.InternalRegistryHostname != internalHostname {
+		ic.Status.InternalRegistryHostname = internalHostname
 		modified = true
 	}
 
@@ -110,7 +125,7 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 	}
 
 	_, err = gic.configClient.Images().UpdateStatus(ic)
-	return true, err
+	return err == nil, err
 }
 
 func (gic *generatorImageConfig) Delete(opts *metav1.DeleteOptions) error {
@@ -155,4 +170,16 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	}
 
 	return externalHostnames, nil
+}
+
+func getServiceHostname(serviceLister kcorelisters.ServiceNamespaceLister, serviceName string) (string, error) {
+	svc, err := serviceLister.Get(serviceName)
+	if errors.IsNotFound(err) {
+		return "", nil
+	}
+	if svc == nil || err != nil {
+		return "", err
+	}
+	svcHostname := fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+	return svcHostname, nil
 }
