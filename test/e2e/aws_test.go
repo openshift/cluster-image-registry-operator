@@ -14,6 +14,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -185,6 +186,43 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
+	// Check that the S3 bucket has the correct encryption configuration
+	getBucketEncryptionResult, err := svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
+		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			t.Errorf("unable to get encryption information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
+		} else {
+
+			t.Errorf("unknown error occurred getting encryption information for S3 bucket: %#v", err)
+		}
+	}
+
+	wantedBucketEncryption := &s3.ServerSideEncryptionConfiguration{
+		Rules: []*s3.ServerSideEncryptionRule{
+			{
+				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+				},
+			},
+		},
+	}
+
+	for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
+		found := false
+
+		for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
+			if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedEncryptionRule, getBucketEncryptionResult)
+		}
+	}
+
 	// Check that the S3 bucket has the correct lifecycle configuration
 	getBucketLifecycleConfigurationResult, err := svc.GetBucketLifecycleConfiguration(&s3.GetBucketLifecycleConfigurationInput{
 		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
@@ -236,6 +274,7 @@ func TestAWSDefaults(t *testing.T) {
 		{Name: "REGISTRY_STORAGE", Value: "s3", ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(cr.Spec.Storage.S3.Bucket), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(cr.Spec.Storage.S3.Region), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
 			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
@@ -386,6 +425,185 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+}
+
+func TestAWSChangeS3Encryption(t *testing.T) {
+	installConfig, err := clusterconfig.GetInstallConfig()
+	if err != nil {
+		t.Fatalf("unable to get install configuration: %v", err)
+	}
+
+	if installConfig.Platform.AWS == nil {
+		t.Skip("skipping on non-AWS platform")
+	}
+
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+
+	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("unable to get custom resource %s/%s: %#v", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryResourceName, err)
+	}
+
+	// Check that the image-registry-private-configuration secret exists and
+	// contains the correct information
+	imageRegistryPrivateConfiguration, err := client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("unable to get secret %s/%s: %#v", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfiguration, err)
+	}
+	accessKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
+	secretKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+
+	// Check that the S3 bucket that we created exists and is accessible
+	sess, err := session.NewSession(&aws.Config{
+		Credentials: credentials.NewStaticCredentials(string(accessKey), string(secretKey), ""),
+		Region:      &cr.Spec.Storage.S3.Region,
+	})
+	if err != nil {
+		t.Errorf("unable to create new session with supplied AWS credentials")
+	}
+
+	svc := s3.New(sess)
+	_, err = svc.HeadBucket(&s3.HeadBucketInput{
+		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		t.Errorf("s3 bucket %s does not exist or is inaccessible: %#v", cr.Spec.Storage.S3.Bucket, err)
+	}
+
+	// Check that the S3 bucket has the correct encryption configuration
+	getBucketEncryptionResult, err := svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
+		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			t.Errorf("unable to get encryption information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
+		} else {
+
+			t.Errorf("unknown error occurred getting encryption information for S3 bucket: %#v", err)
+		}
+	}
+
+	wantedBucketEncryption := &s3.ServerSideEncryptionConfiguration{
+		Rules: []*s3.ServerSideEncryptionRule{
+			{
+				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+				},
+			},
+		},
+	}
+
+	for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
+		found := false
+
+		for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
+			if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedEncryptionRule, getBucketEncryptionResult)
+		}
+	}
+
+	if _, err = client.Configs().Patch("instance", types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"keyID": "testKey"}}}}`)); err != nil {
+		t.Errorf("unable to patch image registry custom resource: %#v", err)
+	}
+
+	found := false
+	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		// Check that the S3 bucket has the correct encryption configuration
+		getBucketEncryptionResult, err = svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
+			Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+		})
+		if aerr, ok := err.(awserr.Error); ok {
+			t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())
+		}
+		if err != nil {
+			return true, err
+		}
+
+		wantedBucketEncryption = &s3.ServerSideEncryptionConfiguration{
+			Rules: []*s3.ServerSideEncryptionRule{
+				{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
+						KMSMasterKeyID: aws.String("testKey"),
+					},
+				},
+			},
+		}
+
+		for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
+			for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
+				if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
+					found = true
+					break
+				} else {
+					return false, nil
+				}
+			}
+
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Errorf("an error occurred checking for bucket encryption: %#v", err)
+	}
+	if !found {
+		t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedBucketEncryption, getBucketEncryptionResult)
+	}
+
+	registryDeployment, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Check that the S3 configuration environment variables
+	// exist in the image registry deployment and
+	// contain the correct values
+	awsEnvVars := []corev1.EnvVar{
+		{Name: "REGISTRY_STORAGE", Value: "s3", ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(cr.Spec.Storage.S3.Bucket), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(cr.Spec.Storage.S3.Region), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_KEYID", Value: "testKey", ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
+			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "image-registry-private-configuration"},
+				Key: "REGISTRY_STORAGE_S3_ACCESSKEY"},
+		},
+		},
+		{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
+			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "image-registry-private-configuration"},
+				Key: "REGISTRY_STORAGE_S3_SECRETKEY"},
+		},
+		},
+	}
+
+	for _, val := range awsEnvVars {
+		found := false
+		for _, v := range registryDeployment.Spec.Template.Spec.Containers[0].Env {
+			if v.Name == val.Name {
+				found = true
+				if !reflect.DeepEqual(v, val) {
+					t.Errorf("environment variable contains incorrect data: expected %#v, got %#v", val, v)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("unable to find environment variable: wanted %s", val.Name)
+		}
+	}
 }
 
 func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {

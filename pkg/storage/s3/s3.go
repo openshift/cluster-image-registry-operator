@@ -70,11 +70,18 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+	if len(d.Config.RegionEndpoint) != 0 {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint})
+	}
+
+	if len(d.Config.KeyID) != 0 {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
+	}
+
 	envs = append(envs,
 		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", d.Config.Encrypt)},
 		corev1.EnvVar{
 			Name: "REGISTRY_STORAGE_S3_ACCESSKEY",
@@ -303,14 +310,28 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 
 	// Enable default encryption on the bucket
 	if cr.Status.StorageManaged {
+		var encryption *s3.ServerSideEncryptionByDefault
+		var encryptionType string
+
+		if len(d.Config.KeyID) != 0 {
+			encryption = &s3.ServerSideEncryptionByDefault{
+				SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
+				KMSMasterKeyID: aws.String(d.Config.KeyID),
+			}
+			encryptionType = s3.ServerSideEncryptionAwsKms
+		} else {
+			encryption = &s3.ServerSideEncryptionByDefault{
+				SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+			}
+			encryptionType = s3.ServerSideEncryptionAes256
+		}
+
 		_, err = svc.PutBucketEncryption(&s3.PutBucketEncryptionInput{
 			Bucket: aws.String(d.Config.Bucket),
 			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
 				Rules: []*s3.ServerSideEncryptionRule{
 					{
-						ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-							SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
-						},
+						ApplyServerSideEncryptionByDefault: encryption,
 					},
 				},
 			},
@@ -322,7 +343,15 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error
 				util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error(), modified)
 			}
 		} else {
-			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "Default encryption was successfully enabled on the S3 bucket", modified)
+			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", fmt.Sprintf("Default %s encryption was successfully enabled on the S3 bucket", encryptionType), modified)
+			d.Config.Encrypt = true
+			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Spec.Storage.S3 = d.Config.DeepCopy()
+		}
+	} else {
+		if !reflect.DeepEqual(cr.Status.Storage.S3, d.Config) {
+			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			*modified = true
 		}
 	}
 
