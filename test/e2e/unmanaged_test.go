@@ -1,4 +1,4 @@
-package e2e_test
+package e2e
 
 import (
 	"testing"
@@ -14,15 +14,15 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestUnmanaged(t *testing.T) {
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
 
-	testframework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
+	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
 			Kind:       "Config",
@@ -42,7 +42,7 @@ func TestUnmanaged(t *testing.T) {
 			Replicas: 1,
 		},
 	})
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
 	var cr *imageregistryv1.Config
 	var err error
@@ -71,19 +71,19 @@ func TestUnmanaged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 
-		conds := testframework.GetImageRegistryConditions(cr)
+		conds := framework.GetImageRegistryConditions(cr)
 		t.Logf("image registry: %s", conds)
 		return conds.Available.IsFalse() && conds.Progressing.IsFalse(), err
 	})
 	if err != nil {
-		testframework.DumpImageRegistryResource(t, client)
-		testframework.DumpOperatorLogs(t, client)
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 }

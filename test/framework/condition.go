@@ -1,4 +1,4 @@
-package e2e
+package framework
 
 import (
 	"fmt"
@@ -11,14 +11,13 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
 )
 
-func conditionExistsWithStatusAndReason(client *testframework.Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {
+func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {
 	var errs []error
 
 	// Wait for the image registry resource to have an updated condition
-	err := wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		errs = nil
 		conditionExists := false
 
