@@ -112,7 +112,7 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modifie
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.listers.RegistryConfigs.Get(resourceName(c.params.Deployment.Namespace))
+	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
