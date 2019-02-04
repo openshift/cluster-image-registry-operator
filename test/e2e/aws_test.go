@@ -1,17 +1,3 @@
-// Copyright 2018 The Operator-SDK Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package e2e
 
 import (
@@ -37,8 +23,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework/mock/listers"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
 var (
@@ -66,14 +52,14 @@ func TestAWSDefaults(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
-	testframework.MustDeployImageRegistry(t, client, nil)
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
-	testframework.MustEnsureOperatorIsNotHotLooping(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig(mockLister)
 	if err != nil {
@@ -115,7 +101,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := conditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
+	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -123,7 +109,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageTagged condition
-	errs = conditionExistsWithStatusAndReason(client, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful")
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -131,7 +117,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageEncrypted condition
-	errs = conditionExistsWithStatusAndReason(client, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful")
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -139,7 +125,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageIncompleteUploadCleanupEnabled condition
-	errs = conditionExistsWithStatusAndReason(client, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful")
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -298,18 +284,18 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	if _, err := util.CreateOrUpdateSecret(mockLister, imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser), err)
 	}
 
-	defer testframework.MustRemoveImageRegistry(t, client)
-	testframework.MustDeployImageRegistry(t, client, nil)
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := conditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
+	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -323,16 +309,16 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs = conditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
 		}
 	}
 
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 }
 
 func TestAWSUpdateCredentials(t *testing.T) {
@@ -352,16 +338,16 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
-	testframework.MustDeployImageRegistry(t, client, nil)
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err = wait.PollImmediate(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		if _, err := util.CreateOrUpdateSecret(mockLister, imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
@@ -382,7 +368,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := conditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
+	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -396,16 +382,16 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs = conditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
 		}
 	}
 
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 }
 
 func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
@@ -425,13 +411,13 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
-	testframework.MustDeployImageRegistry(t, client, nil)
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
-	testframework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	testframework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
@@ -448,7 +434,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 
 	var exists bool
-	err = wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		modified := true
 		exists, err := driver.StorageExists(cr, &modified)
 		if aerr, ok := err.(awserr.Error); ok {

@@ -1,4 +1,4 @@
-package e2e_test
+package e2e
 
 import (
 	"strings"
@@ -10,15 +10,15 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestFailing(t *testing.T) {
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
 
-	testframework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
+	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: imageregistryv1.ImageRegistryResourceName,
 		},
@@ -34,7 +34,7 @@ func TestFailing(t *testing.T) {
 			Replicas: -1,
 		},
 	})
-	cr := testframework.MustEnsureImageRegistryIsProcessed(t, client)
+	cr := framework.MustEnsureImageRegistryIsProcessed(t, client)
 
 	var failing operatorapi.OperatorCondition
 	for _, cond := range cr.Status.Conditions {
@@ -44,8 +44,8 @@ func TestFailing(t *testing.T) {
 		}
 	}
 	if failing.Status != operatorapi.ConditionTrue {
-		testframework.DumpObject(t, "the latest observed image registry resource", cr)
-		testframework.DumpOperatorLogs(t, client)
+		framework.DumpObject(t, "the latest observed image registry resource", cr)
+		framework.DumpOperatorLogs(t, client)
 		t.Fatal("the imageregistry resource is expected to be failing")
 	}
 

@@ -1,4 +1,4 @@
-package e2e_test
+package e2e
 
 import (
 	"testing"
@@ -12,13 +12,13 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestRecreateDeployment(t *testing.T) {
-	client := testframework.MustNewClientset(t, nil)
+	client := framework.MustNewClientset(t, nil)
 
-	defer testframework.MustRemoveImageRegistry(t, client)
+	defer framework.MustRemoveImageRegistry(t, client)
 
 	cr := &imageregistryv1.Config{
 		TypeMeta: metav1.TypeMeta{
@@ -40,11 +40,11 @@ func TestRecreateDeployment(t *testing.T) {
 			Replicas: 1,
 		},
 	}
-	testframework.MustDeployImageRegistry(t, client, cr)
-	testframework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustDeployImageRegistry(t, client, cr)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
 	t.Logf("deleting the image registry deployment...")
-	if err := testframework.DeleteCompletely(
+	if err := framework.DeleteCompletely(
 		func() (metav1.Object, error) {
 			return client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
 		},
@@ -56,7 +56,7 @@ func TestRecreateDeployment(t *testing.T) {
 	}
 
 	t.Logf("waiting the operator to recreate the deployment...")
-	err := wait.Poll(1*time.Second, testframework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		_, err = client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
 		if err == nil {
 			return true, nil
@@ -68,8 +68,8 @@ func TestRecreateDeployment(t *testing.T) {
 		return false, err
 	})
 	if err != nil {
-		testframework.DumpImageRegistryResource(t, client)
-		testframework.DumpOperatorLogs(t, client)
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 }

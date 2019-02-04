@@ -1,10 +1,10 @@
-package e2e_test
+package e2e
 
 import (
 	"os"
 	"testing"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/testframework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 type devnullLogger struct{}
@@ -20,16 +20,16 @@ func TestMain(m *testing.M) {
 		os.Setenv("KUBERNETES_CONFIG", kubeConfig)
 	}
 
-	client, err := testframework.NewClientset(nil)
+	client, err := framework.NewClientset(nil)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := testframework.DisableCVOForOperator(client); err != nil {
+	if err := framework.DisableCVOForOperator(client); err != nil {
 		panic(err)
 	}
 
-	if err := testframework.RemoveImageRegistry(devnullLogger{}, client); err != nil {
+	if err := framework.RemoveImageRegistry(devnullLogger{}, client); err != nil {
 		panic(err)
 	}
 
