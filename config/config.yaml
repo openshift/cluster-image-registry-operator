@@ -1,3 +1,0 @@
-apiVersion: imageregistry.operator.openshift.io/v1
-kind: ImageRegistry
-projectName: cluster-image-registry-operator
