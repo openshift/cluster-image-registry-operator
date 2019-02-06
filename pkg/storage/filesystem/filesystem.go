@@ -70,8 +70,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool
 	return false, nil
 }
 
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
 	cr.Status.Storage.Filesystem = d.Config.DeepCopy()
-	*modified = true
 	return nil
 }

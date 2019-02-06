@@ -78,6 +78,6 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
 
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
 	return nil
 }

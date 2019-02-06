@@ -443,7 +443,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool
 
 }
 
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
 	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
 	if err != nil {
 		return err
@@ -459,7 +459,6 @@ func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *boo
 		cr.Status.Storage.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	}
 	cr.Spec.Storage.S3 = d.Config.DeepCopy()
-	*modified = true
 
 	return nil
 }
