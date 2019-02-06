@@ -83,19 +83,19 @@ func (d *driver) Volumes() ([]coreapi.Volume, []coreapi.VolumeMount, error) {
 	return []coreapi.Volume{vol}, []coreapi.VolumeMount{mount}, nil
 }
 
-func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool, error) {
+func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	return false, nil
 }
 
-func (d *driver) StorageChanged(cr *imageregistryv1.Config, modified *bool) bool {
+func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return false
 }
 
-func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool, error) {
+func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	if !cr.Status.StorageManaged {
 		return false, nil
 	}

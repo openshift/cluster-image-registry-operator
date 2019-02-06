@@ -7,7 +7,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func appendFinalizer(cr *imageregistryv1.Config, modified *bool) {
+func appendFinalizer(cr *imageregistryv1.Config) {
 	for i := range cr.ObjectMeta.Finalizers {
 		if cr.ObjectMeta.Finalizers[i] == parameters.ImageRegistryOperatorResourceFinalizer {
 			return
@@ -15,7 +15,6 @@ func appendFinalizer(cr *imageregistryv1.Config, modified *bool) {
 	}
 
 	cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, parameters.ImageRegistryOperatorResourceFinalizer)
-	*modified = true
 }
 
 func verifyResource(cr *imageregistryv1.Config) error {

@@ -14,7 +14,7 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
-func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.OperatorCondition, modified *bool) {
+func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.OperatorCondition) {
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
 
@@ -26,15 +26,12 @@ func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.Operator
 		if c.Status != condition.Status {
 			c.Status = condition.Status
 			c.LastTransitionTime = condition.LastTransitionTime
-			*modified = true
 		}
 		if c.Reason != condition.Reason {
 			c.Reason = condition.Reason
-			*modified = true
 		}
 		if c.Message != condition.Message {
 			c.Message = condition.Message
-			*modified = true
 		}
 		conditions = append(conditions, c)
 		found = true
@@ -42,7 +39,6 @@ func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.Operator
 
 	if !found {
 		conditions = append(conditions, *condition)
-		*modified = true
 	}
 
 	cr.Status.Conditions = conditions
@@ -63,7 +59,7 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
-func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool, statusChanged *bool) {
+func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 	if deploy == nil {
@@ -87,7 +83,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Status:             operatorapi.ConditionStatus(operatorAvailable),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorAvailableMsg,
-	}, statusChanged)
+	})
 
 	operatorProgressing := osapi.ConditionTrue
 	operatorProgressingMsg := ""
@@ -124,7 +120,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Status:             operatorapi.ConditionStatus(operatorProgressing),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorProgressingMsg,
-	}, statusChanged)
+	})
 
 	operatorFailing := osapi.ConditionFalse
 	operatorFailingMsg := ""
@@ -143,7 +139,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Status:             operatorapi.ConditionStatus(operatorFailing),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorFailingMsg,
-	}, statusChanged)
+	})
 
 	operatorRemoved := osapi.ConditionFalse
 	operatorRemovedMsg := ""
@@ -157,5 +153,5 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Status:             operatorapi.ConditionStatus(operatorRemoved),
 		LastTransitionTime: metaapi.Now(),
 		Message:            operatorRemovedMsg,
-	}, statusChanged)
+	})
 }

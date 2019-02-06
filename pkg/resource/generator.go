@@ -103,7 +103,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 // 2.)  to see if the storage medium name changed and we need to:
 //      a.) check to make sure that we can access the storage or
 //      b.) see if we need to try to create the new storage
-func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) error {
+func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.listers)
@@ -111,10 +111,10 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) erro
 		return err
 	}
 
-	if driver.StorageChanged(cr, modified) {
+	if driver.StorageChanged(cr) {
 		runCreate = true
 	} else {
-		exists, err := driver.StorageExists(cr, modified)
+		exists, err := driver.StorageExists(cr)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config, modified *bool) erro
 	}
 
 	if runCreate {
-		if err := driver.CreateStorage(cr, modified); err != nil {
+		if err := driver.CreateStorage(cr); err != nil {
 			return err
 		}
 	}
@@ -170,7 +170,7 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 	return nil
 }
 
-func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
+func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
@@ -214,7 +214,7 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 		return fmt.Errorf("unable to remove obsolete routes: %s", err)
 	}
 
-	err = g.syncStorage(cr, modified)
+	err = g.syncStorage(cr)
 	if err != nil {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
@@ -222,7 +222,7 @@ func (g *Generator) Apply(cr *imageregistryv1.Config, modified *bool) error {
 	return nil
 }
 
-func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
+func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 	generators, err := g.list(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
@@ -242,7 +242,6 @@ func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
 			return fmt.Errorf("failed to delete object %s: %s", Name(gen), err)
 		}
 		glog.Infof("object %s deleted", Name(gen))
-		*modified = true
 	}
 
 	driver, err := storage.NewDriver(&cr.Status.Storage, g.listers)
@@ -253,7 +252,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config, modified *bool) error {
 	var derr error
 	var retriable bool
 	err = wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
-		if retriable, derr = driver.RemoveStorage(cr, modified); derr != nil {
+		if retriable, derr = driver.RemoveStorage(cr); derr != nil {
 			if retriable {
 				return false, nil
 			} else {

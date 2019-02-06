@@ -21,14 +21,12 @@ import (
 )
 
 func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
-	modified := false
-
 	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed")
 	if errOp != nil {
 		glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
 	}
 
-	return c.generator.Remove(o, &modified)
+	return c.generator.Remove(o)
 }
 
 func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
