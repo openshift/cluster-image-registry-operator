@@ -66,7 +66,7 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
-func CreateOrUpdateSecret(listers *regopclient.Listers, name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
+func CreateOrUpdateSecret(name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return nil, err

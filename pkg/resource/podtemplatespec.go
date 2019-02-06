@@ -29,18 +29,18 @@ func generateLogLevel(cr *v1.Config) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
-	probeConfig := generateProbeConfig(cr, p)
+func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
+	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
-	return generateProbeConfig(cr, p)
+func generateReadinessProbeConfig(p *parameters.Globals) *corev1.Probe {
+	return generateProbeConfig(p)
 }
 
-func generateProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig(p *parameters.Globals) *corev1.Probe {
 	return &corev1.Probe{
 		TimeoutSeconds: int32(p.Healthz.TimeoutSeconds),
 		Handler: corev1.Handler{
@@ -53,7 +53,7 @@ func generateProbeConfig(cr *v1.Config, p *parameters.Globals) *corev1.Probe {
 	}
 }
 
-func generateSecurityContext(coreClient coreset.CoreV1Interface, cr *v1.Config, namespace string) (*corev1.PodSecurityContext, error) {
+func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace string) (*corev1.PodSecurityContext, error) {
 	ns, err := coreClient.Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -165,7 +165,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 		)
 	}
 
-	securityContext, err := generateSecurityContext(coreClient, cr, params.Deployment.Namespace)
+	securityContext, err := generateSecurityContext(coreClient, params.Deployment.Namespace)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
@@ -247,8 +247,8 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 					},
 					Env:            env,
 					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(cr, params),
-					ReadinessProbe: generateReadinessProbeConfig(cr, params),
+					LivenessProbe:  generateLivenessProbeConfig(params),
+					ReadinessProbe: generateReadinessProbeConfig(params),
 					Resources:      resources,
 				},
 			},

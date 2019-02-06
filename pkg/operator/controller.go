@@ -98,7 +98,7 @@ type Controller struct {
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modified *bool) error {
 	appendFinalizer(cr, modified)
 
-	err := verifyResource(cr, &c.params)
+	err := verifyResource(cr)
 	if err != nil {
 		return permanentError{Err: fmt.Errorf("unable to complete resource: %s", err)}
 	}

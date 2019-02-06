@@ -17,13 +17,6 @@ type namespacedResources struct {
 	kubeconfig *rest.Config
 }
 
-func NewNamespacedResources(kubeconfig *rest.Config, namespace string) NamespacedResources {
-	return &namespacedResources{
-		namespace:  namespace,
-		kubeconfig: kubeconfig,
-	}
-}
-
 func (nr *namespacedResources) Secret(name string) (*coreapi.Secret, error) {
 	client, err := coreset.NewForConfig(nr.kubeconfig)
 	if err != nil {
