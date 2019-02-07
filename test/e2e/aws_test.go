@@ -269,12 +269,6 @@ func TestAWSDefaults(t *testing.T) {
 }
 
 func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
-	kcfg, err := regopclient.GetConfig()
-	if err != nil {
-		t.Fatalf("Error building kubeconfig: %s", err)
-	}
-	newMockLister, err := listers.NewMockLister(kcfg)
-	mockLister, err := newMockLister.GetListers()
 	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
@@ -287,7 +281,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	if _, err := util.CreateOrUpdateSecret(mockLister, imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+	if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser), err)
 	}
 
@@ -348,7 +342,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := util.CreateOrUpdateSecret(mockLister, imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+		if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
 		}

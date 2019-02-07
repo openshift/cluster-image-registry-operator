@@ -6,8 +6,6 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -71,19 +69,4 @@ func GetOperatorName() (string, error) {
 		return "", fmt.Errorf("%s must not be empty", OperatorNameEnvVar)
 	}
 	return operatorName, nil
-}
-
-// GetNameAndNamespace extracts the name and namespace from the given runtime.Object
-// and returns a error if any of those is missing.
-func GetNameAndNamespace(object runtime.Object) (string, string, error) {
-	accessor := meta.NewAccessor()
-	name, err := accessor.Name(object)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get name for object: %v", err)
-	}
-	namespace, err := accessor.Namespace(object)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get namespace for object: %v", err)
-	}
-	return name, namespace, nil
 }

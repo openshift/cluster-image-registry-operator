@@ -18,7 +18,7 @@ func appendFinalizer(cr *imageregistryv1.Config, modified *bool) {
 	*modified = true
 }
 
-func verifyResource(cr *imageregistryv1.Config, p *parameters.Globals) error {
+func verifyResource(cr *imageregistryv1.Config) error {
 	if cr.Spec.Replicas < 0 {
 		return fmt.Errorf("replicas must be greater than or equal to 0")
 	}
