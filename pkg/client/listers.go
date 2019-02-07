@@ -5,7 +5,6 @@ import (
 	kcorelisters "k8s.io/client-go/listers/core/v1"
 	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	appslisters "github.com/openshift/client-go/apps/listers/apps/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
@@ -26,5 +25,4 @@ type Listers struct {
 	ImageConfigs        configlisters.ImageLister
 	RegistryConfigs     regoplisters.ConfigLister
 	InstallerSecrets    kcorelisters.SecretNamespaceLister
-	DeploymentConfigs   appslisters.DeploymentConfigNamespaceLister
 }

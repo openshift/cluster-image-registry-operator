@@ -17,8 +17,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	operatorapi "github.com/openshift/api/operator/v1"
-	appsset "github.com/openshift/client-go/apps/clientset/versioned"
-	appsinformers "github.com/openshift/client-go/apps/informers/externalversions"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
@@ -49,10 +47,15 @@ func (e permanentError) Error() string {
 	return e.Err.Error()
 }
 
-func NewController(kubeconfig *restclient.Config, namespace string) (*Controller, error) {
+func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	operatorName, err := regopclient.GetOperatorName()
 	if err != nil {
 		glog.Fatalf("Failed to get operator name: %v", err)
+	}
+
+	namespace, err := regopclient.GetWatchNamespace()
+	if err != nil {
+		glog.Fatalf("failed to get watch namespace: %s", err)
 	}
 
 	p := parameters.Globals{}
@@ -279,12 +282,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	appsClient, err := appsset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	appsInformerFactory := appsinformers.NewSharedInformerFactory(appsClient, defaultResyncDuration)
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
@@ -355,11 +352,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := appsInformerFactory.Apps().V1().DeploymentConfigs()
-			c.listers.DeploymentConfigs = informer.Lister().DeploymentConfigs(c.params.Deployment.Namespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
 			informer := installerConfigInformerFactory.Core().V1().Secrets()
 			c.listers.InstallerSecrets = informer.Lister().Secrets(installerConfigNamespace)
 			return informer.Informer()
@@ -370,7 +362,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		informers = append(informers, informer)
 	}
 
-	appsInformerFactory.Start(stopCh)
 	configInformerFactory.Start(stopCh)
 	installerConfigInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
