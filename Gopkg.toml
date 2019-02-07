@@ -46,17 +46,8 @@ required = [
   revision = "1a0ca44421509b47daf1e17f2e96025b3a314c3b"
 
 [[constraint]]
-  name = "github.com/openshift/image-registry"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/aws/aws-sdk-go"
   version = "1.15.90"
-
-[[override]]
-  name = "github.com/docker/distribution"
-  source = "https://github.com/openshift/docker-distribution"
-  branch = "image-registry-3.11"
 
 [[constraint]]
   branch = "master"
