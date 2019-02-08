@@ -48,11 +48,6 @@ func (e permanentError) Error() string {
 }
 
 func NewController(kubeconfig *restclient.Config) (*Controller, error) {
-	operatorName, err := regopclient.GetOperatorName()
-	if err != nil {
-		glog.Fatalf("Failed to get operator name: %v", err)
-	}
-
 	namespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
 		glog.Fatalf("failed to get watch namespace: %s", err)
@@ -78,7 +73,7 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 		kubeconfig:    kubeconfig,
 		params:        p,
 		generator:     resource.NewGenerator(kubeconfig, listers, &p),
-		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, operatorName),
+		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, imageregistryv1.ImageRegistryClusterOperatorResourceName),
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:       listers,
 	}

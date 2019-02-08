@@ -16,7 +16,7 @@ const (
 	WatchNamespaceEnvVar = "WATCH_NAMESPACE"
 
 	// OperatorNameEnvVar is the constant for env variable OPERATOR_NAME
-	// wich is the name of the current operator
+	// which is the name of the current operator
 	OperatorNameEnvVar = "OPERATOR_NAME"
 )
 

@@ -40,6 +40,10 @@ const (
 	// and the registry itself
 	ImageRegistryOperatorNamespace = "openshift-image-registry"
 
+	// ImageRegistryClusterOperatorResourceName is the name of the clusteroperator resource
+	// that reflects the registry operator status.
+	ImageRegistryClusterOperatorResourceName = "image-registry"
+
 	// Status Conditions
 
 	// OperatorStatusTypeRemoved denotes that the image-registry instance has been
