@@ -107,10 +107,6 @@ type ImageRegistrySpec struct {
 	// Requests controls how many parallel requests a given registry instance will handle before queuing additional requests
 	Requests ImageRegistryConfigRequests `json:"requests,omitempty"`
 
-	// CAConfigName identifies the configmap in the openshift-config namespace which contains
-	// additional CAs to be trusted by the registry when doing pullthrough
-	CAConfigName string `json:"caConfigName,omitempty"`
-
 	// DefaultRoute indicates whether an external facing route for the registry
 	// should be created using the default generated hostname
 	DefaultRoute bool `json:"defaultRoute,omitempty"`

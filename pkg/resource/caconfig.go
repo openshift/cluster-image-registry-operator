@@ -2,11 +2,13 @@ package resource
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
@@ -15,22 +17,24 @@ var _ Mutator = &generatorCAConfig{}
 
 type generatorCAConfig struct {
 	lister                corelisters.ConfigMapNamespaceLister
+	imageConfigLister     configlisters.ImageLister
 	openshiftConfigLister corelisters.ConfigMapNamespaceLister
 	client                coreset.CoreV1Interface
+	imageConfigName       string
 	name                  string
 	namespace             string
-	caConfigName          string
 	owner                 metav1.OwnerReference
 }
 
-func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorCAConfig {
+func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorCAConfig {
 	return &generatorCAConfig{
 		lister:                lister,
+		imageConfigLister:     imageConfigLister,
 		openshiftConfigLister: openshiftConfigLister,
 		client:                client,
+		imageConfigName:       params.ImageConfig.Name,
 		name:                  params.CAConfig.Name,
 		namespace:             params.Deployment.Namespace,
-		caConfigName:          cr.Spec.CAConfigName,
 		owner:                 asOwner(cr),
 	}
 }
@@ -58,8 +62,13 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		BinaryData: map[string][]byte{},
 	}
 
-	if gcac.caConfigName != "" {
-		upstreamConfig, err := gcac.openshiftConfigLister.Get(gcac.caConfigName)
+	imageConfig, err := gcac.imageConfigLister.Get(gcac.imageConfigName)
+	if errors.IsNotFound(err) {
+		// do nothing
+	} else if err != nil {
+		return cm, err
+	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Key; caConfigName != "" {
+		upstreamConfig, err := gcac.openshiftConfigLister.Get(caConfigName)
 		if err != nil {
 			return nil, err
 		}
