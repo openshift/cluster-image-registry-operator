@@ -149,11 +149,25 @@ type ImageRegistryConfigProxy struct {
 	NoProxy string `json:"noProxy,omitempty"`
 }
 
+// ImageRegistryConfigStorageS3 holds the information to configure
+// the registry to use the AWS S3 service for backend storage
+// https://docs.docker.com/registry/storage-drivers/s3/
 type ImageRegistryConfigStorageS3 struct {
-	Bucket         string `json:"bucket,omitempty"`
-	Region         string `json:"region,omitempty"`
+	// Bucket is the bucket name in which you want to store the registry's data
+	// Optional, will be generated if not provided
+	Bucket string `json:"bucket,omitempty"`
+	// Region is the AWS region in which your bucket exists
+	// Optional, will be set based on the installed AWS Region
+	Region string `json:"region,omitempty"`
+	// RegionEndpoint is the endpoint for S3 compatible storage services
+	// Optional, defaults based on the Region that is provided
 	RegionEndpoint string `json:"regionEndpoint,omitempty"`
-	Encrypt        bool   `json:"encrypt,omitempty"`
+	// Encrypt specifies whether the registry stores the image in encrypted format or not
+	// Optional, defaults to false
+	Encrypt bool `json:"encrypt,omitempty"`
+	// KeyID is the KMS key ID to use for encryption
+	// Optional, Encrypt must be true, or this parameter is ignored
+	KeyID string `json:"keyID,omitempty"`
 }
 
 type ImageRegistryConfigStorageAzure struct {
