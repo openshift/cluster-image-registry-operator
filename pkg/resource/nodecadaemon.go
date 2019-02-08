@@ -173,6 +173,14 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 	daemonSet := o.(*appsv1.DaemonSet)
 	modified := false
 	exists := false
+
+	newImage := os.Getenv("IMAGE")
+	oldImage := daemonSet.Spec.Template.Spec.Containers[0].Image
+	if newImage != oldImage {
+		daemonSet.Spec.Template.Spec.Containers[0].Image = newImage
+		modified = true
+	}
+
 	for i, env := range daemonSet.Spec.Template.Spec.Containers[0].Env {
 		if env.Name == "internalRegistryHostname" {
 			exists = true
