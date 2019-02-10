@@ -63,10 +63,9 @@ func (c *Controller) Bootstrap() error {
 		return err
 	}
 
-	modified := false
 	err = nil
 	if driver != nil {
-		err = driver.CompleteConfiguration(cr, &modified)
+		err = driver.CompleteConfiguration(cr)
 	}
 
 	client, err := regopset.NewForConfig(c.kubeconfig)

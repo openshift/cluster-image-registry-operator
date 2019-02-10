@@ -24,8 +24,8 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 )
 
-// UpdateCondition will update or add the provided condition and updated the modified parameter if it changed the resource
-func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string, modified *bool) {
+// UpdateCondition will update or add the provided condition.
+func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string) {
 	found := false
 	condition := &operatorapi.OperatorCondition{
 		Type:               conditionType,
@@ -44,15 +44,12 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 		if c.Status != condition.Status {
 			c.Status = condition.Status
 			c.LastTransitionTime = condition.LastTransitionTime
-			*modified = true
 		}
 		if c.Reason != condition.Reason {
 			c.Reason = condition.Reason
-			*modified = true
 		}
 		if c.Message != condition.Message {
 			c.Message = condition.Message
-			*modified = true
 		}
 		conditions = append(conditions, c)
 		found = true
@@ -60,7 +57,6 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 
 	if !found {
 		conditions = append(conditions, *condition)
-		*modified = true
 	}
 
 	cr.Status.Conditions = conditions

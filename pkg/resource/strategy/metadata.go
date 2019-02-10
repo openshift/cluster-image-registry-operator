@@ -40,5 +40,10 @@ func Metadata(oldmeta, newmeta *metav1.ObjectMeta) bool {
 		copy(oldmeta.OwnerReferences, newmeta.OwnerReferences)
 		changed = true
 	}
+	if !reflect.DeepEqual(oldmeta.Finalizers, newmeta.Finalizers) {
+		oldmeta.Finalizers = make([]string, len(newmeta.Finalizers))
+		copy(oldmeta.Finalizers, newmeta.Finalizers)
+		changed = true
+	}
 	return changed
 }

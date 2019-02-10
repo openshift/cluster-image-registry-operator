@@ -55,36 +55,33 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
-func (d *driver) StorageExists(cr *imageregistryv1.Config, modified *bool) (bool, error) {
+func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	return true, nil
 }
 
-func (d *driver) StorageChanged(cr *imageregistryv1.Config, modified *bool) bool {
+func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.Filesystem, cr.Spec.Storage.Filesystem) {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "EmptyDir Configuration Changed", "EmptyDir storage is in an unknown state", modified)
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "EmptyDir Configuration Changed", "EmptyDir storage is in an unknown state")
 		return true
 	}
 
 	return false
 }
 
-func (d *driver) CreateStorage(cr *imageregistryv1.Config, modified *bool) error {
+func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	if !reflect.DeepEqual(cr.Status.Storage.Filesystem, cr.Spec.Storage.Filesystem) {
 		cr.Status.Storage.Filesystem = d.Config.DeepCopy()
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created", modified)
-		*modified = true
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created")
 	}
 
 	return nil
 }
 
-func (d *driver) RemoveStorage(cr *imageregistryv1.Config, modified *bool) (bool, error) {
+func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	return false, nil
 }
 
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config, modified *bool) error {
-
+func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
 	cr.Spec.Storage.Filesystem = d.Config.DeepCopy()
-	*modified = true
 	return nil
 }

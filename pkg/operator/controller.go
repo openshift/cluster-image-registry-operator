@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/golang/glog"
@@ -29,6 +30,7 @@ import (
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
@@ -93,15 +95,15 @@ type Controller struct {
 	listers       *regopclient.Listers
 }
 
-func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config, modified *bool) error {
-	appendFinalizer(cr, modified)
+func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
+	appendFinalizer(cr)
 
 	err := verifyResource(cr)
 	if err != nil {
 		return permanentError{Err: fmt.Errorf("unable to complete resource: %s", err)}
 	}
 
-	err = c.generator.Apply(cr, modified)
+	err = c.generator.Apply(cr)
 	if err != nil {
 		return err
 	}
@@ -118,12 +120,12 @@ func (c *Controller) sync() error {
 		return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
 	}
 	cr = cr.DeepCopy() // we don't want to change the cached version
+	prevCR := cr.DeepCopy()
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
 		return c.finalizeResources(cr)
 	}
 
-	var statusChanged bool
 	var applyError error
 	removed := false
 	switch cr.Spec.ManagementState {
@@ -131,7 +133,7 @@ func (c *Controller) sync() error {
 		applyError = c.RemoveResources(cr)
 		removed = true
 	case operatorapi.Managed:
-		applyError = c.createOrUpdateResources(cr, &statusChanged)
+		applyError = c.createOrUpdateResources(cr)
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
@@ -147,10 +149,13 @@ func (c *Controller) sync() error {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
-	c.syncStatus(cr, deploy, applyError, removed, &statusChanged)
+	c.syncStatus(cr, deploy, applyError, removed)
 
-	if statusChanged {
-		glog.Infof("status changed: %s", util.ObjectInfo(cr))
+	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
+	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
+	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
+	if metadataChanged || specChanged || statusChanged {
+		glog.Infof("object changed: %s (metadata=%t, spec=%t, status=%t)", util.ObjectInfo(cr), metadataChanged, specChanged, statusChanged)
 
 		cr.Status.ObservedGeneration = cr.Generation
 

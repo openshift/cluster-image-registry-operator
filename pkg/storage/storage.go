@@ -24,11 +24,11 @@ type Driver interface {
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
 	Secrets() (map[string]string, error)
-	CompleteConfiguration(*imageregistryv1.Config, *bool) error
-	CreateStorage(*imageregistryv1.Config, *bool) error
-	StorageExists(*imageregistryv1.Config, *bool) (bool, error)
-	RemoveStorage(*imageregistryv1.Config, *bool) (bool, error)
-	StorageChanged(*imageregistryv1.Config, *bool) bool
+	CompleteConfiguration(*imageregistryv1.Config) error
+	CreateStorage(*imageregistryv1.Config) error
+	StorageExists(*imageregistryv1.Config) (bool, error)
+	RemoveStorage(*imageregistryv1.Config) (bool, error)
+	StorageChanged(*imageregistryv1.Config) bool
 }
 
 func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopclient.Listers) (Driver, error) {
