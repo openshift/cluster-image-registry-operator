@@ -3,6 +3,7 @@ package operator
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
@@ -20,6 +22,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	imageset "github.com/openshift/client-go/image/clientset/versioned"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
@@ -95,6 +98,96 @@ type Controller struct {
 	listers       *regopclient.Listers
 }
 
+// imageStreamPoll monitors a dummy imagestream to confirm that the openshift
+// api server has seen/consumed the internal registry hostname.  This gates
+// marking the registry available because this information is considered part
+// of the internal registry.
+// TODO - it would be better to watch the cluster image config resource and only
+// start this polling when we see that resource change (and then stop polling once
+// we see the imagestream status reflect the new value) but this polling should
+// be low cost.
+// NOTE: we can't just watch the imagestreams because the status.dockerrepository value
+// is added by a decorator on the imagestream GET api, the resource itself does not
+// change so there is no watch event generated when the status.dockerrepository value
+// changes.
+func (c *Controller) imageStreamPoll() {
+	glog.V(4).Infof("Polling for imagestream status")
+	imageClient, err := imageset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		glog.Warningf("failed to create client config: %v", err)
+		return
+	}
+	validationIS, err := imageClient.ImageV1().ImageStreams(c.params.Deployment.Namespace).Get("config-validation", metav1.GetOptions{})
+	if validationIS == nil || err != nil {
+		glog.Warningf("failed to retrieve validation imagestream %s: %s", "config-validation", err)
+		// do not change conditions on err to avoid flapping if the api server goes down
+		return
+	}
+
+	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			glog.Warningf("registry operator resource not found")
+			return
+		}
+		glog.Warningf("failed to get %q registry operator resource: %s", imageregistryv1.ImageRegistryResourceName, err)
+		return
+	}
+	cr = cr.DeepCopy() // we don't want to change the cached version
+	prevCR := cr.DeepCopy()
+
+	// We want to see the correct value 4 times in a row to ensure all the apiservers are
+	// responding with the same value.
+	successCount := 0
+	for successCount < 4 {
+		ic, err := c.listers.ImageConfigs.Get(c.params.ImageConfig.Name)
+		if err != nil {
+			if errors.IsNotFound(err) {
+				glog.Warningf("cluster image config resource %q not found", c.params.ImageConfig.Name)
+				return
+			}
+			glog.Warningf("failed to get %q cluster image config resource: %s", c.params.ImageConfig.Name, err)
+			return
+		}
+		if validationIS.Status.DockerImageRepository != "" && strings.HasPrefix(validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname) {
+			successCount += 1
+			continue
+		}
+		break
+	}
+
+	if successCount >= 4 {
+		updateCondition(cr, &operatorapi.OperatorCondition{
+			Type:               imageregistryv1.InternalRegistryHostnamePropagated,
+			Status:             operatorapi.ConditionStatus(operatorapi.ConditionTrue),
+			LastTransitionTime: metaapi.Now(),
+		})
+	} else {
+		updateCondition(cr, &operatorapi.OperatorCondition{
+			Type:               imageregistryv1.InternalRegistryHostnamePropagated,
+			Status:             operatorapi.ConditionStatus(operatorapi.ConditionFalse),
+			LastTransitionTime: metaapi.Now(),
+		})
+	}
+
+	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
+	if statusChanged {
+		glog.Infof("object changed: %s (status=%t)", util.ObjectInfo(cr), statusChanged)
+
+		client, err := regopset.NewForConfig(c.kubeconfig)
+		if err != nil {
+			glog.Errorf("unable to create client: %s", err)
+			return
+		}
+
+		_, err = client.ImageregistryV1().Configs().Update(cr)
+		if err != nil {
+			if !errors.IsConflict(err) {
+				glog.Errorf("unable to update %s: %s", util.ObjectInfo(cr), err)
+			}
+		}
+	}
+}
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 	appendFinalizer(cr)
 
@@ -377,6 +470,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		}
 	}
 
+	go wait.Until(c.imageStreamPoll, 10*time.Second, stopCh)
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
 	glog.Info("started events processor")

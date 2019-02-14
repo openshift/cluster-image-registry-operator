@@ -66,6 +66,10 @@ const (
 	// StorageIncompleteUploadCleanupEnabled denotes whethere or not the registry storage
 	// medium is configured to automatically cleanup incomplete uploads
 	StorageIncompleteUploadCleanupEnabled = "StorageIncompleteUploadCleanupEnabled"
+
+	// InternalRegistryHostnamePropagated indicates whether or not the openshift api server
+	// has consumed the internal registry hostname provided by this operator.
+	InternalRegistryHostnamePropagated = "InternalRegistryHostnamePropagated"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

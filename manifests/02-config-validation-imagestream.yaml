@@ -1,0 +1,16 @@
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: config-validation
+  namespace: openshift-image-registry
+  metadata: 
+    annotations:
+      description: This imagestream is intentionally invalid and is used to confirm the openshift apiserver has configured the internal registry hostname correctly.
+spec:
+  tags:
+  - from:
+      kind: DockerImage
+      name: quay.io/configuration/validation:latest
+    name: latest
+    referencePolicy:
+      type: Source

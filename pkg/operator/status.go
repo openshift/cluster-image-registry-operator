@@ -14,6 +14,15 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
+func getCondition(cr *imageregistryv1.Config, conditionType string) *operatorapi.OperatorCondition {
+	for i, c := range cr.Status.Conditions {
+		if conditionType == c.Type {
+			return &cr.Status.Conditions[i]
+		}
+	}
+	return nil
+}
+
 func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.OperatorCondition) {
 	found := false
 	conditions := []operatorapi.OperatorCondition{}
@@ -62,13 +71,18 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
-	if deploy == nil {
+	hostnameCondition := getCondition(cr, imageregistryv1.InternalRegistryHostnamePropagated)
+	switch {
+	case deploy == nil:
 		operatorAvailableMsg = "Deployment does not exist"
-	} else if deploy.DeletionTimestamp != nil {
+	case deploy.DeletionTimestamp != nil:
 		operatorAvailableMsg = "Deployment is being deleted"
-	} else if !isDeploymentStatusAvailable(deploy) {
+	case !isDeploymentStatusAvailable(deploy):
 		operatorAvailableMsg = "Deployment does not have available replicas"
-	} else {
+	case hostnameCondition == nil || hostnameCondition.Status != operatorapi.ConditionTrue:
+		operatorAvailable = osapi.ConditionFalse
+		operatorAvailableMsg = "Internal registry hostname has not propagated to the api server"
+	default:
 		operatorAvailable = osapi.ConditionTrue
 		operatorAvailableMsg = "Deployment has minimum availability"
 	}
