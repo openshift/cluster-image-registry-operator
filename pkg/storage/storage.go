@@ -107,6 +107,15 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 		}
 	case installConfig.Platform.AWS != nil:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
+	case installConfig.Platform.OpenStack != nil:
+		// TODO(flaper87): This should be switch to swift as soon as support for
+		// it is complete. Using Emptydir for now so that OpenStack deployments
+		// (and work) can move forward for now. Not production ready!
+		cfg.Filesystem = &imageregistryv1.ImageRegistryConfigStorageFilesystem{
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		}
 	default:
 		// if we can't determine what platform we're on, fallback to creating
 		// a PVC for the registry.
