@@ -513,7 +513,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		}
 	}
 
-	if _, err = client.Configs().Patch("instance", types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"keyID": "testKey"}}}}`)); err != nil {
+	if _, err = client.Configs().Patch(imageregistryv1.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"keyID": "testKey"}}}}`)); err != nil {
 		t.Errorf("unable to patch image registry custom resource: %#v", err)
 	}
 

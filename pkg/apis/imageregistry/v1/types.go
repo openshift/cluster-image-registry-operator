@@ -18,7 +18,7 @@ const (
 	ImageRegistryName = "image-registry"
 
 	// ImageRegistryResourceName is the name of the image registry config instance
-	ImageRegistryResourceName = "instance"
+	ImageRegistryResourceName = "cluster"
 
 	// ImageRegistryCertificatesName is the name of the configmap that is managed by the
 	// registry operator and mounted into the registry pod, to provide additional
