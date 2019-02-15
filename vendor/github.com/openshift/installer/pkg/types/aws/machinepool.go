@@ -6,16 +6,9 @@ type MachinePool struct {
 	// Zones is list of availability zones that can be used.
 	Zones []string `json:"zones,omitempty"`
 
-	// AMIID defines the AMI that should be used.
-	AMIID string `json:"amiID,omitempty"`
-
 	// InstanceType defines the ec2 instance type.
 	// eg. m4-large
 	InstanceType string `json:"type"`
-
-	// IAMRoleName defines the IAM role associated
-	// with the ec2 instance.
-	IAMRoleName string `json:"iamRoleName"`
 
 	// EC2RootVolume defines the storage for ec2 instance.
 	EC2RootVolume `json:"rootVolume"`
@@ -30,14 +23,9 @@ func (a *MachinePool) Set(required *MachinePool) {
 	if len(required.Zones) > 0 {
 		a.Zones = required.Zones
 	}
-	if required.AMIID != "" {
-		a.AMIID = required.AMIID
-	}
+
 	if required.InstanceType != "" {
 		a.InstanceType = required.InstanceType
-	}
-	if required.IAMRoleName != "" {
-		a.IAMRoleName = required.IAMRoleName
 	}
 
 	if required.EC2RootVolume.IOPS != 0 {
@@ -53,10 +41,10 @@ func (a *MachinePool) Set(required *MachinePool) {
 
 // EC2RootVolume defines the storage for an ec2 instance.
 type EC2RootVolume struct {
-	// IOPS defines the iops for the instance.
+	// IOPS defines the iops for the storage.
 	IOPS int `json:"iops"`
-	// Size defines the size of the instance.
+	// Size defines the size of the storage.
 	Size int `json:"size"`
-	// Type defines the type of the instance.
+	// Type defines the type of the storage.
 	Type string `json:"type"`
 }

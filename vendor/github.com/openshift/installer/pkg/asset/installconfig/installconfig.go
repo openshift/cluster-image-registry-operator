@@ -1,30 +1,24 @@
 package installconfig
 
 import (
-	"net"
 	"os"
 
 	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	netopv1 "github.com/openshift/cluster-network-operator/pkg/apis/networkoperator/v1"
 	"github.com/openshift/installer/pkg/asset"
-	"github.com/openshift/installer/pkg/ipnet"
 	"github.com/openshift/installer/pkg/types"
+	"github.com/openshift/installer/pkg/types/defaults"
+	openstackvalidation "github.com/openshift/installer/pkg/types/openstack/validation"
+	"github.com/openshift/installer/pkg/types/validation"
 )
 
 const (
-	installConfigFilename = "install-config.yml"
+	installConfigFilename = "install-config.yaml"
 )
 
-var (
-	defaultServiceCIDR      = parseCIDR("172.30.0.0/16")
-	defaultClusterCIDR      = "10.128.0.0/14"
-	defaultHostSubnetLength = 9 // equivalent to a /23 per node
-)
-
-// InstallConfig generates the install-config.yml file.
+// InstallConfig generates the install-config.yaml file.
 type InstallConfig struct {
 	Config *types.InstallConfig `json:"config"`
 	File   *asset.File          `json:"file"`
@@ -36,9 +30,6 @@ var _ asset.WritableAsset = (*InstallConfig)(nil)
 // InstallConfig asset.
 func (a *InstallConfig) Dependencies() []asset.Asset {
 	return []asset.Asset{
-		&clusterID{},
-		&emailAddress{},
-		&password{},
 		&sshPublicKey{},
 		&baseDomain{},
 		&clusterName{},
@@ -47,20 +38,14 @@ func (a *InstallConfig) Dependencies() []asset.Asset {
 	}
 }
 
-// Generate generates the install-config.yml file.
+// Generate generates the install-config.yaml file.
 func (a *InstallConfig) Generate(parents asset.Parents) error {
-	clusterID := &clusterID{}
-	emailAddress := &emailAddress{}
-	password := &password{}
 	sshPublicKey := &sshPublicKey{}
 	baseDomain := &baseDomain{}
 	clusterName := &clusterName{}
 	pullSecret := &pullSecret{}
 	platform := &platform{}
 	parents.Get(
-		clusterID,
-		emailAddress,
-		password,
 		sshPublicKey,
 		baseDomain,
 		clusterName,
@@ -69,56 +54,28 @@ func (a *InstallConfig) Generate(parents asset.Parents) error {
 	)
 
 	a.Config = &types.InstallConfig{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1beta2",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: clusterName.ClusterName,
 		},
-		ClusterID: clusterID.ClusterID,
-		Admin: types.Admin{
-			Email:    emailAddress.EmailAddress,
-			Password: password.Password,
-			SSHKey:   sshPublicKey.Key,
-		},
+		SSHKey:     sshPublicKey.Key,
 		BaseDomain: baseDomain.BaseDomain,
-		Networking: types.Networking{
-			Type: "OpenshiftSDN",
-
-			ServiceCIDR: ipnet.IPNet{
-				IPNet: defaultServiceCIDR,
-			},
-			ClusterNetworks: []netopv1.ClusterNetwork{
-				{
-					CIDR:             defaultClusterCIDR,
-					HostSubnetLength: uint32(defaultHostSubnetLength),
-				},
-			},
-		},
 		PullSecret: pullSecret.PullSecret,
 	}
 
-	numberOfMasters := int64(3)
-	numberOfWorkers := int64(3)
-	switch {
-	case platform.AWS != nil:
-		a.Config.AWS = platform.AWS
-	case platform.OpenStack != nil:
-		a.Config.OpenStack = platform.OpenStack
-	case platform.Libvirt != nil:
-		a.Config.Libvirt = platform.Libvirt
-		numberOfMasters = 1
-		numberOfWorkers = 1
-	default:
-		panic("unknown platform type")
+	a.Config.AWS = platform.AWS
+	a.Config.Libvirt = platform.Libvirt
+	a.Config.None = platform.None
+	a.Config.OpenStack = platform.OpenStack
+
+	if err := a.setDefaults(); err != nil {
+		return errors.Wrapf(err, "failed to set defaults for install config")
 	}
 
-	a.Config.Machines = []types.MachinePool{
-		{
-			Name:     "master",
-			Replicas: func(x int64) *int64 { return &x }(numberOfMasters),
-		},
-		{
-			Name:     "worker",
-			Replicas: func(x int64) *int64 { return &x }(numberOfWorkers),
-		},
+	if err := validation.ValidateInstallConfig(a.Config, openstackvalidation.NewValidValuesFetcher()).ToAggregate(); err != nil {
+		return errors.Wrap(err, "invalid install config")
 	}
 
 	data, err := yaml.Marshal(a.Config)
@@ -129,7 +86,6 @@ func (a *InstallConfig) Generate(parents asset.Parents) error {
 		Filename: installConfigFilename,
 		Data:     data,
 	}
-
 	return nil
 }
 
@@ -146,11 +102,6 @@ func (a *InstallConfig) Files() []*asset.File {
 	return []*asset.File{}
 }
 
-func parseCIDR(s string) net.IPNet {
-	_, cidr, _ := net.ParseCIDR(s)
-	return *cidr
-}
-
 // Load returns the installconfig from disk.
 func (a *InstallConfig) Load(f asset.FileFetcher) (found bool, err error) {
 	file, err := f.FetchByName(installConfigFilename)
@@ -165,7 +116,29 @@ func (a *InstallConfig) Load(f asset.FileFetcher) (found bool, err error) {
 	if err := yaml.Unmarshal(file.Data, config); err != nil {
 		return false, errors.Wrapf(err, "failed to unmarshal")
 	}
+	a.Config = config
 
-	a.File, a.Config = file, config
+	if err := a.setDefaults(); err != nil {
+		return false, errors.Wrapf(err, "failed to set defaults for install config")
+	}
+
+	if err := validation.ValidateInstallConfig(a.Config, openstackvalidation.NewValidValuesFetcher()).ToAggregate(); err != nil {
+		return false, errors.Wrapf(err, "invalid %q file", installConfigFilename)
+	}
+
+	data, err := yaml.Marshal(a.Config)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to Marshal InstallConfig")
+	}
+	a.File = &asset.File{
+		Filename: installConfigFilename,
+		Data:     data,
+	}
+
 	return true, nil
+}
+
+func (a *InstallConfig) setDefaults() error {
+	defaults.SetInstallConfigDefaults(a.Config)
+	return nil
 }

@@ -75,7 +75,7 @@ func initSinks(ctx context.Context) func() {
 			log.Printf("listing sinks: %v", err)
 			break
 		}
-		if sinkIDs.Older(s.ID, 24*time.Hour) {
+		if sinkIDs.Older(s.ID, time.Hour) {
 			client.DeleteSink(ctx, s.ID) // ignore error
 		}
 	}
@@ -86,9 +86,6 @@ func initSinks(ctx context.Context) func() {
 			}
 		}
 		return func() {
-			if err := storageClient.Bucket(testBucket).Delete(ctx); err != nil {
-				log.Printf("deleting %q: %v", testBucket, err)
-			}
 			storageClient.Close()
 		}
 	}

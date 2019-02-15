@@ -3,20 +3,9 @@ variable "ami" {
   description = "The AMI ID for the bootstrap node."
 }
 
-variable "associate_public_ip_address" {
-  default     = false
-  description = "If set to true, public-facing ingress resources are created."
-}
-
 variable "cluster_name" {
   type        = "string"
   description = "The name of the cluster."
-}
-
-variable "iam_role" {
-  type        = "string"
-  default     = ""
-  description = "The name of the IAM role to assign to the bootstrap node."
 }
 
 variable "ignition" {
@@ -26,7 +15,7 @@ variable "ignition" {
 
 variable "instance_type" {
   type        = "string"
-  default     = "t2.medium"
+  default     = "m4.large"
   description = "The EC2 instance type for the bootstrap node."
 }
 
@@ -67,6 +56,11 @@ variable "volume_type" {
   type        = "string"
   default     = "gp2"
   description = "The volume type for the bootstrap node's root volume."
+}
+
+variable "vpc_id" {
+  type        = "string"
+  description = "VPC ID is used to create resources like security group rules for bootstrap machine."
 }
 
 variable "vpc_security_group_ids" {

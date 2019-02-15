@@ -25,16 +25,15 @@ type bootkubeTemplateData struct {
 	KubeCaKey                       string
 	McsTLSCert                      string
 	McsTLSKey                       string
-	PullSecret                      string
+	PullSecretBase64                string
 	RootCaCert                      string
-	ServiceServingCaCert            string
-	ServiceServingCaKey             string
 	WorkerIgnConfig                 string
 	CVOClusterID                    string
 	EtcdEndpointHostnames           []string
 	EtcdEndpointDNSSuffix           string
 }
 
-type tectonicTemplateData struct {
-	CloudCreds cloudCredsSecretData
+type openshiftTemplateData struct {
+	CloudCreds                   cloudCredsSecretData
+	Base64EncodedKubeadminPwHash string
 }

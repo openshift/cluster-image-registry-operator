@@ -3,9 +3,7 @@ resource "aws_security_group" "worker" {
 
   tags = "${merge(map(
       "Name", "${var.cluster_name}_worker_sg",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+    ), var.tags)}"
 }
 
 resource "aws_security_group_rule" "worker_egress" {
@@ -78,7 +76,7 @@ resource "aws_security_group_rule" "worker_ingress_heapster_from_master" {
   to_port   = 4194
 }
 
-resource "aws_security_group_rule" "worker_ingress_flannel" {
+resource "aws_security_group_rule" "worker_ingress_vxlan" {
   type              = "ingress"
   security_group_id = "${aws_security_group.worker.id}"
 
@@ -88,17 +86,7 @@ resource "aws_security_group_rule" "worker_ingress_flannel" {
   self      = true
 }
 
-resource "aws_security_group_rule" "worker_ingress_flannel_from_etcd" {
-  type                     = "ingress"
-  security_group_id        = "${aws_security_group.worker.id}"
-  source_security_group_id = "${aws_security_group.etcd.id}"
-
-  protocol  = "udp"
-  from_port = 4789
-  to_port   = 4789
-}
-
-resource "aws_security_group_rule" "worker_ingress_flannel_from_master" {
+resource "aws_security_group_rule" "worker_ingress_vxlan_from_master" {
   type                     = "ingress"
   security_group_id        = "${aws_security_group.worker.id}"
   source_security_group_id = "${aws_security_group.master.id}"
@@ -108,24 +96,24 @@ resource "aws_security_group_rule" "worker_ingress_flannel_from_master" {
   to_port   = 4789
 }
 
-resource "aws_security_group_rule" "worker_ingress_node_exporter" {
+resource "aws_security_group_rule" "worker_ingress_internal" {
   type              = "ingress"
   security_group_id = "${aws_security_group.worker.id}"
 
   protocol  = "tcp"
-  from_port = 9100
-  to_port   = 9100
+  from_port = 9000
+  to_port   = 9999
   self      = true
 }
 
-resource "aws_security_group_rule" "worker_ingress_node_exporter_from_master" {
+resource "aws_security_group_rule" "worker_ingress_internal_from_master" {
   type                     = "ingress"
   security_group_id        = "${aws_security_group.worker.id}"
   source_security_group_id = "${aws_security_group.master.id}"
 
   protocol  = "tcp"
-  from_port = 9100
-  to_port   = 9100
+  from_port = 9000
+  to_port   = 9999
 }
 
 resource "aws_security_group_rule" "worker_ingress_kubelet_insecure" {
@@ -186,14 +174,4 @@ resource "aws_security_group_rule" "worker_ingress_services_from_console" {
   protocol  = "tcp"
   from_port = 30000
   to_port   = 32767
-}
-
-resource "aws_security_group_rule" "etcd_ingress_from_etcd" {
-  type                     = "ingress"
-  security_group_id        = "${aws_security_group.etcd.id}"
-  source_security_group_id = "${aws_security_group.etcd.id}"
-
-  protocol  = "tcp"
-  from_port = 0
-  to_port   = 65535
 }

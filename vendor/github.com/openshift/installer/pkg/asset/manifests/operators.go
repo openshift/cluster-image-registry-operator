@@ -52,33 +52,30 @@ func (m *Manifests) Name() string {
 // Manifests asset.
 func (m *Manifests) Dependencies() []asset.Asset {
 	return []asset.Asset{
+		&installconfig.ClusterID{},
 		&installconfig.InstallConfig{},
+		&Ingress{},
+		&DNS{},
+		&Infrastructure{},
 		&Networking{},
 		&tls.RootCA{},
 		&tls.EtcdCA{},
 		&tls.IngressCertKey{},
 		&tls.KubeCA{},
-		&tls.ServiceServingCA{},
 		&tls.EtcdClientCertKey{},
 		&tls.MCSCertKey{},
 		&tls.KubeletCertKey{},
 
 		&bootkube.KubeCloudConfig{},
 		&bootkube.MachineConfigServerTLSSecret{},
-		&bootkube.OpenshiftServiceCertSignerSecret{},
 		&bootkube.Pull{},
 		&bootkube.CVOOverrides{},
-		&bootkube.LegacyCVOOverrides{},
-		&bootkube.EtcdServiceEndpointsKubeSystem{},
 		&bootkube.HostEtcdServiceEndpointsKubeSystem{},
 		&bootkube.KubeSystemConfigmapEtcdServingCA{},
 		&bootkube.KubeSystemConfigmapRootCA{},
 		&bootkube.KubeSystemSecretEtcdClient{},
 
-		&bootkube.OpenshiftWebConsoleNamespace{},
 		&bootkube.OpenshiftMachineConfigOperator{},
-		&bootkube.OpenshiftClusterAPINamespace{},
-		&bootkube.OpenshiftServiceCertSignerNamespace{},
 		&bootkube.EtcdServiceKubeSystem{},
 		&bootkube.HostEtcdServiceKubeSystem{},
 	}
@@ -86,9 +83,12 @@ func (m *Manifests) Dependencies() []asset.Asset {
 
 // Generate generates the respective operator config.yml files
 func (m *Manifests) Generate(dependencies asset.Parents) error {
+	ingress := &Ingress{}
+	dns := &DNS{}
 	network := &Networking{}
+	infra := &Infrastructure{}
 	installConfig := &installconfig.InstallConfig{}
-	dependencies.Get(installConfig, network)
+	dependencies.Get(installConfig, ingress, dns, network, infra)
 
 	// mao go to kube-system config map
 	m.KubeSysConfig = configMap("kube-system", "cluster-config-v1", genericData{
@@ -107,7 +107,12 @@ func (m *Manifests) Generate(dependencies asset.Parents) error {
 	}
 	m.FileList = append(m.FileList, m.generateBootKubeManifests(dependencies)...)
 
+	m.FileList = append(m.FileList, ingress.Files()...)
+	m.FileList = append(m.FileList, dns.Files()...)
 	m.FileList = append(m.FileList, network.Files()...)
+	m.FileList = append(m.FileList, infra.Files()...)
+
+	asset.SortFiles(m.FileList)
 
 	return nil
 }
@@ -118,21 +123,21 @@ func (m *Manifests) Files() []*asset.File {
 }
 
 func (m *Manifests) generateBootKubeManifests(dependencies asset.Parents) []*asset.File {
+	clusterID := &installconfig.ClusterID{}
 	installConfig := &installconfig.InstallConfig{}
 	etcdCA := &tls.EtcdCA{}
 	kubeCA := &tls.KubeCA{}
 	mcsCertKey := &tls.MCSCertKey{}
 	etcdClientCertKey := &tls.EtcdClientCertKey{}
 	rootCA := &tls.RootCA{}
-	serviceServingCA := &tls.ServiceServingCA{}
 	dependencies.Get(
+		clusterID,
 		installConfig,
 		etcdCA,
 		etcdClientCertKey,
 		kubeCA,
 		mcsCertKey,
 		rootCA,
-		serviceServingCA,
 	)
 
 	etcdEndpointHostnames := make([]string, installConfig.Config.MasterCount())
@@ -149,71 +154,51 @@ func (m *Manifests) generateBootKubeManifests(dependencies asset.Parents) []*ass
 		KubeCaKey:                       base64.StdEncoding.EncodeToString(kubeCA.Key()),
 		McsTLSCert:                      base64.StdEncoding.EncodeToString(mcsCertKey.Cert()),
 		McsTLSKey:                       base64.StdEncoding.EncodeToString(mcsCertKey.Key()),
-		PullSecret:                      base64.StdEncoding.EncodeToString([]byte(installConfig.Config.PullSecret)),
+		PullSecretBase64:                base64.StdEncoding.EncodeToString([]byte(installConfig.Config.PullSecret)),
 		RootCaCert:                      string(rootCA.Cert()),
-		ServiceServingCaCert:            base64.StdEncoding.EncodeToString(serviceServingCA.Cert()),
-		ServiceServingCaKey:             base64.StdEncoding.EncodeToString(serviceServingCA.Key()),
-		CVOClusterID:                    installConfig.Config.ClusterID,
+		CVOClusterID:                    clusterID.ClusterID,
 		EtcdEndpointHostnames:           etcdEndpointHostnames,
 		EtcdEndpointDNSSuffix:           installConfig.Config.BaseDomain,
 	}
 
 	kubeCloudConfig := &bootkube.KubeCloudConfig{}
 	machineConfigServerTLSSecret := &bootkube.MachineConfigServerTLSSecret{}
-	openshiftServiceCertSignerSecret := &bootkube.OpenshiftServiceCertSignerSecret{}
 	pull := &bootkube.Pull{}
 	cVOOverrides := &bootkube.CVOOverrides{}
-	legacyCVOOverrides := &bootkube.LegacyCVOOverrides{}
-	etcdServiceEndpointsKubeSystem := &bootkube.EtcdServiceEndpointsKubeSystem{}
 	hostEtcdServiceEndpointsKubeSystem := &bootkube.HostEtcdServiceEndpointsKubeSystem{}
 	kubeSystemConfigmapEtcdServingCA := &bootkube.KubeSystemConfigmapEtcdServingCA{}
 	kubeSystemConfigmapRootCA := &bootkube.KubeSystemConfigmapRootCA{}
 	kubeSystemSecretEtcdClient := &bootkube.KubeSystemSecretEtcdClient{}
 
-	openshiftWebConsoleNamespace := &bootkube.OpenshiftWebConsoleNamespace{}
 	openshiftMachineConfigOperator := &bootkube.OpenshiftMachineConfigOperator{}
-	openshiftClusterAPINamespace := &bootkube.OpenshiftClusterAPINamespace{}
-	openshiftServiceCertSignerNamespace := &bootkube.OpenshiftServiceCertSignerNamespace{}
 	etcdServiceKubeSystem := &bootkube.EtcdServiceKubeSystem{}
 	hostEtcdServiceKubeSystem := &bootkube.HostEtcdServiceKubeSystem{}
 	dependencies.Get(
 		kubeCloudConfig,
 		machineConfigServerTLSSecret,
-		openshiftServiceCertSignerSecret,
 		pull,
 		cVOOverrides,
-		legacyCVOOverrides,
-		etcdServiceEndpointsKubeSystem,
 		hostEtcdServiceEndpointsKubeSystem,
 		kubeSystemConfigmapEtcdServingCA,
 		kubeSystemConfigmapRootCA,
 		kubeSystemSecretEtcdClient,
-		openshiftWebConsoleNamespace,
 		openshiftMachineConfigOperator,
-		openshiftClusterAPINamespace,
-		openshiftServiceCertSignerNamespace,
 		etcdServiceKubeSystem,
 		hostEtcdServiceKubeSystem,
 	)
 	assetData := map[string][]byte{
 		"kube-cloud-config.yaml":                     applyTemplateData(kubeCloudConfig.Files()[0].Data, templateData),
 		"machine-config-server-tls-secret.yaml":      applyTemplateData(machineConfigServerTLSSecret.Files()[0].Data, templateData),
-		"openshift-service-signer-secret.yaml":       applyTemplateData(openshiftServiceCertSignerSecret.Files()[0].Data, templateData),
 		"pull.json":                                  applyTemplateData(pull.Files()[0].Data, templateData),
 		"cvo-overrides.yaml":                         applyTemplateData(cVOOverrides.Files()[0].Data, templateData),
-		"legacy-cvo-overrides.yaml":                  applyTemplateData(legacyCVOOverrides.Files()[0].Data, templateData),
-		"etcd-service-endpoints.yaml":                applyTemplateData(etcdServiceEndpointsKubeSystem.Files()[0].Data, templateData),
 		"host-etcd-service-endpoints.yaml":           applyTemplateData(hostEtcdServiceEndpointsKubeSystem.Files()[0].Data, templateData),
 		"kube-system-configmap-etcd-serving-ca.yaml": applyTemplateData(kubeSystemConfigmapEtcdServingCA.Files()[0].Data, templateData),
 		"kube-system-configmap-root-ca.yaml":         applyTemplateData(kubeSystemConfigmapRootCA.Files()[0].Data, templateData),
 		"kube-system-secret-etcd-client.yaml":        applyTemplateData(kubeSystemSecretEtcdClient.Files()[0].Data, templateData),
 
-		"03-openshift-web-console-namespace.yaml":    []byte(openshiftWebConsoleNamespace.Files()[0].Data),
-		"04-openshift-machine-config-operator.yaml":  []byte(openshiftMachineConfigOperator.Files()[0].Data),
-		"05-openshift-cluster-api-namespace.yaml":    []byte(openshiftClusterAPINamespace.Files()[0].Data),
-		"09-openshift-service-signer-namespace.yaml": []byte(openshiftServiceCertSignerNamespace.Files()[0].Data),
-		"etcd-service.yaml":                          []byte(etcdServiceKubeSystem.Files()[0].Data),
-		"host-etcd-service.yaml":                     []byte(hostEtcdServiceKubeSystem.Files()[0].Data),
+		"04-openshift-machine-config-operator.yaml": []byte(openshiftMachineConfigOperator.Files()[0].Data),
+		"etcd-service.yaml":                         []byte(etcdServiceKubeSystem.Files()[0].Data),
+		"host-etcd-service.yaml":                    []byte(hostEtcdServiceKubeSystem.Files()[0].Data),
 	}
 
 	files := make([]*asset.File, 0, len(assetData))
@@ -263,6 +248,8 @@ func (m *Manifests) Load(f asset.FileFetcher) (bool, error) {
 	}
 
 	m.FileList, m.KubeSysConfig = fileList, kubeSysConfig
+
+	asset.SortFiles(m.FileList)
 
 	return true, nil
 }

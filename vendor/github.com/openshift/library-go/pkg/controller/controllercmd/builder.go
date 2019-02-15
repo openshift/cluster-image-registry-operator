@@ -1,6 +1,7 @@
 package controllercmd
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"sync"
@@ -17,6 +18,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
+
 	"github.com/openshift/library-go/pkg/config/client"
 	"github.com/openshift/library-go/pkg/config/configdefaults"
 	leaderelectionconverter "github.com/openshift/library-go/pkg/config/leaderelection"
@@ -30,9 +32,24 @@ type StartFunc func(*ControllerContext) error
 
 type ControllerContext struct {
 	ComponentConfig *unstructured.Unstructured
-	KubeConfig      *rest.Config
-	EventRecorder   events.Recorder
-	StopCh          <-chan struct{}
+
+	// KubeConfig provides the REST config with no content type (it will default to JSON).
+	// Use this config for CR resources.
+	KubeConfig *rest.Config
+
+	// ProtoKubeConfig provides the REST config with "application/vnd.kubernetes.protobuf,application/json" content type.
+	// Note that this config might not be safe for CR resources, instead it should be used for other resources.
+	ProtoKubeConfig *rest.Config
+
+	// EventRecorder is used to record events in controllers.
+	EventRecorder events.Recorder
+
+	stopChan <-chan struct{}
+}
+
+// Done returns a channel which will close on termination.
+func (c ControllerContext) Done() <-chan struct{} {
+	return c.stopChan
 }
 
 // defaultObserverInterval specifies the default interval that file observer will do rehash the files it watches and react to any changes
@@ -135,14 +152,14 @@ func (b *ControllerBuilder) WithInstanceIdentity(identity string) *ControllerBui
 }
 
 // Run starts your controller for you.  It uses leader election if you asked, otherwise it directly calls you
-func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan struct{}) error {
+func (b *ControllerBuilder) Run(config *unstructured.Unstructured, ctx context.Context) error {
 	clientConfig, err := b.getClientConfig()
 	if err != nil {
 		return err
 	}
 
 	if b.fileObserver != nil {
-		go b.fileObserver.Run(stopCh)
+		go b.fileObserver.Run(ctx.Done())
 	}
 
 	kubeClient := kubernetes.NewForConfigOrDie(clientConfig)
@@ -186,18 +203,23 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 		}
 
 		go func() {
-			if err := server.PrepareRun().Run(stopCh); err != nil {
+			if err := server.PrepareRun().Run(ctx.Done()); err != nil {
 				glog.Error(err)
 			}
 			glog.Fatal("server exited")
 		}()
 	}
 
+	protoConfig := rest.CopyConfig(clientConfig)
+	protoConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	protoConfig.ContentType = "application/vnd.kubernetes.protobuf"
+
 	controllerContext := &ControllerContext{
 		ComponentConfig: config,
 		KubeConfig:      clientConfig,
+		ProtoKubeConfig: protoConfig,
 		EventRecorder:   eventRecorder,
-		StopCh:          stopCh,
+		stopChan:        ctx.Done(),
 	}
 
 	if b.leaderElection == nil {
@@ -212,13 +234,13 @@ func (b *ControllerBuilder) Run(config *unstructured.Unstructured, stopCh <-chan
 		return err
 	}
 
-	leaderElection.Callbacks.OnStartedLeading = func(stop <-chan struct{}) {
-		controllerContext.StopCh = stop
+	leaderElection.Callbacks.OnStartedLeading = func(ctx context.Context) {
+		controllerContext.stopChan = ctx.Done()
 		if err := b.startFunc(controllerContext); err != nil {
 			glog.Fatal(err)
 		}
 	}
-	leaderelection.RunOrDie(leaderElection)
+	leaderelection.RunOrDie(ctx, leaderElection)
 	return fmt.Errorf("exited")
 }
 

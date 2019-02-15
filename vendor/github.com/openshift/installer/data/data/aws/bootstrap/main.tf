@@ -32,21 +32,12 @@ data "ignition_config" "redirect" {
 resource "aws_iam_instance_profile" "bootstrap" {
   name = "${var.cluster_name}-bootstrap-profile"
 
-  role = "${var.iam_role == "" ?
-    join("|", aws_iam_role.bootstrap.*.name) :
-    join("|", data.aws_iam_role.bootstrap.*.name)
-  }"
-}
-
-data "aws_iam_role" "bootstrap" {
-  count = "${var.iam_role == "" ? 0 : 1}"
-  name  = "${var.iam_role}"
+  role = "${aws_iam_role.bootstrap.name}"
 }
 
 resource "aws_iam_role" "bootstrap" {
-  count = "${var.iam_role == "" ? 1 : 0}"
-  name  = "${var.cluster_name}-bootstrap-role"
-  path  = "/"
+  name = "${var.cluster_name}-bootstrap-role"
+  path = "/"
 
   assume_role_policy = <<EOF
 {
@@ -63,12 +54,13 @@ resource "aws_iam_role" "bootstrap" {
     ]
 }
 EOF
+
+  tags = "${var.tags}"
 }
 
 resource "aws_iam_role_policy" "bootstrap" {
-  count = "${var.iam_role == "" ? 1 : 0}"
-  name  = "${var.cluster_name}-bootstrap-policy"
-  role  = "${aws_iam_role.bootstrap.id}"
+  name = "${var.cluster_name}-bootstrap-policy"
+  role = "${aws_iam_role.bootstrap.id}"
 
   policy = <<EOF
 {
@@ -108,8 +100,8 @@ resource "aws_instance" "bootstrap" {
   instance_type               = "${var.instance_type}"
   subnet_id                   = "${var.subnet_id}"
   user_data                   = "${data.ignition_config.redirect.rendered}"
-  vpc_security_group_ids      = ["${var.vpc_security_group_ids}"]
-  associate_public_ip_address = "${var.associate_public_ip_address}"
+  vpc_security_group_ids      = ["${var.vpc_security_group_ids}", "${aws_security_group.bootstrap.id}"]
+  associate_public_ip_address = true
 
   lifecycle {
     # Ignore changes in the AMI which force recreation of the resource. This
@@ -135,4 +127,22 @@ resource "aws_lb_target_group_attachment" "bootstrap" {
 
   target_group_arn = "${var.target_group_arns[count.index]}"
   target_id        = "${aws_instance.bootstrap.private_ip}"
+}
+
+resource "aws_security_group" "bootstrap" {
+  vpc_id = "${var.vpc_id}"
+
+  tags = "${merge(map(
+      "Name", "${var.cluster_name}_bootstrap_sg",
+    ), var.tags)}"
+}
+
+resource "aws_security_group_rule" "bootstrap_journald_gateway" {
+  type              = "ingress"
+  security_group_id = "${aws_security_group.bootstrap.id}"
+
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+  from_port   = 19531
+  to_port     = 19531
 }

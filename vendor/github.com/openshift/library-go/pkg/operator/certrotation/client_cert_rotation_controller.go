@@ -6,17 +6,12 @@ import (
 
 	"github.com/golang/glog"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apiserver/pkg/authentication/user"
-	corev1informers "k8s.io/client-go/informers/core/v1"
-	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/openshift/library-go/pkg/crypto"
-	"github.com/openshift/library-go/pkg/operator/events"
 )
 
 const (
@@ -28,230 +23,106 @@ const (
 
 const workQueueKey = "key"
 
+// CertRotationController does:
+//
+// 1) continuously create a self-signed signing CA (via SigningRotation).
+//    It creates the next one when a given percentage of the validity of the old CA has passed.
+// 2) maintain a CA bundle with all not yet expired CA certs.
+// 3) continuously create a target cert and key signed by the latest signing CA
+//    It creates the next one when a given percentage of the validity of the previous cert has
+//    passed, or when a new CA has been created.
 type CertRotationController struct {
 	name string
 
-	signingNamespace             string
-	signingCertKeyPairValidity   time.Duration
-	newSigningPercentage         float32
-	signingCertKeyPairSecretName string
-	signingLister                corev1listers.SecretLister
-
-	caBundleNamespace     string
-	caBundleConfigMapName string
-	caBundleLister        corev1listers.ConfigMapLister
-
-	targetNamespace                     string
-	targetCertKeyPairValidity           time.Duration
-	newTargetPercentage                 float32
-	targetCertKeyPairSecretName         string
-	targetServingHostnames              []string
-	targetServingCertificateExtensionFn []crypto.CertificateExtensionFunc
-	targetUserInfo                      user.Info
-	targetLister                        corev1listers.SecretLister
+	SigningRotation  SigningRotation
+	CABundleRotation CABundleRotation
+	TargetRotation   TargetRotation
+	OperatorClient   v1helpers.StaticPodOperatorClient
 
 	cachesSynced []cache.InformerSynced
-
-	configmapsClient corev1client.ConfigMapsGetter
-	secretsClient    corev1client.SecretsGetter
-	eventRecorder    events.Recorder
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue workqueue.RateLimitingInterface
 }
 
-func newCertRotationController(
+func NewCertRotationController(
 	name string,
-	signingNamespace string,
-	signingCertKeyPairValidity time.Duration,
-	newSigningPercentage float32,
-	signingCertKeyPairSecretName string,
-	caBundleNamespace string,
-	caBundleConfigMapName string,
-	targetNamespace string,
-	targetCertKeyPairValidity time.Duration,
-	newTargetPercentage float32,
-	targetCertKeyPairSecretName string,
+	signingRotation SigningRotation,
+	caBundleRotation CABundleRotation,
+	targetRotation TargetRotation,
+	operatorClient v1helpers.StaticPodOperatorClient,
+) (*CertRotationController, error) {
+	if !isOverlapSufficient(signingRotation, targetRotation) {
+		return nil, fmt.Errorf("insufficient overlap between signer and target")
+	}
 
-	signingInformer corev1informers.SecretInformer,
-	cabundleInformer corev1informers.ConfigMapInformer,
-	targetInformer corev1informers.SecretInformer,
-
-	configmapsClient corev1client.ConfigMapsGetter,
-	secretsClient corev1client.SecretsGetter,
-	eventRecorder events.Recorder,
-) *CertRotationController {
 	ret := &CertRotationController{
-		signingNamespace:             signingNamespace,
-		signingCertKeyPairValidity:   signingCertKeyPairValidity,
-		newSigningPercentage:         newSigningPercentage,
-		signingCertKeyPairSecretName: signingCertKeyPairSecretName,
-		signingLister:                signingInformer.Lister(),
-
-		caBundleNamespace:     caBundleNamespace,
-		caBundleConfigMapName: caBundleConfigMapName,
-		caBundleLister:        cabundleInformer.Lister(),
-
-		targetNamespace:             targetNamespace,
-		targetCertKeyPairValidity:   targetCertKeyPairValidity,
-		newTargetPercentage:         newTargetPercentage,
-		targetCertKeyPairSecretName: targetCertKeyPairSecretName,
-		targetLister:                targetInformer.Lister(),
+		SigningRotation:  signingRotation,
+		CABundleRotation: caBundleRotation,
+		TargetRotation:   targetRotation,
+		OperatorClient:   operatorClient,
 
 		cachesSynced: []cache.InformerSynced{
-			signingInformer.Informer().HasSynced,
-			cabundleInformer.Informer().HasSynced,
-			targetInformer.Informer().HasSynced,
+			signingRotation.Informer.Informer().HasSynced,
+			caBundleRotation.Informer.Informer().HasSynced,
+			targetRotation.Informer.Informer().HasSynced,
 		},
-
-		configmapsClient: configmapsClient,
-		secretsClient:    secretsClient,
-		eventRecorder:    eventRecorder,
 
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), name),
 	}
 
-	signingInformer.Informer().AddEventHandler(ret.eventHandler())
-	cabundleInformer.Informer().AddEventHandler(ret.eventHandler())
-	targetInformer.Informer().AddEventHandler(ret.eventHandler())
+	signingRotation.Informer.Informer().AddEventHandler(ret.eventHandler())
+	caBundleRotation.Informer.Informer().AddEventHandler(ret.eventHandler())
+	targetRotation.Informer.Informer().AddEventHandler(ret.eventHandler())
 
-	return ret
+	return ret, nil
 }
 
-func NewClientCertRotationController(
-	name string,
-	signingNamespace string,
-	signingCertKeyPairValidity time.Duration,
-	newSigningPercentage float32,
-	signingCertKeyPairSecretName string,
-	caBundleNamespace string,
-	caBundleConfigMapName string,
-	targetNamespace string,
-	targetCertKeyPairValidity time.Duration,
-	newTargetPercentage float32,
-	targetCertKeyPairSecretName string,
-	targetUserInfo user.Info,
-
-	signingInformer corev1informers.SecretInformer,
-	cabundleInformer corev1informers.ConfigMapInformer,
-	targetInformer corev1informers.SecretInformer,
-
-	configmapsClient corev1client.ConfigMapsGetter,
-	secretsClient corev1client.SecretsGetter,
-	eventRecorder events.Recorder,
-) *CertRotationController {
-	ret := newCertRotationController(
-		name,
-		signingNamespace,
-		signingCertKeyPairValidity,
-		newSigningPercentage,
-		signingCertKeyPairSecretName,
-		caBundleNamespace,
-		caBundleConfigMapName,
-		targetNamespace,
-		targetCertKeyPairValidity,
-		newTargetPercentage,
-		targetCertKeyPairSecretName,
-
-		signingInformer,
-		cabundleInformer,
-		targetInformer,
-
-		configmapsClient,
-		secretsClient,
-		eventRecorder,
-	)
-	ret.targetUserInfo = targetUserInfo
-
-	return ret
-}
-
-func NewServingCertRotationController(
-	name string,
-	signingNamespace string,
-	signingCertKeyPairValidity time.Duration,
-	newSigningPercentage float32,
-	signingCertKeyPairSecretName string,
-	caBundleNamespace string,
-	caBundleConfigMapName string,
-	targetNamespace string,
-	targetCertKeyPairValidity time.Duration,
-	newTargetPercentage float32,
-	targetCertKeyPairSecretName string,
-	targetServingHostnames []string,
-	targetServingCertificateExtensionFn []crypto.CertificateExtensionFunc,
-
-	signingInformer corev1informers.SecretInformer,
-	cabundleInformer corev1informers.ConfigMapInformer,
-	targetInformer corev1informers.SecretInformer,
-
-	configmapsClient corev1client.ConfigMapsGetter,
-	secretsClient corev1client.SecretsGetter,
-	eventRecorder events.Recorder,
-) *CertRotationController {
-	ret := newCertRotationController(
-		name,
-		signingNamespace,
-		signingCertKeyPairValidity,
-		newSigningPercentage,
-		signingCertKeyPairSecretName,
-		caBundleNamespace,
-		caBundleConfigMapName,
-		targetNamespace,
-		targetCertKeyPairValidity,
-		newTargetPercentage,
-		targetCertKeyPairSecretName,
-
-		signingInformer,
-		cabundleInformer,
-		targetInformer,
-
-		configmapsClient,
-		secretsClient,
-		eventRecorder,
-	)
-	ret.targetServingHostnames = targetServingHostnames
-	ret.targetServingCertificateExtensionFn = targetServingCertificateExtensionFn
-
-	return ret
+func isOverlapSufficient(signingRotation SigningRotation, targetRotation TargetRotation) bool {
+	targetRefreshOverlap := float32(targetRotation.Validity) * (1 - targetRotation.RefreshPercentage)
+	requiredSignerAge := targetRefreshOverlap / 10
+	signerRefreshOverlap := float32(signingRotation.Validity) * (signingRotation.RefreshPercentage)
+	if signerRefreshOverlap < requiredSignerAge*2 {
+		return false
+	}
+	return true
 }
 
 func (c CertRotationController) sync() error {
-	signingCertKeyPair, err := c.ensureSigningCertKeyPair()
+	syncErr := c.syncWorker()
+
+	condition := operatorv1.OperatorCondition{
+		Type:   "CertRotation_" + c.name + "_Failing",
+		Status: operatorv1.ConditionFalse,
+	}
+	if syncErr != nil {
+		condition.Status = operatorv1.ConditionTrue
+		condition.Reason = "RotationError"
+		condition.Message = syncErr.Error()
+	}
+	if _, _, updateErr := v1helpers.UpdateStaticPodStatus(c.OperatorClient, v1helpers.UpdateStaticPodConditionFn(condition)); updateErr != nil {
+		return updateErr
+	}
+
+	return syncErr
+}
+
+func (c CertRotationController) syncWorker() error {
+	signingCertKeyPair, err := c.SigningRotation.ensureSigningCertKeyPair()
 	if err != nil {
 		return err
 	}
 
-	if err := c.ensureConfigMapCABundle(signingCertKeyPair); err != nil {
+	cabundleCerts, err := c.CABundleRotation.ensureConfigMapCABundle(signingCertKeyPair)
+	if err != nil {
 		return err
 	}
 
-	if err := c.ensureTargetCertKeyPair(signingCertKeyPair); err != nil {
+	if err := c.TargetRotation.ensureTargetCertKeyPair(signingCertKeyPair, cabundleCerts); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func needNewCertKeyPairForTime(annotations map[string]string, validity time.Duration, renewalPercentage float32) bool {
-	signingCertKeyPairExpiry := annotations[CertificateExpiryAnnotation]
-	if len(signingCertKeyPairExpiry) == 0 {
-		return true
-	}
-	certExpiry, err := time.Parse(time.RFC3339, signingCertKeyPairExpiry)
-	if err != nil {
-		glog.Infof("bad expiry: %q", signingCertKeyPairExpiry)
-		// just create a new one
-		return true
-	}
-
-	// If Certificate is not-expired, skip this iteration.
-	renewalDuration := -1 * float32(validity) * (1 - renewalPercentage)
-	if certExpiry.Add(time.Duration(renewalDuration)).After(time.Now()) {
-		return false
-	}
-
-	return true
 }
 
 func (c *CertRotationController) Run(workers int, stopCh <-chan struct{}) {
@@ -268,6 +139,22 @@ func (c *CertRotationController) Run(workers int, stopCh <-chan struct{}) {
 
 	// doesn't matter what workers say, only start one.
 	go wait.Until(c.runWorker, time.Second, stopCh)
+
+	// start a time based thread to ensure we stay up to date
+	go wait.Until(func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			c.queue.Add(workQueueKey)
+			select {
+			case <-ticker.C:
+			case <-stopCh:
+				return
+			}
+		}
+
+	}, time.Minute, stopCh)
 
 	<-stopCh
 }

@@ -302,6 +302,62 @@
                 "https://www.googleapis.com/auth/cloud-platform"
               ]
             },
+            "applyProjectConfig": {
+              "description": "Apply configuration to an existing tenant project.\nThis project must exist in active state and have the original owner\naccount. Caller must have the permission to add a project to the given\ntenancy unit. Configuration will be applied, but any existing settings on\nthe project will not be modified.\nSpecified policy bindings will be applied. Existing binding will not be\nmodified.\nSpecified services will be activated.   No service will be deactivated.\nNew billing configuration will be applied if specified.\nOmit billing configuration to keep the existing one.\nService account in the project will be created if previously non existing.\nOperation fails if any of the steps fail, but no rollback of already\napplied configuration changes is attempted.\nOperation\u003cresponse: Empty\u003e.",
+              "flatPath": "v1/services/{servicesId}/{servicesId1}/{servicesId2}/tenancyUnits/{tenancyUnitsId}:applyProjectConfig",
+              "httpMethod": "POST",
+              "id": "serviceconsumermanagement.services.tenancyUnits.applyProjectConfig",
+              "parameterOrder": [
+                "name"
+              ],
+              "parameters": {
+                "name": {
+                  "description": "Name of the tenancy unit.",
+                  "location": "path",
+                  "pattern": "^services/[^/]+/[^/]+/[^/]+/tenancyUnits/[^/]+$",
+                  "required": true,
+                  "type": "string"
+                }
+              },
+              "path": "v1/{+name}:applyProjectConfig",
+              "request": {
+                "$ref": "ApplyTenantProjectConfigRequest"
+              },
+              "response": {
+                "$ref": "Operation"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform"
+              ]
+            },
+            "attachProject": {
+              "description": "Attach an existing project to the tenancy unit as a new tenant\nresource. The project could be either the tenant project reserved by\ncalling AddTenantProject under tenancy unit for the producer project of\nservice, or from outside.\nCaller will be checked against the permission as if calling\nAddTenantProject on the same consumer.\nTo trigger the attachement, the targeted tenant project must be in a\nfolder. Please also make sure ServiceConsumerManagement service account is\nthe owner of that project. Note that these two requirements are already met\nif the project is reserved through AddTenantProject.\nOperation\u003cresponse: Empty\u003e.",
+              "flatPath": "v1/services/{servicesId}/{servicesId1}/{servicesId2}/tenancyUnits/{tenancyUnitsId}:attachProject",
+              "httpMethod": "POST",
+              "id": "serviceconsumermanagement.services.tenancyUnits.attachProject",
+              "parameterOrder": [
+                "name"
+              ],
+              "parameters": {
+                "name": {
+                  "description": "Name of the tenancy unit that project will be attached to.",
+                  "location": "path",
+                  "pattern": "^services/[^/]+/[^/]+/[^/]+/tenancyUnits/[^/]+$",
+                  "required": true,
+                  "type": "string"
+                }
+              },
+              "path": "v1/{+name}:attachProject",
+              "request": {
+                "$ref": "AttachTenantProjectRequest"
+              },
+              "response": {
+                "$ref": "Operation"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform"
+              ]
+            },
             "create": {
               "description": "Creates a tenancy unit with no tenant resources.",
               "flatPath": "v1/services/{servicesId}/{servicesId1}/{servicesId2}/tenancyUnits",
@@ -331,7 +387,7 @@
               ]
             },
             "delete": {
-              "description": "Delete a tenancy unit.  Before the tenancy unit is deleted, there should be\nno tenant resources in it.\nOperation\u003cresponse: Empty\u003e.",
+              "description": "Delete a tenancy unit.  Before the tenancy unit is deleted, there should be\nno tenant resources in it not in DELETED state.\nOperation\u003cresponse: Empty\u003e.",
               "flatPath": "v1/services/{servicesId}/{servicesId1}/{servicesId2}/tenancyUnits/{tenancyUnitsId}",
               "httpMethod": "DELETE",
               "id": "serviceconsumermanagement.services.tenancyUnits.delete",
@@ -397,7 +453,7 @@
               ]
             },
             "removeProject": {
-              "description": "Removes specified project resource identified by tenant resource tag.\nIt will remove project lien with 'TenantManager' origin if that was added.\nIt will then attempt to delete the project.\nIf that operation fails, this method fails.\nOperation\u003cresponse: Empty\u003e.",
+              "description": "Removes specified project resource identified by tenant resource tag.\nIt will remove project lien with 'TenantManager' origin if that was added.\nIt will then attempt to delete the project. If that operation fails, this\nmethod fails.\nAfter the project has been deleted, or if was already in DELETED state,\nresource metadata is permanently removed from the tenancy unit.\nOperation\u003cresponse: Empty\u003e.",
               "flatPath": "v1/services/{servicesId}/{servicesId1}/{servicesId2}/tenancyUnits/{tenancyUnitsId}:removeProject",
               "httpMethod": "POST",
               "id": "serviceconsumermanagement.services.tenancyUnits.removeProject",
@@ -429,7 +485,7 @@
       }
     }
   },
-  "revision": "20181105",
+  "revision": "20181217",
   "rootUrl": "https://serviceconsumermanagement.googleapis.com/",
   "schemas": {
     "AddTenantProjectRequest": {
@@ -499,6 +555,40 @@
       },
       "type": "object"
     },
+    "ApplyTenantProjectConfigRequest": {
+      "description": "Request to apply configuration to an existing tenant project.",
+      "id": "ApplyTenantProjectConfigRequest",
+      "properties": {
+        "projectConfig": {
+          "$ref": "TenantProjectConfig",
+          "description": "Configuration that should be applied to the existing tenant project."
+        },
+        "tag": {
+          "description": "Tag of the project. Must be less than 128 characters. Required.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "AttachTenantProjectRequest": {
+      "description": "Request to attach an existing project to the tenancy unit as a new tenant\nresource.",
+      "id": "AttachTenantProjectRequest",
+      "properties": {
+        "externalResource": {
+          "description": "When attaching an external project, this is in the format of\n`projects/{project_number}’.",
+          "type": "string"
+        },
+        "reservedResource": {
+          "description": "When attaching a reserved project already in Tenancy Units, this is the\ntag of tenant resource under the tenancy unit for the service's producer\nproject. The reserved tenant resource must be in active state.",
+          "type": "string"
+        },
+        "tag": {
+          "description": "Tag of the tenant resource after attachment.\nMust be less than 128 characters. Required.",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "AuthProvider": {
       "description": "Configuration for an anthentication provider, including support for\n[JSON Web Token (JWT)](https://tools.ietf.org/html/draft-ietf-oauth-json-web-token-32).",
       "id": "AuthProvider",
@@ -508,7 +598,7 @@
           "type": "string"
         },
         "authorizationUrl": {
-          "description": "Redirect URL if JWT token is required but no present or is expired.\nImplement authorizationUrl of securityDefinitions in OpenAPI spec.",
+          "description": "Redirect URL if JWT token is required but not present or is expired.\nImplement authorizationUrl of securityDefinitions in OpenAPI spec.",
           "type": "string"
         },
         "id": {
@@ -1516,14 +1606,14 @@
       "id": "Monitoring",
       "properties": {
         "consumerDestinations": {
-          "description": "Monitoring configurations for sending metrics to the consumer project.\nThere can be multiple consumer destinations, each one must have a\ndifferent monitored resource type. A metric can be used in at most\none consumer destination.",
+          "description": "Monitoring configurations for sending metrics to the consumer project.\nThere can be multiple consumer destinations. A monitored resouce type may\nappear in multiple monitoring destinations if different aggregations are\nneeded for different sets of metrics associated with that monitored\nresource type. A monitored resource and metric pair may only be used once\nin the Monitoring configuration.",
           "items": {
             "$ref": "MonitoringDestination"
           },
           "type": "array"
         },
         "producerDestinations": {
-          "description": "Monitoring configurations for sending metrics to the producer project.\nThere can be multiple producer destinations, each one must have a\ndifferent monitored resource type. A metric can be used in at most\none producer destination.",
+          "description": "Monitoring configurations for sending metrics to the producer project.\nThere can be multiple producer destinations. A monitored resouce type may\nappear in multiple monitoring destinations if different aggregations are\nneeded for different sets of metrics associated with that monitored\nresource type. A monitored resource and metric pair may only be used once\nin the Monitoring configuration.",
           "items": {
             "$ref": "MonitoringDestination"
           },
@@ -1537,7 +1627,7 @@
       "id": "MonitoringDestination",
       "properties": {
         "metrics": {
-          "description": "Names of the metrics to report to this monitoring destination.\nEach name must be defined in Service.metrics section.",
+          "description": "Types of the metrics to report to this monitoring destination.\nEach type must be defined in Service.metrics section.",
           "items": {
             "type": "string"
           },
@@ -2125,14 +2215,16 @@
             "PENDING_CREATE",
             "ACTIVE",
             "PENDING_DELETE",
-            "FAILED"
+            "FAILED",
+            "DELETED"
           ],
           "enumDescriptions": [
             "Unspecified status is the default unset value.",
             "Creation of the tenant resource is ongoing.",
             "Active resource.",
             "Deletion of the resource is ongoing.",
-            "Tenant resource creation or deletion has failed."
+            "Tenant resource creation or deletion has failed.",
+            "Tenant resource has been deleted."
           ],
           "type": "string"
         },

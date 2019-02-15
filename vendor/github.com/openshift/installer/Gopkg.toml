@@ -1,4 +1,7 @@
-ignored = ["github.com/openshift/installer/tests*"]
+ignored = [
+  "github.com/openshift/installer/tests*",
+  "github.com/openshift/installer/pkg/terraform/exec*"
+]
 
 [prune]
   non-go = true
@@ -7,11 +10,11 @@ ignored = ["github.com/openshift/installer/tests*"]
 
 [[constraint]]
   name = "gopkg.in/AlecAivazis/survey.v1"
-  version = "1.6.2"
+  version = "1.8.1"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
-  version = "1.15.39"
+  version = "1.16.14"
 
 [[constraint]]
   name = "github.com/coreos/ignition"
@@ -38,6 +41,10 @@ ignored = ["github.com/openshift/installer/tests*"]
   name = "github.com/vincent-petithory/dataurl"
 
 [[override]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.12.2"
+
+[[override]]
   name = "k8s.io/apimachinery"
   version = "kubernetes-1.12.2"
 
@@ -46,15 +53,17 @@ ignored = ["github.com/openshift/installer/tests*"]
   version = "9.0.0"
 
 [[constraint]]
-  name = "sigs.k8s.io/cluster-api"
-  branch = "master"
+  name = "github.com/openshift/cluster-api"
+  revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
+
 [[constraint]]
   name = "sigs.k8s.io/cluster-api-provider-aws"
   source = "https://github.com/openshift/cluster-api-provider-aws.git"
-  branch = "master"
+  revision = "15fe4b4ea5636f8516c238490fc6a85d44161181"
+
 [[constraint]]
   name = "github.com/openshift/cluster-api-provider-libvirt"
-  branch = "master"
+  revision = "c23986b36a2521cd69ac22d7adb74a22bca9f7aa"
 
 [[constraint]]
   name = "github.com/pkg/errors"
@@ -65,17 +74,18 @@ ignored = ["github.com/openshift/installer/tests*"]
   version = "2.0.0"
 
 [[constraint]]
-  name = "github.com/openshift/hive"
-  revision = "8c7844d9b61c35f53bab561f5ce4d879fef86ec6"
-
-[[constraint]]
   name = "k8s.io/utils"
   revision = "4c3feeb576b06ef8fea769809bd3db5e5e78dc23"
 
 [[constraint]]
-  name = "github.com/openshift/cluster-network-operator"
-  revision = "fb8b55a1072436a51b153de9acf5bf5525efcf83"
-
-[[constraint]]
   name = "github.com/gophercloud/utils"
   revision = "34f5991525d116b3832e0d9409492274f1c06bda"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gophercloud/gophercloud"
+
+[[constraint]]
+  branch = "master"
+  name = "sigs.k8s.io/cluster-api-provider-openstack"
+  source = "https://github.com/openshift/cluster-api-provider-openstack.git"

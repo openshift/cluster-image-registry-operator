@@ -2,14 +2,16 @@
 package bootstrap
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/openshift/installer/pkg/asset/cluster"
 	"github.com/openshift/installer/pkg/terraform"
+	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 )
 
 // Destroy uses Terraform to remove bootstrap resources.
@@ -24,17 +26,18 @@ func Destroy(dir string) (err error) {
 		return errors.New("no platform configured in metadata")
 	}
 
-	copyNames := []string{terraform.StateFileName, cluster.TfVarsFileName}
+	tfPlatformVarsFileName := fmt.Sprintf(cluster.TfPlatformVarsFileName, platform)
+	copyNames := []string{terraform.StateFileName, cluster.TfVarsFileName, tfPlatformVarsFileName}
 
-	if platform == "libvirt" {
-		err = ioutil.WriteFile(filepath.Join(dir, "disable-bootstrap.auto.tfvars"), []byte(`{
+	if platform == libvirt.Name {
+		err = ioutil.WriteFile(filepath.Join(dir, "disable-bootstrap.tfvars"), []byte(`{
   "bootstrap_dns": false
 }
 `), 0666)
 		if err != nil {
 			return err
 		}
-		copyNames = append(copyNames, "disable-bootstrap.auto.tfvars")
+		copyNames = append(copyNames, "disable-bootstrap.tfvars")
 	}
 
 	tempDir, err := ioutil.TempDir("", "openshift-install-")
@@ -43,22 +46,31 @@ func Destroy(dir string) (err error) {
 	}
 	defer os.RemoveAll(tempDir)
 
+	extraArgs := []string{}
 	for _, filename := range copyNames {
-		err = copy(filepath.Join(dir, filename), filepath.Join(tempDir, filename))
+		sourcePath := filepath.Join(dir, filename)
+		targetPath := filepath.Join(tempDir, filename)
+		err = copy(sourcePath, targetPath)
 		if err != nil {
+			if os.IsNotExist(err) && err.(*os.PathError).Path == sourcePath && filename == tfPlatformVarsFileName {
+				continue // platform may not need platform-specific Terraform variables
+			}
 			return errors.Wrapf(err, "failed to copy %s to the temporary directory", filename)
+		}
+		if strings.HasSuffix(filename, ".tfvars") {
+			extraArgs = append(extraArgs, fmt.Sprintf("-var-file=%s", targetPath))
 		}
 	}
 
-	logrus.Infof("Using Terraform to destroy bootstrap resources...")
-	if platform == "libvirt" {
-		_, err = terraform.Apply(tempDir, platform)
+	if platform == libvirt.Name {
+		_, err = terraform.Apply(tempDir, platform, extraArgs...)
 		if err != nil {
 			return errors.Wrap(err, "Terraform apply")
 		}
 	}
 
-	err = terraform.Destroy(tempDir, platform, "-target=module.bootstrap")
+	extraArgs = append(extraArgs, "-target=module.bootstrap")
+	err = terraform.Destroy(tempDir, platform, extraArgs...)
 	if err != nil {
 		return errors.Wrap(err, "Terraform destroy")
 	}

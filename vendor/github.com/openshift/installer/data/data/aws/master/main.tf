@@ -5,21 +5,12 @@ locals {
 resource "aws_iam_instance_profile" "master" {
   name = "${var.cluster_name}-master-profile"
 
-  role = "${var.master_iam_role == "" ?
-    join("|", aws_iam_role.master_role.*.name) :
-    join("|", data.aws_iam_role.master_role.*.name)
-  }"
-}
-
-data "aws_iam_role" "master_role" {
-  count = "${var.master_iam_role == "" ? 0 : 1}"
-  name  = "${var.master_iam_role}"
+  role = "${aws_iam_role.master_role.name}"
 }
 
 resource "aws_iam_role" "master_role" {
-  count = "${var.master_iam_role == "" ? 1 : 0}"
-  name  = "${var.cluster_name}-master-role"
-  path  = "/"
+  name = "${var.cluster_name}-master-role"
+  path = "/"
 
   assume_role_policy = <<EOF
 {
@@ -36,12 +27,13 @@ resource "aws_iam_role" "master_role" {
     ]
 }
 EOF
+
+  tags = "${var.tags}"
 }
 
 resource "aws_iam_role_policy" "master_policy" {
-  count = "${var.master_iam_role == "" ? 1 : 0}"
-  name  = "${var.cluster_name}_master_policy"
-  role  = "${aws_iam_role.master_role.id}"
+  name = "${var.cluster_name}_master_policy"
+  role = "${aws_iam_role.master_role.id}"
 
   policy = <<EOF
 {
@@ -83,8 +75,7 @@ resource "aws_instance" "master" {
   subnet_id            = "${element(var.subnet_ids, count.index)}"
   user_data            = "${var.user_data_ign}"
 
-  vpc_security_group_ids      = ["${var.master_sg_ids}"]
-  associate_public_ip_address = "${var.public_endpoints}"
+  vpc_security_group_ids = ["${var.master_sg_ids}"]
 
   lifecycle {
     # Ignore changes in the AMI which force recreation of the resource. This
@@ -95,10 +86,8 @@ resource "aws_instance" "master" {
 
   tags = "${merge(map(
       "Name", "${var.cluster_name}-master-${count.index}",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}",
       "clusterid", "${var.cluster_name}"
-    ), var.extra_tags)}"
+    ), var.tags)}"
 
   root_block_device {
     volume_type = "${var.root_volume_type}"
@@ -108,9 +97,7 @@ resource "aws_instance" "master" {
 
   volume_tags = "${merge(map(
     "Name", "${var.cluster_name}-master-${count.index}-vol",
-    "kubernetes.io/cluster/${var.cluster_name}", "owned",
-    "tectonicClusterID", "${var.cluster_id}"
-  ), var.extra_tags)}"
+  ), var.tags)}"
 }
 
 resource "aws_lb_target_group_attachment" "master" {

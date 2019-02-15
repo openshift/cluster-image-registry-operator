@@ -730,7 +730,7 @@ func TestValueList(t *testing.T) {
 	}
 
 	// Load truncates, not appends.
-	// https://github.com/GoogleCloudPlatform/google-cloud-go/issues/437
+	// https://github.com/googleapis/google-cloud-go/issues/437
 	if err := vl.Load(want, schema); err != nil {
 		t.Fatal(err)
 	}
@@ -834,7 +834,6 @@ type testStruct1 struct {
 	S      string
 	S2     String
 	By     []byte
-	s      string
 	F      float64
 	N      *big.Rat
 	Nested nested
@@ -1164,7 +1163,6 @@ func TestStructLoaderErrors(t *testing.T) {
 		I int
 		times
 		S    string
-		s    string
 		Nums []int
 	}
 
