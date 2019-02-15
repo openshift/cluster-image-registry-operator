@@ -1,3 +1,9 @@
+// Copyright 2018 Google Inc. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// AUTO-GENERATED CODE. DO NOT EDIT.
+
 // Package speech provides access to the Cloud Speech API.
 //
 // This package is DEPRECATED. Use package cloud.google.com/go/speech/apiv1 instead.

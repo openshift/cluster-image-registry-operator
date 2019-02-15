@@ -38,7 +38,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	gax "github.com/googleapis/gax-go"
+	gax "github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -382,6 +382,46 @@ func TestIntegration_TableMetadata(t *testing.T) {
 		}
 	}
 
+}
+
+func TestIntegration_RemoveTimePartitioning(t *testing.T) {
+	if client == nil {
+		t.Skip("Integration tests skipped")
+	}
+	ctx := context.Background()
+	table := dataset.Table(tableIDs.New())
+	want := 24 * time.Hour
+	err := table.Create(ctx, &TableMetadata{
+		ExpirationTime: testTableExpiration,
+		TimePartitioning: &TimePartitioning{
+			Expiration: want,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer table.Delete(ctx)
+
+	md, err := table.Metadata(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := md.TimePartitioning.Expiration; got != want {
+		t.Fatalf("TimeParitioning expiration want = %v, got = %v", want, got)
+	}
+
+	// Remove time partitioning expiration
+	md, err = table.Update(context.Background(), TableMetadataToUpdate{
+		TimePartitioning: &TimePartitioning{Expiration: 0},
+	}, md.ETag)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want = time.Duration(0)
+	if got := md.TimePartitioning.Expiration; got != want {
+		t.Fatalf("TimeParitioning expiration want = %v, got = %v", want, got)
+	}
 }
 
 func TestIntegration_DatasetCreate(t *testing.T) {
@@ -1549,6 +1589,9 @@ func TestIntegration_QueryDryRun(t *testing.T) {
 	if s.Statistics.Details.(*QueryStatistics).Schema == nil {
 		t.Fatal("no schema")
 	}
+	if s.Statistics.Details.(*QueryStatistics).TotalBytesProcessedAccuracy == "" {
+		t.Fatal("no cost accuracy")
+	}
 }
 
 func TestIntegration_ExtractExternal(t *testing.T) {
@@ -1605,7 +1648,12 @@ func TestIntegration_ExtractExternal(t *testing.T) {
 		SourceFormat: CSV,
 		SourceURIs:   []string{uri},
 		Schema:       schema,
-		Options:      &CSVOptions{SkipLeadingRows: 1},
+		Options: &CSVOptions{
+			SkipLeadingRows: 1,
+			// This is the default. Since we use edc as an expectation later on,
+			// let's just be explicit.
+			FieldDelimiter: ",",
+		},
 	}
 	// Query that CSV file directly.
 	q := client.Query("SELECT * FROM csv")

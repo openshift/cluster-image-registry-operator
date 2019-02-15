@@ -67,7 +67,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		// do nothing
 	} else if err != nil {
 		return cm, err
-	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Key; caConfigName != "" {
+	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Name; caConfigName != "" {
 		upstreamConfig, err := gcac.openshiftConfigLister.Get(caConfigName)
 		if err != nil {
 			return nil, err

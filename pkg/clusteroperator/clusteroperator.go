@@ -2,6 +2,7 @@ package clusteroperator
 
 import (
 	"fmt"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,12 @@ func (s *StatusHandler) Create() error {
 			Name: s.Name,
 		},
 		Status: osapi.ClusterOperatorStatus{
-			Version: version.Version,
+			Versions: []osapi.OperandVersion{
+				{
+					Name:    "operator",
+					Version: version.Version,
+				},
+			},
 		},
 	}
 
@@ -98,8 +104,14 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 			LastTransitionTime: metaapi.Now(),
 		})
 
-		if state.Status.Version != version.Version {
-			state.Status.Version = version.Version
+		desiredVersions := []osapi.OperandVersion{
+			{
+				Name:    "operator",
+				Version: version.Version,
+			},
+		}
+		if !reflect.DeepEqual(state.Status.Versions, desiredVersions) {
+			state.Status.Versions = desiredVersions
 			modified = true
 		}
 

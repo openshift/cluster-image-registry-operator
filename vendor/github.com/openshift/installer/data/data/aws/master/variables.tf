@@ -1,8 +1,3 @@
-variable "base_domain" {
-  type        = "string"
-  description = "Domain on which the ELB records will be created"
-}
-
 variable "cluster_id" {
   type = "string"
 }
@@ -20,12 +15,6 @@ variable "ec2_type" {
   type = "string"
 }
 
-variable "extra_tags" {
-  description = "Extra AWS tags to be applied to created resources."
-  type        = "map"
-  default     = {}
-}
-
 variable "ec2_ami" {
   type    = "string"
   default = ""
@@ -40,20 +29,9 @@ variable "kubeconfig_content" {
   default = ""
 }
 
-variable "master_iam_role" {
-  type        = "string"
-  default     = ""
-  description = "IAM role to use for the instance profiles of master nodes."
-}
-
 variable "master_sg_ids" {
   type        = "list"
   description = "The security group IDs to be applied to the master nodes."
-}
-
-variable "public_endpoints" {
-  description = "If set to true, public-facing ingress resources are created."
-  default     = true
 }
 
 variable "root_volume_iops" {
@@ -74,6 +52,12 @@ variable "root_volume_type" {
 
 variable "subnet_ids" {
   type = "list"
+}
+
+variable "tags" {
+  type        = "map"
+  default     = {}
+  description = "AWS tags to be applied to created resources."
 }
 
 variable "target_group_arns" {

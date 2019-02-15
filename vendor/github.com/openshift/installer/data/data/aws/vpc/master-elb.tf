@@ -1,38 +1,30 @@
 resource "aws_lb" "api_internal" {
-  count = "${var.private_master_endpoints ? 1 : 0}"
-
   name                             = "${var.cluster_name}-int"
   load_balancer_type               = "network"
-  subnets                          = ["${local.master_subnet_ids}"]
+  subnets                          = ["${local.private_subnet_ids}"]
   internal                         = true
   enable_cross_zone_load_balancing = true
   idle_timeout                     = 3600
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+  tags = "${var.tags}"
+
+  depends_on = ["aws_internet_gateway.igw"]
 }
 
 resource "aws_lb" "api_external" {
-  count = "${var.public_master_endpoints ? 1 : 0}"
-
   name                             = "${var.cluster_name}-ext"
   load_balancer_type               = "network"
-  subnets                          = ["${local.master_subnet_ids}"]
+  subnets                          = ["${local.public_subnet_ids}"]
   internal                         = false
   enable_cross_zone_load_balancing = true
   idle_timeout                     = 3600
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+  tags = "${var.tags}"
+
+  depends_on = ["aws_internet_gateway.igw"]
 }
 
 resource "aws_lb_target_group" "api_internal" {
-  count = "${var.private_master_endpoints ? 1 : 0}"
-
   name     = "${var.cluster_name}-api-int"
   protocol = "TCP"
   port     = 6443
@@ -40,23 +32,19 @@ resource "aws_lb_target_group" "api_internal" {
 
   target_type = "ip"
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+  tags = "${var.tags}"
 
   health_check {
     healthy_threshold   = 3
     unhealthy_threshold = 3
     interval            = 10
     port                = 6443
-    protocol            = "TCP"
+    protocol            = "HTTPS"
+    path                = "/healthz"
   }
 }
 
 resource "aws_lb_target_group" "api_external" {
-  count = "${var.public_master_endpoints ? 1 : 0}"
-
   name     = "${var.cluster_name}-api-ext"
   protocol = "TCP"
   port     = 6443
@@ -64,45 +52,39 @@ resource "aws_lb_target_group" "api_external" {
 
   target_type = "ip"
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+  tags = "${var.tags}"
 
   health_check {
     healthy_threshold   = 3
     unhealthy_threshold = 3
     interval            = 10
     port                = 6443
-    protocol            = "TCP"
+    protocol            = "HTTPS"
+    path                = "/healthz"
   }
 }
 
 resource "aws_lb_target_group" "services" {
   name     = "${var.cluster_name}-services"
   protocol = "TCP"
-  port     = 49500
+  port     = 22623
   vpc_id   = "${local.vpc_id}"
 
   target_type = "ip"
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-      "tectonicClusterID", "${var.cluster_id}"
-    ), var.extra_tags)}"
+  tags = "${var.tags}"
 
   health_check {
     healthy_threshold   = 3
     unhealthy_threshold = 3
     interval            = 10
-    port                = 49500
-    protocol            = "TCP"
+    port                = 22623
+    protocol            = "HTTPS"
+    path                = "/healthz"
   }
 }
 
 resource "aws_lb_listener" "api_internal_api" {
-  count = "${var.private_master_endpoints ? 1 : 0}"
-
   load_balancer_arn = "${aws_lb.api_internal.arn}"
   protocol          = "TCP"
   port              = "6443"
@@ -114,11 +96,9 @@ resource "aws_lb_listener" "api_internal_api" {
 }
 
 resource "aws_lb_listener" "api_internal_services" {
-  count = "${var.private_master_endpoints ? 1 : 0}"
-
   load_balancer_arn = "${aws_lb.api_internal.arn}"
   protocol          = "TCP"
-  port              = "49500"
+  port              = "22623"
 
   default_action {
     target_group_arn = "${aws_lb_target_group.services.arn}"

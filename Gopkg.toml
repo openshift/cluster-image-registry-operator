@@ -39,11 +39,11 @@ required = [
 
 [[override]]
   name = "github.com/openshift/client-go"
-  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
+  revision = "31ef839c86359881d2c312c4f0131febc6662400"
 
 [[override]]
   name = "github.com/openshift/api"
-  revision = "1a0ca44421509b47daf1e17f2e96025b3a314c3b"
+  revision = "ea5d05408a95a765d44b5a4b31561b530f0b1f4c"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"

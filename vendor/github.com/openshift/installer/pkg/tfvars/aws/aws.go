@@ -1,71 +1,63 @@
+// Package aws contains AWS-specific Terraform-variable logic.
 package aws
 
-// Endpoints is the type of the AWS endpoints.
-type Endpoints string
+import (
+	"encoding/json"
 
-const (
-	// EndpointsAll represents the configuration for using both private and public endpoints.
-	EndpointsAll Endpoints = "all"
-	// EndpointsPrivate represents the configuration for using only private endpoints.
-	EndpointsPrivate Endpoints = "private"
-	// EndpointsPublic represents the configuration for using only public endpoints.
-	EndpointsPublic Endpoints = "public"
-	// DefaultVPCCIDRBlock is the default CIDR range for an AWS VPC.
-	DefaultVPCCIDRBlock = "10.0.0.0/16"
-	// DefaultRegion is the default AWS region for the cluster.
-	DefaultRegion = "us-east-1"
+	"github.com/pkg/errors"
+	"sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
 )
 
-// AWS converts AWS related config.
-type AWS struct {
-	EC2AMIOverride string    `json:"tectonic_aws_ec2_ami_override,omitempty"`
-	Endpoints      Endpoints `json:"tectonic_aws_endpoints,omitempty"`
-	External       `json:",inline"`
-	ExtraTags      map[string]string `json:"tectonic_aws_extra_tags,omitempty"`
-	InstallerRole  string            `json:"tectonic_aws_installer_role,omitempty"`
-	Master         `json:",inline"`
-	Region         string `json:"tectonic_aws_region,omitempty"`
-	VPCCIDRBlock   string `json:"tectonic_aws_vpc_cidr_block,omitempty"`
-	Worker         `json:",inline"`
+type config struct {
+	EC2AMIOverride string            `json:"aws_ec2_ami_override,omitempty"`
+	ExtraTags      map[string]string `json:"aws_extra_tags,omitempty"`
+	EC2Type        string            `json:"aws_master_ec2_type,omitempty"`
+	IOPS           int64             `json:"aws_master_root_volume_iops,omitempty"`
+	Size           int64             `json:"aws_master_root_volume_size,omitempty"`
+	Type           string            `json:"aws_master_root_volume_type,omitempty"`
+	Region         string            `json:"aws_region,omitempty"`
 }
 
-// External converts external related config.
-type External struct {
-	MasterSubnetIDs []string `json:"tectonic_aws_external_master_subnet_ids,omitempty"`
-	PrivateZone     string   `json:"tectonic_aws_external_private_zone,omitempty"`
-	VPCID           string   `json:"tectonic_aws_external_vpc_id,omitempty"`
-	WorkerSubnetIDs []string `json:"tectonic_aws_external_worker_subnet_ids,omitempty"`
-}
+// TFVars generates AWS-specific Terraform variables launching the cluster.
+func TFVars(masterConfig *v1beta1.AWSMachineProviderConfig) ([]byte, error) {
+	tags := make(map[string]string, len(masterConfig.Tags))
+	for _, tag := range masterConfig.Tags {
+		tags[tag.Name] = tag.Value
+	}
 
-// Master converts master related config.
-type Master struct {
-	CustomSubnets    map[string]string `json:"tectonic_aws_master_custom_subnets,omitempty"`
-	EC2Type          string            `json:"tectonic_aws_master_ec2_type,omitempty"`
-	ExtraSGIDs       []string          `json:"tectonic_aws_master_extra_sg_ids,omitempty"`
-	IAMRoleName      string            `json:"tectonic_aws_master_iam_role_name,omitempty"`
-	MasterRootVolume `json:",inline"`
-}
+	if len(masterConfig.BlockDevices) == 0 {
+		return nil, errors.New("block device slice cannot be empty")
+	}
 
-// MasterRootVolume converts master rool volume related config.
-type MasterRootVolume struct {
-	IOPS int    `json:"tectonic_aws_master_root_volume_iops,omitempty"`
-	Size int    `json:"tectonic_aws_master_root_volume_size,omitempty"`
-	Type string `json:"tectonic_aws_master_root_volume_type,omitempty"`
-}
+	rootVolume := masterConfig.BlockDevices[0]
+	if rootVolume.EBS == nil {
+		return nil, errors.New("EBS information must be configured for the root volume")
+	}
 
-// Worker converts worker related config.
-type Worker struct {
-	CustomSubnets    map[string]string `json:"tectonic_aws_worker_custom_subnets,omitempty"`
-	EC2Type          string            `json:"tectonic_aws_worker_ec2_type,omitempty"`
-	ExtraSGIDs       []string          `json:"tectonic_aws_worker_extra_sg_ids,omitempty"`
-	IAMRoleName      string            `json:"tectonic_aws_worker_iam_role_name,omitempty"`
-	LoadBalancers    []string          `json:"tectonic_aws_worker_load_balancers,omitempty"`
-	WorkerRootVolume `json:",inline"`
-}
+	if rootVolume.EBS.VolumeType == nil {
+		return nil, errors.New("EBS volume type must be configured for the root volume")
+	}
 
-// WorkerRootVolume converts worker rool volume related config.
-type WorkerRootVolume struct {
-	IOPS int    `json:"tectonic_aws_worker_root_volume_iops,omitempty"`
-	Size int    `json:"tectonic_aws_worker_root_volume_size,omitempty"`
-	Type string `json:"tectonic_aws_worker_root_volume_type,omitempty"`
+	if rootVolume.EBS.VolumeSize == nil {
+		return nil, errors.New("EBS volume size must be configured for the root volume")
+	}
+
+	if *rootVolume.EBS.VolumeType == "io1" && rootVolume.EBS.Iops == nil {
+		return nil, errors.New("EBS IOPS must be configured for the io1 root volume")
+	}
+
+	cfg := &config{
+		Region:         masterConfig.Placement.Region,
+		ExtraTags:      tags,
+		EC2AMIOverride: *masterConfig.AMI.ID,
+		EC2Type:        masterConfig.InstanceType,
+		Size:           *rootVolume.EBS.VolumeSize,
+		Type:           *rootVolume.EBS.VolumeType,
+	}
+
+	if rootVolume.EBS.Iops != nil {
+		cfg.IOPS = *rootVolume.EBS.Iops
+	}
+
+	return json.MarshalIndent(cfg, "", "  ")
 }

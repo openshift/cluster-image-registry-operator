@@ -10,8 +10,10 @@ import (
 	"github.com/openshift/installer/pkg/types"
 
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
 	sg "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunks"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/networks"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/subnets"
@@ -46,7 +48,7 @@ type deleteFunc func(opts *clientconfig.ClientOpts, filter Filter, logger logrus
 type ClusterUninstaller struct {
 	// Cloud is the cloud name as set in clouds.yml
 	Cloud string
-	// Filter contains the tectonicClusterID to filter tags
+	// Filter contains the openshiftClusterID to filter tags
 	Filter Filter
 	Logger logrus.FieldLogger
 }
@@ -102,6 +104,7 @@ func deleteRunner(deleteFuncName string, dFunction deleteFunc, opts *clientconfi
 // goroutines.
 func populateDeleteFuncs(funcs map[string]deleteFunc) {
 	funcs["deleteServers"] = deleteServers
+	funcs["deleteTrunks"] = deleteTrunks
 	funcs["deletePorts"] = deletePorts
 	funcs["deleteSecurityGroups"] = deleteSecurityGroups
 	funcs["deleteRouters"] = deleteRouters
@@ -232,11 +235,33 @@ func deletePorts(opts *clientconfig.ClientOpts, filter Filter, logger logrus.Fie
 		os.Exit(1)
 	}
 	for _, port := range allPorts {
-		logger.Debugf("Deleting Port: %+v", port.ID)
-		err = ports.Delete(conn, port.ID).ExtractErr()
+		listOpts := floatingips.ListOpts{
+			PortID: port.ID,
+		}
+		allPages, err := floatingips.List(conn, listOpts).AllPages()
 		if err != nil {
 			logger.Fatalf("%v", err)
 			os.Exit(1)
+		}
+		allFIPs, err := floatingips.ExtractFloatingIPs(allPages)
+		if err != nil {
+			logger.Fatalf("%v", err)
+			os.Exit(1)
+		}
+		for _, fip := range allFIPs {
+			logger.Debugf("Deleting Floating IP: %+v", fip.ID)
+			err = floatingips.Delete(conn, fip.ID).ExtractErr()
+			if err != nil {
+				logger.Fatalf("%v", err)
+				os.Exit(1)
+			}
+		}
+
+		logger.Debugf("Deleting Port: %+v", port.ID)
+		err = ports.Delete(conn, port.ID).ExtractErr()
+		if err != nil {
+			// This can fail when port is still in use so return/retry
+			return false, nil
 		}
 	}
 	return len(allPorts) == 0, nil
@@ -327,8 +352,8 @@ func deleteRouters(opts *clientconfig.ClientOpts, filter Filter, logger logrus.F
 				logger.Debugf("Removing Subnet %v from Router %v\n", IP.SubnetID, router.ID)
 				_, err = routers.RemoveInterface(conn, router.ID, removeOpts).Extract()
 				if err != nil {
-					logger.Fatalf("%v", err)
-					os.Exit(1)
+					// This can fail when subnet is still in use
+					return false, nil
 				}
 			}
 		}
@@ -443,8 +468,8 @@ func deleteContainers(opts *clientconfig.ClientOpts, filter Filter, logger logru
 			os.Exit(1)
 		}
 		for key, val := range filter {
-			// Swift mangles the case so tectonicClusterID becomes
-			// Tectonicclusterid in the X-Container-Meta- HEAD output
+			// Swift mangles the case so openshiftClusterID becomes
+			// Openshiftclusterid in the X-Container-Meta- HEAD output
 			titlekey := strings.Title(strings.ToLower(key))
 			if metadata[titlekey] == val {
 				listOpts := objects.ListOpts{Full: false}
@@ -472,10 +497,48 @@ func deleteContainers(opts *clientconfig.ClientOpts, filter Filter, logger logru
 					logger.Fatalf("%v", err)
 					os.Exit(1)
 				}
+				// If a metadata key matched, we're done so break from the loop
+				break
 			}
 		}
 	}
 	return true, nil
+}
+
+func deleteTrunks(opts *clientconfig.ClientOpts, filter Filter, logger logrus.FieldLogger) (bool, error) {
+	logger.Debug("Deleting openstack trunks")
+	defer logger.Debugf("Exiting deleting openstack trunks")
+
+	conn, err := clientconfig.NewServiceClient("network", opts)
+	if err != nil {
+		logger.Fatalf("%v", err)
+		os.Exit(1)
+	}
+
+	tags := filterTags(filter)
+	listOpts := trunks.ListOpts{
+		TagsAny: strings.Join(tags, ","),
+	}
+	allPages, err := trunks.List(conn, listOpts).AllPages()
+	if err != nil {
+		logger.Fatalf("%v", err)
+		os.Exit(1)
+	}
+
+	allTrunks, err := trunks.ExtractTrunks(allPages)
+	if err != nil {
+		logger.Fatalf("%v", err)
+		os.Exit(1)
+	}
+	for _, trunk := range allTrunks {
+		logger.Debugf("Deleting Trunk: %+v", trunk.ID)
+		err = trunks.Delete(conn, trunk.ID).ExtractErr()
+		if err != nil {
+			// This can fail when the trunk is still in use so return/retry
+			return false, nil
+		}
+	}
+	return len(allTrunks) == 0, nil
 }
 
 // New returns an OpenStack destroyer from ClusterMetadata.

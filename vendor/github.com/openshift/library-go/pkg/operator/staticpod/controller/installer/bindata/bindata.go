@@ -64,11 +64,24 @@ spec:
       securityContext:
         privileged: true
         runAsUser: 0
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
       terminationMessagePolicy: FallbackToLogsOnError
       volumeMounts:
         - mountPath: /etc/kubernetes/
           name: kubelet-dir
+      resources:
+        requests:
+          memory: 100M
+        limits:
+          memory: 100M
   restartPolicy: Never
+  priorityClassName: system-node-critical
+  tolerations:
+  - operator: "Exists"
   securityContext:
     runAsUser: 0
   volumes:

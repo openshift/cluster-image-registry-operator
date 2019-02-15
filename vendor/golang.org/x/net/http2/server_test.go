@@ -2361,6 +2361,9 @@ func TestServer_NoCrash_HandlerClose_Then_ClientClose(t *testing.T) {
 		// it did before.
 		st.writeData(1, true, []byte("foo"))
 
+		// Get our flow control bytes back, since the handler didn't get them.
+		st.wantWindowUpdate(0, uint32(len("foo")))
+
 		// Sent after a peer sends data anyway (admittedly the
 		// previous RST_STREAM might've still been in-flight),
 		// but they'll get the more friendly 'cancel' code
@@ -2416,7 +2419,8 @@ func testRejectTLS(t *testing.T, max uint16) {
 
 func TestServer_Rejects_TLSBadCipher(t *testing.T) {
 	st := newServerTester(t, nil, func(c *tls.Config) {
-		c.MaxVersion = tls.VersionTLS12 // workaround for golang.org/issue/28762
+		// All TLS 1.3 ciphers are good. Test with TLS 1.2.
+		c.MaxVersion = tls.VersionTLS12
 		// Only list bad ones:
 		c.CipherSuites = []uint16{
 			tls.TLS_RSA_WITH_RC4_128_SHA,

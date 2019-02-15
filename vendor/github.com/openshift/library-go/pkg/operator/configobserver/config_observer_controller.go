@@ -3,6 +3,7 @@ package configobserver
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,8 +11,6 @@ import (
 	"github.com/imdario/mergo"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/rand"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -22,7 +21,7 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/staticpod/controller/common"
+	"github.com/openshift/library-go/pkg/operator/resourcesynccontroller"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
@@ -31,6 +30,8 @@ const configObserverWorkKey = "key"
 
 // Listers is an interface which will be passed to the config observer funcs.  It is expected to be hard-cast to the "correct" type
 type Listers interface {
+	// ResourceSyncer can be used to copy content from one namespace to another
+	ResourceSyncer() resourcesynccontroller.ResourceSyncer
 	PreRunHasSynced() []cache.InformerSynced
 }
 
@@ -77,7 +78,7 @@ func NewConfigObserver(
 // sync reacts to a change in prereqs by finding information that is required to match another value in the cluster. This
 // must be information that is logically "owned" by another component.
 func (c ConfigObserver) sync() error {
-	originalSpec, _, resourceVersion, err := c.operatorConfigClient.GetOperatorState()
+	originalSpec, _, _, err := c.operatorConfigClient.GetOperatorState()
 	if err != nil {
 		return err
 	}
@@ -105,35 +106,41 @@ func (c ConfigObserver) sync() error {
 		}
 	}
 
-	if !equality.Semantic.DeepEqual(existingConfig, mergedObservedConfig) {
-		glog.Infof("writing updated observedConfig: %v", diff.ObjectDiff(existingConfig, mergedObservedConfig))
-		spec.ObservedConfig = runtime.RawExtension{Object: &unstructured.Unstructured{Object: mergedObservedConfig}}
-		_, resourceVersion, err = c.operatorConfigClient.UpdateOperatorSpec(resourceVersion, spec)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error writing updated observed config: %v", err))
-			c.eventRecorder.Warningf("ObservedConfigWriteError", "Failed to write observed config: %v", err)
-		} else {
-			c.eventRecorder.Eventf("ObservedConfigChanged", "Writing updated observed config")
+	reverseMergedObservedConfig := map[string]interface{}{}
+	for i := len(observedConfigs) - 1; i >= 0; i-- {
+		if err := mergo.Merge(&reverseMergedObservedConfig, observedConfigs[i]); err != nil {
+			glog.Warningf("merging observed config failed: %v", err)
 		}
 	}
-	err = common.NewMultiLineAggregate(errs)
+
+	if !equality.Semantic.DeepEqual(mergedObservedConfig, reverseMergedObservedConfig) {
+		errs = append(errs, errors.New("non-deterministic config observation detected"))
+	}
+
+	if !equality.Semantic.DeepEqual(existingConfig, mergedObservedConfig) {
+		c.eventRecorder.Eventf("ObservedConfigChanged", "Writing updated observed config: %v", diff.ObjectDiff(existingConfig, mergedObservedConfig))
+		if _, _, err := v1helpers.UpdateSpec(c.operatorConfigClient, v1helpers.UpdateObservedConfigFn(mergedObservedConfig)); err != nil {
+			errs = append(errs, fmt.Errorf("error writing updated observed config: %v", err))
+			c.eventRecorder.Warningf("ObservedConfigWriteError", "Failed to write observed config: %v", err)
+		}
+	}
+	configError := v1helpers.NewMultiLineAggregate(errs)
 
 	// update failing condition
 	cond := operatorv1.OperatorCondition{
 		Type:   operatorStatusTypeConfigObservationFailing,
 		Status: operatorv1.ConditionFalse,
 	}
-	if err != nil {
+	if configError != nil {
 		cond.Status = operatorv1.ConditionTrue
 		cond.Reason = "Error"
-		cond.Message = err.Error()
+		cond.Message = configError.Error()
 	}
-	if _, updateError := v1helpers.UpdateStatus(c.operatorConfigClient, v1helpers.UpdateConditionFn(cond)); updateError != nil {
+	if _, _, updateError := v1helpers.UpdateStatus(c.operatorConfigClient, v1helpers.UpdateConditionFn(cond)); updateError != nil {
 		return updateError
 	}
 
-	// explicitly ignore errs, we are requeued by input changes anyway
-	return nil
+	return configError
 }
 
 func (c *ConfigObserver) Run(workers int, stopCh <-chan struct{}) {

@@ -21,7 +21,7 @@ func pointerIgnitionConfig(installConfig *types.InstallConfig, rootCA []byte, ro
 					Source: func() *url.URL {
 						return &url.URL{
 							Scheme: "https",
-							Host:   fmt.Sprintf("%s-api.%s:49500", installConfig.ObjectMeta.Name, installConfig.BaseDomain),
+							Host:   fmt.Sprintf("%s-api.%s:22623", installConfig.ObjectMeta.Name, installConfig.BaseDomain),
 							Path:   fmt.Sprintf("/config/%s", role),
 						}
 					}().String(),
@@ -34,13 +34,6 @@ func pointerIgnitionConfig(installConfig *types.InstallConfig, rootCA []byte, ro
 					}},
 				},
 			},
-		},
-		// XXX: Remove this once MCO supports injecting SSH keys.
-		Passwd: ignition.Passwd{
-			Users: []ignition.PasswdUser{{
-				Name:              "core",
-				SSHAuthorizedKeys: []ignition.SSHAuthorizedKey{ignition.SSHAuthorizedKey(installConfig.Admin.SSHKey)},
-			}},
 		},
 	}
 }

@@ -2,48 +2,69 @@ package certrotation
 
 import (
 	"crypto/x509"
+	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1informers "k8s.io/client-go/informers/core/v1"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/cert"
 
 	"github.com/openshift/library-go/pkg/crypto"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 )
 
-func (c CertRotationController) ensureConfigMapCABundle(signingCertKeyPair *crypto.CA) error {
+// CABundleRotation maintains a CA bundle config map, but adding new CA certs and removing expired old ones.
+type CABundleRotation struct {
+	Namespace string
+	Name      string
+
+	Informer      corev1informers.ConfigMapInformer
+	Lister        corev1listers.ConfigMapLister
+	Client        corev1client.ConfigMapsGetter
+	EventRecorder events.Recorder
+}
+
+func (c CABundleRotation) ensureConfigMapCABundle(signingCertKeyPair *crypto.CA) ([]*x509.Certificate, error) {
 	// by this point we have current signing cert/key pair.  We now need to make sure that the ca-bundle configmap has this cert and
 	// doesn't have any expired certs
-	originalCABundleConfigMap, err := c.caBundleLister.ConfigMaps(c.caBundleNamespace).Get(c.caBundleConfigMapName)
+	originalCABundleConfigMap, err := c.Lister.ConfigMaps(c.Namespace).Get(c.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return err
+		return nil, err
 	}
 	caBundleConfigMap := originalCABundleConfigMap.DeepCopy()
 	if apierrors.IsNotFound(err) {
 		// create an empty one
-		caBundleConfigMap = &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: c.caBundleNamespace, Name: c.caBundleConfigMapName}}
+		caBundleConfigMap = &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: c.Namespace, Name: c.Name}}
 	}
 	if err := manageCABundleConfigMap(caBundleConfigMap, signingCertKeyPair.Config.Certs[0]); err != nil {
-		return err
+		return nil, err
 	}
 	if originalCABundleConfigMap == nil || originalCABundleConfigMap.Data == nil || !equality.Semantic.DeepEqual(originalCABundleConfigMap.Data, caBundleConfigMap.Data) {
-		c.eventRecorder.Eventf("CABundleUpdateRequired", "%q in %q requires a new cert", c.caBundleNamespace, c.caBundleConfigMapName)
-		actualCABundleConfigMap, err := c.configmapsClient.ConfigMaps(c.caBundleNamespace).Update(caBundleConfigMap)
-		if apierrors.IsNotFound(err) {
-			actualCABundleConfigMap, err = c.configmapsClient.ConfigMaps(c.caBundleNamespace).Create(caBundleConfigMap)
-			if err != nil {
-				return err
-			}
-		}
+		c.EventRecorder.Eventf("CABundleUpdateRequired", "%q in %q requires a new cert", c.Name, c.Namespace)
+
+		actualCABundleConfigMap, _, err := resourceapply.ApplyConfigMap(c.Client, c.EventRecorder, caBundleConfigMap)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		caBundleConfigMap = actualCABundleConfigMap
 	}
 
-	return nil
+	caBundle := caBundleConfigMap.Data["ca-bundle.crt"]
+	if len(caBundle) == 0 {
+		return nil, fmt.Errorf("configmap/%s -n%s missing ca-bundle.crt", caBundleConfigMap.Name, caBundleConfigMap.Namespace)
+	}
+	certificates, err := cert.ParseCertsPEM([]byte(caBundle))
+	if err != nil {
+		return nil, err
+	}
+
+	return certificates, nil
 }
 
 // manageCABundleConfigMap adds the new certificate to the list of cabundles, eliminates duplicates, and prunes the list of expired

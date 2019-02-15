@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,18 +10,14 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/openshift/installer/pkg/asset"
-	"github.com/openshift/installer/pkg/asset/cluster/aws"
-	"github.com/openshift/installer/pkg/asset/cluster/libvirt"
-	"github.com/openshift/installer/pkg/asset/cluster/openstack"
 	"github.com/openshift/installer/pkg/asset/installconfig"
-	"github.com/openshift/installer/pkg/asset/kubeconfig"
+	"github.com/openshift/installer/pkg/asset/password"
 	"github.com/openshift/installer/pkg/terraform"
-	"github.com/openshift/installer/pkg/types"
 )
 
-const (
-	// metadataFileName is name of the file where clustermetadata is stored.
-	metadataFileName = "metadata.json"
+var (
+	// kubeadminPasswordPath is the path where kubeadmin user password is stored.
+	kubeadminPasswordPath = filepath.Join("auth", "kubeadmin-password")
 )
 
 // Cluster uses the terraform executable to launch a cluster
@@ -42,18 +37,28 @@ func (c *Cluster) Name() string {
 // the cluster.
 func (c *Cluster) Dependencies() []asset.Asset {
 	return []asset.Asset{
+		&installconfig.ClusterID{},
 		&installconfig.InstallConfig{},
+		// PlatformCredsCheck just checks the creds (and asks, if needed)
+		// We do not actually use it in this asset directly, hence
+		// it is put in the dependencies but not fetched in Generate
+		&installconfig.PlatformCredsCheck{},
 		&TerraformVariables{},
-		&kubeconfig.Admin{},
+		&password.KubeadminPassword{},
 	}
 }
 
 // Generate launches the cluster and generates the terraform state file on disk.
 func (c *Cluster) Generate(parents asset.Parents) (err error) {
+	clusterID := &installconfig.ClusterID{}
 	installConfig := &installconfig.InstallConfig{}
 	terraformVariables := &TerraformVariables{}
-	adminKubeconfig := &kubeconfig.Admin{}
-	parents.Get(installConfig, terraformVariables, adminKubeconfig)
+	kubeadminPassword := &password.KubeadminPassword{}
+	parents.Get(clusterID, installConfig, terraformVariables, kubeadminPassword)
+
+	if installConfig.Config.Platform.None != nil {
+		return errors.New("cluster cannot be created with platform set to 'none'")
+	}
 
 	// Copy the terraform.tfvars to a temp directory where the terraform will be invoked within.
 	tmpDir, err := ioutil.TempDir("", "openshift-install-")
@@ -62,47 +67,31 @@ func (c *Cluster) Generate(parents asset.Parents) (err error) {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	terraformVariablesFile := terraformVariables.Files()[0]
-	if err := ioutil.WriteFile(filepath.Join(tmpDir, terraformVariablesFile.Filename), terraformVariablesFile.Data, 0600); err != nil {
-		return errors.Wrap(err, "failed to write terraform.tfvars file")
-	}
-
-	metadata := &types.ClusterMetadata{
-		ClusterName: installConfig.Config.ObjectMeta.Name,
-	}
-
-	defer func() {
-		if data, err2 := json.Marshal(metadata); err2 == nil {
-			c.FileList = append(c.FileList, &asset.File{
-				Filename: metadataFileName,
-				Data:     data,
-			})
-		} else {
-			err2 = errors.Wrap(err2, "failed to Marshal ClusterMetadata")
-			if err == nil {
-				err = err2
-			} else {
-				logrus.Error(err2)
-			}
+	extraArgs := []string{}
+	for _, file := range terraformVariables.Files() {
+		if err := ioutil.WriteFile(filepath.Join(tmpDir, file.Filename), file.Data, 0600); err != nil {
+			return err
 		}
-		// serialize metadata and stuff it into c.FileList
-	}()
-
-	switch {
-	case installConfig.Config.Platform.AWS != nil:
-		metadata.ClusterPlatformMetadata.AWS = aws.Metadata(installConfig.Config)
-	case installConfig.Config.Platform.OpenStack != nil:
-		metadata.ClusterPlatformMetadata.OpenStack = openstack.Metadata(installConfig.Config)
-	case installConfig.Config.Platform.Libvirt != nil:
-		metadata.ClusterPlatformMetadata.Libvirt = libvirt.Metadata(installConfig.Config)
-	default:
-		return fmt.Errorf("no known platform")
+		extraArgs = append(extraArgs, fmt.Sprintf("-var-file=%s", filepath.Join(tmpDir, file.Filename)))
 	}
 
-	logrus.Infof("Using Terraform to create cluster...")
-	stateFile, err := terraform.Apply(tmpDir, installConfig.Config.Platform.Name())
+	c.FileList = []*asset.File{
+		{
+			Filename: kubeadminPasswordPath,
+			Data:     []byte(kubeadminPassword.Password),
+		},
+	}
+
+	logrus.Infof("Creating cluster...")
+	stateFile, err := terraform.Apply(tmpDir, installConfig.Config.Platform.Name(), extraArgs...)
 	if err != nil {
-		err = errors.Wrap(err, "failed to run terraform")
+		err = errors.Wrap(err, "failed to create cluster")
+		if stateFile == "" {
+			return err
+		}
+		// Store the error from the apply, but continue with the
+		// generation so that the Terraform state file is recovered from
+		// the temporary directory.
 	}
 
 	data, err2 := ioutil.ReadFile(stateFile)
@@ -111,15 +100,12 @@ func (c *Cluster) Generate(parents asset.Parents) (err error) {
 			Filename: terraform.StateFileName,
 			Data:     data,
 		})
+	} else if err == nil {
+		err = err2
 	} else {
-		if err == nil {
-			err = err2
-		} else {
-			logrus.Errorf("Failed to read tfstate: %v", err2)
-		}
+		logrus.Errorf("Failed to read tfstate: %v", err2)
 	}
 
-	// TODO(yifan): Use the kubeconfig to verify the cluster is up.
 	return err
 }
 
@@ -139,19 +125,5 @@ func (c *Cluster) Load(f asset.FileFetcher) (found bool, err error) {
 		return false, err
 	}
 
-	return true, fmt.Errorf("%q already exists.  There may already be a running cluster", terraform.StateFileName)
-}
-
-// LoadMetadata loads the cluster metadata from an asset directory.
-func LoadMetadata(dir string) (cmetadata *types.ClusterMetadata, err error) {
-	raw, err := ioutil.ReadFile(filepath.Join(dir, metadataFileName))
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read %s file", metadataFileName)
-	}
-
-	if err = json.Unmarshal(raw, &cmetadata); err != nil {
-		return nil, errors.Wrapf(err, "failed to Unmarshal data from %s file to types.ClusterMetadata", metadataFileName)
-	}
-
-	return cmetadata, err
+	return true, errors.Errorf("%q already exists.  There may already be a running cluster", terraform.StateFileName)
 }

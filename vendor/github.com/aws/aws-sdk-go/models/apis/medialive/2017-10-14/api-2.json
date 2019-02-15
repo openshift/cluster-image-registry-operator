@@ -160,6 +160,31 @@
         }
       ]
     },
+    "CreateTags": {
+      "name": "CreateTags",
+      "http": {
+        "method": "POST",
+        "requestUri": "/prod/tags/{resource-arn}",
+        "responseCode": 204
+      },
+      "input": {
+        "shape": "CreateTagsRequest"
+      },
+      "errors": [
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "ForbiddenException"
+        }
+      ]
+    },
     "DeleteChannel": {
       "name": "DeleteChannel",
       "http": {
@@ -314,6 +339,31 @@
         },
         {
           "shape": "ConflictException"
+        }
+      ]
+    },
+    "DeleteTags": {
+      "name": "DeleteTags",
+      "http": {
+        "method": "DELETE",
+        "requestUri": "/prod/tags/{resource-arn}",
+        "responseCode": 204
+      },
+      "input": {
+        "shape": "DeleteTagsRequest"
+      },
+      "errors": [
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "ForbiddenException"
         }
       ]
     },
@@ -706,6 +756,34 @@
         },
         {
           "shape": "TooManyRequestsException"
+        }
+      ]
+    },
+    "ListTagsForResource": {
+      "name": "ListTagsForResource",
+      "http": {
+        "method": "GET",
+        "requestUri": "/prod/tags/{resource-arn}",
+        "responseCode": 200
+      },
+      "input": {
+        "shape": "ListTagsForResourceRequest"
+      },
+      "output": {
+        "shape": "ListTagsForResourceResponse"
+      },
+      "errors": [
+        {
+          "shape": "NotFoundException"
+        },
+        {
+          "shape": "BadRequestException"
+        },
+        {
+          "shape": "InternalServerErrorException"
+        },
+        {
+          "shape": "ForbiddenException"
         }
       ]
     },
@@ -1958,6 +2036,10 @@
         "State": {
           "shape": "ChannelState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -2099,6 +2181,10 @@
         "RoleArn": {
           "shape": "__string",
           "locationName": "roleArn"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -2142,6 +2228,10 @@
         "RoleArn": {
           "shape": "__string",
           "locationName": "roleArn"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -2195,6 +2285,10 @@
           "shape": "__listOfInputSourceRequest",
           "locationName": "sources"
         },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "Type": {
           "shape": "InputType",
           "locationName": "type"
@@ -2233,6 +2327,10 @@
           "shape": "__listOfInputSourceRequest",
           "locationName": "sources"
         },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "Type": {
           "shape": "InputType",
           "locationName": "type"
@@ -2260,6 +2358,10 @@
     "CreateInputSecurityGroupRequest": {
       "type": "structure",
       "members": {
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "WhitelistRules": {
           "shape": "__listOfInputWhitelistRuleCidr",
           "locationName": "whitelistRules"
@@ -2283,6 +2385,23 @@
           "locationName": "securityGroup"
         }
       }
+    },
+    "CreateTagsRequest": {
+      "type": "structure",
+      "members": {
+        "ResourceArn": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "resource-arn"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        }
+      },
+      "required": [
+        "ResourceArn"
+      ]
     },
     "DeleteChannelRequest": {
       "type": "structure",
@@ -2347,6 +2466,10 @@
         "State": {
           "shape": "ChannelState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -2472,6 +2595,25 @@
         }
       }
     },
+    "DeleteTagsRequest": {
+      "type": "structure",
+      "members": {
+        "ResourceArn": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "resource-arn"
+        },
+        "TagKeys": {
+          "shape": "__listOf__string",
+          "location": "querystring",
+          "locationName": "tagKeys"
+        }
+      },
+      "required": [
+        "TagKeys",
+        "ResourceArn"
+      ]
+    },
     "DescribeChannelRequest": {
       "type": "structure",
       "members": {
@@ -2535,6 +2677,10 @@
         "State": {
           "shape": "ChannelState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -2594,6 +2740,10 @@
           "shape": "InputState",
           "locationName": "state"
         },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "Type": {
           "shape": "InputType",
           "locationName": "type"
@@ -2631,6 +2781,10 @@
         "State": {
           "shape": "InputSecurityGroupState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         },
         "WhitelistRules": {
           "shape": "__listOfInputWhitelistRule",
@@ -3402,6 +3556,39 @@
         "httpStatusCode": 403
       }
     },
+    "FrameCaptureGroupSettings": {
+      "type": "structure",
+      "members": {
+        "Destination": {
+          "shape": "OutputLocationRef",
+          "locationName": "destination"
+        }
+      },
+      "required": [
+        "Destination"
+      ]
+    },
+    "FrameCaptureOutputSettings": {
+      "type": "structure",
+      "members": {
+        "NameModifier": {
+          "shape": "__string",
+          "locationName": "nameModifier"
+        }
+      }
+    },
+    "FrameCaptureSettings": {
+      "type": "structure",
+      "members": {
+        "CaptureInterval": {
+          "shape": "__integerMin1Max3600",
+          "locationName": "captureInterval"
+        }
+      },
+      "required": [
+        "CaptureInterval"
+      ]
+    },
     "GatewayTimeoutException": {
       "type": "structure",
       "members": {
@@ -3628,11 +3815,11 @@
           "locationName": "framerateControl"
         },
         "FramerateDenominator": {
-          "shape": "__integer",
+          "shape": "__integerMin1",
           "locationName": "framerateDenominator"
         },
         "FramerateNumerator": {
-          "shape": "__integer",
+          "shape": "__integerMin1",
           "locationName": "framerateNumerator"
         },
         "GopBReference": {
@@ -3949,6 +4136,10 @@
           "shape": "HlsCdnSettings",
           "locationName": "hlsCdnSettings"
         },
+        "IFrameOnlyPlaylists": {
+          "shape": "IFrameOnlyPlaylistType",
+          "locationName": "iFrameOnlyPlaylists"
+        },
         "IndexNSegments": {
           "shape": "__integerMin3",
           "locationName": "indexNSegments"
@@ -4264,6 +4455,13 @@
         }
       }
     },
+    "IFrameOnlyPlaylistType": {
+      "type": "string",
+      "enum": [
+        "DISABLED",
+        "STANDARD"
+      ]
+    },
     "Input": {
       "type": "structure",
       "members": {
@@ -4306,6 +4504,10 @@
         "State": {
           "shape": "InputState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         },
         "Type": {
           "shape": "InputType",
@@ -4519,6 +4721,10 @@
           "shape": "InputSecurityGroupState",
           "locationName": "state"
         },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "WhitelistRules": {
           "shape": "__listOfInputWhitelistRule",
           "locationName": "whitelistRules"
@@ -4537,6 +4743,10 @@
     "InputSecurityGroupWhitelistRequest": {
       "type": "structure",
       "members": {
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "WhitelistRules": {
           "shape": "__listOfInputWhitelistRuleCidr",
           "locationName": "whitelistRules"
@@ -5020,6 +5230,28 @@
         "Reservations": {
           "shape": "__listOfReservation",
           "locationName": "reservations"
+        }
+      }
+    },
+    "ListTagsForResourceRequest": {
+      "type": "structure",
+      "members": {
+        "ResourceArn": {
+          "shape": "__string",
+          "location": "uri",
+          "locationName": "resource-arn"
+        }
+      },
+      "required": [
+        "ResourceArn"
+      ]
+    },
+    "ListTagsForResourceResponse": {
+      "type": "structure",
+      "members": {
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -5766,6 +5998,10 @@
           "shape": "ArchiveGroupSettings",
           "locationName": "archiveGroupSettings"
         },
+        "FrameCaptureGroupSettings": {
+          "shape": "FrameCaptureGroupSettings",
+          "locationName": "frameCaptureGroupSettings"
+        },
         "HlsGroupSettings": {
           "shape": "HlsGroupSettings",
           "locationName": "hlsGroupSettings"
@@ -5799,6 +6035,10 @@
         "ArchiveOutputSettings": {
           "shape": "ArchiveOutputSettings",
           "locationName": "archiveOutputSettings"
+        },
+        "FrameCaptureOutputSettings": {
+          "shape": "FrameCaptureOutputSettings",
+          "locationName": "frameCaptureOutputSettings"
         },
         "HlsOutputSettings": {
           "shape": "HlsOutputSettings",
@@ -6692,6 +6932,10 @@
         "State": {
           "shape": "ChannelState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -6835,6 +7079,28 @@
         "State": {
           "shape": "ChannelState",
           "locationName": "state"
+        },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        }
+      }
+    },
+    "Tags": {
+      "type": "map",
+      "key": {
+        "shape": "__string"
+      },
+      "value": {
+        "shape": "__string"
+      }
+    },
+    "TagsModel": {
+      "type": "structure",
+      "members": {
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
         }
       }
     },
@@ -7165,6 +7431,10 @@
           "location": "uri",
           "locationName": "inputSecurityGroupId"
         },
+        "Tags": {
+          "shape": "Tags",
+          "locationName": "tags"
+        },
         "WhitelistRules": {
           "shape": "__listOfInputWhitelistRuleCidr",
           "locationName": "whitelistRules"
@@ -7208,6 +7478,10 @@
     "VideoCodecSettings": {
       "type": "structure",
       "members": {
+        "FrameCaptureSettings": {
+          "shape": "FrameCaptureSettings",
+          "locationName": "frameCaptureSettings"
+        },
         "H264Settings": {
           "shape": "H264Settings",
           "locationName": "h264Settings"
@@ -7492,6 +7766,11 @@
       "type": "integer",
       "min": 1,
       "max": 32
+    },
+    "__integerMin1Max3600": {
+      "type": "integer",
+      "min": 1,
+      "max": 3600
     },
     "__integerMin1Max4": {
       "type": "integer",

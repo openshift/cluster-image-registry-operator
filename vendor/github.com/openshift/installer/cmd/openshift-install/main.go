@@ -1,13 +1,18 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"github.com/openshift/installer/pkg/terraform/exec/plugins"
 )
 
 var (
@@ -18,6 +23,24 @@ var (
 )
 
 func main() {
+	// This attempts to configure glog (used by vendored Kubernetes code) not
+	// to log anything. Nobody likes you, glog. Go away.
+	flag.CommandLine.Parse([]string{})
+	flag.CommandLine.Set("stderrthreshold", "4")
+
+	if len(os.Args) > 0 {
+		base := filepath.Base(os.Args[0])
+		cname := strings.TrimSuffix(base, filepath.Ext(base))
+		if pluginRunner, ok := plugins.KnownPlugins[cname]; ok {
+			pluginRunner()
+			return
+		}
+	}
+
+	installerMain()
+}
+
+func installerMain() {
 	rootCmd := newRootCmd()
 
 	for _, subCmd := range []*cobra.Command{
@@ -25,6 +48,7 @@ func main() {
 		newDestroyCmd(),
 		newVersionCmd(),
 		newGraphCmd(),
+		newCompletionCmd(),
 	} {
 		rootCmd.AddCommand(subCmd)
 	}
@@ -36,25 +60,25 @@ func main() {
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:               "openshift-install",
-		Short:             "Creates OpenShift clusters",
-		Long:              "",
-		PersistentPreRunE: runRootCmd,
-		SilenceErrors:     true,
-		SilenceUsage:      true,
+		Use:              "openshift-install",
+		Short:            "Creates OpenShift clusters",
+		Long:             "",
+		PersistentPreRun: runRootCmd,
+		SilenceErrors:    true,
+		SilenceUsage:     true,
 	}
 	cmd.PersistentFlags().StringVar(&rootOpts.dir, "dir", ".", "assets directory")
 	cmd.PersistentFlags().StringVar(&rootOpts.logLevel, "log-level", "info", "log level (e.g. \"debug | info | warn | error\")")
 	return cmd
 }
 
-func runRootCmd(cmd *cobra.Command, args []string) error {
+func runRootCmd(cmd *cobra.Command, args []string) {
 	logrus.SetOutput(ioutil.Discard)
 	logrus.SetLevel(logrus.TraceLevel)
 
 	level, err := logrus.ParseLevel(rootOpts.logLevel)
 	if err != nil {
-		return errors.Wrap(err, "invalid log-level")
+		level = logrus.InfoLevel
 	}
 
 	logrus.AddHook(newFileHook(os.Stderr, level, &logrus.TextFormatter{
@@ -68,5 +92,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		DisableLevelTruncation: true,
 	}))
 
-	return nil
+	if err != nil {
+		logrus.Fatal(errors.Wrap(err, "invalid log-level"))
+	}
 }

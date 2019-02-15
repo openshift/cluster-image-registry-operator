@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"regexp"
 
 	"github.com/awalterschulze/gographviz"
 	"github.com/sirupsen/logrus"
@@ -24,6 +25,7 @@ func newGraphCmd() *cobra.Command {
 		Use:   "graph",
 		Short: "Outputs the internal dependency graph for installer",
 		Long:  "",
+		Args:  cobra.ExactArgs(0),
 		RunE:  runGraphCmd,
 	}
 	cmd.PersistentFlags().StringVar(&graphOpts.outputFile, "output-file", "", "file where the graph is written, if empty prints the graph to Stdout.")
@@ -41,11 +43,23 @@ func runGraphCmd(cmd *cobra.Command, args []string) error {
 		string(gographviz.Style): "filled",
 	}
 	for _, t := range targets {
-		name := fmt.Sprintf(`"Target %s"`, t.name)
+		name := fmt.Sprintf("%q", fmt.Sprintf("Target %s", t.name))
 		g.AddNode("G", name, tNodeAttr)
 		for _, dep := range t.assets {
 			addEdge(g, name, dep)
 		}
+	}
+
+	g.AddAttr("G", "rankdir", "LR")
+	r := regexp.MustCompile(`[. ]`)
+	for _, node := range g.Nodes.Nodes {
+		cluster := r.Split(node.Name, -1)[0][1:]
+		subgraphName := "cluster_" + cluster
+		_, ok := g.SubGraphs.SubGraphs[subgraphName]
+		if !ok {
+			g.AddSubGraph("G", subgraphName, map[string]string{"label": cluster})
+		}
+		g.AddNode(subgraphName, node.Name, nil)
 	}
 
 	out := os.Stdout
@@ -65,8 +79,7 @@ func runGraphCmd(cmd *cobra.Command, args []string) error {
 }
 
 func addEdge(g *gographviz.Graph, parent string, asset asset.Asset) {
-	elem := reflect.TypeOf(asset).Elem()
-	name := fmt.Sprintf(`"%s"`, elem.Name())
+	name := fmt.Sprintf("%q", reflect.TypeOf(asset).Elem())
 
 	if !g.IsNode(name) {
 		logrus.Debugf("adding node %s", name)
