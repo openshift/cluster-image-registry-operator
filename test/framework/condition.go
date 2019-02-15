@@ -17,7 +17,7 @@ func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string,
 	var errs []error
 
 	// Wait for the image registry resource to have an updated condition
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		errs = nil
 		conditionExists := false
 

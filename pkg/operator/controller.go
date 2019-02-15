@@ -149,6 +149,7 @@ func (c *Controller) imageStreamPoll() {
 			glog.Warningf("failed to get %q cluster image config resource: %s", c.params.ImageConfig.Name, err)
 			return
 		}
+		glog.V(4).Infof("checking: %s vs %s", validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname)
 		if validationIS.Status.DockerImageRepository != "" && strings.HasPrefix(validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname) {
 			successCount += 1
 			continue

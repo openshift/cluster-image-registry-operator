@@ -71,7 +71,7 @@ func TestUnmanaged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err

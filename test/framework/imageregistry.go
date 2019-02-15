@@ -86,7 +86,7 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 	}
 
 	var cr *imageregistryapiv1.Config
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			cr = nil
@@ -190,7 +190,7 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 
 func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapiv1.Config, error) {
 	var cr *imageregistryapiv1.Config
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the registry: the resource does not exist")
@@ -247,7 +247,7 @@ func MustEnsureImageRegistryIsAvailable(t *testing.T, client *Clientset) {
 
 func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error {
 	var cfg *configapiv1.Image
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
 		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -295,7 +295,7 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 
 func ensureClusterOperatorStatusIsSet(logger Logger, client *Clientset) error {
 	var status *configapiv1.ClusterOperator
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		status, err = client.ClusterOperators().Get(imageregistryapiv1.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the cluster operator resource: the resource does not exist")
@@ -328,7 +328,7 @@ func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	time.Sleep(15 * time.Second)
 	var cfg *imageregistryapiv1.Config
 	var err error
-	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, 30*time.Second, func() (stop bool, err error) {
 		cfg, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil || cfg == nil {
 			t.Logf("failed to retrieve registry operator config: %v", err)
@@ -341,10 +341,11 @@ func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	}
 	oldVersion := cfg.ResourceVersion
 
+	DumpObject(t, "initial state of the image registry resource", cfg)
 	// wait 15s and then ensure that ResourceVersion is not updated. If it was updated then something
 	// is updating the registry config resource when we should be at steady state.
 	time.Sleep(15 * time.Second)
-	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, 30*time.Second, func() (stop bool, err error) {
 		cfg, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil || cfg == nil {
 			t.Logf("failed to retrieve registry operator config: %v", err)
@@ -357,5 +358,7 @@ func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	}
 	if oldVersion != cfg.ResourceVersion {
 		t.Errorf("registry config resource version was updated when it should have been stable, went from %s to %s", oldVersion, cfg.ResourceVersion)
+		DumpObject(t, "the latest state of the image registry resource", cfg)
+		DumpOperatorLogs(t, client)
 	}
 }

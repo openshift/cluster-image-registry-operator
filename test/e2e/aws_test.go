@@ -380,7 +380,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.PollImmediate(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
@@ -518,7 +518,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 
 	found := false
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		// Check that the S3 bucket has the correct encryption configuration
 		getBucketEncryptionResult, err = svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
 			Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
@@ -646,7 +646,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 
 	var exists bool
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		exists, err := driver.StorageExists(cr)
 		if aerr, ok := err.(awserr.Error); ok {
 			t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())

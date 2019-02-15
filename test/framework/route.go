@@ -16,7 +16,7 @@ import (
 func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
 	var err error
 	var routes *routeapiv1.RouteList
-	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+	err = wait.Poll(5*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		routes, err = client.Routes(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			return false, err
@@ -41,7 +41,7 @@ func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
 func EnsureExternalRoutesExist(t *testing.T, client *Clientset, wantedRoutes []string) {
 	var err error
 	var routes *routeapiv1.RouteList
-	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+	err = wait.Poll(5*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		routes, err = client.Routes(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			return false, err

@@ -56,7 +56,7 @@ func TestRecreateDeployment(t *testing.T) {
 	}
 
 	t.Logf("waiting the operator to recreate the deployment...")
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		_, err = client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
 		if err == nil {
 			return true, nil

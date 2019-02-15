@@ -24,7 +24,7 @@ func startOperator(client *Clientset) error {
 func stopOperator(logger Logger, client *Clientset) error {
 	var err error
 	var realErr error
-	err = wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
+	err = wait.Poll(5*time.Second, 30*time.Second, func() (bool, error) {
 		if _, realErr = client.Deployments(OperatorDeploymentNamespace).Patch(OperatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": "0"}}`)); err != nil {
 			logger.Logf("failed to patch operator to zero replicas: %v", realErr)
 			return false, nil
@@ -35,7 +35,7 @@ func stopOperator(logger Logger, client *Clientset) error {
 		return fmt.Errorf("unable to patch operator to zero replicas: %v", err)
 	}
 
-	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	return wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		deploy, err := client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
