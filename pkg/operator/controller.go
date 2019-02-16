@@ -117,7 +117,7 @@ func (c *Controller) sync() error {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
 		}
-		return fmt.Errorf("failed to get %q custom resource: %s", cr.Name, err)
+		return fmt.Errorf("failed to get %q registry operator resource: %s", imageregistryv1.ImageRegistryResourceName, err)
 	}
 	cr = cr.DeepCopy() // we don't want to change the cached version
 	prevCR := cr.DeepCopy()
