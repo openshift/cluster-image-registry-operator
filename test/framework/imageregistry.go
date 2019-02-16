@@ -128,6 +128,7 @@ func deleteImageRegistryResource(client *Clientset) error {
 		func(deleteOptions *metav1.DeleteOptions) error {
 			return client.Configs().Delete(imageregistryapiv1.ImageRegistryResourceName, deleteOptions)
 		},
+		true,
 	); err != nil {
 		if errors.IsNotFound(err) {
 			return nil

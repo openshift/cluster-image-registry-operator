@@ -33,9 +33,10 @@ func DumpObject(logger Logger, prefix string, obj interface{}) {
 	logger.Logf("%s:\n%s", prefix, spew.Sdump(obj))
 }
 
-// DeleteCompletely sends a delete request and waits until the resource and
-// its dependents are deleted.
-func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func(*metav1.DeleteOptions) error) error {
+// DeleteCompletely sends a delete request that includes foreground deletion propagation.
+// If waitForDelete is set to true, it will confirm via get operations that the object is
+// deleted before returning.
+func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func(*metav1.DeleteOptions) error, waitForDeletion bool) error {
 	obj, err := getObject()
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -59,6 +60,9 @@ func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func
 		return err
 	}
 
+	if !waitForDeletion {
+		return nil
+	}
 	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		obj, err = getObject()
 		if err != nil {

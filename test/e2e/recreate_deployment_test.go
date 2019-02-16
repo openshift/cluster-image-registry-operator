@@ -44,6 +44,14 @@ func TestRecreateDeployment(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
 	t.Logf("deleting the image registry deployment...")
+	oldDeployment, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
+	if oldDeployment == nil || err != nil {
+		t.Fatalf("error retrieving current registry deployment: %v", err)
+	}
+
+	// DeleteCompletely was never succeeding because the operator was recreating the deployment as
+	// fast as it was deleted.  So rather than wait for it to be deleted, we just ensure that a new
+	// deployment gets created after we invoke the delete.
 	if err := framework.DeleteCompletely(
 		func() (metav1.Object, error) {
 			return client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
@@ -51,21 +59,26 @@ func TestRecreateDeployment(t *testing.T) {
 		func(deleteOptions *metav1.DeleteOptions) error {
 			return client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Delete(imageregistryv1.ImageRegistryName, deleteOptions)
 		},
+		false,
 	); err != nil {
 		t.Fatalf("unable to delete the deployment: %s", err)
 	}
 
 	t.Logf("waiting the operator to recreate the deployment...")
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
-		if err == nil {
-			return true, nil
-		}
-		t.Logf("get deployment: %s", err)
+	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		newDeployment, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
-		return false, err
+		if err != nil {
+			t.Logf("error getting deployment: %v", err)
+			// don't return the error so we can keep retrying
+			return false, nil
+		}
+		if oldDeployment.CreationTimestamp.Before(&newDeployment.CreationTimestamp) {
+			return true, nil
+		}
+		return false, nil
 	})
 	if err != nil {
 		framework.DumpImageRegistryResource(t, client)
