@@ -51,19 +51,19 @@ func TestPodResourceConfiguration(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 
-	pods, err := client.Pods(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+	deployments, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pods.Items) == 0 {
-		t.Errorf("no pods found in registry namespace")
+	if len(deployments.Items) == 0 {
+		t.Errorf("no deployments found in registry namespace")
 	}
 
-	for _, pod := range pods.Items {
-		if strings.HasPrefix(pod.Name, "image-registry") {
-			mem, ok := pod.Spec.Containers[0].Resources.Limits["memory"]
+	for _, deployment := range deployments.Items {
+		if strings.HasPrefix(deployment.Name, "image-registry") {
+			mem, ok := deployment.Spec.Template.Spec.Containers[0].Resources.Limits["memory"]
 			if !ok {
-				t.Errorf("no memory limit set on registry pod: %#v", pod)
+				t.Errorf("no memory limit set on registry deployment: %#v", deployment)
 			}
 			if mem.String() != "512Mi" {
 				t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
