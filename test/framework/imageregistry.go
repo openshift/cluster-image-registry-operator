@@ -100,7 +100,7 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 		return conds.Progressing.IsFalse() && conds.Removed.IsTrue(), nil
 	})
 	if err != nil {
-		DumpObject(logger, "the latest observed state of the image registry resource", cr)
+		DumpYAML(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
 		return fmt.Errorf("failed to wait for the imageregistry resource to be removed: %s", err)
 	}
@@ -185,7 +185,7 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 		logger.Logf("unable to dump the image registry resource: %s", err)
 		return
 	}
-	DumpObject(logger, "the image registry resource", cr)
+	DumpYAML(logger, "the image registry resource", cr)
 }
 
 func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapiv1.Config, error) {
@@ -205,7 +205,7 @@ func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imagereg
 		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Failing.IsTrue(), nil
 	})
 	if err != nil {
-		DumpObject(logger, "the latest observed state of the image registry resource", cr)
+		DumpYAML(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
 		return cr, fmt.Errorf("failed to wait for the imageregistry resource to be processed: %s", err)
 	}
@@ -230,7 +230,7 @@ func ensureImageRegistryIsAvailable(logger Logger, client *Clientset) error {
 
 	conds := GetImageRegistryConditions(cr)
 	if conds.Progressing.IsTrue() || conds.Available.IsFalse() {
-		DumpObject(logger, "the latest observed state of the image registry resource", cr)
+		DumpYAML(logger, "the latest observed state of the image registry resource", cr)
 		DumpOperatorLogs(logger, client)
 		return fmt.Errorf("the imageregistry resource is processed, but the the image registry is not available")
 	}

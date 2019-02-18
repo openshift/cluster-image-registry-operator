@@ -183,12 +183,17 @@ type ImageRegistryConfigStorageFilesystem struct {
 	VolumeSource corev1.VolumeSource `json:"volumeSource,omitempty"`
 }
 
+type ImageRegistryConfigStoragePVC struct {
+	Claim string `json:"claim,omitempty"`
+}
+
 type ImageRegistryConfigStorage struct {
 	Azure      *ImageRegistryConfigStorageAzure      `json:"azure,omitempty"`
 	Filesystem *ImageRegistryConfigStorageFilesystem `json:"filesystem,omitempty"`
 	GCS        *ImageRegistryConfigStorageGCS        `json:"gcs,omitempty"`
 	S3         *ImageRegistryConfigStorageS3         `json:"s3,omitempty"`
 	Swift      *ImageRegistryConfigStorageSwift      `json:"swift,omitempty"`
+	PVC        *ImageRegistryConfigStoragePVC        `json:"pvc,omitempty"`
 }
 
 type ImageRegistryConfigRequests struct {

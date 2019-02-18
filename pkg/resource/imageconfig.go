@@ -19,6 +19,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorImageConfig{}
@@ -43,7 +44,7 @@ func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister
 		name:          params.ImageConfig.Name,
 		namespace:     params.Deployment.Namespace,
 		serviceName:   params.Service.Name,
-		owner:         asOwner(cr),
+		owner:         util.AsOwner(cr),
 	}
 }
 

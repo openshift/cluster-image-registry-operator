@@ -1,10 +1,12 @@
 package framework
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/ghodss/yaml"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +33,15 @@ var _ Logger = &testing.T{}
 // DumpObject prints the object to the test log.
 func DumpObject(logger Logger, prefix string, obj interface{}) {
 	logger.Logf("%s:\n%s", prefix, spew.Sdump(obj))
+}
+
+// DumpYAML prints the object to the test log as YAML.
+func DumpYAML(logger Logger, prefix string, obj interface{}) {
+	data, err := yaml.Marshal(obj)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal object: %s", err))
+	}
+	logger.Logf("%s:\n%s", prefix, string(data))
 }
 
 // DeleteCompletely sends a delete request and waits until the resource and

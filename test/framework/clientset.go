@@ -6,6 +6,7 @@ import (
 
 	clientappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	clientstoragev1 "k8s.io/client-go/kubernetes/typed/storage/v1"
 	restclient "k8s.io/client-go/rest"
 
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -21,6 +22,7 @@ type Clientset struct {
 	clientconfigv1.ConfigV1Interface
 	clientimageregistryv1.ImageregistryV1Interface
 	clientroutev1.RouteV1Interface
+	clientstoragev1.StorageV1Interface
 }
 
 // NewClientset creates a set of Kubernetes clients. The default kubeconfig is
@@ -51,6 +53,10 @@ func NewClientset(kubeconfig *restclient.Config) (clientset *Clientset, err erro
 		return
 	}
 	clientset.RouteV1Interface, err = clientroutev1.NewForConfig(kubeconfig)
+	if err != nil {
+		return
+	}
+	clientset.StorageV1Interface, err = clientstoragev1.NewForConfig(kubeconfig)
 	if err != nil {
 		return
 	}

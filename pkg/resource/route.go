@@ -11,6 +11,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorRoute{}
@@ -32,7 +33,7 @@ func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister co
 		client:       client,
 		namespace:    params.Deployment.Namespace,
 		serviceName:  params.Service.Name,
-		owner:        asOwner(cr),
+		owner:        util.AsOwner(cr),
 		route:        route,
 	}
 }
@@ -83,7 +84,7 @@ func (gr *generatorRoute) expected() (runtime.Object, error) {
 		}
 	}
 
-	addOwnerRefToObject(r, gr.owner)
+	util.AddOwnerRefToObject(r, gr.owner)
 
 	return r, nil
 }
