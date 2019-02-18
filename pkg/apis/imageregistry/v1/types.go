@@ -104,6 +104,10 @@ type ImageRegistrySpec struct {
 	// Storage details for configuring registry storage, e.g. S3 bucket coordinates.
 	Storage ImageRegistryConfigStorage `json:"storage,omitempty"`
 
+	// ReadOnly indicates whether the registry instance should reject attempts
+	// to push new images or delete existing ones.
+	ReadOnly bool `json:"readOnly,omitempty"`
+
 	// Requests controls how many parallel requests a given registry instance will handle before queuing additional requests
 	Requests ImageRegistryConfigRequests `json:"requests,omitempty"`
 
