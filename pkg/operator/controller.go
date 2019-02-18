@@ -111,7 +111,7 @@ type Controller struct {
 // change so there is no watch event generated when the status.dockerrepository value
 // changes.
 func (c *Controller) imageStreamPoll() {
-	glog.V(4).Infof("Polling for imagestream status")
+	glog.Infof("Polling for imagestream status")
 	imageClient, err := imageset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		glog.Warningf("failed to create client config: %v", err)
@@ -149,7 +149,7 @@ func (c *Controller) imageStreamPoll() {
 			glog.Warningf("failed to get %q cluster image config resource: %s", c.params.ImageConfig.Name, err)
 			return
 		}
-		glog.V(4).Infof("checking: %s vs %s", validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname)
+		glog.Infof("checking: %s vs %s", validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname)
 		if validationIS.Status.DockerImageRepository != "" && strings.HasPrefix(validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname) {
 			successCount += 1
 			continue

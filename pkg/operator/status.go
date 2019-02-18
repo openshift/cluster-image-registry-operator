@@ -80,7 +80,6 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	case !isDeploymentStatusAvailable(deploy):
 		operatorAvailableMsg = "Deployment does not have available replicas"
 	case hostnameCondition == nil || hostnameCondition.Status != operatorapi.ConditionTrue:
-		operatorAvailable = osapi.ConditionFalse
 		operatorAvailableMsg = "Internal registry hostname has not propagated to the api server"
 	default:
 		operatorAvailable = osapi.ConditionTrue
