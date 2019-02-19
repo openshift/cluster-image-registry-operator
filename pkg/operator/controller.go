@@ -117,10 +117,13 @@ func (c *Controller) imageStreamPoll() {
 		glog.Warningf("failed to create client config: %v", err)
 		return
 	}
-	validationIS, err := imageClient.ImageV1().ImageStreams(c.params.Deployment.Namespace).Get("config-validation", metav1.GetOptions{})
-	if validationIS == nil || err != nil {
-		glog.Warningf("failed to retrieve validation imagestream %s: %s", "config-validation", err)
-		// do not change conditions on err to avoid flapping if the api server goes down
+	ic, err := c.listers.ImageConfigs.Get(c.params.ImageConfig.Name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			glog.Warningf("cluster image config resource %q not found", c.params.ImageConfig.Name)
+			return
+		}
+		glog.Warningf("failed to get %q cluster image config resource: %s", c.params.ImageConfig.Name, err)
 		return
 	}
 
@@ -140,15 +143,13 @@ func (c *Controller) imageStreamPoll() {
 	// responding with the same value.
 	successCount := 0
 	for successCount < 4 {
-		ic, err := c.listers.ImageConfigs.Get(c.params.ImageConfig.Name)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				glog.Warningf("cluster image config resource %q not found", c.params.ImageConfig.Name)
-				return
-			}
-			glog.Warningf("failed to get %q cluster image config resource: %s", c.params.ImageConfig.Name, err)
+		validationIS, err := imageClient.ImageV1().ImageStreams(c.params.Deployment.Namespace).Get("config-validation", metav1.GetOptions{})
+		if validationIS == nil || err != nil {
+			glog.Warningf("failed to retrieve validation imagestream %s: %s", "config-validation", err)
+			// do not change conditions on err to avoid flapping if the api server goes down
 			return
 		}
+
 		glog.Infof("checking: %s vs %s", validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname)
 		if validationIS.Status.DockerImageRepository != "" && strings.HasPrefix(validationIS.Status.DockerImageRepository, ic.Status.InternalRegistryHostname) {
 			successCount += 1
