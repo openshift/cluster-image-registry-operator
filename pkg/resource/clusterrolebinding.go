@@ -9,7 +9,6 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorClusterRoleBinding{}
@@ -19,7 +18,6 @@ type generatorClusterRoleBinding struct {
 	client      rbacset.RbacV1Interface
 	saName      string
 	saNamespace string
-	owner       metav1.OwnerReference
 }
 
 func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorClusterRoleBinding {
@@ -28,7 +26,6 @@ func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister,
 		client:      client,
 		saName:      params.Pod.ServiceAccount,
 		saNamespace: params.Deployment.Namespace,
-		owner:       util.AsOwner(cr),
 	}
 }
 
@@ -66,8 +63,6 @@ func (gcrb *generatorClusterRoleBinding) expected() (runtime.Object, error) {
 		},
 	}
 
-	util.AddOwnerRefToObject(crb, gcrb.owner)
-
 	return crb, nil
 }
 
@@ -89,4 +84,8 @@ func (gcrb *generatorClusterRoleBinding) Update(o runtime.Object) (bool, error) 
 
 func (gcrb *generatorClusterRoleBinding) Delete(opts *metav1.DeleteOptions) error {
 	return gcrb.client.ClusterRoleBindings().Delete(gcrb.GetName(), opts)
+}
+
+func (g *generatorClusterRoleBinding) Owned() bool {
+	return true
 }

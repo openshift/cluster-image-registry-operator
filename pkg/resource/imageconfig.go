@@ -133,6 +133,11 @@ func (gic *generatorImageConfig) Delete(opts *metav1.DeleteOptions) error {
 	return gic.configClient.Images().Delete(gic.GetName(), opts)
 }
 
+func (g *generatorImageConfig) Owned() bool {
+	// the registry operator can create and contribute to the imageconfig, but it doesn't own it.
+	return false
+}
+
 func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	var externalHostnames []string
 

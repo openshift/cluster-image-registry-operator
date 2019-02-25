@@ -235,6 +235,9 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 		PropagationPolicy:  &propagationPolicy,
 	}
 	for _, gen := range generators {
+		if !gen.Owned() {
+			continue
+		}
 		if err := gen.Delete(opts); err != nil {
 			if errors.IsNotFound(err) {
 				continue

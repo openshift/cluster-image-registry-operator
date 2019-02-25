@@ -211,3 +211,8 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 func (ds *generatorNodeCADaemonSet) Delete(opts *metav1.DeleteOptions) error {
 	return ds.client.DaemonSets(ds.GetNamespace()).Delete(ds.GetName(), opts)
 }
+
+func (ds *generatorNodeCADaemonSet) Owned() bool {
+	// the nodeca daemon's lifecycle is not tied to the lifecycle of the registry
+	return false
+}

@@ -9,7 +9,6 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorServiceAccount{}
@@ -19,7 +18,6 @@ type generatorServiceAccount struct {
 	client    coreset.CoreV1Interface
 	name      string
 	namespace string
-	owner     metav1.OwnerReference
 }
 
 func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorServiceAccount {
@@ -28,7 +26,6 @@ func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister
 		client:    client,
 		name:      params.Pod.ServiceAccount,
 		namespace: params.Deployment.Namespace,
-		owner:     util.AsOwner(cr),
 	}
 }
 
@@ -52,8 +49,6 @@ func (gsa *generatorServiceAccount) expected() (runtime.Object, error) {
 		},
 	}
 
-	util.AddOwnerRefToObject(sa, gsa.owner)
-
 	return sa, nil
 }
 
@@ -75,4 +70,8 @@ func (gsa *generatorServiceAccount) Update(o runtime.Object) (bool, error) {
 
 func (gsa *generatorServiceAccount) Delete(opts *metav1.DeleteOptions) error {
 	return gsa.client.ServiceAccounts(gsa.GetNamespace()).Delete(gsa.GetName(), opts)
+}
+
+func (g *generatorServiceAccount) Owned() bool {
+	return true
 }
