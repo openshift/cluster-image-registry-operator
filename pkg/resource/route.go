@@ -15,6 +15,11 @@ import (
 
 const RouteOwnerAnnotation = "imageregistry.openshift.io"
 
+func RouteIsCreatedByOperator(route *routeapi.Route) bool {
+	_, ok := route.Annotations[RouteOwnerAnnotation]
+	return ok
+}
+
 var _ Mutator = &generatorRoute{}
 
 type generatorRoute struct {

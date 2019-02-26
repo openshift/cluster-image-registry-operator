@@ -147,8 +147,7 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	}
 	defaultHost := ""
 	for _, route := range routes {
-		// ignore routes that weren't created by the registry operator
-		if _, ok := route.Annotations[RouteOwnerAnnotation]; !ok {
+		if !RouteIsCreatedByOperator(route) {
 			continue
 		}
 		for _, ingress := range route.Status.Ingress {
