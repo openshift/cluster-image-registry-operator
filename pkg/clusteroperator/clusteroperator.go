@@ -2,6 +2,7 @@ package clusteroperator
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -11,8 +12,6 @@ import (
 
 	osapi "github.com/openshift/api/config/v1"
 	osset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
 type StatusHandler struct {
@@ -42,14 +41,7 @@ func (s *StatusHandler) Create() error {
 		ObjectMeta: metaapi.ObjectMeta{
 			Name: s.Name,
 		},
-		Status: osapi.ClusterOperatorStatus{
-			Versions: []osapi.OperandVersion{
-				{
-					Name:    "operator",
-					Version: version.Version,
-				},
-			},
-		},
+		Status: osapi.ClusterOperatorStatus{},
 	}
 
 	_, err = client.ClusterOperators().Create(state)
@@ -104,12 +96,23 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 			LastTransitionTime: metaapi.Now(),
 		})
 
-		desiredVersions := []osapi.OperandVersion{
-			{
-				Name:    "operator",
-				Version: version.Version,
-			},
+		// when we are at the available level, reset versions in status to the input
+		// release version
+		desiredVersions := state.Status.Versions
+		if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
+			// an available operator resets release version
+			if condtype == osapi.OperatorAvailable && status == osapi.ConditionTrue {
+				desiredVersions = []osapi.OperandVersion{
+					{
+						Name:    "operator",
+						Version: releaseVersion,
+					},
+				}
+			}
+		} else {
+			desiredVersions = nil
 		}
+
 		if !reflect.DeepEqual(state.Status.Versions, desiredVersions) {
 			state.Status.Versions = desiredVersions
 			modified = true
