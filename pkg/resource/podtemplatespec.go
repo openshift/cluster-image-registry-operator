@@ -125,6 +125,10 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", params.Service.Name, params.Deployment.Namespace, params.Container.Port)},
 	)
 
+	if cr.Spec.ReadOnly {
+		env = append(env, corev1.EnvVar{Name: "REGISTRY_STORAGE_MAINTENANCE_READONLY", Value: "{enabled: true}"})
+	}
+
 	if cr.Spec.Proxy.HTTP != "" {
 		env = append(env, corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP})
 	}
