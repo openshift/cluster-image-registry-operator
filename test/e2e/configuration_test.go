@@ -107,6 +107,7 @@ func TestRouteConfiguration(t *testing.T) {
 			},
 		},
 	}
+
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
