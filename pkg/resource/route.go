@@ -13,6 +13,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
+const RouteOwnerAnnotation = "imageregistry.openshift.io"
+
 var _ Mutator = &generatorRoute{}
 
 type generatorRoute struct {
@@ -50,8 +52,9 @@ func (gr *generatorRoute) GetName() string {
 func (gr *generatorRoute) expected() (runtime.Object, error) {
 	r := &routeapi.Route{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gr.GetName(),
-			Namespace: gr.GetNamespace(),
+			Name:        gr.GetName(),
+			Namespace:   gr.GetNamespace(),
+			Annotations: map[string]string{RouteOwnerAnnotation: "true"},
 		},
 		Spec: routeapi.RouteSpec{
 			Host: gr.route.Hostname,

@@ -147,10 +147,8 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	}
 	defaultHost := ""
 	for _, route := range routes {
-		routeOwner := metav1.GetControllerOf(route)
-
 		// ignore routes that weren't created by the registry operator
-		if routeOwner == nil || routeOwner.UID != gic.owner.UID {
+		if _, ok := route.Annotations[RouteOwnerAnnotation]; !ok {
 			continue
 		}
 		for _, ingress := range route.Status.Ingress {
