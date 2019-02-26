@@ -8,7 +8,6 @@ import (
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorClusterRole{}
@@ -16,14 +15,12 @@ var _ Mutator = &generatorClusterRole{}
 type generatorClusterRole struct {
 	lister rbaclisters.ClusterRoleLister
 	client rbacset.RbacV1Interface
-	owner  metav1.OwnerReference
 }
 
 func newGeneratorClusterRole(lister rbaclisters.ClusterRoleLister, client rbacset.RbacV1Interface, cr *imageregistryv1.Config) *generatorClusterRole {
 	return &generatorClusterRole{
 		lister: lister,
 		client: client,
-		owner:  util.AsOwner(cr),
 	}
 }
 
@@ -94,8 +91,6 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 		},
 	}
 
-	util.AddOwnerRefToObject(role, gcr.owner)
-
 	return role, nil
 }
 
@@ -117,4 +112,8 @@ func (gcr *generatorClusterRole) Update(o runtime.Object) (bool, error) {
 
 func (gcr *generatorClusterRole) Delete(opts *metav1.DeleteOptions) error {
 	return gcr.client.ClusterRoles().Delete(gcr.GetName(), opts)
+}
+
+func (g *generatorClusterRole) Owned() bool {
+	return true
 }

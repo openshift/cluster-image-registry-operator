@@ -12,7 +12,6 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorDeployment{}
@@ -84,8 +83,6 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 		},
 	}
 
-	util.AddOwnerRefToObject(deploy, util.AsOwner(gd.cr))
-
 	return deploy, nil
 }
 
@@ -107,4 +104,8 @@ func (gd *generatorDeployment) Update(o runtime.Object) (bool, error) {
 
 func (gd *generatorDeployment) Delete(opts *metav1.DeleteOptions) error {
 	return gd.client.Deployments(gd.GetNamespace()).Delete(gd.GetName(), opts)
+}
+
+func (g *generatorDeployment) Owned() bool {
+	return true
 }

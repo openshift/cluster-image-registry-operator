@@ -10,7 +10,6 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorSecret{}
@@ -21,7 +20,6 @@ type generatorSecret struct {
 	driver    storage.Driver
 	name      string
 	namespace string
-	owner     metav1.OwnerReference
 }
 
 func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorSecret {
@@ -31,7 +29,6 @@ func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset
 		driver:    driver,
 		name:      imageregistryv1.ImageRegistryPrivateConfiguration,
 		namespace: params.Deployment.Namespace,
-		owner:     util.AsOwner(cr),
 	}
 }
 
@@ -62,8 +59,6 @@ func (gs *generatorSecret) expected() (runtime.Object, error) {
 
 	sec.StringData = data
 
-	util.AddOwnerRefToObject(sec, gs.owner)
-
 	return sec, nil
 }
 
@@ -85,4 +80,8 @@ func (gs *generatorSecret) Update(o runtime.Object) (bool, error) {
 
 func (gs *generatorSecret) Delete(opts *metav1.DeleteOptions) error {
 	return gs.client.Secrets(gs.GetNamespace()).Delete(gs.GetName(), opts)
+}
+
+func (g *generatorSecret) Owned() bool {
+	return true
 }

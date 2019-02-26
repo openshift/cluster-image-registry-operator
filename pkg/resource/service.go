@@ -13,7 +13,6 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorService{}
@@ -26,7 +25,6 @@ type generatorService struct {
 	labels     map[string]string
 	port       int
 	secretName string
-	owner      metav1.OwnerReference
 }
 
 func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorService {
@@ -38,7 +36,6 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
 		secretName: imageregistryv1.ImageRegistryName + "-tls",
-		owner:      util.AsOwner(cr),
 	}
 }
 
@@ -78,8 +75,6 @@ func (gs *generatorService) expected() *corev1.Service {
 		"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
 	}
 
-	util.AddOwnerRefToObject(svc, gs.owner)
-
 	return svc
 }
 
@@ -115,4 +110,8 @@ func (gs *generatorService) Update(o runtime.Object) (bool, error) {
 
 func (gs *generatorService) Delete(opts *metav1.DeleteOptions) error {
 	return gs.client.Services(gs.GetNamespace()).Delete(gs.GetName(), opts)
+}
+
+func (g *generatorService) Owned() bool {
+	return true
 }

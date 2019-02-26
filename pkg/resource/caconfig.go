@@ -11,7 +11,6 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorCAConfig{}
@@ -24,7 +23,6 @@ type generatorCAConfig struct {
 	imageConfigName       string
 	name                  string
 	namespace             string
-	owner                 metav1.OwnerReference
 }
 
 func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorCAConfig {
@@ -36,7 +34,6 @@ func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConf
 		imageConfigName:       params.ImageConfig.Name,
 		name:                  params.CAConfig.Name,
 		namespace:             params.Deployment.Namespace,
-		owner:                 util.AsOwner(cr),
 	}
 }
 
@@ -82,8 +79,6 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
-	util.AddOwnerRefToObject(cm, gcac.owner)
-
 	return cm, nil
 }
 
@@ -105,4 +100,8 @@ func (gcac *generatorCAConfig) Update(o runtime.Object) (bool, error) {
 
 func (gcac *generatorCAConfig) Delete(opts *metav1.DeleteOptions) error {
 	return gcac.client.ConfigMaps(gcac.GetNamespace()).Delete(gcac.GetName(), opts)
+}
+
+func (g *generatorCAConfig) Owned() bool {
+	return true
 }

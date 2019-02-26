@@ -11,8 +11,14 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
+
+const RouteOwnerAnnotation = "imageregistry.openshift.io"
+
+func RouteIsCreatedByOperator(route *routeapi.Route) bool {
+	_, ok := route.Annotations[RouteOwnerAnnotation]
+	return ok
+}
 
 var _ Mutator = &generatorRoute{}
 
@@ -22,7 +28,6 @@ type generatorRoute struct {
 	client       routeset.RouteV1Interface
 	namespace    string
 	serviceName  string
-	owner        metav1.OwnerReference
 	route        imageregistryv1.ImageRegistryConfigRoute
 }
 
@@ -33,7 +38,6 @@ func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister co
 		client:       client,
 		namespace:    params.Deployment.Namespace,
 		serviceName:  params.Service.Name,
-		owner:        util.AsOwner(cr),
 		route:        route,
 	}
 }
@@ -53,8 +57,9 @@ func (gr *generatorRoute) GetName() string {
 func (gr *generatorRoute) expected() (runtime.Object, error) {
 	r := &routeapi.Route{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      gr.GetName(),
-			Namespace: gr.GetNamespace(),
+			Name:        gr.GetName(),
+			Namespace:   gr.GetNamespace(),
+			Annotations: map[string]string{RouteOwnerAnnotation: "true"},
 		},
 		Spec: routeapi.RouteSpec{
 			Host: gr.route.Hostname,
@@ -83,9 +88,6 @@ func (gr *generatorRoute) expected() (runtime.Object, error) {
 			r.Spec.TLS.CACertificate = v
 		}
 	}
-
-	util.AddOwnerRefToObject(r, gr.owner)
-
 	return r, nil
 }
 
@@ -107,4 +109,8 @@ func (gr *generatorRoute) Update(o runtime.Object) (bool, error) {
 
 func (gr *generatorRoute) Delete(opts *metav1.DeleteOptions) error {
 	return gr.client.Routes(gr.GetNamespace()).Delete(gr.GetName(), opts)
+}
+
+func (g *generatorRoute) Owned() bool {
+	return true
 }

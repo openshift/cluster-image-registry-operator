@@ -21,6 +21,9 @@ type Mutator interface {
 	Create() error
 	Update(o runtime.Object) (bool, error)
 	Delete(opts *metaapi.DeleteOptions) error
+	// Owned indicates whether this resource is explicitly owned by the registry operator
+	// and therefore should be removed when the registry config resource is removed.
+	Owned() bool
 }
 
 func Name(o Getter) string {

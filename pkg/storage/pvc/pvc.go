@@ -151,8 +151,6 @@ func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolume
 		},
 	}
 
-	operatorutil.AddOwnerRefToObject(claim, operatorutil.AsOwner(cr))
-
 	return d.Client.PersistentVolumeClaims(d.Namespace).Create(claim)
 }
 

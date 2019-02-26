@@ -156,7 +156,7 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 		PropagationPolicy:  &propagationPolicy,
 	}
 	for _, route := range routes {
-		if !metaapi.IsControlledBy(route, cr) {
+		if !RouteIsCreatedByOperator(route) {
 			continue
 		}
 		if _, found := knownNames[route.Name]; found {
@@ -235,6 +235,9 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 		PropagationPolicy:  &propagationPolicy,
 	}
 	for _, gen := range generators {
+		if !gen.Owned() {
+			continue
+		}
 		if err := gen.Delete(opts); err != nil {
 			if errors.IsNotFound(err) {
 				continue
