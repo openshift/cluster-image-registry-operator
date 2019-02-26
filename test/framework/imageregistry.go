@@ -140,21 +140,33 @@ func deleteImageRegistryResource(client *Clientset) error {
 func RemoveImageRegistry(logger Logger, client *Clientset) error {
 	logger.Logf("uninstalling the image registry...")
 	if err := ensureImageRegistryToBeRemoved(logger, client); err != nil {
-		return fmt.Errorf("unable to uninstall the image registry: %s", err)
+		logger.Logf("unable to uninstall the image registry: %s", err)
+		return err
 	}
 	logger.Logf("stopping the operator...")
 	if err := stopOperator(logger, client); err != nil {
-		return fmt.Errorf("unable to stop the operator: %s", err)
+		logger.Logf("unable to stop the operator: %s", err)
+		return err
 	}
 	logger.Logf("deleting the image registry resource...")
 	if err := deleteImageRegistryResource(client); err != nil {
-		return fmt.Errorf("unable to delete the image registry resource: %s", err)
+		logger.Logf("unable to delete the image registry resource: %s", err)
+		return err
 	}
 	return nil
 }
 
 func MustRemoveImageRegistry(t *testing.T, client *Clientset) {
-	if err := RemoveImageRegistry(t, client); err != nil {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		if err := RemoveImageRegistry(t, client); err != nil {
+			if errors.IsServiceUnavailable(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }

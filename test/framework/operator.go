@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -53,9 +54,19 @@ func GetOperatorLogs(client *Clientset) (PodSetLogs, error) {
 }
 
 func DumpOperatorLogs(logger Logger, client *Clientset) {
-	podLogs, err := GetOperatorLogs(client)
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		podLogs, err := GetOperatorLogs(client)
+		if errors.IsServiceUnavailable(err) {
+			return false, nil
+		}
+		if err != nil {
+			logger.Logf("failed to get the operator logs: %s", err)
+			return false, err
+		}
+		DumpPodLogs(logger, podLogs)
+		return true, nil
+	})
 	if err != nil {
 		logger.Logf("failed to get the operator logs: %s", err)
 	}
-	DumpPodLogs(logger, podLogs)
 }
