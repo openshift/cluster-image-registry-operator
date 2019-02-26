@@ -116,7 +116,6 @@ type generatorNodeCADaemonSet struct {
 	daemonSetLister appslisters.DaemonSetNamespaceLister
 	serviceLister   kcorelisters.ServiceNamespaceLister
 	client          appsclientv1.AppsV1Interface
-	owner           metav1.OwnerReference
 	params          *parameters.Globals
 }
 

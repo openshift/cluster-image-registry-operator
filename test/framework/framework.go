@@ -47,26 +47,47 @@ func DumpYAML(logger Logger, prefix string, obj interface{}) {
 // DeleteCompletely sends a delete request and waits until the resource and
 // its dependents are deleted.
 func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func(*metav1.DeleteOptions) error) error {
-	obj, err := getObject()
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil
+
+	var obj metav1.Object
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		var err error
+		obj, err = getObject()
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+			if errors.IsServiceUnavailable(err) {
+				return false, nil
+			}
+			return false, err
 		}
+		return true, nil
+	})
+	if err != nil || obj == nil {
 		return err
 	}
 
 	uid := obj.GetUID()
 
-	policy := metav1.DeletePropagationForeground
-	if err := deleteObject(&metav1.DeleteOptions{
-		Preconditions: &metav1.Preconditions{
-			UID: &uid,
-		},
-		PropagationPolicy: &policy,
-	}); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
+	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		policy := metav1.DeletePropagationForeground
+		if err := deleteObject(&metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{
+				UID: &uid,
+			},
+			PropagationPolicy: &policy,
+		}); err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+			if errors.IsServiceUnavailable(err) {
+				return false, nil
+			}
+			return false, err
 		}
+		return true, nil
+	})
+	if err != nil {
 		return err
 	}
 
@@ -75,6 +96,9 @@ func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return true, nil
+			}
+			if errors.IsServiceUnavailable(err) {
+				return false, nil
 			}
 			return false, err
 		}
