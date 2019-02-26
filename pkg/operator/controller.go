@@ -153,21 +153,41 @@ func (c *Controller) sync() error {
 
 	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
-	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
-	if metadataChanged || specChanged || statusChanged {
-		glog.Infof("object changed: %s (metadata=%t, spec=%t, status=%t)", util.ObjectInfo(cr), metadataChanged, specChanged, statusChanged)
-
-		cr.Status.ObservedGeneration = cr.Generation
+	if metadataChanged || specChanged {
+		glog.Infof("object changed: %s (metadata=%t, spec=%t)", util.ObjectInfo(cr), metadataChanged, specChanged)
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
 		if err != nil {
 			return err
 		}
 
-		_, err = client.ImageregistryV1().Configs().Update(cr)
+		updatedCR, err := client.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				glog.Errorf("unable to update %s: %s", util.ObjectInfo(cr), err)
+			}
+			return err
+		}
+
+		// If we updated the Status field too, we'll make one more call and we
+		// want it to succeed.
+		cr.ResourceVersion = updatedCR.ResourceVersion
+	}
+
+	cr.Status.ObservedGeneration = cr.Generation
+	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
+	if statusChanged {
+		glog.Infof("object changed: %s (status=%t)", util.ObjectInfo(cr), statusChanged)
+
+		client, err := regopset.NewForConfig(c.kubeconfig)
+		if err != nil {
+			return err
+		}
+
+		_, err = client.ImageregistryV1().Configs().UpdateStatus(cr)
+		if err != nil {
+			if !errors.IsConflict(err) {
+				glog.Errorf("unable to update status %s: %s", util.ObjectInfo(cr), err)
 			}
 			return err
 		}

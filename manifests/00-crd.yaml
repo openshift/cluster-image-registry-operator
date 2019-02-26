@@ -12,3 +12,5 @@ spec:
     listKind: ConfigList
     plural: configs
     singular: config
+  subresources:
+    status: {}
