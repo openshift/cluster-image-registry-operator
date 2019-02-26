@@ -17,6 +17,11 @@ import (
 	imageregistryapiv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
+const (
+	OperatorDeploymentNamespace = "openshift-image-registry"
+	OperatorDeploymentName      = "cluster-image-registry-operator"
+)
+
 type ConditionStatus struct {
 	status *operatorapiv1.ConditionStatus
 }
@@ -143,7 +148,7 @@ func RemoveImageRegistry(logger Logger, client *Clientset) error {
 		return fmt.Errorf("unable to uninstall the image registry: %s", err)
 	}
 	logger.Logf("stopping the operator...")
-	if err := stopOperator(logger, client); err != nil {
+	if err := stopOperator(logger, client, OperatorDeploymentName, OperatorDeploymentNamespace); err != nil {
 		return fmt.Errorf("unable to stop the operator: %s", err)
 	}
 	logger.Logf("deleting the image registry resource...")
