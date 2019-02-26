@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
@@ -21,6 +22,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
 var (
@@ -60,6 +62,10 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	if err != nil {
 		return nil, err
 	}
+	sess.Handlers.Build.PushBackNamed(request.NamedHandler{
+		Name: "openshift.io/cluster-image-registry-operator",
+		Fn:   request.MakeAddToUserAgentHandler("openshift.io cluster-image-registry-operator", version.Version),
+	})
 
 	s3Service := s3.New(sess)
 
