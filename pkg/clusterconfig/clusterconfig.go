@@ -120,7 +120,7 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 		})
 
 		if sec == nil || pollErr != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName), err)
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName), pollErr)
 		}
 
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
