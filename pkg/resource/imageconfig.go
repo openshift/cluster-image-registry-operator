@@ -19,7 +19,6 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 var _ Mutator = &generatorImageConfig{}
@@ -32,10 +31,9 @@ type generatorImageConfig struct {
 	name          string
 	namespace     string
 	serviceName   string
-	owner         metav1.OwnerReference
 }
 
-func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, configClient configset.ConfigV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorImageConfig {
+func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, configClient configset.ConfigV1Interface, params *parameters.Globals) *generatorImageConfig {
 	return &generatorImageConfig{
 		configLister:  configLister,
 		routeLister:   routeLister,
@@ -44,7 +42,6 @@ func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister
 		name:          params.ImageConfig.Name,
 		namespace:     params.Deployment.Namespace,
 		serviceName:   params.Service.Name,
-		owner:         util.AsOwner(cr),
 	}
 }
 

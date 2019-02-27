@@ -207,7 +207,7 @@ func TestDefaultPVC(t *testing.T) {
 	checkTestResult(t, client)
 }
 
-func TestCustomPVC(t *testing.T) {
+func DISABLEDTestCustomPVC(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	defer testDefer(t, client)

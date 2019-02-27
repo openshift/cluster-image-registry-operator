@@ -14,14 +14,14 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-	operatorutil "github.com/openshift/cluster-image-registry-operator/pkg/util"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 const (
-	rootDirectory    = "/registry"
-	randomSecretSize = 32
+	rootDirectory      = "/registry"
+	randomSecretSize   = 32
+	pvcOwnerAnnotation = "imageregistry.openshift.io"
 )
 
 type driver struct {
@@ -138,6 +138,9 @@ func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolume
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      d.Config.Claim,
 			Namespace: d.Namespace,
+			Annotations: map[string]string{
+				pvcOwnerAnnotation: "true",
+			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -170,8 +173,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(d.Config.Claim, metav1.GetOptions{})
 		if err == nil {
-			ownerRef := metav1.GetControllerOf(claim)
-			if ownerRef == nil || ownerRef.UID != operatorutil.AsOwner(cr).UID {
+			if !pvcIsCreatedByOperator(claim) {
 				err = fmt.Errorf("could not create default PVC, it already exists and is not owned by the operator")
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "PVC Already Exists", err.Error())
 				return err
@@ -218,4 +220,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retriable bool, err 
 func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
 	cr.Status.Storage.PVC = d.Config.DeepCopy()
 	return nil
+}
+
+func pvcIsCreatedByOperator(claim *corev1.PersistentVolumeClaim) (exist bool) {
+	_, exist = claim.Annotations[pvcOwnerAnnotation]
+	return
 }

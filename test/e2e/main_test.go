@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	if err := framework.DisableCVOForOperator(client); err != nil {
+	if err := framework.DisableCVOForOperator(devnullLogger{}, client); err != nil {
 		panic(err)
 	}
 
