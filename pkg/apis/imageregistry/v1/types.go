@@ -69,7 +69,7 @@ const (
 
 	// VersionAnnotation reflects the version of the registry that this deployment
 	// is running.
-	VersionAnnotation = "imageregistry.operator.openshift.io/version"
+	VersionAnnotation = "release.openshift.io/version"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

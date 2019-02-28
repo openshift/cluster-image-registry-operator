@@ -91,7 +91,7 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 	}
 
 	var cr *imageregistryapiv1.Config
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			cr = nil
@@ -195,7 +195,7 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 
 func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapiv1.Config, error) {
 	var cr *imageregistryapiv1.Config
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			logger.Logf("waiting for the registry: the resource does not exist")
