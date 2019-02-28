@@ -16,7 +16,7 @@ func startOperator(client *Clientset) error {
 	return nil
 }
 
-func stopOperator(logger Logger, client *Clientset, operatorDeploymentName, operatorDeploymentNamespace string) error {
+func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, operatorDeploymentNamespace string) error {
 	var err error
 	var realErr error
 	err = wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {

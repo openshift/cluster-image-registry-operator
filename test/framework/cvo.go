@@ -67,10 +67,10 @@ func DisableCVOForOperator(logger Logger, client *Clientset) error {
 		}
 	}
 
-	if err := stopOperator(logger, client, "kube-apiserver-operator", "openshift-kube-apiserver-operator"); err != nil {
+	if err := StopDeployment(logger, client, "kube-apiserver-operator", "openshift-kube-apiserver-operator"); err != nil {
 		return fmt.Errorf("unable to stop kube apiserver operator: %v", err)
 	}
-	if err := stopOperator(logger, client, "openshift-apiserver-operator", "openshift-apiserver-operator"); err != nil {
+	if err := StopDeployment(logger, client, "openshift-apiserver-operator", "openshift-apiserver-operator"); err != nil {
 		return fmt.Errorf("unable to stop openshift apiserver operator: %v", err)
 	}
 
