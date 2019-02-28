@@ -2,7 +2,6 @@ package clusteroperator
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,20 +47,20 @@ func (s *StatusHandler) Create() error {
 	return err
 }
 
-func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg string) error {
+func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg, newVersion string) error {
 	client, err := osset.NewForConfig(s.kubeconfig)
 	if err != nil {
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().UpdateStatus
-
+		modified := false
 		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
 			}
-
+			modified = true
 			state = &osapi.ClusterOperator{
 				ObjectMeta: metaapi.ObjectMeta{
 					Name: s.Name,
@@ -89,33 +88,24 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 
 			sdkFunc = client.ClusterOperators().Create
 		}
-		modified := updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
+		modified = updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
 			Type:               condtype,
 			Status:             status,
 			Message:            msg,
 			LastTransitionTime: metaapi.Now(),
 		})
 
-		// when we are at the available level, reset versions in status to the input
-		// release version
-		desiredVersions := state.Status.Versions
-		if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
-			// an available operator resets release version
-			if condtype == osapi.OperatorAvailable && status == osapi.ConditionTrue {
-				desiredVersions = []osapi.OperandVersion{
-					{
-						Name:    "operator",
-						Version: releaseVersion,
-					},
-				}
+		if len(newVersion) > 0 {
+			newVersions := []osapi.OperandVersion{
+				{
+					Name:    "operator",
+					Version: newVersion,
+				},
 			}
-		} else {
-			desiredVersions = nil
-		}
-
-		if !reflect.DeepEqual(state.Status.Versions, desiredVersions) {
-			state.Status.Versions = desiredVersions
-			modified = true
+			if !reflect.DeepEqual(state.Status.Versions, newVersions) {
+				state.Status.Versions = newVersions
+				modified = true
+			}
 		}
 
 		if !modified {

@@ -66,6 +66,10 @@ const (
 	// StorageIncompleteUploadCleanupEnabled denotes whethere or not the registry storage
 	// medium is configured to automatically cleanup incomplete uploads
 	StorageIncompleteUploadCleanupEnabled = "StorageIncompleteUploadCleanupEnabled"
+
+	// VersionAnnotation reflects the version of the registry that this deployment
+	// is running.
+	VersionAnnotation = "imageregistry.operator.openshift.io/version"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

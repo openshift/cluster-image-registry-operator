@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"os"
+
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,6 +75,9 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			Name:      gd.GetName(),
 			Namespace: gd.GetNamespace(),
 			Labels:    gd.params.Deployment.Labels,
+			Annotations: map[string]string{
+				imageregistryv1.VersionAnnotation: os.Getenv("RELEASE_VERSION"),
+			},
 		},
 		Spec: appsapi.DeploymentSpec{
 			Replicas: &gd.cr.Spec.Replicas,
