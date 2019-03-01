@@ -146,15 +146,6 @@ func createPVC(t *testing.T, name string) error {
 		return err
 	}
 
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
-		pvc, pvcErr := client.PersistentVolumeClaims(imageregistryv1.ImageRegistryOperatorNamespace).Get(name, metav1.GetOptions{})
-		return (pvc != nil && pvc.Status.Phase != corev1.ClaimPending), pvcErr
-	})
-
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -207,7 +198,7 @@ func TestDefaultPVC(t *testing.T) {
 	checkTestResult(t, client)
 }
 
-func DISABLEDTestCustomPVC(t *testing.T) {
+func TestCustomPVC(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	defer testDefer(t, client)
