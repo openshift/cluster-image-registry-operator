@@ -11,8 +11,6 @@ import (
 
 	osapi "github.com/openshift/api/config/v1"
 	osset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
 type StatusHandler struct {
@@ -42,34 +40,27 @@ func (s *StatusHandler) Create() error {
 		ObjectMeta: metaapi.ObjectMeta{
 			Name: s.Name,
 		},
-		Status: osapi.ClusterOperatorStatus{
-			Versions: []osapi.OperandVersion{
-				{
-					Name:    "operator",
-					Version: version.Version,
-				},
-			},
-		},
+		Status: osapi.ClusterOperatorStatus{},
 	}
 
 	_, err = client.ClusterOperators().Create(state)
 	return err
 }
 
-func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg string) error {
+func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg, newVersion string) error {
 	client, err := osset.NewForConfig(s.kubeconfig)
 	if err != nil {
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().UpdateStatus
-
+		modified := false
 		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
 			}
-
+			modified = true
 			state = &osapi.ClusterOperator{
 				ObjectMeta: metaapi.ObjectMeta{
 					Name: s.Name,
@@ -97,22 +88,24 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 
 			sdkFunc = client.ClusterOperators().Create
 		}
-		modified := updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
+		modified = updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
 			Type:               condtype,
 			Status:             status,
 			Message:            msg,
 			LastTransitionTime: metaapi.Now(),
 		})
 
-		desiredVersions := []osapi.OperandVersion{
-			{
-				Name:    "operator",
-				Version: version.Version,
-			},
-		}
-		if !reflect.DeepEqual(state.Status.Versions, desiredVersions) {
-			state.Status.Versions = desiredVersions
-			modified = true
+		if len(newVersion) > 0 {
+			newVersions := []osapi.OperandVersion{
+				{
+					Name:    "operator",
+					Version: newVersion,
+				},
+			}
+			if !reflect.DeepEqual(state.Status.Versions, newVersions) {
+				state.Status.Versions = newVersions
+				modified = true
+			}
 		}
 
 		if !modified {

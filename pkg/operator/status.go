@@ -48,6 +48,16 @@ func isDeploymentStatusAvailable(deploy *appsapi.Deployment) bool {
 	return deploy.Status.AvailableReplicas > 0
 }
 
+// isDeploymentStatusAvailableAndUpdated returns true when at least one
+// replica instance exists and all replica instances are current,
+// there are no replica instances remaining from the previous deployment.
+// There may still be additional replica instances being created.
+func isDeploymentStatusAvailableAndUpdated(deploy *appsapi.Deployment) bool {
+	return deploy.Status.AvailableReplicas > 0 &&
+		deploy.Status.ObservedGeneration >= deploy.Generation &&
+		deploy.Status.UpdatedReplicas == deploy.Status.Replicas
+}
+
 func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 	replicas := int32(1)
 	if deploy.Spec.Replicas != nil {
@@ -60,6 +70,7 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 }
 
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
+	setOperatorVersion := false
 	operatorAvailable := osapi.ConditionFalse
 	operatorAvailableMsg := ""
 	if deploy == nil {
@@ -71,9 +82,16 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	} else {
 		operatorAvailable = osapi.ConditionTrue
 		operatorAvailableMsg = "Deployment has minimum availability"
+		setOperatorVersion = isDeploymentStatusAvailableAndUpdated(deploy)
 	}
 
-	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg)
+	deploymentVersion := ""
+	// if the current deployment has achieved availability at the new level, set the operator reported
+	// version to whatever level the deployment has achieved.
+	if setOperatorVersion {
+		deploymentVersion = deploy.Annotations[imageregistryv1.VersionAnnotation]
+	}
+	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, deploymentVersion)
 	if err != nil {
 		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, err)
 	}
@@ -110,7 +128,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorProgressingMsg = "Everything is ready"
 	}
 
-	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg)
+	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, "")
 	if err != nil {
 		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, err)
 	}
@@ -129,7 +147,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorFailingMsg = applyError.Error()
 	}
 
-	err = c.clusterStatus.Update(osapi.OperatorFailing, operatorFailing, operatorFailingMsg)
+	err = c.clusterStatus.Update(osapi.OperatorFailing, operatorFailing, operatorFailingMsg, "")
 	if err != nil {
 		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorFailing, operatorFailing, operatorFailingMsg, err)
 	}
