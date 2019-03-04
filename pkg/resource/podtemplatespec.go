@@ -238,7 +238,8 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 					Effect:   "NoSchedule",
 				},
 			},
-			NodeSelector: cr.Spec.NodeSelector,
+			NodeSelector:      cr.Spec.NodeSelector,
+			PriorityClassName: "system-cluster-critical",
 			Containers: []corev1.Container{
 				{
 					Name:  "registry",
