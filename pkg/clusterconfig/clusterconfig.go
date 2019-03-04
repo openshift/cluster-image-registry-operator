@@ -120,18 +120,18 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 		})
 
 		if sec == nil || pollErr != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName), pollErr)
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), pollErr)
 		}
 
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
 			cfg.Storage.S3.AccessKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName))
 		}
 		if v, ok := sec.Data["aws_secret_access_key"]; ok {
 			cfg.Storage.S3.SecretKey = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", installerConfigNamespace, cloudCredentialsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName))
 		}
 	} else if err != nil {
 		return nil, err
