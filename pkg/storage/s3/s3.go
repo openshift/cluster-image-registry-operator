@@ -112,11 +112,46 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			},
 		},
 	)
+
+	if d.Config.CloudFront != nil {
+		envs = append(envs,
+			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_BASEURL", Value: d.Config.CloudFront.BaseURL},
+			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_KEYPAIRID", Value: d.Config.CloudFront.KeypairID},
+			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_DURATION", Value: d.Config.CloudFront.Duration.String()},
+			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_PRIVATEKEY", Value: "/etc/docker/cloudfront/private.pem"},
+		)
+	}
+
 	return
 }
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
-	return nil, nil, nil
+	if d.Config.CloudFront == nil {
+		return nil, nil, nil
+	}
+
+	optional := false
+
+	vol := corev1.Volume{
+		Name: "registry-cloudfront",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: d.Config.CloudFront.PrivateKey.Name,
+				Items: []corev1.KeyToPath{
+					{Key: d.Config.CloudFront.PrivateKey.Key, Path: "private.pem"},
+				},
+				Optional: &optional,
+			},
+		},
+	}
+
+	mount := corev1.VolumeMount{
+		Name:      vol.Name,
+		MountPath: "/etc/docker/cloudfront",
+		ReadOnly:  true,
+	}
+
+	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
 // Secrets returns a map of the storage access secrets.

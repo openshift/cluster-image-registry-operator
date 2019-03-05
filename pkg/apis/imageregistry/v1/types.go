@@ -149,6 +149,20 @@ type ImageRegistryConfigProxy struct {
 	NoProxy string `json:"noProxy,omitempty"`
 }
 
+// ImageRegistryConfigStorageS3CloudFront holds the configuration
+// to use Amazon Cloudfront as the storage middleware in a registry.
+// https://docs.docker.com/registry/configuration/#cloudfront
+type ImageRegistryConfigStorageS3CloudFront struct {
+	// BaseURL contains the SCHEME://HOST[/PATH] at which Cloudfront is served.
+	BaseURL string `json:"baseURL"`
+	// PrivateKey points to secret containing the private key, provided by AWS.
+	PrivateKey corev1.SecretKeySelector `json:"privateKey"`
+	// KeypairID is key pair ID provided by AWS.
+	KeypairID string `json:"keypairID"`
+	// Duration is the duration of the Cloudfront session (optional).
+	Duration time.Duration `json:"duration,omitempty"`
+}
+
 // ImageRegistryConfigStorageS3 holds the information to configure
 // the registry to use the AWS S3 service for backend storage
 // https://docs.docker.com/registry/storage-drivers/s3/
@@ -168,6 +182,8 @@ type ImageRegistryConfigStorageS3 struct {
 	// KeyID is the KMS key ID to use for encryption
 	// Optional, Encrypt must be true, or this parameter is ignored
 	KeyID string `json:"keyID,omitempty"`
+	// CloudFront configures Amazon Cloudfront as the storage middleware in a registry.
+	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty"`
 }
 
 type ImageRegistryConfigStorageAzure struct {
