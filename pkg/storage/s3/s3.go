@@ -58,6 +58,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
 		Region:      &d.Config.Region,
+		Endpoint:    &d.Config.RegionEndpoint,
 	})
 	if err != nil {
 		return nil, err
@@ -229,7 +230,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
-		*cr.Status.Storage.S3 = *d.Config
+		cr.Status.Storage.S3 = d.Config.DeepCopy()
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "User supplied S3 bucket exists and is accessible")
 
 	} else {
