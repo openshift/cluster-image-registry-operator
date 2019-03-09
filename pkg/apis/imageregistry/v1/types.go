@@ -185,6 +185,10 @@ type ImageRegistryConfigStorageGCS struct {
 type ImageRegistryConfigStorageSwift struct {
 	AuthURL   string `json:"authURL,omitempty"`
 	Container string `json:"container,omitempty"`
+	Domain    string `json:"domain,omitempty"`
+	DomainID  string `json:"domainID,omitempty"`
+	Tenant    string `json:"tenant,omitempty"`
+	TenantID  string `json:"tenantID,omitempty"`
 }
 
 type ImageRegistryConfigStorageFilesystem struct {
