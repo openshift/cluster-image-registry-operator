@@ -51,6 +51,22 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			},
 		},
 	)
+
+	if d.Config.Domain != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
+	}
+
+	if d.Config.DomainID != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID})
+	}
+
+	if d.Config.Tenant != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant})
+	}
+
+	if d.Config.TenantID != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID})
+	}
 	return
 }
 
