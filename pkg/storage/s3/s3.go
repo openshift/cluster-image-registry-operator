@@ -55,6 +55,10 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return nil, err
 	}
 
+	if len(d.Config.Region) == 0 {
+		d.Config.Region = cfg.Storage.S3.Region
+	}
+
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
 		Region:      &d.Config.Region,
