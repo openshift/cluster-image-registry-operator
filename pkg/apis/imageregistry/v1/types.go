@@ -133,6 +133,9 @@ type ImageRegistrySpec struct {
 
 	// NodeSelector defines the node selection constraints for the registry pod
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// Tolerations defines the tolerations for the registry pod
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 type ImageRegistryStatus struct {

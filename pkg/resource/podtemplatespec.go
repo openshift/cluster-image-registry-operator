@@ -231,13 +231,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 			Labels: params.Deployment.Labels,
 		},
 		Spec: corev1.PodSpec{
-			Tolerations: []corev1.Toleration{
-				{
-					Key:      "node-role.kubernetes.io/master",
-					Operator: "Exists",
-					Effect:   "NoSchedule",
-				},
-			},
+			Tolerations:       cr.Spec.Tolerations,
 			NodeSelector:      cr.Spec.NodeSelector,
 			PriorityClassName: "system-cluster-critical",
 			Containers: []corev1.Container{

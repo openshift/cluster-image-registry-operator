@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,13 @@ func TestPodResourceConfiguration(t *testing.T) {
 			NodeSelector: map[string]string{
 				"node-role.kubernetes.io/master": "",
 			},
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+			},
 		},
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
@@ -73,7 +81,58 @@ func TestPodResourceConfiguration(t *testing.T) {
 				t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
 			}
 		}
+
 	}
+}
+
+func TestPodTolerationsConfiguration(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	tolerations := []corev1.Toleration{
+		{
+			Key:      "mykey",
+			Value:    "myvalue",
+			Effect:   "NoSchedule",
+			Operator: "Equal",
+		},
+	}
+
+	cr := &imageregistryapiv1.Config{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
+			Kind:       "Config",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: imageregistryapiv1.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				Filesystem: &imageregistryapiv1.ImageRegistryConfigStorageFilesystem{
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			Replicas:    1,
+			Tolerations: tolerations,
+		},
+	}
+	framework.MustDeployImageRegistry(t, client, cr)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+
+	deployment, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(tolerations, deployment.Spec.Template.Spec.Tolerations) {
+		t.Errorf("expected tolerations not found wanted: %#v, got %#v", tolerations, deployment.Spec.Template.Spec.Tolerations)
+	}
+
 }
 
 func TestRouteConfiguration(t *testing.T) {
