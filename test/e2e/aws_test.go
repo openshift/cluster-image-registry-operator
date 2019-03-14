@@ -307,7 +307,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 }
 
-func DISABLEDTestAWSUnableToCreateBucketOnStartup(t *testing.T) {
+func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	installConfig, err := clusterconfig.GetInstallConfig()
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
