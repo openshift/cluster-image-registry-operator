@@ -52,3 +52,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "github.com/openshift/installer"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gophercloud/gophercloud"
