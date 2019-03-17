@@ -178,8 +178,22 @@
 [[projects]]
   branch = "master"
   name = "github.com/gophercloud/gophercloud"
-  packages = ["."]
+  packages = [
+    ".",
+    "openstack",
+    "openstack/identity/v2/tenants",
+    "openstack/identity/v2/tokens",
+    "openstack/identity/v3/tokens",
+    "openstack/utils",
+    "pagination"
+  ]
   revision = "954aa14363ced787c28efcfcd15ae6945eb862fb"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/gophercloud/utils"
+  packages = ["openstack/clientconfig"]
+  revision = "0bcc8e728cb54c9dce9ed46924688b817ab14f31"
 
 [[projects]]
   branch = "master"
@@ -836,6 +850,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "cc295c0723076db0fcad430b70dd8fe85ffcb01263b6fd95d9245f27e1ad3de5"
+  inputs-digest = "85dde8e9d5cfa1e2229e199fdd31a9d1886145d804e910a34e806f5e5a7b1ac5"
   solver-name = "gps-cdcl"
   solver-version = 1

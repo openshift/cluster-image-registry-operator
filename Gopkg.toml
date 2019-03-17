@@ -56,3 +56,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "github.com/gophercloud/gophercloud"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/gophercloud/utils"
