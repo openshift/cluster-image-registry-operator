@@ -5,17 +5,18 @@ import (
 	"strings"
 	"time"
 
-	installer "github.com/openshift/installer/pkg/types"
+	"github.com/gophercloud/utils/openstack/clientconfig"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
-
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	installer "github.com/openshift/installer/pkg/types"
 )
 
 const (
@@ -44,10 +45,22 @@ type S3 struct {
 	Region    string
 }
 
+type Swift struct {
+	AuthURL    string
+	Username   string
+	Password   string
+	Tenant     string
+	TenantID   string
+	Domain     string
+	DomainID   string
+	RegionName string
+}
+
 type Storage struct {
 	Azure Azure
 	GCS   GCS
 	S3    S3
+	Swift Swift
 }
 
 type Config struct {
@@ -154,5 +167,77 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 
 func GetGCSConfig() (*Config, error) {
 	cfg := &Config{}
+	return cfg, nil
+}
+
+// GetSwiftConfig reads credentials
+func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
+	cfg := &Config{}
+
+	// Look for a user defined secret to get the Swift credentials
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil && errors.IsNotFound(err) {
+		// If no user defined credentials were provided, then try to find them in the secret,
+		// created by cloud-credential-operator.
+		pollErr := wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
+			sec, err = listers.Secrets.Get(cloudCredentialsName)
+			if err != nil {
+				if errors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, err
+			}
+			return true, nil
+		})
+
+		if sec == nil || pollErr != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), pollErr)
+		}
+
+		// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
+		if cloudsData, ok := sec.Data["clouds.yaml"]; ok {
+			var clouds clientconfig.Clouds
+			err = yamlv2.Unmarshal(cloudsData, &clouds)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal clouds credentials: %v", err)
+			}
+
+			if cloud, ok := clouds.Clouds["openstack"]; ok {
+				cfg.Storage.Swift.AuthURL = cloud.AuthInfo.AuthURL
+				cfg.Storage.Swift.Username = cloud.AuthInfo.Username
+				cfg.Storage.Swift.Password = cloud.AuthInfo.Password
+				cfg.Storage.Swift.Tenant = cloud.AuthInfo.ProjectName
+				cfg.Storage.Swift.TenantID = cloud.AuthInfo.ProjectID
+				cfg.Storage.Swift.Domain = cloud.AuthInfo.DomainName
+				cfg.Storage.Swift.DomainID = cloud.AuthInfo.DomainID
+				if cfg.Storage.Swift.Domain == "" {
+					cfg.Storage.Swift.Domain = cloud.AuthInfo.UserDomainName
+				}
+				if cfg.Storage.Swift.DomainID == "" {
+					cfg.Storage.Swift.DomainID = cloud.AuthInfo.UserDomainID
+				}
+				cfg.Storage.Swift.RegionName = cloud.RegionName
+			} else {
+				return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
+			}
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName))
+		}
+	} else if err != nil {
+		return nil, err
+	} else {
+		if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_USERNAME"]; ok {
+			cfg.Storage.Swift.Username = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_USERNAME\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+		}
+		if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_PASSWORD"]; ok {
+			cfg.Storage.Swift.Password = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_PASSWORD\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+
+		}
+	}
+
 	return cfg, nil
 }
