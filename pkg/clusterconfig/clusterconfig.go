@@ -44,10 +44,16 @@ type S3 struct {
 	Region    string
 }
 
+type Swift struct {
+	Username string
+	Password string
+}
+
 type Storage struct {
 	Azure Azure
 	GCS   GCS
 	S3    S3
+	Swift Swift
 }
 
 type Config struct {
@@ -154,5 +160,29 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 
 func GetGCSConfig() (*Config, error) {
 	cfg := &Config{}
+	return cfg, nil
+}
+
+// GetSwiftConfig reads credentials from the operator's native secret
+func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
+	cfg := &Config{}
+
+	// Look for a user defined secret to get the Swift credentials
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil {
+		return cfg, err
+	}
+
+	if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_USERNAME"]; ok {
+		cfg.Storage.Swift.Username = string(v)
+	} else {
+		return cfg, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_USERNAME\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+	}
+	if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_PASSWORD"]; ok {
+		cfg.Storage.Swift.Password = string(v)
+	} else {
+		return cfg, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_PASSWORD\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+	}
+
 	return cfg, nil
 }

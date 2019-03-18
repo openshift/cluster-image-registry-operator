@@ -184,6 +184,7 @@
     "openstack/identity/v2/tenants",
     "openstack/identity/v2/tokens",
     "openstack/identity/v3/tokens",
+    "openstack/objectstorage/v1/containers",
     "openstack/utils",
     "pagination"
   ]
@@ -850,6 +851,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "85dde8e9d5cfa1e2229e199fdd31a9d1886145d804e910a34e806f5e5a7b1ac5"
+  inputs-digest = "621ae9459b1ad4d4674bed5ff41308edf5b1f120b4795e1ae65fae5eadc626ec"
   solver-name = "gps-cdcl"
   solver-version = 1

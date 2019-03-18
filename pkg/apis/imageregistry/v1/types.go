@@ -192,6 +192,9 @@ type ImageRegistryConfigStorageS3 struct {
 	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty"`
 }
 
+// ImageRegistryConfigStorageSwift holds the information to configure
+// the registry to use the OpenStack Swift service for backend storage
+// https://docs.docker.com/registry/storage-drivers/swift/
 type ImageRegistryConfigStorageSwift struct {
 	AuthURL   string `json:"authURL"`
 	Container string `json:"container"`
@@ -199,6 +202,10 @@ type ImageRegistryConfigStorageSwift struct {
 	DomainID  string `json:"domainID"`
 	Tenant    string `json:"tenant"`
 	TenantID  string `json:"tenantID"`
+	// If UseGlobalConfig is set to true, then all the values from above will
+	// be read from "clouds.yaml" file stored as the secret "openstack-cloud"
+	// in the "kube-system" namespace.
+	UseGlobalConfig bool `json:"use-global-config"`
 }
 
 type ImageRegistryConfigStoragePVC struct {
