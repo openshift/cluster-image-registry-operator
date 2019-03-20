@@ -126,8 +126,6 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		}
-	default:
-		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{}
 	}
 
 	return cfg, nil
