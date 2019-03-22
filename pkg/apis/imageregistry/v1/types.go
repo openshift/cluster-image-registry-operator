@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -167,7 +165,7 @@ type ImageRegistryConfigStorageS3CloudFront struct {
 	// KeypairID is key pair ID provided by AWS.
 	KeypairID string `json:"keypairID"`
 	// Duration is the duration of the Cloudfront session (optional).
-	Duration time.Duration `json:"duration,omitempty"`
+	Duration metav1.Duration `json:"duration,omitempty"`
 }
 
 // ImageRegistryConfigStorageS3 holds the information to configure
@@ -242,7 +240,7 @@ type ImageRegistryConfigRequestsLimits struct {
 
 	// MaxWaitInQueue sets the maximum time a request can wait in the queue
 	// before being rejected
-	MaxWaitInQueue time.Duration `json:"maxWaitInQueue,omitempty"`
+	MaxWaitInQueue metav1.Duration `json:"maxWaitInQueue,omitempty"`
 }
 
 type ImageRegistryConfigRoute struct {
