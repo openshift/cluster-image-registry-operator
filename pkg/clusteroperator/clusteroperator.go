@@ -9,7 +9,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	osapi "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	osset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 )
 
@@ -36,24 +36,30 @@ func (s *StatusHandler) Create() error {
 		return err
 	}
 
-	state := &osapi.ClusterOperator{
+	state := &configapiv1.ClusterOperator{
 		ObjectMeta: metaapi.ObjectMeta{
 			Name: s.Name,
 		},
-		Status: osapi.ClusterOperatorStatus{},
+		Status: configapiv1.ClusterOperatorStatus{},
 	}
 
 	_, err = client.ClusterOperators().Create(state)
 	return err
 }
 
-func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status osapi.ConditionStatus, msg, newVersion string) error {
+type ConditionState struct {
+	Status  configapiv1.ConditionStatus
+	Message string
+	Reason  string
+}
+
+func (s *StatusHandler) Update(condtype configapiv1.ClusterStatusConditionType, condstate ConditionState, newVersion string) error {
 	client, err := osset.NewForConfig(s.kubeconfig)
 	if err != nil {
 		return err
 	}
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		var sdkFunc func(*osapi.ClusterOperator) (*osapi.ClusterOperator, error) = client.ClusterOperators().UpdateStatus
+		var sdkFunc func(*configapiv1.ClusterOperator) (*configapiv1.ClusterOperator, error) = client.ClusterOperators().UpdateStatus
 		modified := false
 		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
 		if err != nil {
@@ -61,25 +67,25 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
 			}
 			modified = true
-			state = &osapi.ClusterOperator{
+			state = &configapiv1.ClusterOperator{
 				ObjectMeta: metaapi.ObjectMeta{
 					Name: s.Name,
 				},
-				Status: osapi.ClusterOperatorStatus{
-					Conditions: []osapi.ClusterOperatorStatusCondition{
+				Status: configapiv1.ClusterOperatorStatus{
+					Conditions: []configapiv1.ClusterOperatorStatusCondition{
 						{
-							Type:               osapi.OperatorAvailable,
-							Status:             osapi.ConditionUnknown,
+							Type:               configapiv1.OperatorAvailable,
+							Status:             configapiv1.ConditionUnknown,
 							LastTransitionTime: metaapi.Now(),
 						},
 						{
-							Type:               osapi.OperatorProgressing,
-							Status:             osapi.ConditionUnknown,
+							Type:               configapiv1.OperatorProgressing,
+							Status:             configapiv1.ConditionUnknown,
 							LastTransitionTime: metaapi.Now(),
 						},
 						{
-							Type:               osapi.OperatorFailing,
-							Status:             osapi.ConditionUnknown,
+							Type:               configapiv1.OperatorFailing,
+							Status:             configapiv1.ConditionUnknown,
 							LastTransitionTime: metaapi.Now(),
 						},
 					},
@@ -88,15 +94,16 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 
 			sdkFunc = client.ClusterOperators().Create
 		}
-		modified = updateOperatorCondition(state, &osapi.ClusterOperatorStatusCondition{
+		modified = updateOperatorCondition(state, &configapiv1.ClusterOperatorStatusCondition{
 			Type:               condtype,
-			Status:             status,
-			Message:            msg,
+			Status:             condstate.Status,
+			Message:            condstate.Message,
+			Reason:             condstate.Reason,
 			LastTransitionTime: metaapi.Now(),
 		})
 
 		if len(newVersion) > 0 {
-			newVersions := []osapi.OperandVersion{
+			newVersions := []configapiv1.OperandVersion{
 				{
 					Name:    "operator",
 					Version: newVersion,
@@ -117,9 +124,9 @@ func (s *StatusHandler) Update(condtype osapi.ClusterStatusConditionType, status
 	})
 }
 
-func updateOperatorCondition(op *osapi.ClusterOperator, condition *osapi.ClusterOperatorStatusCondition) (modified bool) {
+func updateOperatorCondition(op *configapiv1.ClusterOperator, condition *configapiv1.ClusterOperatorStatusCondition) (modified bool) {
 	found := false
-	conditions := []osapi.ClusterOperatorStatusCondition{}
+	conditions := []configapiv1.ClusterOperatorStatusCondition{}
 
 	for _, c := range op.Status.Conditions {
 		if condition.Type != c.Type {

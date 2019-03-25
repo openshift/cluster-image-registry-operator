@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	osapi "github.com/openshift/api/config/v1"
@@ -24,11 +25,13 @@ const (
 
 type ConditionStatus struct {
 	status *operatorapiv1.ConditionStatus
+	reason string
 }
 
 func NewConditionStatus(cond operatorapiv1.OperatorCondition) ConditionStatus {
 	return ConditionStatus{
 		status: &cond.Status,
+		reason: cond.Reason,
 	}
 }
 
@@ -45,6 +48,10 @@ func (cs ConditionStatus) IsTrue() bool {
 
 func (cs ConditionStatus) IsFalse() bool {
 	return cs.status != nil && *cs.status == operatorapiv1.ConditionFalse
+}
+
+func (cs ConditionStatus) Reason() string {
+	return cs.reason
 }
 
 type ImageRegistryConditions struct {
@@ -114,15 +121,17 @@ func ensureImageRegistryToBeRemoved(logger Logger, client *Clientset) error {
 
 func deleteImageRegistryResource(client *Clientset) error {
 	// TODO(dmage): the finalizer should be removed by the operator
-	cr, err := client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
-	if err != nil {
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		cr, err := client.Configs().Get(imageregistryapiv1.ImageRegistryResourceName, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return nil
+		} else if err != nil {
+			return err
 		}
+		cr.Finalizers = nil
+		_, err = client.Configs().Update(cr)
 		return err
-	}
-	cr.Finalizers = nil
-	if _, err := client.Configs().Update(cr); err != nil {
+	}); err != nil {
 		return err
 	}
 

@@ -31,6 +31,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
@@ -42,7 +43,15 @@ const (
 )
 
 type permanentError struct {
-	Err error
+	Err    error
+	Reason string
+}
+
+func newPermanentError(reason string, err error) error {
+	return permanentError{
+		Err:    err,
+		Reason: reason,
+	}
 }
 
 func (e permanentError) Error() string {
@@ -100,11 +109,13 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 
 	err := verifyResource(cr)
 	if err != nil {
-		return permanentError{Err: fmt.Errorf("unable to complete resource: %s", err)}
+		return newPermanentError("VerificationFailed", fmt.Errorf("unable to complete resource: %s", err))
 	}
 
 	err = c.generator.Apply(cr)
-	if err != nil {
+	if err == storage.ErrStorageNotConfigured {
+		return newPermanentError("StorageNotConfigured", err)
+	} else if err != nil {
 		return err
 	}
 
