@@ -79,12 +79,14 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.ImageConfig.Name = "cluster"
 	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
 
+	clusterStatus := clusteroperator.NewStatusHandler(kubeconfig, imageregistryv1.ImageRegistryClusterOperatorResourceName)
+
 	listers := &regopclient.Listers{}
 	c := &Controller{
 		kubeconfig:    kubeconfig,
 		params:        p,
-		generator:     resource.NewGenerator(kubeconfig, listers, &p),
-		clusterStatus: clusteroperator.NewStatusHandler(kubeconfig, imageregistryv1.ImageRegistryClusterOperatorResourceName),
+		generator:     resource.NewGenerator(kubeconfig, listers, &p, clusterStatus),
+		clusterStatus: clusterStatus,
 		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:       listers,
 	}

@@ -148,3 +148,33 @@ func updateOperatorCondition(op *configapiv1.ClusterOperator, condition *configa
 	op.Status.Conditions = conditions
 	return
 }
+
+func (s *StatusHandler) SetRelatedObjects(refs []configapiv1.ObjectReference) error {
+	client, err := osset.NewForConfig(s.kubeconfig)
+	if err != nil {
+		return err
+	}
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		state, err := client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
+			}
+
+			if err := s.Create(); err != nil {
+				return fmt.Errorf("failed to create cluster operator resource %s/%s: %s", state.Namespace, state.Name, err)
+			}
+
+			state, err = client.ClusterOperators().Get(s.Name, metaapi.GetOptions{})
+			if err != nil {
+				return err
+			}
+		}
+
+		state.Status.RelatedObjects = refs
+
+		_, err = client.ClusterOperators().UpdateStatus(state)
+		return err
+	})
+	return nil
+}

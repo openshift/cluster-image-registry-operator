@@ -43,6 +43,14 @@ func (gs *generatorService) Type() runtime.Object {
 	return &corev1.Service{}
 }
 
+func (gs *generatorService) GetGroup() string {
+	return corev1.GroupName
+}
+
+func (gs *generatorService) GetResource() string {
+	return "services"
+}
+
 func (gs *generatorService) GetNamespace() string {
 	return gs.namespace
 }

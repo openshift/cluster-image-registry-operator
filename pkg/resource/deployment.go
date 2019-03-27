@@ -46,6 +46,14 @@ func (gd *generatorDeployment) Type() runtime.Object {
 	return &appsapi.Deployment{}
 }
 
+func (gd *generatorDeployment) GetGroup() string {
+	return appsapi.GroupName
+}
+
+func (gd *generatorDeployment) GetResource() string {
+	return "deployments"
+}
+
 func (gd *generatorDeployment) GetNamespace() string {
 	return gd.params.Deployment.Namespace
 }

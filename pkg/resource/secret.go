@@ -36,6 +36,14 @@ func (gs *generatorSecret) Type() runtime.Object {
 	return &corev1.Secret{}
 }
 
+func (gs *generatorSecret) GetGroup() string {
+	return corev1.GroupName
+}
+
+func (gs *generatorSecret) GetResource() string {
+	return "secrets"
+}
+
 func (gs *generatorSecret) GetNamespace() string {
 	return gs.namespace
 }

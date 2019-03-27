@@ -132,6 +132,14 @@ func (ds *generatorNodeCADaemonSet) Type() runtime.Object {
 	return &appsv1.DaemonSet{}
 }
 
+func (ds *generatorNodeCADaemonSet) GetGroup() string {
+	return appsv1.GroupName
+}
+
+func (ds *generatorNodeCADaemonSet) GetResource() string {
+	return "daemonsets"
+}
+
 func (ds *generatorNodeCADaemonSet) GetNamespace() string {
 	return ds.params.Deployment.Namespace
 }

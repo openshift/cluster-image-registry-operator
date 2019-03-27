@@ -49,6 +49,14 @@ func (gic *generatorImageConfig) Type() runtime.Object {
 	return &configapi.Image{}
 }
 
+func (gic *generatorImageConfig) GetGroup() string {
+	return configapi.GroupName
+}
+
+func (gic *generatorImageConfig) GetResource() string {
+	return "images"
+}
+
 func (gic *generatorImageConfig) GetNamespace() string {
 	return ""
 }

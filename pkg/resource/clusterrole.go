@@ -28,6 +28,14 @@ func (gcr *generatorClusterRole) Type() runtime.Object {
 	return &rbacapi.ClusterRole{}
 }
 
+func (gcr *generatorClusterRole) GetGroup() string {
+	return rbacapi.GroupName
+}
+
+func (gcr *generatorClusterRole) GetResource() string {
+	return "clusterroles"
+}
+
 func (gcr *generatorClusterRole) GetNamespace() string {
 	return ""
 }
