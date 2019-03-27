@@ -8,37 +8,44 @@ import (
 	appsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	operatorapi "github.com/openshift/api/operator/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
 
-	osapi "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 )
 
-func updateCondition(cr *imageregistryv1.Config, condition *operatorapi.OperatorCondition) {
+func updateCondition(cr *imageregistryv1.Config, condtype string, condstate clusteroperator.ConditionState) {
 	found := false
-	conditions := []operatorapi.OperatorCondition{}
+	conditions := []operatorapiv1.OperatorCondition{}
 
 	for _, c := range cr.Status.Conditions {
-		if condition.Type != c.Type {
+		if c.Type != condtype {
 			conditions = append(conditions, c)
 			continue
 		}
-		if c.Status != condition.Status {
-			c.Status = condition.Status
-			c.LastTransitionTime = condition.LastTransitionTime
+		if c.Status != operatorapiv1.ConditionStatus(condstate.Status) {
+			c.Status = operatorapiv1.ConditionStatus(condstate.Status)
+			c.LastTransitionTime = metaapi.Now()
 		}
-		if c.Reason != condition.Reason {
-			c.Reason = condition.Reason
+		if c.Reason != condstate.Reason {
+			c.Reason = condstate.Reason
 		}
-		if c.Message != condition.Message {
-			c.Message = condition.Message
+		if c.Message != condstate.Message {
+			c.Message = condstate.Message
 		}
 		conditions = append(conditions, c)
 		found = true
 	}
 
 	if !found {
-		conditions = append(conditions, *condition)
+		conditions = append(conditions, operatorapiv1.OperatorCondition{
+			Type:               condtype,
+			Status:             operatorapiv1.ConditionStatus(condstate.Status),
+			LastTransitionTime: metaapi.Now(),
+			Reason:             condstate.Reason,
+			Message:            condstate.Message,
+		})
 	}
 
 	cr.Status.Conditions = conditions
@@ -69,20 +76,62 @@ func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
 		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
+func (c *Controller) setStatusRemoving(cr *imageregistryv1.Config) {
+	operatorProgressing := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionTrue,
+		Message: "The registry is being removed",
+		Reason:  "Removing",
+	}
+
+	err := c.clusterStatus.Update(configapiv1.OperatorProgressing, operatorProgressing, "")
+	if err != nil {
+		glog.Errorf("unable to update cluster status to %s=%s: %s", configapiv1.OperatorProgressing, configapiv1.ConditionTrue, err)
+	}
+
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
+}
+
+func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr error) {
+	operatorFailing := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionTrue,
+		Message: fmt.Sprintf("Unable to remove registry: %s", removeErr),
+		Reason:  "RemoveFailed",
+	}
+
+	err := c.clusterStatus.Update(configapiv1.OperatorFailing, operatorFailing, "")
+	if err != nil {
+		glog.Errorf("unable to update cluster status to %s=%s: %s", configapiv1.OperatorFailing, configapiv1.ConditionTrue, err)
+	}
+
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
+}
+
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
 	setOperatorVersion := false
-	operatorAvailable := osapi.ConditionFalse
-	operatorAvailableMsg := ""
+	operatorAvailable := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionFalse,
+		Message: "",
+		Reason:  "",
+	}
 	if deploy == nil {
-		operatorAvailableMsg = "Deployment does not exist"
+		operatorAvailable.Message = "The deployment does not exist"
+		operatorAvailable.Reason = "DeploymentNotFound"
 	} else if deploy.DeletionTimestamp != nil {
-		operatorAvailableMsg = "Deployment is being deleted"
+		operatorAvailable.Message = "The deployment is being deleted"
+		operatorAvailable.Reason = "DeploymentDeleted"
 	} else if !isDeploymentStatusAvailable(deploy) {
-		operatorAvailableMsg = "Deployment does not have available replicas"
-	} else {
-		operatorAvailable = osapi.ConditionTrue
-		operatorAvailableMsg = "Deployment has minimum availability"
+		operatorAvailable.Message = "The deployment does not have available replicas"
+		operatorAvailable.Reason = "NoReplicasAvailable"
+	} else if !isDeploymentStatusComplete(deploy) {
+		operatorAvailable.Status = configapiv1.ConditionTrue
+		operatorAvailable.Message = "The registry has minimum availability"
+		operatorAvailable.Reason = "MinimumAvailability"
 		setOperatorVersion = isDeploymentStatusAvailableAndUpdated(deploy)
+	} else {
+		operatorAvailable.Status = configapiv1.ConditionTrue
+		operatorAvailable.Message = "The registry is ready"
+		operatorAvailable.Reason = "Ready"
+		setOperatorVersion = true
 	}
 
 	deploymentVersion := ""
@@ -91,85 +140,83 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	if setOperatorVersion {
 		deploymentVersion = deploy.Annotations[imageregistryv1.VersionAnnotation]
 	}
-	err := c.clusterStatus.Update(osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, deploymentVersion)
+	err := c.clusterStatus.Update(configapiv1.OperatorAvailable, operatorAvailable, deploymentVersion)
 	if err != nil {
-		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorAvailable, operatorAvailable, operatorAvailableMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", configapiv1.OperatorAvailable, operatorAvailable.Status, operatorAvailable.Message, err)
 	}
 
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeAvailable,
-		Status:             operatorapi.ConditionStatus(operatorAvailable),
-		LastTransitionTime: metaapi.Now(),
-		Message:            operatorAvailableMsg,
-	})
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, operatorAvailable)
 
-	operatorProgressing := osapi.ConditionTrue
-	operatorProgressingMsg := ""
-	if cr.Spec.ManagementState == operatorapi.Unmanaged {
-		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "Unmanaged"
+	operatorProgressing := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionTrue,
+		Message: "",
+		Reason:  "",
+	}
+	if cr.Spec.ManagementState == operatorapiv1.Unmanaged {
+		operatorProgressing.Status = configapiv1.ConditionFalse
+		operatorProgressing.Message = "The registry configuration is set to unmanaged mode"
+		operatorProgressing.Reason = "Unmanaged"
 	} else if removed {
 		if deploy != nil {
-			operatorProgressingMsg = "The deployment still exists"
+			operatorProgressing.Message = "The deployment is being removed"
+			operatorProgressing.Reason = "DeletingDeployment"
 		} else {
-			operatorProgressing = osapi.ConditionFalse
-			operatorProgressingMsg = "Everything is removed"
+			operatorProgressing.Status = configapiv1.ConditionFalse
+			operatorProgressing.Message = "All registry resources are removed"
+			operatorProgressing.Reason = "Removed"
 		}
 	} else if applyError != nil {
-		operatorProgressingMsg = fmt.Sprintf("Unable to apply resources: %s", applyError)
+		operatorProgressing.Message = fmt.Sprintf("Unable to apply resources: %s", applyError)
+		operatorProgressing.Reason = "Error"
 	} else if deploy == nil {
-		operatorProgressingMsg = "All resources are successfully applied, but the deployment does not exist"
+		operatorProgressing.Message = "All resources are successfully applied, but the deployment does not exist"
+		operatorProgressing.Reason = "WaitingForDeployment"
 	} else if deploy.DeletionTimestamp != nil {
-		operatorProgressingMsg = "The deployment is being deleted"
+		operatorProgressing.Message = "The deployment is being deleted"
+		operatorProgressing.Reason = "FinalizingDeployment"
 	} else if !isDeploymentStatusComplete(deploy) {
-		operatorProgressingMsg = "The deployment has not completed"
+		operatorProgressing.Message = "The deployment has not completed"
+		operatorProgressing.Reason = "DeploymentNotCompleted"
 	} else {
-		operatorProgressing = osapi.ConditionFalse
-		operatorProgressingMsg = "Everything is ready"
+		operatorProgressing.Status = configapiv1.ConditionFalse
+		operatorProgressing.Message = "The registry is ready"
+		operatorProgressing.Reason = "Ready"
 	}
 
-	err = c.clusterStatus.Update(osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, "")
+	err = c.clusterStatus.Update(configapiv1.OperatorProgressing, operatorProgressing, "")
 	if err != nil {
-		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorProgressing, operatorProgressing, operatorProgressingMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", configapiv1.OperatorProgressing, operatorProgressing.Status, operatorProgressing.Message, err)
 	}
 
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeProgressing,
-		Status:             operatorapi.ConditionStatus(operatorProgressing),
-		LastTransitionTime: metaapi.Now(),
-		Message:            operatorProgressingMsg,
-	})
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
 
-	operatorFailing := osapi.ConditionFalse
-	operatorFailingMsg := ""
-	if _, ok := applyError.(permanentError); ok {
-		operatorFailing = osapi.ConditionTrue
-		operatorFailingMsg = applyError.Error()
+	operatorFailing := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionFalse,
+		Message: "",
+		Reason:  "",
+	}
+	if e, ok := applyError.(permanentError); ok {
+		operatorFailing.Status = configapiv1.ConditionTrue
+		operatorFailing.Message = applyError.Error()
+		operatorFailing.Reason = e.Reason
 	}
 
-	err = c.clusterStatus.Update(osapi.OperatorFailing, operatorFailing, operatorFailingMsg, "")
+	err = c.clusterStatus.Update(configapiv1.OperatorFailing, operatorFailing, "")
 	if err != nil {
-		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", osapi.OperatorFailing, operatorFailing, operatorFailingMsg, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", configapiv1.OperatorFailing, operatorFailing.Status, operatorFailing.Message, err)
 	}
 
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               operatorapi.OperatorStatusTypeFailing,
-		Status:             operatorapi.ConditionStatus(operatorFailing),
-		LastTransitionTime: metaapi.Now(),
-		Message:            operatorFailingMsg,
-	})
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
 
-	operatorRemoved := osapi.ConditionFalse
-	operatorRemovedMsg := ""
+	operatorRemoved := clusteroperator.ConditionState{
+		Status:  configapiv1.ConditionFalse,
+		Message: "",
+		Reason:  "",
+	}
 	if removed {
-		operatorRemoved = osapi.ConditionTrue
-		operatorRemovedMsg = "The image registry is removed"
+		operatorRemoved.Status = configapiv1.ConditionTrue
+		operatorRemoved.Message = "The registry is removed"
 	}
 
-	updateCondition(cr, &operatorapi.OperatorCondition{
-		Type:               imageregistryv1.OperatorStatusTypeRemoved,
-		Status:             operatorapi.ConditionStatus(operatorRemoved),
-		LastTransitionTime: metaapi.Now(),
-		Message:            operatorRemovedMsg,
-	})
+	updateCondition(cr, imageregistryv1.OperatorStatusTypeRemoved, operatorRemoved)
 }

@@ -172,7 +172,9 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 
 func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 	err := g.syncStorage(cr)
-	if err != nil {
+	if err == storage.ErrStorageNotConfigured {
+		return err
+	} else if err != nil {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 

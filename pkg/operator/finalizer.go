@@ -12,8 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 
-	osapi "github.com/openshift/api/config/v1"
-
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -21,11 +19,7 @@ import (
 )
 
 func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
-	errOp := c.clusterStatus.Update(osapi.OperatorProgressing, osapi.ConditionTrue, "registry is being removed", "")
-	if errOp != nil {
-		glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorProgressing, osapi.ConditionTrue, errOp)
-	}
-
+	c.setStatusRemoving(o)
 	return c.generator.Remove(o)
 }
 
@@ -54,10 +48,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 
 	err = c.RemoveResources(o)
 	if err != nil {
-		errOp := c.clusterStatus.Update(osapi.OperatorFailing, osapi.ConditionTrue, "unable to remove registry", "")
-		if errOp != nil {
-			glog.Errorf("unable to update cluster status to %s=%s: %s", osapi.OperatorFailing, osapi.ConditionTrue, errOp)
-		}
+		c.setStatusRemoveFailed(o, err)
 		return fmt.Errorf("unable to finalize resource: %s", err)
 	}
 
