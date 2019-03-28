@@ -13,6 +13,8 @@ type Getter interface {
 	Type() runtime.Object
 	GetName() string
 	GetNamespace() string
+	GetGroup() string
+	GetResource() string
 	Get() (runtime.Object, error)
 }
 

@@ -46,6 +46,14 @@ func (gr *generatorRoute) Type() runtime.Object {
 	return &routeapi.Route{}
 }
 
+func (gr *generatorRoute) GetGroup() string {
+	return routeapi.GroupName
+}
+
+func (gr *generatorRoute) GetResource() string {
+	return "routes"
+}
+
 func (gr *generatorRoute) GetNamespace() string {
 	return gr.namespace
 }

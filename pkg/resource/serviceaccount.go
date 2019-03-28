@@ -33,6 +33,14 @@ func (gsa *generatorServiceAccount) Type() runtime.Object {
 	return &corev1.ServiceAccount{}
 }
 
+func (gsa *generatorServiceAccount) GetGroup() string {
+	return corev1.GroupName
+}
+
+func (gsa *generatorServiceAccount) GetResource() string {
+	return "serviceaccounts"
+}
+
 func (gsa *generatorServiceAccount) GetNamespace() string {
 	return gsa.namespace
 }

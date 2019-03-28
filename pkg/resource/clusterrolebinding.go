@@ -33,6 +33,14 @@ func (gcrb *generatorClusterRoleBinding) Type() runtime.Object {
 	return &rbacapi.ClusterRoleBinding{}
 }
 
+func (gcrb *generatorClusterRoleBinding) GetGroup() string {
+	return rbacapi.GroupName
+}
+
+func (gcrb *generatorClusterRoleBinding) GetResource() string {
+	return "clusterrolebindings"
+}
+
 func (gcrb *generatorClusterRoleBinding) GetNamespace() string {
 	return ""
 }
