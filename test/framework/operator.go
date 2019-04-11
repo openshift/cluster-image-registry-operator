@@ -10,7 +10,7 @@ import (
 )
 
 func startOperator(client *Clientset) error {
-	if _, err := client.Deployments(OperatorDeploymentNamespace).Patch(OperatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": "1"}}`)); err != nil {
+	if _, err := client.Deployments(OperatorDeploymentNamespace).Patch(OperatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": 1}}`)); err != nil {
 		return err
 	}
 	return nil
@@ -20,7 +20,7 @@ func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, op
 	var err error
 	var realErr error
 	err = wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
-		if _, realErr = client.Deployments(operatorDeploymentNamespace).Patch(operatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": "0"}}`)); err != nil {
+		if _, realErr = client.Deployments(operatorDeploymentNamespace).Patch(operatorDeploymentName, types.MergePatchType, []byte(`{"spec": {"replicas": 0}}`)); realErr != nil {
 			logger.Logf("failed to patch operator to zero replicas: %v", realErr)
 			return false, nil
 		}
