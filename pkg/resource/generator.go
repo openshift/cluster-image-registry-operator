@@ -18,29 +18,25 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	osapi "github.com/openshift/api/config/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
-func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals, clusterStatus *clusteroperator.StatusHandler) *Generator {
+func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
 	return &Generator{
-		kubeconfig:    kubeconfig,
-		listers:       listers,
-		params:        params,
-		clusterStatus: clusterStatus,
+		kubeconfig: kubeconfig,
+		listers:    listers,
+		params:     params,
 	}
 }
 
 type Generator struct {
-	kubeconfig    *rest.Config
-	listers       *client.Listers
-	params        *parameters.Globals
-	clusterStatus *clusteroperator.StatusHandler
+	kubeconfig *rest.Config
+	listers    *client.Listers
+	params     *parameters.Globals
 }
 
 func (g *Generator) listRoutes(routeClient routeset.RouteV1Interface, cr *imageregistryv1.Config) []Mutator {
@@ -98,6 +94,10 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(routeClient, cr)...)
+
+	// This generator must be the last because he uses other generators.
+	mutators = append(mutators, newGeneratorClusterOperator(g.listers.Deployments, g.listers.ClusterOperators, configClient, cr, mutators))
+
 	return mutators, nil
 }
 
@@ -186,8 +186,6 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 		return fmt.Errorf("unable to get generators: %s", err)
 	}
 
-	var objRefs []osapi.ObjectReference
-
 	for _, gen := range generators {
 		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 			o, err := gen.Get()
@@ -219,18 +217,6 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)
 		}
-
-		objRefs = append(objRefs, osapi.ObjectReference{
-			Group:     gen.GetGroup(),
-			Resource:  gen.GetResource(),
-			Namespace: gen.GetNamespace(),
-			Name:      gen.GetName(),
-		})
-	}
-
-	err = g.clusterStatus.SetRelatedObjects(objRefs)
-	if err != nil {
-		return fmt.Errorf("unable to update related objects: %s", err)
 	}
 
 	err = g.removeObsoleteRoutes(cr)

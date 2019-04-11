@@ -23,9 +23,9 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusteroperator"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -79,16 +79,13 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.ImageConfig.Name = "cluster"
 	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
 
-	clusterStatus := clusteroperator.NewStatusHandler(kubeconfig, imageregistryv1.ImageRegistryClusterOperatorResourceName)
-
 	listers := &regopclient.Listers{}
 	c := &Controller{
-		kubeconfig:    kubeconfig,
-		params:        p,
-		generator:     resource.NewGenerator(kubeconfig, listers, &p, clusterStatus),
-		clusterStatus: clusterStatus,
-		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
-		listers:       listers,
+		kubeconfig: kubeconfig,
+		params:     p,
+		generator:  resource.NewGenerator(kubeconfig, listers, &p),
+		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
+		listers:    listers,
 	}
 
 	// Initial event to bootstrap CR if it doesn't exist.
@@ -98,12 +95,11 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 }
 
 type Controller struct {
-	kubeconfig    *restclient.Config
-	params        parameters.Globals
-	generator     *resource.Generator
-	clusterStatus *clusteroperator.StatusHandler
-	workqueue     workqueue.RateLimitingInterface
-	listers       *regopclient.Listers
+	kubeconfig *restclient.Config
+	params     parameters.Globals
+	generator  *resource.Generator
+	workqueue  workqueue.RateLimitingInterface
+	listers    *regopclient.Listers
 }
 
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
@@ -244,6 +240,11 @@ func (c *Controller) eventProcessor() {
 func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
+			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
+				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+					return
+				}
+			}
 			glog.V(1).Infof("add event to workqueue due to %s (add)", util.ObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -263,6 +264,11 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				// Two different versions of the same resource will always have different RVs.
 				return
 			}
+			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
+				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+					return
+				}
+			}
 			glog.V(1).Infof("add event to workqueue due to %s (update)", util.ObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -281,6 +287,11 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				}
 				glog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
+			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
+				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+					return
+				}
+			}
 			glog.V(1).Infof("add event to workqueue due to %s (delete)", util.ObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -289,11 +300,6 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 
 func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
-
-	err := c.clusterStatus.Create()
-	if err != nil {
-		glog.Errorf("unable to create cluster operator resource: %s", err)
-	}
 
 	kubeClient, err := kubeset.NewForConfig(c.kubeconfig)
 	if err != nil {
@@ -377,6 +383,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Images()
 			c.listers.ImageConfigs = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := configInformerFactory.Config().V1().ClusterOperators()
+			c.listers.ClusterOperators = informer.Lister()
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
