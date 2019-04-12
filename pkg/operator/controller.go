@@ -30,6 +30,7 @@ import (
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/util"
@@ -163,7 +164,11 @@ func (c *Controller) sync() error {
 	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
 	if metadataChanged || specChanged {
-		glog.Infof("object changed: %s (metadata=%t, spec=%t)", util.ObjectInfo(cr), metadataChanged, specChanged)
+		difference, err := object.DiffString(prevCR, cr)
+		if err != nil {
+			glog.Errorf("unable to calculate difference in %s: %s", util.ObjectInfo(cr), err)
+		}
+		glog.Infof("object changed: %s (metadata=%t, spec=%t): %s", util.ObjectInfo(cr), metadataChanged, specChanged, difference)
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
 		if err != nil {
@@ -186,7 +191,11 @@ func (c *Controller) sync() error {
 	cr.Status.ObservedGeneration = cr.Generation
 	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
 	if statusChanged {
-		glog.Infof("object changed: %s (status=%t)", util.ObjectInfo(cr), statusChanged)
+		difference, err := object.DiffString(prevCR, cr)
+		if err != nil {
+			glog.Errorf("unable to calculate difference in %s: %s", util.ObjectInfo(cr), err)
+		}
+		glog.Infof("object changed: %s (status=%t): %s", util.ObjectInfo(cr), statusChanged, difference)
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
 		if err != nil {
