@@ -22,6 +22,7 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -194,15 +195,21 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 					return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
 				}
 
-				err = gen.Create()
+				n, err := gen.Create()
 				if err != nil {
 					return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
 				}
-				glog.Infof("object %s created", Name(gen))
+
+				str, err := object.DumpString(n)
+				if err != nil {
+					glog.Errorf("unable to dump object: %s", err)
+				}
+
+				glog.Infof("object %s created: %s", Name(gen), str)
 				return nil
 			}
 
-			updated, err := gen.Update(o.DeepCopyObject())
+			n, updated, err := gen.Update(o.DeepCopyObject())
 			if err != nil {
 				if errors.IsConflict(err) {
 					return err
@@ -210,7 +217,11 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
 			}
 			if updated {
-				glog.Infof("object %s updated", Name(gen))
+				difference, err := object.DiffString(o, n)
+				if err != nil {
+					glog.Errorf("unable to calculate difference: %s", err)
+				}
+				glog.Infof("object %s updated: %s", Name(gen), difference)
 			}
 			return nil
 		})

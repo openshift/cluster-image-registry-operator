@@ -152,11 +152,10 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 	return ds.daemonSetLister.Get(ds.GetName())
 }
 
-func (ds *generatorNodeCADaemonSet) Create() error {
-
+func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
 	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
 	if err != nil {
-		return err
+		return ds.Type(), err
 	}
 
 	daemonSet := resourceread.ReadDaemonSetV1OrDie([]byte(nodeCADaemonSetDefinition))
@@ -167,14 +166,14 @@ func (ds *generatorNodeCADaemonSet) Create() error {
 
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
 	daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, env)
-	_, err = ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
-	return err
+
+	return ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
 }
 
-func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
+func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
 	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
 	if err != nil {
-		return false, err
+		return o, false, err
 	}
 
 	daemonSet := o.(*appsv1.DaemonSet)
@@ -208,11 +207,11 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (bool, error) {
 	}
 
 	if !modified {
-		return false, nil
+		return o, false, nil
 	}
 
-	_, err = ds.client.DaemonSets(ds.GetNamespace()).Update(daemonSet)
-	return err == nil, err
+	n, err := ds.client.DaemonSets(ds.GetNamespace()).Update(daemonSet)
+	return n, err == nil, err
 }
 
 func (ds *generatorNodeCADaemonSet) Delete(opts *metav1.DeleteOptions) error {

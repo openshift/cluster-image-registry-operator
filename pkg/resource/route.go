@@ -103,13 +103,13 @@ func (gr *generatorRoute) Get() (runtime.Object, error) {
 	return gr.lister.Get(gr.GetName())
 }
 
-func (gr *generatorRoute) Create() error {
+func (gr *generatorRoute) Create() (runtime.Object, error) {
 	return commonCreate(gr, func(obj runtime.Object) (runtime.Object, error) {
 		return gr.client.Routes(gr.GetNamespace()).Create(obj.(*routeapi.Route))
 	})
 }
 
-func (gr *generatorRoute) Update(o runtime.Object) (bool, error) {
+func (gr *generatorRoute) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gr, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gr.client.Routes(gr.GetNamespace()).Update(obj.(*routeapi.Route))
 	})

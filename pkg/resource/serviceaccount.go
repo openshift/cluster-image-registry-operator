@@ -64,13 +64,13 @@ func (gsa *generatorServiceAccount) Get() (runtime.Object, error) {
 	return gsa.lister.Get(gsa.GetName())
 }
 
-func (gsa *generatorServiceAccount) Create() error {
+func (gsa *generatorServiceAccount) Create() (runtime.Object, error) {
 	return commonCreate(gsa, func(obj runtime.Object) (runtime.Object, error) {
 		return gsa.client.ServiceAccounts(gsa.GetNamespace()).Create(obj.(*corev1.ServiceAccount))
 	})
 }
 
-func (gsa *generatorServiceAccount) Update(o runtime.Object) (bool, error) {
+func (gsa *generatorServiceAccount) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gsa, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gsa.client.ServiceAccounts(gsa.GetNamespace()).Update(obj.(*corev1.ServiceAccount))
 	})

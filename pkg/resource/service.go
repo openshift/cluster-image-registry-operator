@@ -90,30 +90,29 @@ func (gs *generatorService) Get() (runtime.Object, error) {
 	return gs.lister.Get(gs.GetName())
 }
 
-func (gs *generatorService) Create() error {
+func (gs *generatorService) Create() (runtime.Object, error) {
 	svc := &corev1.Service{}
 	n := gs.expected()
 
 	_, err := strategy.Service(svc, n)
 	if err != nil {
-		return err
+		return svc, err
 	}
 
-	_, err = gs.client.Services(gs.GetNamespace()).Create(svc)
-	return err
+	return gs.client.Services(gs.GetNamespace()).Create(svc)
 }
 
-func (gs *generatorService) Update(o runtime.Object) (bool, error) {
+func (gs *generatorService) Update(o runtime.Object) (runtime.Object, bool, error) {
 	svc := o.(*corev1.Service)
 	n := gs.expected()
 
 	updated, err := strategy.Service(svc, n)
 	if !updated || err != nil {
-		return false, err
+		return o, false, err
 	}
 
-	_, err = gs.client.Services(gs.GetNamespace()).Update(svc)
-	return true, err
+	u, err := gs.client.Services(gs.GetNamespace()).Update(svc)
+	return u, true, err
 }
 
 func (gs *generatorService) Delete(opts *metav1.DeleteOptions) error {

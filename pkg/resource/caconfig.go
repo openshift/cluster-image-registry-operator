@@ -94,13 +94,13 @@ func (gcac *generatorCAConfig) Get() (runtime.Object, error) {
 	return gcac.lister.Get(gcac.GetName())
 }
 
-func (gcac *generatorCAConfig) Create() error {
+func (gcac *generatorCAConfig) Create() (runtime.Object, error) {
 	return commonCreate(gcac, func(obj runtime.Object) (runtime.Object, error) {
 		return gcac.client.ConfigMaps(gcac.GetNamespace()).Create(obj.(*corev1.ConfigMap))
 	})
 }
 
-func (gcac *generatorCAConfig) Update(o runtime.Object) (bool, error) {
+func (gcac *generatorCAConfig) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcac, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gcac.client.ConfigMaps(gcac.GetNamespace()).Update(obj.(*corev1.ConfigMap))
 	})

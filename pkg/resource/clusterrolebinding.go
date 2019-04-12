@@ -78,13 +78,13 @@ func (gcrb *generatorClusterRoleBinding) Get() (runtime.Object, error) {
 	return gcrb.lister.Get(gcrb.GetName())
 }
 
-func (gcrb *generatorClusterRoleBinding) Create() error {
+func (gcrb *generatorClusterRoleBinding) Create() (runtime.Object, error) {
 	return commonCreate(gcrb, func(obj runtime.Object) (runtime.Object, error) {
 		return gcrb.client.ClusterRoleBindings().Create(obj.(*rbacapi.ClusterRoleBinding))
 	})
 }
 
-func (gcrb *generatorClusterRoleBinding) Update(o runtime.Object) (bool, error) {
+func (gcrb *generatorClusterRoleBinding) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcrb, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gcrb.client.ClusterRoleBindings().Update(obj.(*rbacapi.ClusterRoleBinding))
 	})

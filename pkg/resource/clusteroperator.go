@@ -63,31 +63,30 @@ func (gco *generatorClusterOperator) Get() (runtime.Object, error) {
 	return gco.configLister.Get(gco.GetName())
 }
 
-func (gco *generatorClusterOperator) Create() (err error) {
+func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
 	co := &configapi.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: gco.GetName(),
 		},
 	}
 
-	_, err = gco.syncVersions(co)
+	_, err := gco.syncVersions(co)
 	if err != nil {
-		return
+		return co, err
 	}
 
 	_ = gco.syncConditions(co)
 	_ = gco.syncRelatedObjects(co)
 
-	_, err = gco.configClient.ClusterOperators().Create(co)
-	return
+	return gco.configClient.ClusterOperators().Create(co)
 }
 
-func (gco *generatorClusterOperator) Update(o runtime.Object) (modified bool, err error) {
+func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, bool, error) {
 	co := o.(*configapi.ClusterOperator)
 
-	modified, err = gco.syncVersions(co)
+	modified, err := gco.syncVersions(co)
 	if err != nil {
-		return
+		return o, false, err
 	}
 
 	if gco.syncConditions(co) {
@@ -98,10 +97,12 @@ func (gco *generatorClusterOperator) Update(o runtime.Object) (modified bool, er
 		modified = true
 	}
 
-	_, err = gco.configClient.ClusterOperators().UpdateStatus(co)
-	modified = err == nil
+	if !modified {
+		return o, false, nil
+	}
 
-	return
+	n, err := gco.configClient.ClusterOperators().UpdateStatus(co)
+	return n, err == nil, err
 }
 
 func (gco *generatorClusterOperator) Delete(opts *metav1.DeleteOptions) error {
