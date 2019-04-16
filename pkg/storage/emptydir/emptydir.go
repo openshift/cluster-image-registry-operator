@@ -17,11 +17,11 @@ const (
 )
 
 type driver struct {
-	Config  *imageregistryv1.ImageRegistryConfigStorageFilesystem
+	Config  *imageregistryv1.ImageRegistryConfigStorageEmptyDir
 	Listers *regopclient.Listers
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageFilesystem, listers *regopclient.Listers) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageEmptyDir, listers *regopclient.Listers) *driver {
 	return &driver{
 		Config:  c,
 		Listers: listers,
@@ -43,8 +43,10 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	vol := corev1.Volume{
-		Name:         "registry-storage",
-		VolumeSource: d.Config.VolumeSource,
+		Name: "registry-storage",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
 	}
 
 	mount := corev1.VolumeMount{
@@ -60,7 +62,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 }
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
-	if !reflect.DeepEqual(cr.Status.Storage.Filesystem, cr.Spec.Storage.Filesystem) {
+	if !reflect.DeepEqual(cr.Status.Storage.EmptyDir, cr.Spec.Storage.EmptyDir) {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "EmptyDir Configuration Changed", "EmptyDir storage is in an unknown state")
 		return true
 	}
@@ -69,8 +71,8 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 }
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	if !reflect.DeepEqual(cr.Status.Storage.Filesystem, cr.Spec.Storage.Filesystem) {
-		cr.Status.Storage.Filesystem = d.Config.DeepCopy()
+	if !reflect.DeepEqual(cr.Status.Storage.EmptyDir, cr.Spec.Storage.EmptyDir) {
+		cr.Status.Storage.EmptyDir = d.Config.DeepCopy()
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created")
 	}
 
@@ -82,6 +84,6 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 }
 
 func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
-	cr.Spec.Storage.Filesystem = d.Config.DeepCopy()
+	cr.Spec.Storage.EmptyDir = d.Config.DeepCopy()
 	return nil
 }

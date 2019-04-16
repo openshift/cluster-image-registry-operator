@@ -34,11 +34,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
 			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapiv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			Replicas: 1,
 			Resources: &corev1.ResourceRequirements{
@@ -110,11 +106,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
 			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapiv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			Replicas:    1,
 			Tolerations: tolerations,
@@ -153,11 +145,7 @@ func TestRouteConfiguration(t *testing.T) {
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
 			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapiv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			Replicas:     1,
 			DefaultRoute: true,
@@ -194,11 +182,7 @@ func TestVersionReporting(t *testing.T) {
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
 			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryapiv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			Replicas: 1,
 		},

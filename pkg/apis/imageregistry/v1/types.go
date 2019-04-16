@@ -8,10 +8,10 @@ import (
 )
 
 const (
-
 	// DefaultRouteName is the name of the default route created for the registry
 	// when a default route is requested from the operator
 	DefaultRouteName = "default-route"
+
 	// ImageRegistryName is the name of the image-registry workload resource (deployment)
 	ImageRegistryName = "image-registry"
 
@@ -46,8 +46,6 @@ const (
 
 	// OperatorStatusTypeRemoved denotes that the image-registry instance has been
 	// removed
-	// TODO: does this serve any purpose?  As soon as it's removed we'll bootstrap
-	// a new one.
 	OperatorStatusTypeRemoved = "Removed"
 
 	// StorageExists denotes whether or not the registry storage medium exists
@@ -168,6 +166,9 @@ type ImageRegistryConfigStorageS3CloudFront struct {
 	Duration metav1.Duration `json:"duration"`
 }
 
+type ImageRegistryConfigStorageEmptyDir struct {
+}
+
 // ImageRegistryConfigStorageS3 holds the information to configure
 // the registry to use the AWS S3 service for backend storage
 // https://docs.docker.com/registry/storage-drivers/s3/
@@ -191,14 +192,6 @@ type ImageRegistryConfigStorageS3 struct {
 	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty"`
 }
 
-type ImageRegistryConfigStorageAzure struct {
-	Container string `json:"container"`
-}
-
-type ImageRegistryConfigStorageGCS struct {
-	Bucket string `json:"bucket"`
-}
-
 type ImageRegistryConfigStorageSwift struct {
 	AuthURL   string `json:"authURL"`
 	Container string `json:"container"`
@@ -208,21 +201,26 @@ type ImageRegistryConfigStorageSwift struct {
 	TenantID  string `json:"tenantID"`
 }
 
-type ImageRegistryConfigStorageFilesystem struct {
-	VolumeSource corev1.VolumeSource `json:"volumeSource"`
-}
-
 type ImageRegistryConfigStoragePVC struct {
 	Claim string `json:"claim"`
 }
 
+// ImageRegistryConfigStorage describes how the storage should be configured
+// for the image registry.
 type ImageRegistryConfigStorage struct {
-	Azure      *ImageRegistryConfigStorageAzure      `json:"azure,omitempty"`
-	Filesystem *ImageRegistryConfigStorageFilesystem `json:"filesystem,omitempty"`
-	GCS        *ImageRegistryConfigStorageGCS        `json:"gcs,omitempty"`
-	S3         *ImageRegistryConfigStorageS3         `json:"s3,omitempty"`
-	Swift      *ImageRegistryConfigStorageSwift      `json:"swift,omitempty"`
-	PVC        *ImageRegistryConfigStoragePVC        `json:"pvc,omitempty"`
+	// EmptyDir represents ephemeral storage on the pod's host node.
+	// This storage cannot be used with more than 1 replica and is not suitable
+	// for production use. When the pod is removed from a node for any reason,
+	// the data in the emptyDir is deleted forever.
+	// This configuration is EXPERIMENTAL and is subject to change without notice.
+	EmptyDir *ImageRegistryConfigStorageEmptyDir `json:"emptyDir,omitempty"`
+	// S3 represents configuration that uses Amazon Simple Storage Service.
+	S3 *ImageRegistryConfigStorageS3 `json:"s3,omitempty"`
+	// Swift represents configuration that uses OpenStack Object Storage.
+	// This configuration is EXPERIMENTAL and is subject to change without notice.
+	Swift *ImageRegistryConfigStorageSwift `json:"swift,omitempty"`
+	// PVC represents configuration that uses a PersistentVolumeClaim.
+	PVC *ImageRegistryConfigStoragePVC `json:"pvc,omitempty"`
 }
 
 type ImageRegistryConfigRequests struct {
