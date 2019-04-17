@@ -73,7 +73,7 @@ A ClusterOperator resource is defined in the cluster scope which reflects the st
 
 The image-registry resource itself has a status section with detailed conditions indicating the state of the managed registry, you can view this via:
 
-    oc get configs.imageregistry.operator.openshift.io/instance  -o yaml -n openshift-image-registry
+    oc get configs.imageregistry.operator.openshift.io/cluster  -o yaml -n openshift-image-registry
 
 
 **If you cannot access your registry, check the following:**
@@ -89,7 +89,7 @@ Is the registry deployed?  Check for a registry deployment + corresponding pod i
 
 **If there is no registry deployment, check the image-registry resource instance for any error conditions:**
 
-    oc get configs.imageregistry.operator.openshift.io/instance -o yaml -n openshift-image-registry
+    oc get configs.imageregistry.operator.openshift.io/cluster -o yaml -n openshift-image-registry
 
 **If there is no image-registry resource at all, check if the image-registry operator deployment exists:**
 
