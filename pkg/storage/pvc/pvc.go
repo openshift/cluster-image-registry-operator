@@ -3,7 +3,6 @@ package pvc
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -115,22 +114,13 @@ func (d *driver) checkPVC(cr *imageregistryv1.Config, claim *corev1.PersistentVo
 		}
 	}
 
-	requiredModes := []string{
-		string(corev1.ReadWriteMany),
-	}
-	if cr.Spec.Replicas == 1 {
-		requiredModes = append(requiredModes, string(corev1.ReadWriteOnce))
-	}
-
 	for _, claimMode := range claim.Spec.AccessModes {
-		for _, mode := range requiredModes {
-			if string(claimMode) == mode {
-				return nil
-			}
+		if claimMode == corev1.ReadWriteMany {
+			return nil
 		}
 	}
 
-	return fmt.Errorf("PVC %s does not contain the necessary access modes (%s)", d.Config.Claim, strings.Join(requiredModes, " or "))
+	return fmt.Errorf("PVC %s does not contain the necessary access mode (%s)", d.Config.Claim, corev1.ReadWriteMany)
 }
 
 func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolumeClaim, error) {
