@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -33,11 +31,7 @@ func TestUnmanaged(t *testing.T) {
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
 			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			Replicas: 1,
 		},

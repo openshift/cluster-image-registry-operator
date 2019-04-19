@@ -3,7 +3,6 @@ package e2e
 import (
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -28,11 +27,7 @@ func TestReadOnly(t *testing.T) {
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
 			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Filesystem: &imageregistryv1.ImageRegistryConfigStorageFilesystem{
-					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
-					},
-				},
+				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 			ReadOnly: true,
 			Replicas: 1,
