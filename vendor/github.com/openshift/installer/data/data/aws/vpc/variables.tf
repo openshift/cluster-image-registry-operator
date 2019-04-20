@@ -1,16 +1,13 @@
+variable "availability_zones" {
+  type        = "list"
+  description = "The availability zones in which to provision subnets."
+}
+
 variable "cidr_block" {
   type = "string"
 }
 
 variable "cluster_id" {
-  type = "string"
-}
-
-variable "base_domain" {
-  type = "string"
-}
-
-variable "cluster_name" {
   type = "string"
 }
 

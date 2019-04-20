@@ -367,8 +367,7 @@ func TestIntegration_BucketPolicyOnly(t *testing.T) {
 	bkt := client.Bucket(bucketName)
 
 	// Insert an object with custom ACL.
-	objName := fmt.Sprintf("object-%d.txt", time.Now().Unix())
-	o := bkt.Object(objName)
+	o := bkt.Object("bucketPolicyOnly")
 	defer func() {
 		if err := o.Delete(ctx); err != nil {
 			log.Printf("failed to delete test object: %v", err)
@@ -2221,8 +2220,16 @@ func TestIntegration_UpdateRetentionExpirationTime(t *testing.T) {
 
 	defer func() {
 		h.mustUpdateBucket(bkt, BucketAttrsToUpdate{RetentionPolicy: &RetentionPolicy{RetentionPeriod: 0}})
-		h.mustDeleteObject(obj)
-		h.mustDeleteBucket(bkt)
+
+		// RetentionPeriod of less than a day is explicitly called out
+		// as best effort and not guaranteed, so let's log problems deleting
+		// objects instead of failing.
+		if err := obj.Delete(context.Background()); err != nil {
+			t.Logf("%s: object delete: %v", loc(), err)
+		}
+		if err := bkt.Delete(context.Background()); err != nil {
+			t.Logf("%s: bucket delete: %v", loc(), err)
+		}
 	}()
 
 	attrs := h.mustObjectAttrs(obj)

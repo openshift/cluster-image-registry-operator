@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha512"
+	"encoding/json"
 	"fmt"
 	"mime"
 	"net/http"
@@ -27,15 +28,16 @@ import (
 	"sync"
 	"time"
 
+	"bitbucket.org/ww/goautoneg"
+
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/NYTimes/gziphandler"
 	restful "github.com/emicklei/go-restful"
 	"github.com/go-openapi/spec"
 	"github.com/golang/protobuf/proto"
 	openapi_v2 "github.com/googleapis/gnostic/OpenAPIv2"
 	"github.com/googleapis/gnostic/compiler"
-	"github.com/json-iterator/go"
-	"github.com/munnerz/goautoneg"
-	yaml "gopkg.in/yaml.v2"
 
 	"k8s.io/kube-openapi/pkg/builder"
 	"k8s.io/kube-openapi/pkg/common"
@@ -77,15 +79,6 @@ func computeETag(data []byte) string {
 	return fmt.Sprintf("\"%X\"", sha512.Sum512(data))
 }
 
-// NewOpenAPIService builds an OpenAPIService starting with the given spec.
-func NewOpenAPIService(spec *spec.Swagger) (*OpenAPIService, error) {
-	o := &OpenAPIService{}
-	if err := o.UpdateSpec(spec); err != nil {
-		return nil, err
-	}
-	return o, nil
-}
-
 // NOTE: [DEPRECATION] We will announce deprecation for format-separated endpoints for OpenAPI spec,
 // and switch to a single /openapi/v2 endpoint in Kubernetes 1.10. The design doc and deprecation process
 // are tracked at: https://docs.google.com/document/d/19lEqE9lc4yHJ3WJAJxS_G7TcORIJXGHyq3wpwcH28nU.
@@ -97,11 +90,7 @@ func BuildAndRegisterOpenAPIService(servePath string, webServices []*restful.Web
 	if err != nil {
 		return nil, err
 	}
-	o, err := NewOpenAPIService(spec)
-	if err != nil {
-		return nil, err
-	}
-	return o, o.RegisterOpenAPIService(servePath, handler)
+	return RegisterOpenAPIService(spec, servePath, handler)
 }
 
 // NOTE: [DEPRECATION] We will announce deprecation for format-separated endpoints for OpenAPI spec,
@@ -111,29 +100,17 @@ func BuildAndRegisterOpenAPIService(servePath string, webServices []*restful.Web
 // RegisterOpenAPIService registers a handler to provide access to provided swagger spec.
 // Note: servePath should end with ".json" as the RegisterOpenAPIService assume it is serving a
 // json file and will also serve .pb and .gz files.
-//
-// Deprecated: use OpenAPIService.RegisterOpenAPIService instead.
-func RegisterOpenAPIService(spec *spec.Swagger, servePath string, handler common.PathHandler) (*OpenAPIService, error) {
-	o, err := NewOpenAPIService(spec)
-	if err != nil {
-		return nil, err
-	}
-	return o, o.RegisterOpenAPIService(servePath, handler)
-}
-
-// NOTE: [DEPRECATION] We will announce deprecation for format-separated endpoints for OpenAPI spec,
-// and switch to a single /openapi/v2 endpoint in Kubernetes 1.10. The design doc and deprecation process
-// are tracked at: https://docs.google.com/document/d/19lEqE9lc4yHJ3WJAJxS_G7TcORIJXGHyq3wpwcH28nU.
-//
-// RegisterOpenAPIService registers a handler to provide access to provided swagger spec.
-// Note: servePath should end with ".json" as the RegisterOpenAPIService assume it is serving a
-// json file and will also serve .pb and .gz files.
-func (o *OpenAPIService) RegisterOpenAPIService(servePath string, handler common.PathHandler) error {
+func RegisterOpenAPIService(openapiSpec *spec.Swagger, servePath string, handler common.PathHandler) (*OpenAPIService, error) {
 	if !strings.HasSuffix(servePath, jsonExt) {
-		return fmt.Errorf("serving path must end with \"%s\"", jsonExt)
+		return nil, fmt.Errorf("serving path must end with \"%s\"", jsonExt)
 	}
 
 	servePathBase := strings.TrimSuffix(servePath, jsonExt)
+
+	o := OpenAPIService{}
+	if err := o.UpdateSpec(openapiSpec); err != nil {
+		return nil, err
+	}
 
 	type fileInfo struct {
 		ext            string
@@ -161,7 +138,7 @@ func (o *OpenAPIService) RegisterOpenAPIService(servePath string, handler common
 		))
 	}
 
-	return nil
+	return &o, nil
 }
 
 func (o *OpenAPIService) getSwaggerBytes() ([]byte, string, time.Time) {
@@ -183,15 +160,11 @@ func (o *OpenAPIService) getSwaggerPbGzBytes() ([]byte, string, time.Time) {
 }
 
 func (o *OpenAPIService) UpdateSpec(openapiSpec *spec.Swagger) (err error) {
-	specBytes, err := jsoniter.ConfigCompatibleWithStandardLibrary.Marshal(openapiSpec)
+	specBytes, err := json.MarshalIndent(openapiSpec, " ", " ")
 	if err != nil {
 		return err
 	}
-	var json map[string]interface{}
-	if err := jsoniter.ConfigCompatibleWithStandardLibrary.Unmarshal(specBytes, &json); err != nil {
-		return err
-	}
-	specPb, err := ToProtoBinary(json)
+	specPb, err := toProtoBinary(specBytes)
 	if err != nil {
 		return err
 	}
@@ -217,33 +190,13 @@ func (o *OpenAPIService) UpdateSpec(openapiSpec *spec.Swagger) (err error) {
 	return nil
 }
 
-func jsonToYAML(j map[string]interface{}) yaml.MapSlice {
-	if j == nil {
-		return nil
+func toProtoBinary(spec []byte) ([]byte, error) {
+	var info yaml.MapSlice
+	err := yaml.Unmarshal(spec, &info)
+	if err != nil {
+		return nil, err
 	}
-	ret := make(yaml.MapSlice, 0, len(j))
-	for k, v := range j {
-		ret = append(ret, yaml.MapItem{k, jsonToYAMLValue(v)})
-	}
-	return ret
-}
-
-func jsonToYAMLValue(j interface{}) interface{} {
-	switch j := j.(type) {
-	case map[string]interface{}:
-		return jsonToYAML(j)
-	case []interface{}:
-		ret := make([]interface{}, len(j))
-		for i := range j {
-			ret[i] = jsonToYAMLValue(j[i])
-		}
-		return ret
-	}
-	return j
-}
-
-func ToProtoBinary(json map[string]interface{}) ([]byte, error) {
-	document, err := openapi_v2.NewDocument(jsonToYAML(json), compiler.NewContext("$root", nil))
+	document, err := openapi_v2.NewDocument(info, compiler.NewContext("$root", nil))
 	if err != nil {
 		return nil, err
 	}
@@ -259,18 +212,12 @@ func toGzip(data []byte) []byte {
 }
 
 // RegisterOpenAPIVersionedService registers a handler to provide access to provided swagger spec.
-//
-// Deprecated: use OpenAPIService.RegisterOpenAPIVersionedService instead.
-func RegisterOpenAPIVersionedService(spec *spec.Swagger, servePath string, handler common.PathHandler) (*OpenAPIService, error) {
-	o, err := NewOpenAPIService(spec)
-	if err != nil {
+func RegisterOpenAPIVersionedService(openapiSpec *spec.Swagger, servePath string, handler common.PathHandler) (*OpenAPIService, error) {
+	o := OpenAPIService{}
+	if err := o.UpdateSpec(openapiSpec); err != nil {
 		return nil, err
 	}
-	return o, o.RegisterOpenAPIVersionedService(servePath, handler)
-}
 
-// RegisterOpenAPIVersionedService registers a handler to provide access to provided swagger spec.
-func (o *OpenAPIService) RegisterOpenAPIVersionedService(servePath string, handler common.PathHandler) error {
 	accepted := []struct {
 		Type           string
 		SubType        string
@@ -311,7 +258,7 @@ func (o *OpenAPIService) RegisterOpenAPIVersionedService(servePath string, handl
 		}),
 	))
 
-	return nil
+	return &o, nil
 }
 
 // BuildAndRegisterOpenAPIVersionedService builds the spec and registers a handler to provide access to it.
@@ -321,9 +268,5 @@ func BuildAndRegisterOpenAPIVersionedService(servePath string, webServices []*re
 	if err != nil {
 		return nil, err
 	}
-	o, err := NewOpenAPIService(spec)
-	if err != nil {
-		return nil, err
-	}
-	return o, o.RegisterOpenAPIVersionedService(servePath, handler)
+	return RegisterOpenAPIVersionedService(spec, servePath, handler)
 }

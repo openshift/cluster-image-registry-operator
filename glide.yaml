@@ -1,0 +1,36 @@
+package: github.com/openshift/cluster-image-registry-operator
+import:
+  # kube first
+  - package: k8s.io/apimachinery
+    version: kubernetes-1.13.4
+  - package: k8s.io/api
+    version: kubernetes-1.13.4
+  - package: k8s.io/client-go
+    version: kubernetes-1.13.4
+  - package: k8s.io/code-generator
+    version: kubernetes-1.13.4
+  - package: k8s.io/apiextensions-apiserver
+    repo: https://github.com/openshift/kubernetes-apiextensions-apiserver
+    version: origin-4.1-kubernetes-1.13.4
+    # openshift second
+  - package: github.com/openshift/api
+    version: master
+  - package: github.com/openshift/client-go
+    version: master
+  - package: github.com/openshift/installer
+    version: master
+    # others last
+  - package: github.com/aws/aws-sdk-go
+    version: 1.19.14
+  - package: k8s.io/gengo/args
+    version: e17681d19d3ac4837a019ece36c2a0ec31ffe985
+  - package: google.golang.org/grpc
+    version: 8260df7a615398b7d72fa0c431e8acb1cf993606
+  - package: golang.org/x/sys
+    version: e8e3143a4f4a00f1fafef0dd82ba78223281b01b
+  - package: golang.org/x/oauth2/google
+    version: 9f3314589c9a9136388751d9adae6b0ed400978a
+  - package: cloud.google.com/go/storage
+    version: dd6ac3c5d7099e5e461957b7e2dab0830330fbdc
+  - package: golang.org/x/tools
+    version: 685fecacd0a02bd01f374ad779b72456e0cd9f8b

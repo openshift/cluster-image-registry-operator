@@ -2,26 +2,24 @@ package manifests
 
 import (
 	"encoding/base64"
-	"fmt"
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go/aws/session"
-
-	// TODO(flaper87): Migrate to ghodss asap
-	// This yaml is currently used only by the OpenStack
-	// clouds serialization. We're working on migrating
-	// clientconfig out of go-yaml. We'll use it here
-	// until that happens.
-	// https://github.com/openshift/installer/pull/854
-	goyaml "gopkg.in/yaml.v2"
+	"github.com/ghodss/yaml"
 
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
+	"github.com/openshift/installer/pkg/asset/installconfig/azure"
 	"github.com/openshift/installer/pkg/asset/machines"
+
 	osmachine "github.com/openshift/installer/pkg/asset/machines/openstack"
 	"github.com/openshift/installer/pkg/asset/password"
 	"github.com/openshift/installer/pkg/asset/templates/content/openshift"
+	awstypes "github.com/openshift/installer/pkg/types/aws"
+	azuretypes "github.com/openshift/installer/pkg/types/azure"
+	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
+	vspheretypes "github.com/openshift/installer/pkg/types/vsphere"
 )
 
 const (
@@ -47,8 +45,7 @@ func (o *Openshift) Name() string {
 func (o *Openshift) Dependencies() []asset.Asset {
 	return []asset.Asset{
 		&installconfig.InstallConfig{},
-		&ClusterK8sIO{},
-		&machines.Worker{},
+		&installconfig.ClusterID{},
 		&password.KubeadminPassword{},
 
 		&openshift.BindingDiscovery{},
@@ -61,14 +58,13 @@ func (o *Openshift) Dependencies() []asset.Asset {
 // Generate generates the respective operator config.yml files
 func (o *Openshift) Generate(dependencies asset.Parents) error {
 	installConfig := &installconfig.InstallConfig{}
+	clusterID := &installconfig.ClusterID{}
 	kubeadminPassword := &password.KubeadminPassword{}
-	clusterk8sio := &ClusterK8sIO{}
-	worker := &machines.Worker{}
-	dependencies.Get(installConfig, clusterk8sio, worker, kubeadminPassword)
+	dependencies.Get(installConfig, kubeadminPassword, clusterID)
 	var cloudCreds cloudCredsSecretData
 	platform := installConfig.Config.Platform.Name()
 	switch platform {
-	case "aws":
+	case awstypes.Name:
 		ssn := session.Must(session.NewSessionWithOptions(session.Options{
 			SharedConfigState: session.SharedConfigEnable,
 		}))
@@ -82,7 +78,26 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 				Base64encodeSecretAccessKey: base64.StdEncoding.EncodeToString([]byte(creds.SecretAccessKey)),
 			},
 		}
-	case "openstack":
+
+	case azuretypes.Name:
+		resourceGroupName := clusterID.InfraID + "-rg"
+		session, err := azure.GetSession()
+		if err != nil {
+			return err
+		}
+		creds := session.Credentials
+		cloudCreds = cloudCredsSecretData{
+			Azure: &AzureCredsSecretData{
+				Base64encodeSubscriptionID: base64.StdEncoding.EncodeToString([]byte(creds.SubscriptionID)),
+				Base64encodeClientID:       base64.StdEncoding.EncodeToString([]byte(creds.ClientID)),
+				Base64encodeClientSecret:   base64.StdEncoding.EncodeToString([]byte(creds.ClientSecret)),
+				Base64encodeTenantID:       base64.StdEncoding.EncodeToString([]byte(creds.TenantID)),
+				Base64encodeResourcePrefix: base64.StdEncoding.EncodeToString([]byte(clusterID.InfraID)),
+				Base64encodeResourceGroup:  base64.StdEncoding.EncodeToString([]byte(resourceGroupName)),
+				Base64encodeRegion:         base64.StdEncoding.EncodeToString([]byte(installConfig.Config.Azure.Region)),
+			},
+		}
+	case openstacktypes.Name:
 		opts := new(clientconfig.ClientOpts)
 		opts.Cloud = installConfig.Config.Platform.OpenStack.Cloud
 		cloud, err := clientconfig.GetCloudFromYAML(opts)
@@ -94,7 +109,7 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 			osmachine.CloudName: cloud,
 		}
 
-		marshalled, err := goyaml.Marshal(clouds)
+		marshalled, err := yaml.Marshal(clouds)
 		if err != nil {
 			return err
 		}
@@ -103,6 +118,14 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 		cloudCreds = cloudCredsSecretData{
 			OpenStack: &OpenStackCredsSecretData{
 				Base64encodeCloudCreds: credsEncoded,
+			},
+		}
+	case vspheretypes.Name:
+		cloudCreds = cloudCredsSecretData{
+			VSphere: &VSphereCredsSecretData{
+				VCenter:              installConfig.Config.VSphere.VCenter,
+				Base64encodeUsername: base64.StdEncoding.EncodeToString([]byte(installConfig.Config.VSphere.Username)),
+				Base64encodePassword: base64.StdEncoding.EncodeToString([]byte(installConfig.Config.VSphere.Password)),
 			},
 		}
 	}
@@ -123,21 +146,21 @@ func (o *Openshift) Generate(dependencies asset.Parents) error {
 		roleCloudCredsSecretReader)
 
 	assetData := map[string][]byte{
-		"99_binding-discovery.yaml":                             []byte(bindingDiscovery.Files()[0].Data),
-		"99_kubeadmin-password-secret.yaml":                     applyTemplateData(kubeadminPasswordSecret.Files()[0].Data, templateData),
-		"99_openshift-cluster-api_cluster.yaml":                 clusterk8sio.Raw,
-		"99_openshift-cluster-api_worker-machineset.yaml":       worker.MachineSetRaw,
-		"99_openshift-cluster-api_worker-user-data-secret.yaml": worker.UserDataSecretRaw,
+		"99_binding-discovery.yaml":         []byte(bindingDiscovery.Files()[0].Data),
+		"99_kubeadmin-password-secret.yaml": applyTemplateData(kubeadminPasswordSecret.Files()[0].Data, templateData),
 	}
 
 	switch platform {
-	case "aws", "openstack":
+	case awstypes.Name, openstacktypes.Name, vspheretypes.Name, azuretypes.Name:
 		assetData["99_cloud-creds-secret.yaml"] = applyTemplateData(cloudCredsSecret.Files()[0].Data, templateData)
 		assetData["99_role-cloud-creds-secret-reader.yaml"] = applyTemplateData(roleCloudCredsSecretReader.Files()[0].Data, templateData)
 	}
 
 	o.FileList = []*asset.File{}
 	for name, data := range assetData {
+		if len(data) == 0 {
+			continue
+		}
 		o.FileList = append(o.FileList, &asset.File{
 			Filename: filepath.Join(openshiftManifestDir, name),
 			Data:     data,
@@ -161,18 +184,8 @@ func (o *Openshift) Load(f asset.FileFetcher) (bool, error) {
 		return false, err
 	}
 
-	masterMachinePattern := fmt.Sprintf(machines.MasterMachineFileName, "*")
 	for _, file := range fileList {
-		filename := filepath.Base(file.Filename)
-		if filename == machines.MasterUserDataFileName {
-			continue
-		}
-
-		matched, err := filepath.Match(masterMachinePattern, filename)
-		if err != nil {
-			return true, err
-		}
-		if matched {
+		if machines.IsMachineManifest(file) {
 			continue
 		}
 

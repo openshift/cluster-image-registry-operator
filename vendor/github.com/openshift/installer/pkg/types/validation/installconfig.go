@@ -2,20 +2,28 @@ package validation
 
 import (
 	"fmt"
-	"net"
 	"sort"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
 	awsvalidation "github.com/openshift/installer/pkg/types/aws/validation"
+	"github.com/openshift/installer/pkg/types/azure"
+	azurevalidation "github.com/openshift/installer/pkg/types/azure/validation"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	libvirtvalidation "github.com/openshift/installer/pkg/types/libvirt/validation"
 	"github.com/openshift/installer/pkg/types/openstack"
 	openstackvalidation "github.com/openshift/installer/pkg/types/openstack/validation"
+	"github.com/openshift/installer/pkg/types/vsphere"
+	vspherevalidation "github.com/openshift/installer/pkg/types/vsphere/validation"
 	"github.com/openshift/installer/pkg/validate"
+)
+
+const (
+	masterPoolName = "master"
 )
 
 // ClusterDomain returns the cluster domain for a cluster with the specified
@@ -30,7 +38,10 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 	if c.TypeMeta.APIVersion == "" {
 		return field.ErrorList{field.Required(field.NewPath("apiVersion"), "install-config version required")}
 	}
-	if c.TypeMeta.APIVersion != types.InstallConfigVersion && c.TypeMeta.APIVersion != "v1beta1" { // FIXME: v1beta1 is a temporary hack to get CI across the transition
+	switch v := c.APIVersion; v {
+	case types.InstallConfigVersion:
+		// Current version
+	default:
 		return field.ErrorList{field.Invalid(field.NewPath("apiVersion"), c.TypeMeta.APIVersion, fmt.Sprintf("install-config version must be %q", types.InstallConfigVersion))}
 	}
 	if c.SSHKey != "" {
@@ -57,8 +68,13 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 	} else {
 		allErrs = append(allErrs, field.Required(field.NewPath("networking"), "networking is required"))
 	}
-	allErrs = append(allErrs, validateMachinePools(c.Machines, field.NewPath("machines"), c.Platform.Name())...)
 	allErrs = append(allErrs, validatePlatform(&c.Platform, field.NewPath("platform"), openStackValidValuesFetcher)...)
+	if c.ControlPlane != nil {
+		allErrs = append(allErrs, validateControlPlane(&c.Platform, c.ControlPlane, field.NewPath("controlPlane"))...)
+	} else {
+		allErrs = append(allErrs, field.Required(field.NewPath("controlPlane"), "controlPlane is required"))
+	}
+	allErrs = append(allErrs, validateCompute(&c.Platform, c.Compute, field.NewPath("compute"))...)
 	if err := validate.ImagePullSecret(c.PullSecret); err != nil {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("pullSecret"), c.PullSecret, err.Error()))
 	}
@@ -67,53 +83,112 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 
 func validateNetworking(n *types.Networking, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if n.Type == "" {
-		allErrs = append(allErrs, field.Required(fldPath.Child("type"), "network provider type required"))
+	if n.NetworkType == "" {
+		allErrs = append(allErrs, field.Required(fldPath.Child("networkType"), "network provider type required"))
 	}
-	if err := validate.SubnetCIDR(&n.MachineCIDR.IPNet); err != nil {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("machineCIDR"), n.MachineCIDR.String(), err.Error()))
+
+	if n.MachineCIDR != nil {
+		if err := validate.SubnetCIDR(&n.MachineCIDR.IPNet); err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("machineCIDR"), n.MachineCIDR.String(), err.Error()))
+		}
+	} else {
+		allErrs = append(allErrs, field.Required(fldPath.Child("machineCIDR"), "a machine CIDR is required"))
 	}
-	if err := validate.SubnetCIDR(&n.ServiceCIDR.IPNet); err != nil {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceCIDR"), n.ServiceCIDR.String(), err.Error()))
+
+	for i, sn := range n.ServiceNetwork {
+		if err := validate.SubnetCIDR(&sn.IPNet); err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceNetwork").Index(i), sn.String(), err.Error()))
+		}
+		if n.MachineCIDR != nil && validate.DoCIDRsOverlap(&sn.IPNet, &n.MachineCIDR.IPNet) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceNetwork").Index(i), sn.String(), "service network must not overlap with machineCIDR"))
+		}
+		for j, snn := range n.ServiceNetwork[0:i] {
+			if validate.DoCIDRsOverlap(&sn.IPNet, &snn.IPNet) {
+				allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceNetwork").Index(i), sn.String(), fmt.Sprintf("service network must not overlap with service network %d", j)))
+			}
+		}
 	}
-	for i, cn := range n.ClusterNetworks {
-		allErrs = append(allErrs, validateClusterNetwork(&cn, fldPath.Child("clusterNetworks").Index(i), &n.ServiceCIDR.IPNet)...)
+	if len(n.ServiceNetwork) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("serviceNetwork"), "a service network is required"))
 	}
-	if len(n.ClusterNetworks) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("clusterNetworks"), "cluster network required"))
+	// Until kubernetes supports multiple service networks e.g. dual stack
+	if len(n.ServiceNetwork) > 1 {
+		// the default stringification of this type is unreadable
+		diag := []string{}
+		for _, sn := range n.ServiceNetwork {
+			diag = append(diag, sn.String())
+		}
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("serviceNetwork"), strings.Join(diag, ", "), "only one service network can be specified"))
+	}
+
+	for i, cn := range n.ClusterNetwork {
+		allErrs = append(allErrs, validateClusterNetwork(n, &cn, i, fldPath.Child("clusterNetwork").Index(i))...)
+	}
+	if len(n.ClusterNetwork) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("clusterNetwork"), "cluster network required"))
 	}
 	return allErrs
 }
 
-func validateClusterNetwork(cn *types.ClusterNetworkEntry, fldPath *field.Path, serviceCIDR *net.IPNet) field.ErrorList {
+func validateClusterNetwork(n *types.Networking, cn *types.ClusterNetworkEntry, idx int, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if validate.DoCIDRsOverlap(&cn.CIDR.IPNet, serviceCIDR) {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("cidr"), cn.CIDR.String(), "cluster network CIDR must not overlap with serviceCIDR"))
+	if err := validate.SubnetCIDR(&cn.CIDR.IPNet); err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("cidr"), cn.CIDR.IPNet.String(), err.Error()))
 	}
-	if cn.HostSubnetLength < 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("hostSubnetLength"), cn.HostSubnetLength, "hostSubnetLength must be positive"))
+	if n.MachineCIDR != nil && validate.DoCIDRsOverlap(&cn.CIDR.IPNet, &n.MachineCIDR.IPNet) {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("cidr"), cn.CIDR.String(), "cluster network must not overlap with machine CIDR"))
 	}
-	if ones, bits := cn.CIDR.Mask.Size(); cn.HostSubnetLength > int32(bits-ones) {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("hostSubnetLength"), cn.HostSubnetLength, "cluster network host subnet must not be larger than CIDR "+cn.CIDR.String()))
+	for i, sn := range n.ServiceNetwork {
+		if validate.DoCIDRsOverlap(&cn.CIDR.IPNet, &sn.IPNet) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("cidr"), cn.CIDR.String(), fmt.Sprintf("cluster network must not overlap with service network %d", i)))
+		}
+	}
+	for i, acn := range n.ClusterNetwork[0:idx] {
+		if validate.DoCIDRsOverlap(&cn.CIDR.IPNet, &acn.CIDR.IPNet) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("cidr"), cn.CIDR.String(), fmt.Sprintf("cluster network must not overlap with cluster network %d", i)))
+		}
+	}
+	if cn.HostPrefix < 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("hostPrefix"), cn.HostPrefix, "hostPrefix must be positive"))
+	}
+	if ones, _ := cn.CIDR.Mask.Size(); cn.HostPrefix < int32(ones) {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("hostPrefix"), cn.HostPrefix, "cluster network host subnetwork prefix must not be larger size than CIDR "+cn.CIDR.String()))
 	}
 	return allErrs
 }
 
-func validateMachinePools(pools []types.MachinePool, fldPath *field.Path, platform string) field.ErrorList {
+func validateControlPlane(platform *types.Platform, pool *types.MachinePool, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if pool.Name != masterPoolName {
+		allErrs = append(allErrs, field.NotSupported(fldPath.Child("name"), pool.Name, []string{masterPoolName}))
+	}
+	if pool.Replicas != nil && *pool.Replicas == 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("replicas"), pool.Replicas, "number of control plane replicas must be positive"))
+	}
+	allErrs = append(allErrs, ValidateMachinePool(platform, pool, fldPath)...)
+	return allErrs
+}
+
+func validateCompute(platform *types.Platform, pools []types.MachinePool, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	poolNames := map[string]bool{}
+	foundPositiveReplicas := false
 	for i, p := range pools {
+		poolFldPath := fldPath.Index(i)
+		if p.Name != "worker" {
+			allErrs = append(allErrs, field.NotSupported(poolFldPath.Child("name"), p.Name, []string{"worker"}))
+		}
 		if poolNames[p.Name] {
-			allErrs = append(allErrs, field.Duplicate(fldPath.Index(i), p))
+			allErrs = append(allErrs, field.Duplicate(poolFldPath.Child("name"), p.Name))
 		}
 		poolNames[p.Name] = true
-		allErrs = append(allErrs, ValidateMachinePool(&p, fldPath.Index(i), platform)...)
+		if p.Replicas != nil && *p.Replicas > 0 {
+			foundPositiveReplicas = true
+		}
+		allErrs = append(allErrs, ValidateMachinePool(platform, &p, poolFldPath)...)
 	}
-	if !poolNames["master"] {
-		allErrs = append(allErrs, field.Required(fldPath, "must specify a machine pool with a name of 'master'"))
-	}
-	if !poolNames["worker"] {
-		allErrs = append(allErrs, field.Required(fldPath, "must specify a machine pool with a name of 'worker'"))
+	if !foundPositiveReplicas {
+		logrus.Warnf("There are no compute nodes specified. The cluster will not fully initialize without compute nodes.")
 	}
 	return allErrs
 }
@@ -138,6 +213,9 @@ func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackVa
 	if platform.AWS != nil {
 		validate(aws.Name, platform.AWS, func(f *field.Path) field.ErrorList { return awsvalidation.ValidatePlatform(platform.AWS, f) })
 	}
+	if platform.Azure != nil {
+		validate(azure.Name, platform.Azure, func(f *field.Path) field.ErrorList { return azurevalidation.ValidatePlatform(platform.Azure, f) })
+	}
 	if platform.Libvirt != nil {
 		validate(libvirt.Name, platform.Libvirt, func(f *field.Path) field.ErrorList { return libvirtvalidation.ValidatePlatform(platform.Libvirt, f) })
 	}
@@ -145,6 +223,9 @@ func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackVa
 		validate(openstack.Name, platform.OpenStack, func(f *field.Path) field.ErrorList {
 			return openstackvalidation.ValidatePlatform(platform.OpenStack, f, openStackValidValuesFetcher)
 		})
+	}
+	if platform.VSphere != nil {
+		validate(vsphere.Name, platform.VSphere, func(f *field.Path) field.ErrorList { return vspherevalidation.ValidatePlatform(platform.VSphere, f) })
 	}
 	return allErrs
 }

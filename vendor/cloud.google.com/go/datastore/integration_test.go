@@ -1256,3 +1256,27 @@ func testMutate(t *testing.T, mutate func(ctx context.Context, client *Client, m
 		t.Errorf("Update non-existing key: got %s, want %s", got, want)
 	}
 }
+
+func TestDetectProjectID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Integration tests skipped in short mode")
+	}
+	ctx := context.Background()
+
+	creds := testutil.Credentials(ctx, ScopeDatastore)
+	if creds == nil {
+		t.Skip("Integration tests skipped. See CONTRIBUTING.md for details")
+	}
+
+	// Use creds with project ID.
+	if _, err := NewClient(ctx, DetectProjectID, option.WithCredentials(creds)); err != nil {
+		t.Errorf("NewClient: %v", err)
+	}
+
+	ts := testutil.ErroringTokenSource{}
+	// Try to use creds without project ID.
+	_, err := NewClient(ctx, DetectProjectID, option.WithTokenSource(ts))
+	if err == nil || err.Error() != "datastore: see the docs on DetectProjectID" {
+		t.Errorf("expected an error while using TokenSource that does not have a project ID")
+	}
+}

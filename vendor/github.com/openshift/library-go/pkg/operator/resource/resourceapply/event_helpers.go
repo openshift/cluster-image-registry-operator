@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 
 	openshiftapi "github.com/openshift/api"
+
 	"github.com/openshift/library-go/pkg/operator/events"
 )
 
@@ -46,7 +47,7 @@ func reportCreateEvent(recorder events.Recorder, obj runtime.Object, originalErr
 	}
 	accessor, err := meta.Accessor(obj)
 	if err != nil {
-		glog.Errorf("Failed to get accessor for %+v", obj)
+		klog.Errorf("Failed to get accessor for %+v", obj)
 		return
 	}
 	namespace := ""
@@ -67,7 +68,7 @@ func reportUpdateEvent(recorder events.Recorder, obj runtime.Object, originalErr
 	}
 	accessor, err := meta.Accessor(obj)
 	if err != nil {
-		glog.Errorf("Failed to get accessor for %+v", obj)
+		klog.Errorf("Failed to get accessor for %+v", obj)
 		return
 	}
 	namespace := ""

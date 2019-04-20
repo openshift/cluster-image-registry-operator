@@ -32,11 +32,11 @@ import (
 //
 // gauge should not be used directly, use Float64Gauge or Int64Gauge.
 type gauge struct {
-	vals    sync.Map
-	desc    metricdata.Descriptor
-	start   time.Time
-	keys    []string
-	isFloat bool
+	vals  sync.Map
+	desc  metricdata.Descriptor
+	start time.Time
+	keys  []string
+	gType gaugeType
 }
 
 type gaugeEntry interface {
@@ -92,16 +92,26 @@ func (g *gauge) labelValues(s string) []metricdata.LabelValue {
 	return vals
 }
 
-func (g *gauge) entryForValues(labelVals []metricdata.LabelValue, newEntry func() gaugeEntry) interface{} {
+func (g *gauge) entryForValues(labelVals []metricdata.LabelValue, newEntry func() gaugeEntry) (interface{}, error) {
 	if len(labelVals) != len(g.keys) {
-		panic("must supply the same number of label values as keys used to construct this gauge")
+		return nil, errKeyValueMismatch
 	}
 	mapKey := g.mapKey(labelVals)
 	if entry, ok := g.vals.Load(mapKey); ok {
-		return entry
+		return entry, nil
 	}
 	entry, _ := g.vals.LoadOrStore(mapKey, newEntry())
-	return entry
+	return entry, nil
+}
+
+func (g *gauge) upsertEntry(labelVals []metricdata.LabelValue, newEntry func() gaugeEntry) error {
+	if len(labelVals) != len(g.keys) {
+		return errKeyValueMismatch
+	}
+	mapKey := g.mapKey(labelVals)
+	g.vals.Delete(mapKey)
+	g.vals.Store(mapKey, newEntry())
+	return nil
 }
 
 // Float64Gauge represents a float64 value that can go up and down.
@@ -131,10 +141,14 @@ func (e *Float64Entry) read(t time.Time) metricdata.Point {
 //
 // The number of label values supplied must be exactly the same as the number
 // of keys supplied when this gauge was created.
-func (g *Float64Gauge) GetEntry(labelVals ...metricdata.LabelValue) *Float64Entry {
-	return g.g.entryForValues(labelVals, func() gaugeEntry {
+func (g *Float64Gauge) GetEntry(labelVals ...metricdata.LabelValue) (*Float64Entry, error) {
+	entry, err := g.g.entryForValues(labelVals, func() gaugeEntry {
 		return &Float64Entry{}
-	}).(*Float64Entry)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return entry.(*Float64Entry), nil
 }
 
 // Set sets the gauge entry value to val.
@@ -179,10 +193,14 @@ func (e *Int64GaugeEntry) read(t time.Time) metricdata.Point {
 //
 // The number of label values supplied must be exactly the same as the number
 // of keys supplied when this gauge was created.
-func (g *Int64Gauge) GetEntry(labelVals ...metricdata.LabelValue) *Int64GaugeEntry {
-	return g.g.entryForValues(labelVals, func() gaugeEntry {
+func (g *Int64Gauge) GetEntry(labelVals ...metricdata.LabelValue) (*Int64GaugeEntry, error) {
+	entry, err := g.g.entryForValues(labelVals, func() gaugeEntry {
 		return &Int64GaugeEntry{}
-	}).(*Int64GaugeEntry)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return entry.(*Int64GaugeEntry), nil
 }
 
 // Set sets the value of the gauge entry to the provided value.
@@ -193,4 +211,70 @@ func (e *Int64GaugeEntry) Set(val int64) {
 // Add increments the current gauge entry value by val, which may be negative.
 func (e *Int64GaugeEntry) Add(val int64) {
 	atomic.AddInt64(&e.val, val)
+}
+
+// Int64DerivedGauge represents int64 gauge value that is derived from an object.
+//
+// Int64DerivedGauge maintains objects for each combination of label values.
+// These objects implement Int64DerivedGaugeInterface to read instantaneous value
+// representing the object.
+type Int64DerivedGauge struct {
+	g gauge
+}
+
+type int64DerivedGaugeEntry struct {
+	fn func() int64
+}
+
+func (e *int64DerivedGaugeEntry) read(t time.Time) metricdata.Point {
+	return metricdata.NewInt64Point(t, e.fn())
+}
+
+// UpsertEntry inserts or updates a derived gauge entry for the given set of label values.
+// The object for which this gauge entry is inserted or updated, must implement func() int64
+//
+// It returns an error if
+// 1. The number of label values supplied are not the same as the number
+// of keys supplied when this gauge was created.
+// 2. fn func() int64 is nil.
+func (g *Int64DerivedGauge) UpsertEntry(fn func() int64, labelVals ...metricdata.LabelValue) error {
+	if fn == nil {
+		return errInvalidParam
+	}
+	return g.g.upsertEntry(labelVals, func() gaugeEntry {
+		return &int64DerivedGaugeEntry{fn}
+	})
+}
+
+// Float64DerivedGauge represents float64 gauge value that is derived from an object.
+//
+// Float64DerivedGauge maintains objects for each combination of label values.
+// These objects implement Float64DerivedGaugeInterface to read instantaneous value
+// representing the object.
+type Float64DerivedGauge struct {
+	g gauge
+}
+
+type float64DerivedGaugeEntry struct {
+	fn func() float64
+}
+
+func (e *float64DerivedGaugeEntry) read(t time.Time) metricdata.Point {
+	return metricdata.NewFloat64Point(t, e.fn())
+}
+
+// UpsertEntry inserts or updates a derived gauge entry for the given set of label values.
+// The object for which this gauge entry is inserted or updated, must implement func() float64
+//
+// It returns an error if
+// 1. The number of label values supplied are not the same as the number
+// of keys supplied when this gauge was created.
+// 2. fn func() float64 is nil.
+func (g *Float64DerivedGauge) UpsertEntry(fn func() float64, labelVals ...metricdata.LabelValue) error {
+	if fn == nil {
+		return errInvalidParam
+	}
+	return g.g.upsertEntry(labelVals, func() gaugeEntry {
+		return &float64DerivedGaugeEntry{fn}
+	})
 }

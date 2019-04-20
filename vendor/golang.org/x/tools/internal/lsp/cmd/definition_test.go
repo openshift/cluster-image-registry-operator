@@ -8,97 +8,112 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"go/token"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/packages/packagestest"
 	"golang.org/x/tools/internal/lsp/cmd"
+	"golang.org/x/tools/internal/span"
 	"golang.org/x/tools/internal/tool"
 )
+
+const (
+	expectedDefinitionsCount     = 26
+	expectedTypeDefinitionsCount = 2
+)
+
+type definition struct {
+	src     span.Span
+	flags   string
+	def     span.Span
+	pattern pattern
+}
+
+type definitions map[span.Span]definition
 
 var verifyGuru = flag.Bool("verify-guru", false, "Check that the guru compatability matches")
 
 func TestDefinitionHelpExample(t *testing.T) {
+	if runtime.GOOS == "android" {
+		t.Skip("not all source files are available on android")
+	}
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Errorf("could not get wd: %v", err)
 		return
 	}
 	thisFile := filepath.Join(dir, "definition.go")
-	args := []string{"query", "definition", fmt.Sprintf("%v:#%v", thisFile, cmd.ExampleOffset)}
-	expect := regexp.MustCompile(`^[\w/\\:_]+flag[/\\]flag.go:\d+:\d+,\d+:\d+: defined here as type flag.FlagSet struct{.*}$`)
-	got := captureStdOut(t, func() {
-		tool.Main(context.Background(), &cmd.Application{}, args)
-	})
-	if !expect.MatchString(got) {
-		t.Errorf("test with %v\nexpected:\n%s\ngot:\n%s", args, expect, got)
+	baseArgs := []string{"query", "definition"}
+	expect := regexp.MustCompile(`^[\w/\\:_-]+flag[/\\]flag.go:\d+:\d+-\d+: defined here as type flag.FlagSet struct{.*}$`)
+	for _, query := range []string{
+		fmt.Sprintf("%v:%v:%v", thisFile, cmd.ExampleLine, cmd.ExampleColumn),
+		fmt.Sprintf("%v:#%v", thisFile, cmd.ExampleOffset)} {
+		args := append(baseArgs, query)
+		got := captureStdOut(t, func() {
+			tool.Main(context.Background(), &cmd.Application{}, args)
+		})
+		if !expect.MatchString(got) {
+			t.Errorf("test with %v\nexpected:\n%s\ngot:\n%s", args, expect, got)
+		}
 	}
 }
 
-func TestDefinition(t *testing.T) {
-	exported := packagestest.Export(t, packagestest.GOPATH, []packagestest.Module{{
-		Name:  "golang.org/fake",
-		Files: packagestest.MustCopyFileTree("testdata"),
-	}})
-	defer exported.Cleanup()
-	count := 0
-	if err := exported.Expect(map[string]interface{}{
-		"definition": func(fset *token.FileSet, src token.Pos, flags string, def packagestest.Range, match string) {
-			count++
-			args := []string{"query"}
-			if flags != "" {
-				args = append(args, strings.Split(flags, " ")...)
-			}
-			args = append(args, "definition")
-			f := fset.File(src)
-			loc := cmd.Location{
-				Filename: f.Name(),
-				Start: cmd.Position{
-					Offset: f.Offset(src),
-				},
-			}
-			loc.End = loc.Start
-			args = append(args, fmt.Sprint(loc))
-			app := &cmd.Application{}
-			app.Config = *exported.Config
-			got := captureStdOut(t, func() {
-				tool.Main(context.Background(), app, args)
-			})
-			start := fset.Position(def.Start)
-			end := fset.Position(def.End)
-			expect := os.Expand(match, func(name string) string {
-				switch name {
-				case "file":
-					return start.Filename
-				case "efile":
-					qfile := strconv.Quote(start.Filename)
-					return qfile[1 : len(qfile)-1]
-				case "line":
-					return fmt.Sprint(start.Line)
-				case "col":
-					return fmt.Sprint(start.Column)
-				case "offset":
-					return fmt.Sprint(start.Offset)
-				case "eline":
-					return fmt.Sprint(end.Line)
-				case "ecol":
-					return fmt.Sprint(end.Column)
-				case "eoffset":
-					return fmt.Sprint(end.Offset)
-				default:
-					return name
-				}
-			})
-			if *verifyGuru {
-				var guruArgs []string
-				runGuru := false
+func (l definitions) godef(src, def span.Span) {
+	l[src] = definition{
+		src:     src,
+		def:     def,
+		pattern: newPattern("", def),
+	}
+}
+
+func (l definitions) typdef(src, def span.Span) {
+	l[src] = definition{
+		src:     src,
+		def:     def,
+		pattern: newPattern("", def),
+	}
+}
+
+func (l definitions) definition(src span.Span, flags string, def span.Span, match string) {
+	l[src] = definition{
+		src:     src,
+		flags:   flags,
+		def:     def,
+		pattern: newPattern(match, def),
+	}
+}
+
+func (l definitions) testDefinitions(t *testing.T, e *packagestest.Exported) {
+	if len(l) != expectedDefinitionsCount {
+		t.Errorf("got %v definitions expected %v", len(l), expectedDefinitionsCount)
+	}
+	for _, d := range l {
+		args := []string{"query"}
+		if d.flags != "" {
+			args = append(args, strings.Split(d.flags, " ")...)
+		}
+		args = append(args, "definition")
+		src := span.New(d.src.URI(), span.NewPoint(0, 0, d.src.Start().Offset()), span.Point{})
+		args = append(args, fmt.Sprint(src))
+		app := &cmd.Application{}
+		app.Config = *e.Config
+		got := captureStdOut(t, func() {
+			tool.Main(context.Background(), app, args)
+		})
+		if !d.pattern.matches(got) {
+			t.Errorf("definition %v\nexpected:\n%s\ngot:\n%s", args, d.pattern, got)
+		}
+		if *verifyGuru {
+			moduleMode := e.File(e.Modules[0].Name, "go.mod") != ""
+			var guruArgs []string
+			runGuru := false
+			if !moduleMode {
 				for _, arg := range args {
 					switch {
 					case arg == "query":
@@ -115,49 +130,98 @@ func TestDefinition(t *testing.T) {
 						guruArgs = append(guruArgs, arg)
 					}
 				}
-				if runGuru {
-					cmd := exec.Command("guru", guruArgs...)
-					cmd.Env = exported.Config.Env
-					out, err := cmd.CombinedOutput()
-					if err != nil {
-						t.Errorf("Could not run guru %v: %v\n%s", guruArgs, err, out)
-					} else {
-						guru := strings.TrimSpace(string(out))
-						if !strings.HasPrefix(expect, guru) {
-							t.Errorf("definition %v\nexpected:\n%s\nguru gave:\n%s", args, expect, guru)
-						}
+			}
+			if runGuru {
+				cmd := exec.Command("guru", guruArgs...)
+				cmd.Env = e.Config.Env
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Errorf("Could not run guru %v: %v\n%s", guruArgs, err, out)
+				} else {
+					guru := strings.TrimSpace(string(out))
+					if !d.pattern.matches(guru) {
+						t.Errorf("definition %v\nexpected:\n%s\nguru gave:\n%s", args, d.pattern, guru)
 					}
 				}
 			}
-			if expect != got {
-				t.Errorf("definition %v\nexpected:\n%s\ngot:\n%s", args, expect, got)
-			}
-		},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if count == 0 {
-		t.Fatalf("No tests were run")
+		}
 	}
 }
 
-func captureStdOut(t testing.TB, f func()) string {
-	r, out, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
+func (l definitions) testTypeDefinitions(t *testing.T, e *packagestest.Exported) {
+	if len(l) != expectedTypeDefinitionsCount {
+		t.Errorf("got %v definitions expected %v", len(l), expectedTypeDefinitionsCount)
 	}
-	old := os.Stdout
-	defer func() {
-		os.Stdout = old
-		out.Close()
-		r.Close()
-	}()
-	os.Stdout = out
-	f()
-	out.Close()
-	data, err := ioutil.ReadAll(r)
-	if err != nil {
-		t.Fatal(err)
+	//TODO: add command line type definition tests when it works
+}
+
+type pattern struct {
+	raw      string
+	expanded []string
+	matchAll bool
+}
+
+func newPattern(s string, def span.Span) pattern {
+	p := pattern{raw: s}
+	if s == "" {
+		p.expanded = []string{fmt.Sprintf("%v: ", def)}
+		return p
 	}
-	return strings.TrimSpace(string(data))
+	p.matchAll = strings.HasSuffix(s, "$$")
+	for _, fragment := range strings.Split(s, "$$") {
+		p.expanded = append(p.expanded, os.Expand(fragment, func(name string) string {
+			switch name {
+			case "file":
+				fname, _ := def.URI().Filename()
+				return fname
+			case "efile":
+				fname, _ := def.URI().Filename()
+				qfile := strconv.Quote(fname)
+				return qfile[1 : len(qfile)-1]
+			case "euri":
+				quri := strconv.Quote(string(def.URI()))
+				return quri[1 : len(quri)-1]
+			case "line":
+				return fmt.Sprint(def.Start().Line())
+			case "col":
+				return fmt.Sprint(def.Start().Column())
+			case "offset":
+				return fmt.Sprint(def.Start().Offset())
+			case "eline":
+				return fmt.Sprint(def.End().Line())
+			case "ecol":
+				return fmt.Sprint(def.End().Column())
+			case "eoffset":
+				return fmt.Sprint(def.End().Offset())
+			default:
+				return name
+			}
+		}))
+	}
+	return p
+}
+
+func (p pattern) String() string {
+	return strings.Join(p.expanded, "$$")
+}
+
+func (p pattern) matches(s string) bool {
+	if len(p.expanded) == 0 {
+		return false
+	}
+	if !strings.HasPrefix(s, p.expanded[0]) {
+		return false
+	}
+	remains := s[len(p.expanded[0]):]
+	for _, fragment := range p.expanded[1:] {
+		i := strings.Index(remains, fragment)
+		if i < 0 {
+			return false
+		}
+		remains = remains[i+len(fragment):]
+	}
+	if !p.matchAll {
+		return true
+	}
+	return len(remains) == 0
 }

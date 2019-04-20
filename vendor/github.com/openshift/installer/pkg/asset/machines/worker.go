@@ -1,29 +1,56 @@
 package machines
 
 import (
-	"bytes"
 	"fmt"
-	"text/template"
+	"os"
+	"path/filepath"
 
 	"github.com/ghodss/yaml"
+	libvirtapi "github.com/openshift/cluster-api-provider-libvirt/pkg/apis"
+	libvirtprovider "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1alpha1"
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	awsapi "sigs.k8s.io/cluster-api-provider-aws/pkg/apis"
+	awsprovider "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
+	azureapi "sigs.k8s.io/cluster-api-provider-azure/pkg/apis"
+	azureprovider "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1alpha1"
+	openstackapi "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis"
+	openstackprovider "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis/openstackproviderconfig/v1alpha1"
 
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/ignition/machine"
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	"github.com/openshift/installer/pkg/asset/machines/aws"
+	"github.com/openshift/installer/pkg/asset/machines/azure"
 	"github.com/openshift/installer/pkg/asset/machines/libvirt"
+	"github.com/openshift/installer/pkg/asset/machines/machineconfig"
 	"github.com/openshift/installer/pkg/asset/machines/openstack"
 	"github.com/openshift/installer/pkg/asset/rhcos"
 	"github.com/openshift/installer/pkg/types"
 	awstypes "github.com/openshift/installer/pkg/types/aws"
+	awsdefaults "github.com/openshift/installer/pkg/types/aws/defaults"
+	azuretypes "github.com/openshift/installer/pkg/types/azure"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	nonetypes "github.com/openshift/installer/pkg/types/none"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
+	vspheretypes "github.com/openshift/installer/pkg/types/vsphere"
+)
+
+const (
+	// workerMachineSetFileName is the format string for constructing the worker MachineSet filenames.
+	workerMachineSetFileName = "99_openshift-cluster-api_worker-machineset-%s.yaml"
+
+	// workerUserDataFileName is the filename used for the worker user-data secret.
+	workerUserDataFileName = "99_openshift-cluster-api_worker-user-data-secret.yaml"
+)
+
+var (
+	workerMachineSetFileNamePattern = fmt.Sprintf(workerMachineSetFileName, "*")
+
+	_ asset.WritableAsset = (*Worker)(nil)
 )
 
 func defaultAWSMachinePoolPlatform() awstypes.MachinePool {
@@ -39,6 +66,10 @@ func defaultLibvirtMachinePoolPlatform() libvirttypes.MachinePool {
 	return libvirttypes.MachinePool{}
 }
 
+func defaultAzureMachinePoolPlatform() azuretypes.MachinePool {
+	return azuretypes.MachinePool{}
+}
+
 func defaultOpenStackMachinePoolPlatform(flavor string) openstacktypes.MachinePool {
 	return openstacktypes.MachinePool{
 		FlavorName: flavor,
@@ -47,11 +78,10 @@ func defaultOpenStackMachinePoolPlatform(flavor string) openstacktypes.MachinePo
 
 // Worker generates the machinesets for `worker` machine pool.
 type Worker struct {
-	MachineSetRaw     []byte
-	UserDataSecretRaw []byte
+	UserDataFile       *asset.File
+	MachineConfigFiles []*asset.File
+	MachineSetFiles    []*asset.File
 }
-
-var _ asset.Asset = (*Worker)(nil)
 
 // Name returns a human friendly name for the Worker Asset.
 func (w *Worker) Name() string {
@@ -73,6 +103,12 @@ func (w *Worker) Dependencies() []asset.Asset {
 	}
 }
 
+func awsDefaultWorkerMachineType(installconfig *installconfig.InstallConfig) string {
+	region := installconfig.Config.Platform.AWS.Region
+	instanceClass := awsdefaults.InstanceClass(region)
+	return fmt.Sprintf("%s.large", instanceClass)
+}
+
 // Generate generates the Worker asset.
 func (w *Worker) Generate(dependencies asset.Parents) error {
 	clusterID := &installconfig.ClusterID{}
@@ -81,122 +117,181 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 	wign := &machine.Worker{}
 	dependencies.Get(clusterID, installconfig, rhcosImage, wign)
 
+	machineConfigs := []*mcfgv1.MachineConfig{}
+	machineSets := []runtime.Object{}
 	var err error
+	ic := installconfig.Config
+	for _, pool := range ic.Compute {
+		if pool.Hyperthreading == types.HyperthreadingDisabled {
+			machineConfigs = append(machineConfigs, machineconfig.ForHyperthreadingDisabled("worker"))
+		}
+		if ic.SSHKey != "" {
+			machineConfigs = append(machineConfigs, machineconfig.ForAuthorizedKeys(ic.SSHKey, "worker"))
+		}
+
+		switch ic.Platform.Name() {
+		case awstypes.Name:
+			mpool := defaultAWSMachinePoolPlatform()
+			mpool.InstanceType = awsDefaultWorkerMachineType(installconfig)
+			mpool.Set(ic.Platform.AWS.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.AWS)
+			if len(mpool.Zones) == 0 {
+				azs, err := aws.AvailabilityZones(ic.Platform.AWS.Region)
+				if err != nil {
+					return errors.Wrap(err, "failed to fetch availability zones")
+				}
+				mpool.Zones = azs
+			}
+			pool.Platform.AWS = &mpool
+			sets, err := aws.MachineSets(clusterID.InfraID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
+			if err != nil {
+				return errors.Wrap(err, "failed to create worker machine objects")
+			}
+			for _, set := range sets {
+				machineSets = append(machineSets, set)
+			}
+		case libvirttypes.Name:
+			mpool := defaultLibvirtMachinePoolPlatform()
+			mpool.Set(ic.Platform.Libvirt.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.Libvirt)
+			pool.Platform.Libvirt = &mpool
+			sets, err := libvirt.MachineSets(clusterID.InfraID, ic, &pool, "worker", "worker-user-data")
+			if err != nil {
+				return errors.Wrap(err, "failed to create worker machine objects")
+			}
+			for _, set := range sets {
+				machineSets = append(machineSets, set)
+			}
+		case openstacktypes.Name:
+			mpool := defaultOpenStackMachinePoolPlatform(ic.Platform.OpenStack.FlavorName)
+			mpool.Set(ic.Platform.OpenStack.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.OpenStack)
+			pool.Platform.OpenStack = &mpool
+
+			sets, err := openstack.MachineSets(clusterID.InfraID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
+			if err != nil {
+				return errors.Wrap(err, "failed to create master machine objects")
+			}
+			for _, set := range sets {
+				machineSets = append(machineSets, set)
+			}
+		case azuretypes.Name:
+			mpool := defaultAzureMachinePoolPlatform()
+			mpool.Set(ic.Platform.Azure.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.Azure)
+			pool.Platform.Azure = &mpool
+			//TODO: add support for availibility zones
+			sets, err := azure.MachineSets(clusterID.InfraID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
+			if err != nil {
+				return errors.Wrap(err, "failed to create worker machine objects")
+			}
+			for _, set := range sets {
+				machineSets = append(machineSets, set)
+			}
+		case nonetypes.Name, vspheretypes.Name:
+		default:
+			return fmt.Errorf("invalid Platform")
+		}
+	}
+
 	userDataMap := map[string][]byte{"worker-user-data": wign.File.Data}
-	w.UserDataSecretRaw, err = userDataList(userDataMap)
+	data, err := userDataList(userDataMap)
 	if err != nil {
 		return errors.Wrap(err, "failed to create user-data secret for worker machines")
 	}
+	w.UserDataFile = &asset.File{
+		Filename: filepath.Join(directory, workerUserDataFileName),
+		Data:     data,
+	}
 
-	ic := installconfig.Config
-	pool := workerPool(ic.Machines)
-	switch ic.Platform.Name() {
-	case awstypes.Name:
-		mpool := defaultAWSMachinePoolPlatform()
-		mpool.InstanceType = "m4.large"
-		mpool.Set(ic.Platform.AWS.DefaultMachinePlatform)
-		mpool.Set(pool.Platform.AWS)
-		if len(mpool.Zones) == 0 {
-			azs, err := aws.AvailabilityZones(ic.Platform.AWS.Region)
-			if err != nil {
-				return errors.Wrap(err, "failed to fetch availability zones")
-			}
-			mpool.Zones = azs
-		}
-		pool.Platform.AWS = &mpool
-		sets, err := aws.MachineSets(clusterID.ClusterID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
+	w.MachineConfigFiles, err = machineconfig.Manifests(machineConfigs, "worker", directory)
+	if err != nil {
+		return errors.Wrap(err, "failed to create MachineConfig manifests for worker machines")
+	}
+
+	w.MachineSetFiles = make([]*asset.File, len(machineSets))
+	padFormat := fmt.Sprintf("%%0%dd", len(fmt.Sprintf("%d", len(machineSets))))
+	for i, machineSet := range machineSets {
+		data, err := yaml.Marshal(machineSet)
 		if err != nil {
-			return errors.Wrap(err, "failed to create worker machine objects")
+			return errors.Wrapf(err, "marshal worker %d", i)
 		}
 
-		list := listFromMachineSets(sets)
-		raw, err := yaml.Marshal(list)
-		if err != nil {
-			return errors.Wrap(err, "failed to marshal")
+		padded := fmt.Sprintf(padFormat, i)
+		w.MachineSetFiles[i] = &asset.File{
+			Filename: filepath.Join(directory, fmt.Sprintf(workerMachineSetFileName, padded)),
+			Data:     data,
 		}
-		w.MachineSetRaw = raw
-	case libvirttypes.Name:
-		mpool := defaultLibvirtMachinePoolPlatform()
-		mpool.Set(ic.Platform.Libvirt.DefaultMachinePlatform)
-		mpool.Set(pool.Platform.Libvirt)
-		pool.Platform.Libvirt = &mpool
-		sets, err := libvirt.MachineSets(clusterID.ClusterID, ic, &pool, "worker", "worker-user-data")
-		if err != nil {
-			return errors.Wrap(err, "failed to create worker machine objects")
-		}
-
-		list := listFromMachineSets(sets)
-		raw, err := yaml.Marshal(list)
-		if err != nil {
-			return errors.Wrap(err, "failed to marshal")
-		}
-		w.MachineSetRaw = raw
-	case nonetypes.Name:
-		// This is needed to ensure that roundtrip generate-load tests pass when
-		// comparing this value. Otherwise, generate will use a nil value while
-		// load will use an empty byte slice.
-		w.MachineSetRaw = []byte{}
-	case openstacktypes.Name:
-		mpool := defaultOpenStackMachinePoolPlatform(ic.Platform.OpenStack.FlavorName)
-		mpool.Set(ic.Platform.OpenStack.DefaultMachinePlatform)
-		mpool.Set(pool.Platform.OpenStack)
-		pool.Platform.OpenStack = &mpool
-
-		sets, err := openstack.MachineSets(clusterID.ClusterID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
-		if err != nil {
-			return errors.Wrap(err, "failed to create master machine objects")
-		}
-
-		list := listFromMachineSetsDeprecated(sets)
-		w.MachineSetRaw, err = yaml.Marshal(list)
-		if err != nil {
-			return errors.Wrap(err, "failed to marshal")
-		}
-	default:
-		return fmt.Errorf("invalid Platform")
 	}
 	return nil
 }
 
-func workerPool(pools []types.MachinePool) types.MachinePool {
-	for idx, pool := range pools {
-		if pool.Name == "worker" {
-			return pools[idx]
+// Files returns the files generated by the asset.
+func (w *Worker) Files() []*asset.File {
+	files := make([]*asset.File, 0, 1+len(w.MachineConfigFiles)+len(w.MachineSetFiles))
+	if w.UserDataFile != nil {
+		files = append(files, w.UserDataFile)
+	}
+	files = append(files, w.MachineConfigFiles...)
+	files = append(files, w.MachineSetFiles...)
+	return files
+}
+
+// Load reads the asset files from disk.
+func (w *Worker) Load(f asset.FileFetcher) (found bool, err error) {
+	file, err := f.FetchByName(filepath.Join(directory, workerUserDataFileName))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
 		}
+		return false, err
 	}
-	return types.MachinePool{}
+	w.UserDataFile = file
+
+	w.MachineConfigFiles, err = machineconfig.Load(f, "worker", directory)
+	if err != nil {
+		return true, err
+	}
+
+	fileList, err := f.FetchByPattern(filepath.Join(directory, workerMachineSetFileNamePattern))
+	if err != nil {
+		return true, err
+	}
+
+	w.MachineSetFiles = fileList
+	return true, nil
 }
 
-func applyTemplateData(template *template.Template, templateData interface{}) []byte {
-	buf := &bytes.Buffer{}
-	if err := template.Execute(buf, templateData); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
-}
+// MachineSets returns MachineSet manifest structures.
+func (w *Worker) MachineSets() ([]machineapi.MachineSet, error) {
+	scheme := runtime.NewScheme()
+	awsapi.AddToScheme(scheme)
+	libvirtapi.AddToScheme(scheme)
+	openstackapi.AddToScheme(scheme)
+	azureapi.AddToScheme(scheme)
+	decoder := serializer.NewCodecFactory(scheme).UniversalDecoder(
+		awsprovider.SchemeGroupVersion,
+		libvirtprovider.SchemeGroupVersion,
+		openstackprovider.SchemeGroupVersion,
+		azureprovider.SchemeGroupVersion,
+	)
 
-func listFromMachineSets(objs []machineapi.MachineSet) *metav1.List {
-	list := &metav1.List{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "List",
-		},
-	}
-	for idx := range objs {
-		list.Items = append(list.Items, runtime.RawExtension{Object: &objs[idx]})
-	}
-	return list
-}
+	machineSets := []machineapi.MachineSet{}
+	for i, file := range w.MachineSetFiles {
+		machineSet := &machineapi.MachineSet{}
+		err := yaml.Unmarshal(file.Data, &machineSet)
+		if err != nil {
+			return machineSets, errors.Wrapf(err, "unmarshal worker %d", i)
+		}
 
-func listFromMachineSetsDeprecated(objs []clusterapi.MachineSet) *metav1.List {
-	list := &metav1.List{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "List",
-		},
+		obj, _, err := decoder.Decode(machineSet.Spec.Template.Spec.ProviderSpec.Value.Raw, nil, nil)
+		if err != nil {
+			return machineSets, errors.Wrapf(err, "unmarshal worker %d", i)
+		}
+
+		machineSet.Spec.Template.Spec.ProviderSpec.Value = &runtime.RawExtension{Object: obj}
+		machineSets = append(machineSets, *machineSet)
 	}
-	for idx := range objs {
-		list.Items = append(list.Items, runtime.RawExtension{Object: &objs[idx]})
-	}
-	return list
+
+	return machineSets, nil
 }

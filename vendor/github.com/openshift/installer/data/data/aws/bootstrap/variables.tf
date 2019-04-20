@@ -3,9 +3,9 @@ variable "ami" {
   description = "The AMI ID for the bootstrap node."
 }
 
-variable "cluster_name" {
+variable "cluster_id" {
   type        = "string"
-  description = "The name of the cluster."
+  description = "The identifier for the cluster."
 }
 
 variable "ignition" {
@@ -15,8 +15,7 @@ variable "ignition" {
 
 variable "instance_type" {
   type        = "string"
-  default     = "m4.large"
-  description = "The EC2 instance type for the bootstrap node."
+  description = "The instance type of the bootstrap node."
 }
 
 variable "subnet_id" {

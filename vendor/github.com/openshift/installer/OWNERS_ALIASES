@@ -5,7 +5,6 @@ aliases:
     - aaronlevy
     - abhinavdahiya
     - crawford
-    - rajatchopra
     - smarterclayton
     - staebler
     - steveeJ
@@ -17,3 +16,8 @@ aliases:
     - tomassedovic
     - hardys
     - russellb
+    - trown
+  vsphere-approvers:
+    - abhinavdahiya
+    - dav1x
+    - staebler

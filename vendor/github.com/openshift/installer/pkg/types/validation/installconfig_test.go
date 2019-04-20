@@ -7,13 +7,16 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/openshift/installer/pkg/ipnet"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
 	"github.com/openshift/installer/pkg/types/libvirt"
+	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
 	"github.com/openshift/installer/pkg/types/openstack/validation/mock"
+	"github.com/openshift/installer/pkg/types/vsphere"
 )
 
 func validInstallConfig() *types.InstallConfig {
@@ -26,24 +29,18 @@ func validInstallConfig() *types.InstallConfig {
 		},
 		BaseDomain: "test-domain",
 		Networking: &types.Networking{
-			Type:        "OpenShiftSDN",
-			MachineCIDR: ipnet.MustParseCIDR("10.0.0.0/16"),
-			ServiceCIDR: ipnet.MustParseCIDR("172.30.0.0/16"),
-			ClusterNetworks: []types.ClusterNetworkEntry{
+			NetworkType:    "OpenShiftSDN",
+			MachineCIDR:    ipnet.MustParseCIDR("10.0.0.0/16"),
+			ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("172.30.0.0/16")},
+			ClusterNetwork: []types.ClusterNetworkEntry{
 				{
-					CIDR:             *ipnet.MustParseCIDR("192.168.1.0/24"),
-					HostSubnetLength: 4,
+					CIDR:       *ipnet.MustParseCIDR("192.168.1.0/24"),
+					HostPrefix: 28,
 				},
 			},
 		},
-		Machines: []types.MachinePool{
-			{
-				Name: "master",
-			},
-			{
-				Name: "worker",
-			},
-		},
+		ControlPlane: validMachinePool("master"),
+		Compute:      []types.MachinePool{*validMachinePool("worker")},
 		Platform: types.Platform{
 			AWS: validAWSPlatform(),
 		},
@@ -64,7 +61,16 @@ func validLibvirtPlatform() *libvirt.Platform {
 			IfName: "tt0",
 		},
 	}
+}
 
+func validVSpherePlatform() *vsphere.Platform {
+	return &vsphere.Platform{
+		VCenter:          "test-server",
+		Username:         "test-username",
+		Password:         "test-password",
+		Datacenter:       "test-datacenter",
+		DefaultDatastore: "test-datastore",
+	}
 }
 
 func TestValidateInstallConfig(t *testing.T) {
@@ -76,6 +82,15 @@ func TestValidateInstallConfig(t *testing.T) {
 		{
 			name:          "minimal",
 			installConfig: validInstallConfig(),
+		},
+		{
+			name: "invalid version",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.APIVersion = "bad-version"
+				return c
+			}(),
+			expectedError: fmt.Sprintf(`^apiVersion: Invalid value: "bad-version": install-config version must be %q`, types.InstallConfigVersion),
 		},
 		{
 			name: "invalid name",
@@ -127,86 +142,204 @@ func TestValidateInstallConfig(t *testing.T) {
 			name: "invalid network type",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Networking.Type = ""
+				c.Networking.NetworkType = ""
 				return c
 			}(),
-			expectedError: `^networking.type: Required value: network provider type required$`,
+			expectedError: `^networking.networkType: Required value: network provider type required$`,
 		},
 		{
-			name: "invalid service cidr",
+			name: "missing service network",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Networking.ServiceCIDR = &ipnet.IPNet{}
+				c.Networking.ServiceNetwork = nil
 				return c
 			}(),
-			expectedError: `^networking\.serviceCIDR: Invalid value: "<nil>": must use IPv4$`,
+			expectedError: `^networking\.serviceNetwork: Required value: a service network is required$`,
 		},
 		{
-			name: "overlapping cluster network cidr",
+			name: "invalid service network",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Networking.ClusterNetworks[0].CIDR = *ipnet.MustParseCIDR("172.30.2.0/24")
+				c.Networking.ServiceNetwork[0] = *ipnet.MustParseCIDR("13.0.128.0/16")
 				return c
 			}(),
-			expectedError: `^networking\.clusterNetworks\[0]\.cidr: Invalid value: "172\.30\.2\.0/24": cluster network CIDR must not overlap with serviceCIDR$`,
+			expectedError: `^networking\.serviceNetwork\[0\]: Invalid value: "13\.0\.128\.0/16": invalid network address. got 13\.0\.128\.0/16, expecting 13\.0\.0\.0/16$`,
 		},
 		{
-			name: "cluster network host subnet length too large",
+			name: "overlapping service network and machine cidr",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Networking.ClusterNetworks[0].CIDR = *ipnet.MustParseCIDR("192.168.1.0/24")
-				c.Networking.ClusterNetworks[0].HostSubnetLength = 9
+				c.Networking.ServiceNetwork[0] = *ipnet.MustParseCIDR("10.0.2.0/24")
 				return c
 			}(),
-			expectedError: `^networking\.clusterNetworks\[0]\.hostSubnetLength: Invalid value: 9: cluster network host subnet must not be larger than CIDR 192.168.1.0/24$`,
+			expectedError: `^networking\.serviceNetwork\[0\]: Invalid value: "10\.0\.2\.0/24": service network must not overlap with machineCIDR$`,
 		},
 		{
-			name: "missing master machine pool",
+			name: "overlapping service network and service network",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Machines = []types.MachinePool{
-					{
-						Name: "worker",
-					},
+				c.Networking.ServiceNetwork = []ipnet.IPNet{
+					*ipnet.MustParseCIDR("13.0.0.0/16"),
+					*ipnet.MustParseCIDR("13.0.2.0/24"),
+				}
+
+				return c
+			}(),
+			// also triggers the only-one-service-network validation
+			expectedError: `^\[networking\.serviceNetwork\[1\]: Invalid value: "13\.0\.2\.0/24": service network must not overlap with service network 0, networking\.serviceNetwork: Invalid value: "13\.0\.0\.0/16, 13\.0\.2\.0/24": only one service network can be specified]$`,
+		},
+		{
+			name: "missing machine cidr",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.MachineCIDR = nil
+				return c
+			}(),
+			expectedError: `^networking\.machineCIDR: Required value: a machine CIDR is required$`,
+		},
+		{
+			name: "invalid machine cidr",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.MachineCIDR = ipnet.MustParseCIDR("11.0.128.0/16")
+				return c
+			}(),
+			expectedError: `^networking\.machineCIDR: Invalid value: "11\.0\.128\.0/16": invalid network address. got 11\.0\.128\.0/16, expecting 11\.0\.0\.0/16$`,
+		},
+		{
+			name: "invalid cluster network",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.ClusterNetwork = []types.ClusterNetworkEntry{{CIDR: *ipnet.MustParseCIDR("12.0.128.0/16"), HostPrefix: 23}}
+				return c
+			}(),
+			expectedError: `^networking\.clusterNetwork\[0]\.cidr: Invalid value: "12\.0\.128\.0/16": invalid network address. got 12\.0\.128\.0/16, expecting 12\.0\.0\.0/16$`,
+		},
+		{
+			name: "overlapping cluster network and machine cidr",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.ClusterNetwork[0].CIDR = *ipnet.MustParseCIDR("10.0.3.0/24")
+				return c
+			}(),
+			expectedError: `^networking\.clusterNetwork\[0]\.cidr: Invalid value: "10\.0\.3\.0/24": cluster network must not overlap with machine CIDR$`,
+		},
+		{
+			name: "overlapping cluster network and service network",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.ClusterNetwork[0].CIDR = *ipnet.MustParseCIDR("172.30.2.0/24")
+				return c
+			}(),
+			expectedError: `^networking\.clusterNetwork\[0]\.cidr: Invalid value: "172\.30\.2\.0/24": cluster network must not overlap with service network 0$`,
+		},
+		{
+			name: "overlapping cluster network and cluster network",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Networking.ClusterNetwork = []types.ClusterNetworkEntry{
+					{CIDR: *ipnet.MustParseCIDR("12.0.0.0/16"), HostPrefix: 23},
+					{CIDR: *ipnet.MustParseCIDR("12.0.3.0/24"), HostPrefix: 25},
 				}
 				return c
 			}(),
-			expectedError: `^machines: Required value: must specify a machine pool with a name of 'master'$`,
+			expectedError: `^networking\.clusterNetwork\[1]\.cidr: Invalid value: "12\.0\.3\.0/24": cluster network must not overlap with cluster network 0$`,
 		},
 		{
-			name: "missing worker machine pool",
+			name: "cluster network host prefix too large",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Machines = []types.MachinePool{
-					{
-						Name: "master",
-					},
+				c.Networking.ClusterNetwork[0].CIDR = *ipnet.MustParseCIDR("192.168.1.0/24")
+				c.Networking.ClusterNetwork[0].HostPrefix = 23
+				return c
+			}(),
+			expectedError: `^networking\.clusterNetwork\[0]\.hostPrefix: Invalid value: 23: cluster network host subnetwork prefix must not be larger size than CIDR 192.168.1.0/24$`,
+		},
+		{
+			name: "missing control plane",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ControlPlane = nil
+				return c
+			}(),
+			expectedError: `^controlPlane: Required value: controlPlane is required$`,
+		},
+		{
+			name: "control plane with 0 replicas",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ControlPlane.Replicas = pointer.Int64Ptr(0)
+				return c
+			}(),
+			expectedError: `^controlPlane.replicas: Invalid value: 0: number of control plane replicas must be positive$`,
+		},
+		{
+			name: "invalid control plane",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ControlPlane.Replicas = nil
+				return c
+			}(),
+			expectedError: `^controlPlane.replicas: Required value: replicas is required$`,
+		},
+		{
+			name: "missing compute",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Compute = nil
+				return c
+			}(),
+		},
+		{
+			name: "empty compute",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Compute = []types.MachinePool{}
+				return c
+			}(),
+		},
+		{
+			name: "duplicate compute",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Compute = []types.MachinePool{
+					*validMachinePool("worker"),
+					*validMachinePool("worker"),
 				}
 				return c
 			}(),
-			expectedError: `^machines: Required value: must specify a machine pool with a name of 'worker'$`,
+			expectedError: `^compute\[1\]\.name: Duplicate value: "worker"$`,
 		},
 		{
-			name: "duplicate machine pool",
+			name: "no compute replicas",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Machines = append(c.Machines, types.MachinePool{
-					Name: "master",
-				})
+				c.Compute = []types.MachinePool{
+					func() types.MachinePool {
+						p := *validMachinePool("worker")
+						p.Replicas = pointer.Int64Ptr(0)
+						return p
+					}(),
+				}
 				return c
 			}(),
-			expectedError: `^machines\[2]: Duplicate value: types\.MachinePool{Name:"master", Replicas:\(\*int64\)\(nil\), Platform:types\.MachinePoolPlatform{AWS:\(\*aws\.MachinePool\)\(nil\), Libvirt:\(\*libvirt\.MachinePool\)\(nil\), OpenStack:\(\*openstack\.MachinePool\)\(nil\)}}$`,
 		},
 		{
-			name: "invalid machine pool",
+			name: "invalid compute",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Machines = append(c.Machines, types.MachinePool{
-					Name: "other",
-				})
+				c.Compute = []types.MachinePool{
+					func() types.MachinePool {
+						p := *validMachinePool("worker")
+						p.Platform = types.MachinePoolPlatform{
+							OpenStack: &openstack.MachinePool{},
+						}
+						return p
+					}(),
+				}
 				return c
 			}(),
-			expectedError: `^machines\[2]\.name: Unsupported value: "other": supported values: "master", "worker"$`,
+			expectedError: `^compute\[0\]\.platform.openstack: Invalid value: openstack.MachinePool{FlavorName:""}: cannot specify "openstack" for machine pool when cluster is using "aws"$`,
 		},
 		{
 			name: "missing platform",
@@ -215,7 +348,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform = types.Platform{}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: types\.Platform{AWS:\(\*aws\.Platform\)\(nil\), Libvirt:\(\*libvirt\.Platform\)\(nil\), None:\(\*none\.Platform\)\(nil\), OpenStack:\(\*openstack\.Platform\)\(nil\)}: must specify one of the platforms \(aws, none, openstack\)$`,
+			expectedError: `^platform: Invalid value: types\.Platform{((, )?\w+:\(\*\w+\.Platform\)\(nil\))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "multiple platforms",
@@ -224,7 +357,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform.Libvirt = validLibvirtPlatform()
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: types\.Platform{AWS:\(\*aws\.Platform\)\(0x[0-9a-f]*\), Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\), None:\(\*none\.Platform\)\(nil\), OpenStack:\(\*openstack\.Platform\)\(nil\)}: must only specify a single type of platform; cannot use both "aws" and "libvirt"$`,
+			expectedError: `^platform: Invalid value: types\.Platform{((, )?\w+:\(\*\w+\.Platform\)\(\w+\))+}: must only specify a single type of platform; cannot use both "aws" and "libvirt"$`,
 		},
 		{
 			name: "invalid aws platform",
@@ -235,7 +368,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				}
 				return c
 			}(),
-			expectedError: `^platform\.aws\.region: Unsupported value: "": supported values: "ap-northeast-1", "ap-northeast-2", "ap-northeast-3", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ca-central-1", "cn-north-1", "cn-northwest-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "sa-east-1", "us-east-1", "us-east-2", "us-west-1", "us-west-2"$`,
+			expectedError: `^platform\.aws\.region: Unsupported value: "": supported values: "ap-northeast-1", "ap-northeast-2", "ap-south-1", "ap-southeast-1", "ap-southeast-2", "ca-central-1", "eu-central-1", "eu-west-1", "eu-west-2", "eu-west-3", "sa-east-1", "us-east-1", "us-east-2", "us-west-1", "us-west-2"$`,
 		},
 		{
 			name: "valid libvirt platform",
@@ -246,7 +379,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: types\.Platform{AWS:\(\*aws\.Platform\)\(nil\), Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\), None:\(\*none\.Platform\)\(nil\), OpenStack:\(\*openstack\.Platform\)\(nil\)}: must specify one of the platforms \(aws, none, openstack\)$`,
+			expectedError: `^platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "invalid libvirt platform",
@@ -258,7 +391,17 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform.Libvirt.URI = ""
 				return c
 			}(),
-			expectedError: `^\[platform: Invalid value: types\.Platform{AWS:\(\*aws\.Platform\)\(nil\), Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\), None:\(\*none\.Platform\)\(nil\), OpenStack:\(\*openstack\.Platform\)\(nil\)}: must specify one of the platforms \(aws, none, openstack\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
+			expectedError: `^\[platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
+		},
+		{
+			name: "valid none platform",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Platform = types.Platform{
+					None: &none.Platform{},
+				}
+				return c
+			}(),
 		},
 		{
 			name: "valid openstack platform",
@@ -285,6 +428,28 @@ func TestValidateInstallConfig(t *testing.T) {
 				return c
 			}(),
 			expectedError: `^platform\.openstack\.cloud: Unsupported value: "": supported values: "test-cloud"$`,
+		},
+		{
+			name: "valid vsphere platform",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Platform = types.Platform{
+					VSphere: validVSpherePlatform(),
+				}
+				return c
+			}(),
+		},
+		{
+			name: "invalid vsphere platform",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.Platform = types.Platform{
+					VSphere: validVSpherePlatform(),
+				}
+				c.Platform.VSphere.VCenter = ""
+				return c
+			}(),
+			expectedError: `^platform\.vsphere.vCenter: Required value: must specify the name of the vCenter$`,
 		},
 	}
 	for _, tc := range cases {

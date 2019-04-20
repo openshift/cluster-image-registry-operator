@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All rights reserved.
+// Copyright 2019 Google LLC.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,13 +6,39 @@
 
 // Package cloudresourcemanager provides access to the Cloud Resource Manager API.
 //
-// See https://cloud.google.com/resource-manager
+// For product documentation, see: https://cloud.google.com/resource-manager
+//
+// Creating a client
 //
 // Usage example:
 //
 //   import "google.golang.org/api/cloudresourcemanager/v1beta1"
 //   ...
-//   cloudresourcemanagerService, err := cloudresourcemanager.New(oauthHttpClient)
+//   ctx := context.Background()
+//   cloudresourcemanagerService, err := cloudresourcemanager.NewService(ctx)
+//
+// In this example, Google Application Default Credentials are used for authentication.
+//
+// For information on how to create and obtain Application Default Credentials, see https://developers.google.com/identity/protocols/application-default-credentials.
+//
+// Other authentication options
+//
+// By default, all available scopes (see "Constants") are used to authenticate. To restrict scopes, use option.WithScopes:
+//
+//   cloudresourcemanagerService, err := cloudresourcemanager.NewService(ctx, option.WithScopes(cloudresourcemanager.CloudPlatformReadOnlyScope))
+//
+// To use an API key for authentication (note: some APIs do not support API keys), use option.WithAPIKey:
+//
+//   cloudresourcemanagerService, err := cloudresourcemanager.NewService(ctx, option.WithAPIKey("AIza..."))
+//
+// To use an OAuth token (e.g., a user token obtained via a three-legged OAuth flow), use option.WithTokenSource:
+//
+//   config := &oauth2.Config{...}
+//   // ...
+//   token, err := config.Exchange(ctx, ...)
+//   cloudresourcemanagerService, err := cloudresourcemanager.NewService(ctx, option.WithTokenSource(config.TokenSource(ctx, token)))
+//
+// See https://godoc.org/google.golang.org/api/option/ for details on options.
 package cloudresourcemanager // import "google.golang.org/api/cloudresourcemanager/v1beta1"
 
 import (
@@ -29,6 +55,8 @@ import (
 
 	gensupport "google.golang.org/api/gensupport"
 	googleapi "google.golang.org/api/googleapi"
+	option "google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -59,6 +87,33 @@ const (
 	CloudPlatformReadOnlyScope = "https://www.googleapis.com/auth/cloud-platform.read-only"
 )
 
+// NewService creates a new Service.
+func NewService(ctx context.Context, opts ...option.ClientOption) (*Service, error) {
+	scopesOption := option.WithScopes(
+		"https://www.googleapis.com/auth/cloud-platform",
+		"https://www.googleapis.com/auth/cloud-platform.read-only",
+	)
+	// NOTE: prepend, so we don't override user-specified scopes.
+	opts = append([]option.ClientOption{scopesOption}, opts...)
+	client, endpoint, err := htransport.NewClient(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	s, err := New(client)
+	if err != nil {
+		return nil, err
+	}
+	if endpoint != "" {
+		s.BasePath = endpoint
+	}
+	return s, nil
+}
+
+// New creates a new Service. It uses the provided http.Client for requests.
+//
+// Deprecated: please use NewService instead.
+// To provide a custom HTTP client, use option.WithHTTPClient.
+// If you are using google.golang.org/api/googleapis/transport.APIKey, use option.WithAPIKey with NewService instead.
 func New(client *http.Client) (*Service, error) {
 	if client == nil {
 		return nil, errors.New("client is nil")
@@ -288,9 +343,8 @@ func (s *AuditLogConfig) MarshalJSON() ([]byte, error) {
 
 // Binding: Associates `members` with a `role`.
 type Binding struct {
-	// Condition: Unimplemented. The condition that is associated with this
-	// binding.
-	// NOTE: an unsatisfied condition will not allow user access via
+	// Condition: The condition that is associated with this binding.
+	// NOTE: An unsatisfied condition will not allow user access via
 	// current
 	// binding. Different bindings, including their conditions, are
 	// examined
@@ -324,7 +378,7 @@ type Binding struct {
 	//    For example, `admins@example.com`.
 	//
 	//
-	// * `domain:{domain}`: A Google Apps domain name that represents all
+	// * `domain:{domain}`: The G Suite domain (primary) that represents all
 	// the
 	//    users of that domain. For example, `google.com` or
 	// `example.com`.
@@ -949,15 +1003,16 @@ type Project struct {
 	//   "ACTIVE" - The normal and active state.
 	//   "DELETE_REQUESTED" - The project has been marked for deletion by
 	// the user
-	// (by invoking DeleteProject)
+	// (by invoking
+	// DeleteProject)
 	// or by the system (Google Cloud Platform).
 	// This can generally be reversed by invoking UndeleteProject.
 	//   "DELETE_IN_PROGRESS" - This lifecycle state is no longer used and
 	// is not returned by the API.
 	LifecycleState string `json:"lifecycleState,omitempty"`
 
-	// Name: The user-assigned display name of the Project.
-	// It must be 4 to 30 characters.
+	// Name: The optional user-assigned display name of the Project.
+	// When present it must be between 4 to 30 characters.
 	// Allowed characters are: lowercase and uppercase letters,
 	// numbers,
 	// hyphen, single-quote, double-quote, space, and exclamation
@@ -1359,7 +1414,7 @@ func (c *OrganizationsGetCall) Do(opts ...googleapi.CallOption) (*Organization, 
 	//   ],
 	//   "parameters": {
 	//     "name": {
-	//       "description": "The resource name of the Organization to fetch, e.g. \"organizations/1234\".",
+	//       "description": "The resource name of the Organization to fetch. This is the organization's\nrelative path in the API, formatted as \"organizations/[organizationId]\".\nFor example, \"organizations/1234\".",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+$",
 	//       "required": true,

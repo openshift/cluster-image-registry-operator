@@ -9,8 +9,8 @@ resource "aws_vpc" "new_vpc" {
   enable_dns_support   = true
 
   tags = "${merge(map(
-      "Name", "${var.cluster_name}.${var.base_domain}",
-    ), var.tags)}"
+    "Name", "${var.cluster_id}-vpc",
+  ), var.tags)}"
 }
 
 resource "aws_vpc_endpoint" "s3" {

@@ -13,9 +13,11 @@ import (
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	"github.com/openshift/installer/pkg/rhcos"
 	"github.com/openshift/installer/pkg/types/aws"
+	"github.com/openshift/installer/pkg/types/azure"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
+	"github.com/openshift/installer/pkg/types/vsphere"
 )
 
 // Image is location of RHCOS image.
@@ -55,12 +57,15 @@ func (i *Image) Generate(p asset.Parents) error {
 	defer cancel()
 	switch config.Platform.Name() {
 	case aws.Name:
-		osimage, err = rhcos.AMI(ctx, rhcos.DefaultChannel, config.Platform.AWS.Region)
+		osimage, err = rhcos.AMI(ctx, config.Platform.AWS.Region)
 	case libvirt.Name:
-		osimage, err = rhcos.QEMU(ctx, rhcos.DefaultChannel)
+		osimage, err = rhcos.QEMU(ctx)
 	case openstack.Name:
 		osimage = "rhcos"
-	case none.Name:
+	case azure.Name:
+		//TODO(serbrech): change to right image once available.
+		osimage = "/resourceGroups/rhcos_images/providers/Microsoft.Compute/images/rhcostestimage"
+	case none.Name, vsphere.Name:
 	default:
 		return errors.New("invalid Platform")
 	}

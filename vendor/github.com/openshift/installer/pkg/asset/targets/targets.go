@@ -9,6 +9,7 @@ import (
 	"github.com/openshift/installer/pkg/asset/kubeconfig"
 	"github.com/openshift/installer/pkg/asset/machines"
 	"github.com/openshift/installer/pkg/asset/manifests"
+	"github.com/openshift/installer/pkg/asset/password"
 	"github.com/openshift/installer/pkg/asset/templates/content/bootkube"
 	"github.com/openshift/installer/pkg/asset/templates/content/openshift"
 	"github.com/openshift/installer/pkg/asset/tls"
@@ -23,6 +24,7 @@ var (
 	// Manifests are the manifests targeted assets.
 	Manifests = []asset.WritableAsset{
 		&machines.Master{},
+		&machines.Worker{},
 		&manifests.Manifests{},
 		&manifests.Openshift{},
 	}
@@ -31,7 +33,6 @@ var (
 	ManifestTemplates = []asset.WritableAsset{
 		&bootkube.KubeCloudConfig{},
 		&bootkube.MachineConfigServerTLSSecret{},
-		&bootkube.Pull{},
 		&bootkube.CVOOverrides{},
 		&bootkube.HostEtcdServiceEndpointsKubeSystem{},
 		&bootkube.KubeSystemConfigmapEtcdServingCA{},
@@ -40,6 +41,9 @@ var (
 		&bootkube.OpenshiftMachineConfigOperator{},
 		&bootkube.EtcdServiceKubeSystem{},
 		&bootkube.HostEtcdServiceKubeSystem{},
+		&bootkube.OpenshiftConfigSecretEtcdMetricClient{},
+		&bootkube.OpenshiftConfigConfigmapEtcdMetricServingCA{},
+		&bootkube.OpenshiftConfigSecretPullSecret{},
 		&openshift.BindingDiscovery{},
 		&openshift.CloudCredsSecret{},
 		&openshift.KubeadminPasswordSecret{},
@@ -48,7 +52,8 @@ var (
 
 	// IgnitionConfigs are the ignition-configs targeted assets.
 	IgnitionConfigs = []asset.WritableAsset{
-		&kubeconfig.Admin{},
+		&kubeconfig.AdminClient{},
+		&password.KubeadminPassword{},
 		&machine.Master{},
 		&machine.Worker{},
 		&bootstrap.Bootstrap{},
@@ -58,7 +63,8 @@ var (
 	// Cluster are the cluster targeted assets.
 	Cluster = []asset.WritableAsset{
 		&cluster.TerraformVariables{},
-		&kubeconfig.Admin{},
+		&kubeconfig.AdminClient{},
+		&password.KubeadminPassword{},
 		&tls.JournalCertKey{},
 		&cluster.Metadata{},
 		&cluster.Cluster{},

@@ -31,7 +31,7 @@ then
 fi
 
 MODE="${MODE:-release}"
-LDFLAGS="${LDFLAGS} -X main.version=$(git describe --always --abbrev=40 --dirty)"
+LDFLAGS="${LDFLAGS} -X github.com/openshift/installer/pkg/version.Raw=$(git describe --always --abbrev=40 --dirty) -X github.com/openshift/installer/pkg/version.Commit=$(git rev-parse --verify 'HEAD^{commit}')"
 TAGS="${TAGS:-}"
 OUTPUT="${OUTPUT:-bin/openshift-install}"
 export CGO_ENABLED=0
@@ -42,11 +42,7 @@ release)
 	TAGS="${TAGS} release"
 	if test -n "${RELEASE_IMAGE}"
 	then
-		LDFLAGS="${LDFLAGS} -X github.com/openshift/installer/pkg/asset/ignition/bootstrap.defaultReleaseImage=${RELEASE_IMAGE}"
-	fi
-	if test -n "${RHCOS_BUILD_NAME}"
-	then
-		LDFLAGS="${LDFLAGS} -X github.com/openshift/installer/pkg/rhcos.buildName=${RHCOS_BUILD_NAME}"
+		LDFLAGS="${LDFLAGS} -X github.com/openshift/installer/pkg/asset/ignition/bootstrap.defaultReleaseImageOriginal=${RELEASE_IMAGE}"
 	fi
 	if test "${SKIP_GENERATION}" != y
 	then

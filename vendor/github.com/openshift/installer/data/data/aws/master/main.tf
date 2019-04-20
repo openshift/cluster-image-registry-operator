@@ -3,13 +3,13 @@ locals {
 }
 
 resource "aws_iam_instance_profile" "master" {
-  name = "${var.cluster_name}-master-profile"
+  name = "${var.cluster_id}-master-profile"
 
   role = "${aws_iam_role.master_role.name}"
 }
 
 resource "aws_iam_role" "master_role" {
-  name = "${var.cluster_name}-master-role"
+  name = "${var.cluster_id}-master-role"
   path = "/"
 
   assume_role_policy = <<EOF
@@ -28,11 +28,13 @@ resource "aws_iam_role" "master_role" {
 }
 EOF
 
-  tags = "${var.tags}"
+  tags = "${merge(map(
+    "Name", "${var.cluster_id}-master-role",
+  ), var.tags)}"
 }
 
 resource "aws_iam_role_policy" "master_policy" {
-  name = "${var.cluster_name}_master_policy"
+  name = "${var.cluster_id}-master-policy"
   role = "${aws_iam_role.master_role.id}"
 
   policy = <<EOF
@@ -66,16 +68,29 @@ resource "aws_iam_role_policy" "master_policy" {
 EOF
 }
 
+resource "aws_network_interface" "master" {
+  count     = "${var.instance_count}"
+  subnet_id = "${var.az_to_subnet_id[var.availability_zones[count.index]]}"
+
+  security_groups = ["${var.master_sg_ids}"]
+
+  tags = "${merge(map(
+    "Name", "${var.cluster_id}-master-${count.index}",
+  ), var.tags)}"
+}
+
 resource "aws_instance" "master" {
   count = "${var.instance_count}"
   ami   = "${var.ec2_ami}"
 
   iam_instance_profile = "${aws_iam_instance_profile.master.name}"
-  instance_type        = "${var.ec2_type}"
-  subnet_id            = "${element(var.subnet_ids, count.index)}"
+  instance_type        = "${var.instance_type}"
   user_data            = "${var.user_data_ign}"
 
-  vpc_security_group_ids = ["${var.master_sg_ids}"]
+  network_interface {
+    network_interface_id = "${aws_network_interface.master.*.id[count.index]}"
+    device_index         = 0
+  }
 
   lifecycle {
     # Ignore changes in the AMI which force recreation of the resource. This
@@ -84,10 +99,11 @@ resource "aws_instance" "master" {
     ignore_changes = ["ami"]
   }
 
+  # `clusterid` is required for machine-api
   tags = "${merge(map(
-      "Name", "${var.cluster_name}-master-${count.index}",
-      "clusterid", "${var.cluster_name}"
-    ), var.tags)}"
+    "Name", "${var.cluster_id}-master-${count.index}",
+    "clusterid", "${var.cluster_id}",
+  ), var.tags)}"
 
   root_block_device {
     volume_type = "${var.root_volume_type}"
@@ -96,7 +112,7 @@ resource "aws_instance" "master" {
   }
 
   volume_tags = "${merge(map(
-    "Name", "${var.cluster_name}-master-${count.index}-vol",
+    "Name", "${var.cluster_id}-master-${count.index}-vol",
   ), var.tags)}"
 }
 

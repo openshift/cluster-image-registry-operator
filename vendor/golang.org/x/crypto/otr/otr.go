@@ -637,7 +637,7 @@ func (c *Conversation) serializeDHKey() []byte {
 }
 
 func (c *Conversation) processDHKey(in []byte) (isSame bool, err error) {
-	gy, _, ok := getMPI(in)
+	gy, in, ok := getMPI(in)
 	if !ok {
 		err = errors.New("otr: corrupt DH key message")
 		return

@@ -20,7 +20,7 @@ type kubeconfig struct {
 
 // generate generates the kubeconfig.
 func (k *kubeconfig) generate(
-	rootCA tls.CertKeyInterface,
+	ca tls.CertInterface,
 	clientCertKey tls.CertKeyInterface,
 	installConfig *types.InstallConfig,
 	userName string,
@@ -31,8 +31,8 @@ func (k *kubeconfig) generate(
 			{
 				Name: installConfig.ObjectMeta.Name,
 				Cluster: clientcmd.Cluster{
-					Server: fmt.Sprintf("https://%s-api.%s:6443", installConfig.ObjectMeta.Name, installConfig.BaseDomain),
-					CertificateAuthorityData: []byte(rootCA.Cert()),
+					Server: fmt.Sprintf("https://api.%s:6443", installConfig.ClusterDomain()),
+					CertificateAuthorityData: ca.Cert(),
 				},
 			},
 		},
@@ -40,8 +40,8 @@ func (k *kubeconfig) generate(
 			{
 				Name: userName,
 				AuthInfo: clientcmd.AuthInfo{
-					ClientCertificateData: []byte(clientCertKey.Cert()),
-					ClientKeyData:         []byte(clientCertKey.Key()),
+					ClientCertificateData: clientCertKey.Cert(),
+					ClientKeyData:         clientCertKey.Key(),
 				},
 			},
 		},
@@ -90,7 +90,7 @@ func (k *kubeconfig) load(f asset.FileFetcher, name string) (found bool, err err
 
 	config := &clientcmd.Config{}
 	if err := yaml.Unmarshal(file.Data, config); err != nil {
-		return false, errors.Wrapf(err, "failed to unmarshal")
+		return false, errors.Wrap(err, "failed to unmarshal")
 	}
 
 	k.File, k.Config = file, config

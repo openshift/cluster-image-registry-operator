@@ -265,26 +265,11 @@ func (c *fakeDiscoveryClient) ServerResourcesForGroupVersion(groupVersion string
 	return nil, errors.NewNotFound(schema.GroupResource{}, "")
 }
 
-// Deprecated: use ServerGroupsAndResources instead.
 func (c *fakeDiscoveryClient) ServerResources() ([]*metav1.APIResourceList, error) {
-	_, rs, err := c.ServerGroupsAndResources()
-	return rs, err
-}
-
-func (c *fakeDiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-	sgs, err := c.ServerGroups()
-	if err != nil {
-		return nil, nil, err
-	}
-	resultGroups := []*metav1.APIGroup{}
-	for i := range sgs.Groups {
-		resultGroups = append(resultGroups, &sgs.Groups[i])
-	}
 	if c.serverResourcesHandler != nil {
-		rs, err := c.serverResourcesHandler()
-		return resultGroups, rs, err
+		return c.serverResourcesHandler()
 	}
-	return resultGroups, []*metav1.APIResourceList{}, nil
+	return []*metav1.APIResourceList{}, nil
 }
 
 func (c *fakeDiscoveryClient) ServerPreferredResources() ([]*metav1.APIResourceList, error) {

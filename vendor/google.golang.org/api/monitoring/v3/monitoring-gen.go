@@ -1,4 +1,4 @@
-// Copyright 2018 Google Inc. All rights reserved.
+// Copyright 2019 Google LLC.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,13 +8,39 @@
 //
 // This package is DEPRECATED. Use package cloud.google.com/go/monitoring/apiv3 instead.
 //
-// See https://cloud.google.com/monitoring/api/
+// For product documentation, see: https://cloud.google.com/monitoring/api/
+//
+// Creating a client
 //
 // Usage example:
 //
 //   import "google.golang.org/api/monitoring/v3"
 //   ...
-//   monitoringService, err := monitoring.New(oauthHttpClient)
+//   ctx := context.Background()
+//   monitoringService, err := monitoring.NewService(ctx)
+//
+// In this example, Google Application Default Credentials are used for authentication.
+//
+// For information on how to create and obtain Application Default Credentials, see https://developers.google.com/identity/protocols/application-default-credentials.
+//
+// Other authentication options
+//
+// By default, all available scopes (see "Constants") are used to authenticate. To restrict scopes, use option.WithScopes:
+//
+//   monitoringService, err := monitoring.NewService(ctx, option.WithScopes(monitoring.MonitoringWriteScope))
+//
+// To use an API key for authentication (note: some APIs do not support API keys), use option.WithAPIKey:
+//
+//   monitoringService, err := monitoring.NewService(ctx, option.WithAPIKey("AIza..."))
+//
+// To use an OAuth token (e.g., a user token obtained via a three-legged OAuth flow), use option.WithTokenSource:
+//
+//   config := &oauth2.Config{...}
+//   // ...
+//   token, err := config.Exchange(ctx, ...)
+//   monitoringService, err := monitoring.NewService(ctx, option.WithTokenSource(config.TokenSource(ctx, token)))
+//
+// See https://godoc.org/google.golang.org/api/option/ for details on options.
 package monitoring // import "google.golang.org/api/monitoring/v3"
 
 import (
@@ -31,6 +57,8 @@ import (
 
 	gensupport "google.golang.org/api/gensupport"
 	googleapi "google.golang.org/api/googleapi"
+	option "google.golang.org/api/option"
+	htransport "google.golang.org/api/transport/http"
 )
 
 // Always reference these packages, just in case the auto-generated code
@@ -69,6 +97,35 @@ const (
 	MonitoringWriteScope = "https://www.googleapis.com/auth/monitoring.write"
 )
 
+// NewService creates a new Service.
+func NewService(ctx context.Context, opts ...option.ClientOption) (*Service, error) {
+	scopesOption := option.WithScopes(
+		"https://www.googleapis.com/auth/cloud-platform",
+		"https://www.googleapis.com/auth/monitoring",
+		"https://www.googleapis.com/auth/monitoring.read",
+		"https://www.googleapis.com/auth/monitoring.write",
+	)
+	// NOTE: prepend, so we don't override user-specified scopes.
+	opts = append([]option.ClientOption{scopesOption}, opts...)
+	client, endpoint, err := htransport.NewClient(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+	s, err := New(client)
+	if err != nil {
+		return nil, err
+	}
+	if endpoint != "" {
+		s.BasePath = endpoint
+	}
+	return s, nil
+}
+
+// New creates a new Service. It uses the provided http.Client for requests.
+//
+// Deprecated: please use NewService instead.
+// To provide a custom HTTP client, use option.WithHTTPClient.
+// If you are using google.golang.org/api/googleapis/transport.APIKey, use option.WithAPIKey with NewService instead.
 func New(client *http.Client) (*Service, error) {
 	if client == nil {
 		return nil, errors.New("client is nil")
@@ -1237,10 +1294,10 @@ type Empty struct {
 // origin, etc.
 type Exemplar struct {
 	// Attachments: Contextual information about the example value. Examples
-	// are:Trace ID:
-	// type.googleapis.com/google.devtools.cloudtrace.v1.TraceLiteral
-	// string: type.googleapis.com/google.protobuf.StringValueLabels dropped
-	// during aggregation:
+	// are:Trace:
+	// type.googleapis.com/google.monitoring.v3.SpanContextLiteral string:
+	// type.googleapis.com/google.protobuf.StringValueLabels dropped during
+	// aggregation:
 	// type.googleapis.com/google.monitoring.v3.DroppedLabelsThere may be
 	// only a single attachment of any given message type in a single
 	// exemplar, and this is enforced by the system.
@@ -1651,7 +1708,8 @@ type HttpCheck struct {
 
 	// Path: The path to the page to run the check against. Will be combined
 	// with the host (specified within the MonitoredResource) and port to
-	// construct the full URL. Optional (defaults to "/").
+	// construct the full URL. Optional (defaults to "/"). If the provided
+	// path does not begin with "/", it will be prepended automatically.
 	Path string `json:"path,omitempty"`
 
 	// Port: The port to the page to run the check against. Will be combined
@@ -2897,7 +2955,7 @@ type NotificationChannel struct {
 	// Description: An optional human-readable description of this
 	// notification channel. This description may provide additional
 	// details, beyond the display name, for the channel. This may not
-	// exceeed 1024 Unicode characters.
+	// exceed 1024 Unicode characters.
 	Description string `json:"description,omitempty"`
 
 	// DisplayName: An optional human-readable name for this notification
@@ -3728,13 +3786,6 @@ type UptimeCheckConfig struct {
 	// owns this CheckConfig.
 	InternalCheckers []*InternalChecker `json:"internalCheckers,omitempty"`
 
-	// IsInternal: If this is true, then checks are made only from the
-	// 'internal_checkers'. If it is false, then checks are made only from
-	// the 'selected_regions'. It is an error to provide 'selected_regions'
-	// when is_internal is true, or to provide 'internal_checkers' when
-	// is_internal is false.
-	IsInternal bool `json:"isInternal,omitempty"`
-
 	// MonitoredResource: The monitored resource
 	// (https://cloud.google.com/monitoring/api/resources) associated with
 	// the configuration. The following monitored resource types are
@@ -3752,7 +3803,7 @@ type UptimeCheckConfig struct {
 	// Period: How often, in seconds, the uptime check is performed.
 	// Currently, the only supported values are 60s (1 minute), 300s (5
 	// minutes), 600s (10 minutes), and 900s (15 minutes). Optional,
-	// defaults to 300s.
+	// defaults to 60s.
 	Period string `json:"period,omitempty"`
 
 	// ResourceGroup: The group resource associated with the configuration.
@@ -5025,6 +5076,15 @@ func (r *ProjectsGroupsService) Delete(name string) *ProjectsGroupsDeleteCall {
 	return c
 }
 
+// Recursive sets the optional parameter "recursive": If this field is
+// true, then the request means to delete a group with all its
+// descendants. Otherwise, the request means to delete a group only when
+// it has no descendants. The default value is false.
+func (c *ProjectsGroupsDeleteCall) Recursive(recursive bool) *ProjectsGroupsDeleteCall {
+	c.urlParams_.Set("recursive", fmt.Sprint(recursive))
+	return c
+}
+
 // Fields allows partial responses to be retrieved. See
 // https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
 // for more information.
@@ -5124,6 +5184,11 @@ func (c *ProjectsGroupsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, err
 	//       "pattern": "^projects/[^/]+/groups/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
+	//     },
+	//     "recursive": {
+	//       "description": "If this field is true, then the request means to delete a group with all its descendants. Otherwise, the request means to delete a group only when it has no descendants. The default value is false.",
+	//       "location": "query",
+	//       "type": "boolean"
 	//     }
 	//   },
 	//   "path": "v3/{+name}",

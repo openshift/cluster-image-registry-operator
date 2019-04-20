@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ghodss/yaml"
+	"sigs.k8s.io/yaml"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -557,6 +557,22 @@ func TestMigratingFileSourceMissingSkip(t *testing.T) {
 
 	if _, err := os.Stat(destinationFile.Name()); !os.IsNotExist(err) {
 		t.Errorf("destination should not exist")
+	}
+}
+
+func TestFileLocking(t *testing.T) {
+	f, _ := ioutil.TempFile("", "")
+	defer os.Remove(f.Name())
+
+	err := lockFile(f.Name())
+	if err != nil {
+		t.Errorf("unexpected error while locking file: %v", err)
+	}
+	defer unlockFile(f.Name())
+
+	err = lockFile(f.Name())
+	if err == nil {
+		t.Error("expected error while locking file.")
 	}
 }
 

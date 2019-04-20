@@ -25,7 +25,7 @@ import (
 	"log"
 	"net/http"
 
-	"git.apache.org/thrift.git/lib/go/thrift"
+	"github.com/apache/thrift/lib/go/thrift"
 	gen "go.opencensus.io/exporter/jaeger/internal/gen-go/jaeger"
 	"go.opencensus.io/trace"
 	"google.golang.org/api/support/bundler"
@@ -192,6 +192,11 @@ func (e *Exporter) ExportSpan(data *trace.SpanData) {
 	// TODO(jbd): Handle oversized bundlers.
 }
 
+// As per the OpenCensus Status code mapping in
+//    https://opencensus.io/tracing/span/status/
+// the status is OK if the code is 0.
+const opencensusStatusCodeOK = 0
+
 func spanDataToThrift(data *trace.SpanData) *gen.Span {
 	tags := make([]*gen.Tag, 0, len(data.Attributes))
 	for k, v := range data.Attributes {
@@ -205,6 +210,12 @@ func spanDataToThrift(data *trace.SpanData) *gen.Span {
 		attributeToTag("status.code", data.Status.Code),
 		attributeToTag("status.message", data.Status.Message),
 	)
+
+	// Ensure that if Status.Code is not OK, that we set the "error" tag on the Jaeger span.
+	// See Issue https://github.com/census-instrumentation/opencensus-go/issues/1041
+	if data.Status.Code != opencensusStatusCodeOK {
+		tags = append(tags, attributeToTag("error", true))
+	}
 
 	var logs []*gen.Log
 	for _, a := range data.Annotations {
@@ -282,6 +293,13 @@ func attributeToTag(key string, a interface{}) *gen.Tag {
 			Key:   key,
 			VLong: &v,
 			VType: gen.TagType_LONG,
+		}
+	case float64:
+		v := float64(value)
+		tag = &gen.Tag{
+			Key:     key,
+			VDouble: &v,
+			VType:   gen.TagType_DOUBLE,
 		}
 	}
 	return tag

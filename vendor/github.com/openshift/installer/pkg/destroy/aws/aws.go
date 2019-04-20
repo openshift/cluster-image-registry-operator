@@ -3,10 +3,12 @@ package aws
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/elb"
@@ -18,6 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/openshift/installer/pkg/version"
 )
 
 var (
@@ -47,9 +52,15 @@ type ClusterUninstaller struct {
 	//   }
 	//
 	// will match resources with (a:b and c:d) or d:e.
-	Filters []Filter // filter(s) we will be searching for
-	Logger  logrus.FieldLogger
-	Region  string
+	Filters   []Filter // filter(s) we will be searching for
+	Logger    logrus.FieldLogger
+	Region    string
+	ClusterID string
+
+	// Session is the AWS session to be used for deletion.  If nil, a
+	// new session will be created based on the usual credential
+	// configuration (AWS_PROFILE, AWS_ACCESS_KEY_ID, etc.).
+	Session *session.Session
 }
 
 func (o *ClusterUninstaller) validate() error {
@@ -67,12 +78,20 @@ func (o *ClusterUninstaller) Run() error {
 	}
 
 	awsConfig := &aws.Config{Region: aws.String(o.Region)}
-
-	// Relying on appropriate AWS ENV vars (eg AWS_PROFILE, AWS_ACCESS_KEY_ID, etc)
-	awsSession, err := session.NewSession(awsConfig)
-	if err != nil {
-		return err
+	awsSession := o.Session
+	if awsSession == nil {
+		// Relying on appropriate AWS ENV vars (eg AWS_PROFILE, AWS_ACCESS_KEY_ID, etc)
+		awsSession, err = session.NewSession(awsConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		awsSession = awsSession.Copy(awsConfig)
 	}
+	awsSession.Handlers.Build.PushBackNamed(request.NamedHandler{
+		Name: "openshiftInstaller.OpenshiftInstallerUserAgentHandler",
+		Fn:   request.MakeAddToUserAgentHandler("OpenShift/4.x Destroyer", version.Raw),
+	})
 
 	tagClients := []*resourcegroupstaggingapi.ResourceGroupsTaggingAPI{
 		resourcegroupstaggingapi.New(awsSession),
@@ -101,89 +120,101 @@ func (o *ClusterUninstaller) Run() error {
 		logger:  o.Logger,
 	}
 
-	var loopError error
-	for len(tagClients) > 0 || loopError != nil {
-		loopError = nil
-		nextTagClients := tagClients[:0]
-		for _, tagClient := range tagClients {
-			matched := false
-			for _, filter := range o.Filters {
-				o.Logger.Debugf("search for and delete matching resources by tag in %s matching %#+v", tagClientNames[tagClient], filter)
-				tagFilters := make([]*resourcegroupstaggingapi.TagFilter, 0, len(filter))
-				for key, value := range filter {
-					tagFilters = append(tagFilters, &resourcegroupstaggingapi.TagFilter{
-						Key:    aws.String(key),
-						Values: []*string{aws.String(value)},
-					})
-				}
-				err = tagClient.GetResourcesPages(
-					&resourcegroupstaggingapi.GetResourcesInput{TagFilters: tagFilters},
-					func(results *resourcegroupstaggingapi.GetResourcesOutput, lastPage bool) bool {
-						for _, resource := range results.ResourceTagMappingList {
-							arn := *resource.ResourceARN
-							if _, ok := deleted[arn]; !ok {
-								matched = true
-								err := deleteARN(awsSession, arn, o.Logger)
-								if err != nil {
-									err = errors.Wrapf(err, "deleting %s", arn)
-									o.Logger.Debug(err)
-									continue
+	err = wait.PollImmediateInfinite(
+		time.Second*10,
+		func() (done bool, err error) {
+			var loopError error
+			nextTagClients := tagClients[:0]
+			for _, tagClient := range tagClients {
+				matched := false
+				for _, filter := range o.Filters {
+					o.Logger.Debugf("search for and delete matching resources by tag in %s matching %#+v", tagClientNames[tagClient], filter)
+					tagFilters := make([]*resourcegroupstaggingapi.TagFilter, 0, len(filter))
+					for key, value := range filter {
+						tagFilters = append(tagFilters, &resourcegroupstaggingapi.TagFilter{
+							Key:    aws.String(key),
+							Values: []*string{aws.String(value)},
+						})
+					}
+					err = tagClient.GetResourcesPages(
+						&resourcegroupstaggingapi.GetResourcesInput{TagFilters: tagFilters},
+						func(results *resourcegroupstaggingapi.GetResourcesOutput, lastPage bool) bool {
+							for _, resource := range results.ResourceTagMappingList {
+								arn := *resource.ResourceARN
+								if _, ok := deleted[arn]; !ok {
+									matched = true
+									err := deleteARN(awsSession, arn, filter, o.Logger)
+									if err != nil {
+										err = errors.Wrapf(err, "deleting %s", arn)
+										o.Logger.Debug(err)
+										continue
+									}
+									deleted[arn] = exists
 								}
-								deleted[arn] = exists
 							}
-						}
 
-						return !lastPage
-					},
-				)
-				if err != nil {
-					err = errors.Wrapf(err, "get tagged resources")
-					o.Logger.Info(err)
-					matched = true
-					loopError = err
+							return !lastPage
+						},
+					)
+					if err != nil {
+						err = errors.Wrap(err, "get tagged resources")
+						o.Logger.Info(err)
+						matched = true
+						loopError = err
+					}
+				}
+
+				if matched {
+					nextTagClients = append(nextTagClients, tagClient)
+				} else {
+					o.Logger.Debugf("no deletions from %s, removing client", tagClientNames[tagClient])
+				}
+			}
+			tagClients = nextTagClients
+
+			o.Logger.Debug("search for IAM roles")
+			arns, err := iamRoleSearch.arns()
+			if err != nil {
+				o.Logger.Info(err)
+				loopError = err
+			}
+
+			o.Logger.Debug("search for IAM users")
+			userARNs, err := iamUserSearch.arns()
+			if err != nil {
+				o.Logger.Info(err)
+				loopError = err
+			}
+			arns = append(arns, userARNs...)
+
+			if len(arns) > 0 {
+				o.Logger.Debug("delete IAM roles and users")
+			}
+			for _, arn := range arns {
+				if _, ok := deleted[arn]; !ok {
+					err = deleteARN(awsSession, arn, nil, o.Logger)
+					if err != nil {
+						err = errors.Wrapf(err, "deleting %s", arn)
+						o.Logger.Debug(err)
+						loopError = err
+						continue
+					}
+					deleted[arn] = exists
 				}
 			}
 
-			if matched {
-				nextTagClients = append(nextTagClients, tagClient)
-			} else {
-				o.Logger.Debugf("no deletions from %s, removing client", tagClientNames[tagClient])
-			}
-		}
-		tagClients = nextTagClients
-
-		o.Logger.Debug("search for IAM roles")
-		arns, err := iamRoleSearch.arns()
-		if err != nil {
-			o.Logger.Info(err)
-			loopError = err
-		}
-
-		o.Logger.Debug("search for IAM users")
-		userARNs, err := iamUserSearch.arns()
-		if err != nil {
-			o.Logger.Info(err)
-			loopError = err
-		}
-		arns = append(arns, userARNs...)
-
-		if len(arns) > 0 {
-			o.Logger.Debug("delete IAM roles and users")
-		}
-		for _, arn := range arns {
-			if _, ok := deleted[arn]; !ok {
-				err = deleteARN(awsSession, arn, o.Logger)
-				if err != nil {
-					err = errors.Wrapf(err, "deleting %s", arn)
-					o.Logger.Debug(err)
-					loopError = err
-					continue
-				}
-				deleted[arn] = exists
-			}
-		}
+			return len(tagClients) == 0 && loopError == nil, nil
+		},
+	)
+	if err != nil {
+		return err
 	}
 
+	o.Logger.Debug("search for untaggable resources")
+	if err := o.deleteUntaggedResources(awsSession); err != nil {
+		o.Logger.Debug(err)
+		return err
+	}
 	return nil
 }
 
@@ -216,6 +247,17 @@ func tagMatch(filters []Filter, tags map[string]string) bool {
 	return len(filters) == 0
 }
 
+func tagsForFilter(filter Filter) []*ec2.Tag {
+	tags := make([]*ec2.Tag, 0, len(filter))
+	for key, value := range filter {
+		tags = append(tags, &ec2.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+	return tags
+}
+
 type iamRoleSearch struct {
 	client    *iam.IAM
 	filters   []Filter
@@ -239,14 +281,15 @@ func (search *iamRoleSearch) arns() ([]string, error) {
 				}
 
 				// Unfortunately role.Tags is empty from ListRoles, so we need to query each one
-				var response *iam.GetRoleOutput
-				response, lastError = search.client.GetRole(&iam.GetRoleInput{RoleName: role.RoleName})
-				if lastError != nil {
-					if lastError.(awserr.Error).Code() == iam.ErrCodeNoSuchEntityException {
+				response, err := search.client.GetRole(&iam.GetRoleInput{RoleName: role.RoleName})
+				if err != nil {
+					if err.(awserr.Error).Code() == iam.ErrCodeNoSuchEntityException {
 						search.unmatched[*role.Arn] = exists
 					} else {
-						lastError = errors.Wrapf(lastError, "get tags for %s", *role.Arn)
-						search.logger.Info(lastError)
+						if lastError != nil {
+							search.logger.Debug(lastError)
+						}
+						lastError = errors.Wrapf(err, "get tags for %s", *role.Arn)
 					}
 				} else {
 					role = response.Role
@@ -295,14 +338,15 @@ func (search *iamUserSearch) arns() ([]string, error) {
 				}
 
 				// Unfortunately user.Tags is empty from ListUsers, so we need to query each one
-				var response *iam.GetUserOutput
-				response, lastError = search.client.GetUser(&iam.GetUserInput{UserName: aws.String(*user.UserName)})
-				if lastError != nil {
-					if lastError.(awserr.Error).Code() == iam.ErrCodeNoSuchEntityException {
+				response, err := search.client.GetUser(&iam.GetUserInput{UserName: aws.String(*user.UserName)})
+				if err != nil {
+					if err.(awserr.Error).Code() == iam.ErrCodeNoSuchEntityException {
 						search.unmatched[*user.Arn] = exists
 					} else {
-						lastError = errors.Wrapf(lastError, "get tags for %s", *user.Arn)
-						search.logger.Info(lastError)
+						if lastError != nil {
+							search.logger.Debug(lastError)
+						}
+						lastError = errors.Wrapf(err, "get tags for %s", *user.Arn)
 					}
 				} else {
 					user = response.User
@@ -348,21 +392,47 @@ func getSharedHostedZone(client *route53.Route53, privateID string, logger logru
 		logger.WithField("hosted zone", privateName).Warn("could not determine whether hosted zone is private")
 	}
 
+	domain := privateName
+	parents := []string{domain}
+	for {
+		idx := strings.Index(domain, ".")
+		if idx == -1 {
+			break
+		}
+		if len(domain[idx+1:]) > 0 {
+			parents = append(parents, domain[idx+1:])
+		}
+		domain = domain[idx+1:]
+	}
+
+	for _, p := range parents {
+		sZone, err := findPublicRoute53(client, p, logger)
+		if err != nil {
+			return "", err
+		}
+		if sZone != "" {
+			return sZone, nil
+		}
+	}
+	return "", nil
+}
+
+// findPublicRoute53 finds a public route53 zone matching the dnsName.
+// It returns "", when no public route53 zone could be found.
+func findPublicRoute53(client *route53.Route53, dnsName string, logger logrus.FieldLogger) (string, error) {
 	request := &route53.ListHostedZonesByNameInput{
-		DNSName: aws.String(privateName),
+		DNSName: aws.String(dnsName),
 	}
 	for i := 0; true; i++ {
-		logger.Debugf("listing AWS hosted zones (page %d)", i)
+		logger.Debugf("listing AWS hosted zones %q (page %d)", dnsName, i)
 		list, err := client.ListHostedZonesByName(request)
 		if err != nil {
 			return "", err
 		}
 
 		for _, zone := range list.HostedZones {
-			if *zone.Id == privateID {
-				continue
-			}
-			if *zone.Name != privateName {
+			if *zone.Name != dnsName {
+				// No name after this can match dnsName
 				return "", nil
 			}
 			if zone.Config == nil || zone.Config.PrivateZone == nil {
@@ -381,11 +451,10 @@ func getSharedHostedZone(client *route53.Route53, privateID string, logger logru
 
 		break
 	}
-
 	return "", nil
 }
 
-func deleteARN(session *session.Session, arnString string, logger logrus.FieldLogger) error {
+func deleteARN(session *session.Session, arnString string, filter Filter, logger logrus.FieldLogger) error {
 	logger = logger.WithField("arn", arnString)
 
 	parsed, err := arn.Parse(arnString)
@@ -395,7 +464,7 @@ func deleteARN(session *session.Session, arnString string, logger logrus.FieldLo
 
 	switch parsed.Service {
 	case "ec2":
-		return deleteEC2(session, parsed, logger)
+		return deleteEC2(session, parsed, filter, logger)
 	case "elasticloadbalancing":
 		return deleteElasticLoadBalancing(session, parsed, logger)
 	case "iam":
@@ -409,7 +478,7 @@ func deleteARN(session *session.Session, arnString string, logger logrus.FieldLo
 	}
 }
 
-func deleteEC2(session *session.Session, arn arn.ARN, logger logrus.FieldLogger) error {
+func deleteEC2(session *session.Session, arn arn.ARN, filter Filter, logger logrus.FieldLogger) error {
 	client := ec2.New(session)
 
 	resourceType, id, err := splitSlash("resource", arn.Resource)
@@ -423,6 +492,8 @@ func deleteEC2(session *session.Session, arn arn.ARN, logger logrus.FieldLogger)
 		return deleteEC2DHCPOptions(client, id, logger)
 	case "elastic-ip":
 		return deleteEC2ElasticIP(client, id, logger)
+	case "image":
+		return deleteEC2Image(client, id, filter, logger)
 	case "instance":
 		return deleteEC2Instance(client, iam.New(session), id, logger)
 	case "internet-gateway":
@@ -433,6 +504,10 @@ func deleteEC2(session *session.Session, arn arn.ARN, logger logrus.FieldLogger)
 		return deleteEC2RouteTable(client, id, logger)
 	case "security-group":
 		return deleteEC2SecurityGroup(client, id, logger)
+	case "snapshot":
+		return deleteEC2Snapshot(client, id, logger)
+	case "network-interface":
+		return deleteEC2NetworkInterface(client, id, logger)
 	case "subnet":
 		return deleteEC2Subnet(client, id, logger)
 	case "volume":
@@ -450,6 +525,48 @@ func deleteEC2DHCPOptions(client *ec2.EC2, id string, logger logrus.FieldLogger)
 	})
 	if err != nil {
 		if err.(awserr.Error).Code() == "InvalidDhcpOptionsID.NotFound" {
+			return nil
+		}
+		return err
+	}
+
+	logger.Info("Deleted")
+	return nil
+}
+
+func deleteEC2Image(client *ec2.EC2, id string, filter Filter, logger logrus.FieldLogger) error {
+	// tag the snapshots used by the AMI so that the snapshots are matched
+	// by the filter and deleted
+	response, err := client.DescribeImages(&ec2.DescribeImagesInput{
+		ImageIds: []*string{&id},
+	})
+	if err != nil {
+		if err.(awserr.Error).Code() == "InvalidAMIID.NotFound" {
+			return nil
+		}
+		return err
+	}
+	snapshots := []*string{}
+	for _, image := range response.Images {
+		for _, bdm := range image.BlockDeviceMappings {
+			if bdm.Ebs != nil && bdm.Ebs.SnapshotId != nil {
+				snapshots = append(snapshots, bdm.Ebs.SnapshotId)
+			}
+		}
+	}
+	_, err = client.CreateTags(&ec2.CreateTagsInput{
+		Resources: snapshots,
+		Tags:      tagsForFilter(filter),
+	})
+	if err != nil {
+		err = errors.Wrapf(err, "tagging snapshots for %s", id)
+	}
+
+	_, err = client.DeregisterImage(&ec2.DeregisterImageInput{
+		ImageId: &id,
+	})
+	if err != nil {
+		if err.(awserr.Error).Code() == "InvalidAMIID.NotFound" {
 			return nil
 		}
 		return err
@@ -477,14 +594,6 @@ func deleteEC2ElasticIP(client *ec2.EC2, id string, logger logrus.FieldLogger) e
 func deleteEC2Instance(ec2Client *ec2.EC2, iamClient *iam.IAM, id string, logger logrus.FieldLogger) error {
 	response, err := ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
 		InstanceIds: []*string{aws.String(id)},
-
-		// only fetch instances in 'running|pending' state since 'terminated' ones take a while to really get cleaned up
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []*string{aws.String("running"), aws.String("pending")},
-			},
-		},
 	})
 	if err != nil {
 		if err.(awserr.Error).Code() == "InvalidInstanceID.NotFound" {
@@ -495,13 +604,17 @@ func deleteEC2Instance(ec2Client *ec2.EC2, iamClient *iam.IAM, id string, logger
 
 	for _, reservation := range response.Reservations {
 		for _, instance := range reservation.Instances {
+			// Skip 'terminated' instances since they take a while to really get cleaned up
+			if *instance.State.Name == "terminated" {
+				continue
+			}
 			if instance.IamInstanceProfile != nil {
 				parsed, err := arn.Parse(*instance.IamInstanceProfile.Arn)
 				if err != nil {
 					return errors.Wrap(err, "parse ARN for IAM instance profile")
 				}
 
-				err = deleteIAMInstanceProfile(iamClient, parsed, logger.WithField("IAM instance profile", parsed.String()))
+				err = deleteIAMInstanceProfile(iamClient, parsed, logger)
 				if err != nil {
 					return errors.Wrapf(err, "deleting %s", parsed.String())
 				}
@@ -516,6 +629,26 @@ func deleteEC2Instance(ec2Client *ec2.EC2, iamClient *iam.IAM, id string, logger
 
 			logger.Info("Deleted")
 		}
+	}
+	return nil
+}
+
+// This is a bit of hack. Some objects, like Instance Profiles, can not be tagged in AWS.
+// We "normally" find those objects by their relation to other objects. We have found,
+// however, that people regularly delete all of their instances and roles outside of
+// openshift-install destroy cluster. This means that we are unable to find the Instance
+// Profiles.
+//
+// This code is a place to find specific objects like this which might be dangling.
+func (o *ClusterUninstaller) deleteUntaggedResources(awsSession *session.Session) error {
+	iamClient := iam.New(awsSession)
+	masterProfile := fmt.Sprintf("%s-master-profile", o.ClusterID)
+	if err := deleteIAMInstanceProfileByName(iamClient, &masterProfile, o.Logger); err != nil {
+		return err
+	}
+	workerProfile := fmt.Sprintf("%s-worker-profile", o.ClusterID)
+	if err := deleteIAMInstanceProfileByName(iamClient, &workerProfile, o.Logger); err != nil {
+		return err
 	}
 
 	return nil
@@ -563,11 +696,46 @@ func deleteEC2NATGateway(client *ec2.EC2, id string, logger logrus.FieldLogger) 
 		NatGatewayId: aws.String(id),
 	})
 	if err != nil {
+		if err.(awserr.Error).Code() == "NatGatewayNotFound" {
+			return nil
+		}
 		return err
 	}
 
 	logger.Info("Deleted")
 	return nil
+}
+
+func deleteEC2NATGatewaysByVPC(client *ec2.EC2, vpc string, logger logrus.FieldLogger) error {
+	var lastError error
+	err := client.DescribeNatGatewaysPages(
+		&ec2.DescribeNatGatewaysInput{
+			Filter: []*ec2.Filter{
+				{
+					Name:   aws.String("vpc-id"),
+					Values: []*string{&vpc},
+				},
+			},
+		},
+		func(results *ec2.DescribeNatGatewaysOutput, lastPage bool) bool {
+			for _, gateway := range results.NatGateways {
+				err := deleteEC2NATGateway(client, *gateway.NatGatewayId, logger.WithField("NAT gateway", *gateway.NatGatewayId))
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(err)
+					}
+					lastError = errors.Wrapf(err, "deleting EC2 NAT gateway %s", *gateway.NatGatewayId)
+				}
+			}
+
+			return !lastPage
+		},
+	)
+
+	if lastError != nil {
+		return lastError
+	}
+	return err
 }
 
 func deleteEC2RouteTable(client *ec2.EC2, id string, logger logrus.FieldLogger) error {
@@ -638,10 +806,12 @@ func deleteEC2RouteTablesByVPC(client *ec2.EC2, vpc string, logger logrus.FieldL
 		},
 		func(results *ec2.DescribeRouteTablesOutput, lastPage bool) bool {
 			for _, table := range results.RouteTables {
-				lastError := deleteEC2RouteTableObject(client, table, logger.WithField("table", *table.RouteTableId))
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting EC2 route table %s", *table.RouteTableId)
-					logger.Info(lastError)
+				err := deleteEC2RouteTableObject(client, table, logger.WithField("table", *table.RouteTableId))
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(err)
+					}
+					lastError = errors.Wrapf(err, "deleting EC2 route table %s", *table.RouteTableId)
 				}
 			}
 
@@ -660,6 +830,9 @@ func deleteEC2SecurityGroup(client *ec2.EC2, id string, logger logrus.FieldLogge
 		GroupIds: []*string{aws.String(id)},
 	})
 	if err != nil {
+		if err.(awserr.Error).Code() == "InvalidGroup.NotFound" {
+			return nil
+		}
 		return err
 	}
 
@@ -699,6 +872,68 @@ func deleteEC2SecurityGroup(client *ec2.EC2, id string, logger logrus.FieldLogge
 
 	logger.Info("Deleted")
 	return nil
+}
+
+func deleteEC2Snapshot(client *ec2.EC2, id string, logger logrus.FieldLogger) error {
+	_, err := client.DeleteSnapshot(&ec2.DeleteSnapshotInput{
+		SnapshotId: &id,
+	})
+	if err != nil {
+		if err.(awserr.Error).Code() == "InvalidSnapshotID.NotFound" {
+			return nil
+		}
+		return err
+	}
+
+	logger.Info("Deleted")
+	return nil
+}
+
+func deleteEC2NetworkInterface(client *ec2.EC2, id string, logger logrus.FieldLogger) error {
+	_, err := client.DeleteNetworkInterface(&ec2.DeleteNetworkInterfaceInput{
+		NetworkInterfaceId: aws.String(id),
+	})
+	if err != nil {
+		if err.(awserr.Error).Code() == "InvalidNetworkInterfaceID.NotFound" {
+			return nil
+		}
+		return err
+	}
+
+	logger.Info("Deleted")
+	return nil
+}
+
+func deleteEC2NetworkInterfaceByVPC(client *ec2.EC2, vpc string, logger logrus.FieldLogger) error {
+	var lastError error
+	err := client.DescribeNetworkInterfacesPages(
+		&ec2.DescribeNetworkInterfacesInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("vpc-id"),
+					Values: []*string{&vpc},
+				},
+			},
+		},
+		func(results *ec2.DescribeNetworkInterfacesOutput, lastPage bool) bool {
+			for _, networkInterface := range results.NetworkInterfaces {
+				err := deleteEC2NetworkInterface(client, *networkInterface.NetworkInterfaceId, logger.WithField("network interface", *networkInterface.NetworkInterfaceId))
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting EC2 network interface %s", *networkInterface.NetworkInterfaceId)
+				}
+			}
+
+			return !lastPage
+		},
+	)
+
+	if lastError != nil {
+		return lastError
+	}
+	return err
 }
 
 func deleteEC2Subnet(client *ec2.EC2, id string, logger logrus.FieldLogger) error {
@@ -744,19 +979,19 @@ func deleteEC2VPC(ec2Client *ec2.EC2, elbClient *elb.ELB, elbv2Client *elbv2.ELB
 		return v2lbError
 	}
 
-	// next delete any VPC endpoints associated with the VPC (they are not taggable)
-	err := deleteEC2VPCEndpointsByVPC(ec2Client, id, logger)
-	if err != nil {
-		return err
+	for _, helper := range [](func(client *ec2.EC2, vpc string, logger logrus.FieldLogger) error){
+		deleteEC2NATGatewaysByVPC,      // not always tagged
+		deleteEC2NetworkInterfaceByVPC, // not always tagged
+		deleteEC2RouteTablesByVPC,      // not always tagged
+		deleteEC2VPCEndpointsByVPC,     // not taggable
+	} {
+		err := helper(ec2Client, id, logger)
+		if err != nil {
+			return err
+		}
 	}
 
-	// next delete route tables associated with the VPC (not all of them are tagged)
-	err = deleteEC2RouteTablesByVPC(ec2Client, id, logger)
-	if err != nil {
-		return err
-	}
-
-	_, err = ec2Client.DeleteVpc(&ec2.DeleteVpcInput{
+	_, err := ec2Client.DeleteVpc(&ec2.DeleteVpcInput{
 		VpcId: aws.String(id),
 	})
 	if err != nil {
@@ -865,10 +1100,12 @@ func deleteElasticLoadBalancerClassicByVPC(client *elb.ELB, vpc string, logger l
 					continue
 				}
 
-				lastError = deleteElasticLoadBalancerClassic(client, *lb.LoadBalancerName, lbLogger)
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting classic load balancer %s", *lb.LoadBalancerName)
-					logger.Info(lastError)
+				err := deleteElasticLoadBalancerClassic(client, *lb.LoadBalancerName, lbLogger)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting classic load balancer %s", *lb.LoadBalancerName)
 				}
 			}
 
@@ -909,18 +1146,21 @@ func deleteElasticLoadBalancerTargetGroupsByVPC(client *elbv2.ELBV2, vpc string,
 					continue
 				}
 
-				var parsed arn.ARN
-				parsed, lastError = arn.Parse(*group.TargetGroupArn)
-				if lastError != nil {
-					lastError = errors.Wrap(lastError, "parse ARN for target group")
-					logger.Info(lastError)
+				parsed, err := arn.Parse(*group.TargetGroupArn)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrap(err, "parse ARN for target group")
 					continue
 				}
 
-				lastError = deleteElasticLoadBalancerTargetGroup(client, parsed, logger.WithField("target group", parsed.Resource))
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting %s", parsed.String())
-					logger.Info(lastError)
+				err = deleteElasticLoadBalancerTargetGroup(client, parsed, logger.WithField("target group", parsed.Resource))
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting %s", parsed.String())
 				}
 			}
 
@@ -961,18 +1201,21 @@ func deleteElasticLoadBalancerV2ByVPC(client *elbv2.ELBV2, vpc string, logger lo
 					continue
 				}
 
-				var parsed arn.ARN
-				parsed, lastError = arn.Parse(*lb.LoadBalancerArn)
-				if lastError != nil {
-					lastError = errors.Wrap(lastError, "parse ARN for load balancer")
-					logger.Info(lastError)
+				parsed, err := arn.Parse(*lb.LoadBalancerArn)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrap(err, "parse ARN for load balancer")
 					continue
 				}
 
-				lastError = deleteElasticLoadBalancerV2(client, parsed, logger.WithField("load balancer", parsed.Resource))
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting %s", parsed.String())
-					logger.Info(lastError)
+				err = deleteElasticLoadBalancerV2(client, parsed, logger.WithField("load balancer", parsed.Resource))
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting %s", parsed.String())
 				}
 			}
 
@@ -1007,12 +1250,25 @@ func deleteIAM(session *session.Session, arn arn.ARN, logger logrus.FieldLogger)
 	}
 }
 
+func deleteIAMInstanceProfileByName(client *iam.IAM, name *string, logger logrus.FieldLogger) error {
+	_, err := client.DeleteInstanceProfile(&iam.DeleteInstanceProfileInput{
+		InstanceProfileName: name,
+	})
+	if err != nil {
+		if err.(awserr.Error).Code() == iam.ErrCodeNoSuchEntityException {
+			return nil
+		}
+		return err
+	}
+	logger.WithField("InstanceProfileName", *name).Info("Deleted")
+	return err
+}
+
 func deleteIAMInstanceProfile(client *iam.IAM, profileARN arn.ARN, logger logrus.FieldLogger) error {
 	resourceType, name, err := splitSlash("resource", profileARN.Resource)
 	if err != nil {
 		return err
 	}
-	logger = logger.WithField("name", name)
 
 	if resourceType != "instance-profile" {
 		return errors.Errorf("%s ARN passed to deleteIAMInstanceProfile: %s", resourceType, profileARN.String())
@@ -1037,17 +1293,14 @@ func deleteIAMInstanceProfile(client *iam.IAM, profileARN arn.ARN, logger logrus
 		if err != nil {
 			return errors.Wrapf(err, "dissociating %s", *role.RoleName)
 		}
-		logger.WithField("role", *role.RoleName).Info("Disassociated")
+		logger.WithField("name", name).WithField("role", *role.RoleName).Info("Disassociated")
 	}
 
-	_, err = client.DeleteInstanceProfile(&iam.DeleteInstanceProfileInput{
-		InstanceProfileName: profile.InstanceProfileName,
-	})
-	if err != nil {
+	logger = logger.WithField("arn", profileARN.String())
+	if err := deleteIAMInstanceProfileByName(client, profile.InstanceProfileName, logger); err != nil {
 		return err
 	}
 
-	logger.Info("Deleted")
 	return nil
 }
 
@@ -1067,13 +1320,15 @@ func deleteIAMRole(client *iam.IAM, roleARN arn.ARN, logger logrus.FieldLogger) 
 		&iam.ListRolePoliciesInput{RoleName: &name},
 		func(results *iam.ListRolePoliciesOutput, lastPage bool) bool {
 			for _, policy := range results.PolicyNames {
-				_, lastError = client.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
+				_, err := client.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
 					RoleName:   &name,
 					PolicyName: policy,
 				})
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting IAM role policy %s", *policy)
-					logger.Info(lastError)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting IAM role policy %s", *policy)
 				}
 				logger.WithField("policy", *policy).Info("Deleted")
 			}
@@ -1093,17 +1348,21 @@ func deleteIAMRole(client *iam.IAM, roleARN arn.ARN, logger logrus.FieldLogger) 
 		&iam.ListInstanceProfilesForRoleInput{RoleName: &name},
 		func(results *iam.ListInstanceProfilesForRoleOutput, lastPage bool) bool {
 			for _, profile := range results.InstanceProfiles {
-				parsed, lastError := arn.Parse(*profile.Arn)
-				if lastError != nil {
-					lastError = errors.Wrap(lastError, "parse ARN for IAM instance profile")
-					logger.Info(lastError)
+				parsed, err := arn.Parse(*profile.Arn)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrap(err, "parse ARN for IAM instance profile")
 					continue
 				}
 
-				lastError = deleteIAMInstanceProfile(client, parsed, logger.WithField("IAM instance profile", parsed.String()))
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting %s", parsed.String())
-					logger.Info(lastError)
+				err = deleteIAMInstanceProfile(client, parsed, logger)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting %s", parsed.String())
 				}
 			}
 
@@ -1133,13 +1392,15 @@ func deleteIAMUser(client *iam.IAM, id string, logger logrus.FieldLogger) error 
 		&iam.ListUserPoliciesInput{UserName: &id},
 		func(results *iam.ListUserPoliciesOutput, lastPage bool) bool {
 			for _, policy := range results.PolicyNames {
-				_, lastError = client.DeleteUserPolicy(&iam.DeleteUserPolicyInput{
+				_, err := client.DeleteUserPolicy(&iam.DeleteUserPolicyInput{
 					UserName:   &id,
 					PolicyName: policy,
 				})
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting IAM user policy %s", *policy)
-					logger.Info(lastError)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting IAM user policy %s", *policy)
 				}
 				logger.WithField("policy", *policy).Info("Deleted")
 			}
@@ -1159,13 +1420,15 @@ func deleteIAMUser(client *iam.IAM, id string, logger logrus.FieldLogger) error 
 		&iam.ListAccessKeysInput{UserName: &id},
 		func(results *iam.ListAccessKeysOutput, lastPage bool) bool {
 			for _, key := range results.AccessKeyMetadata {
-				_, lastError := client.DeleteAccessKey(&iam.DeleteAccessKeyInput{
+				_, err := client.DeleteAccessKey(&iam.DeleteAccessKeyInput{
 					UserName:    &id,
 					AccessKeyId: key.AccessKeyId,
 				})
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting IAM access key %s", *key.AccessKeyId)
-					logger.Info(lastError)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting IAM access key %s", *key.AccessKeyId)
 				}
 			}
 
@@ -1214,19 +1477,23 @@ func deleteRoute53(session *session.Session, arn arn.ARN, logger logrus.FieldLog
 	}
 
 	sharedEntries := map[string]*route53.ResourceRecordSet{}
-	err = client.ListResourceRecordSetsPages(
-		&route53.ListResourceRecordSetsInput{HostedZoneId: aws.String(sharedZoneID)},
-		func(results *route53.ListResourceRecordSetsOutput, lastPage bool) bool {
-			for _, recordSet := range results.ResourceRecordSets {
-				key := recordSetKey(recordSet)
-				sharedEntries[key] = recordSet
-			}
+	if len(sharedZoneID) != 0 {
+		err = client.ListResourceRecordSetsPages(
+			&route53.ListResourceRecordSetsInput{HostedZoneId: aws.String(sharedZoneID)},
+			func(results *route53.ListResourceRecordSetsOutput, lastPage bool) bool {
+				for _, recordSet := range results.ResourceRecordSets {
+					key := recordSetKey(recordSet)
+					sharedEntries[key] = recordSet
+				}
 
-			return !lastPage
-		},
-	)
-	if err != nil {
-		return err
+				return !lastPage
+			},
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		logger.Debug("shared public zone not found")
 	}
 
 	var lastError error
@@ -1240,17 +1507,21 @@ func deleteRoute53(session *session.Session, arn arn.ARN, logger logrus.FieldLog
 				}
 				key := recordSetKey(recordSet)
 				if sharedEntry, ok := sharedEntries[key]; ok {
-					lastError = deleteRoute53RecordSet(client, sharedZoneID, sharedEntry, logger.WithField("public zone", sharedZoneID))
-					if lastError != nil {
-						lastError = errors.Wrapf(lastError, "deleting public zone %s", sharedZoneID)
-						logger.Info(lastError)
+					err := deleteRoute53RecordSet(client, sharedZoneID, sharedEntry, logger.WithField("public zone", sharedZoneID))
+					if err != nil {
+						if lastError != nil {
+							logger.Debug(lastError)
+						}
+						lastError = errors.Wrapf(err, "deleting public zone %s", sharedZoneID)
 					}
 				}
 
-				lastError = deleteRoute53RecordSet(client, id, recordSet, logger)
-				if lastError != nil {
-					lastError = errors.Wrapf(lastError, "deleting record set %#+v from zone %s", recordSet, id)
-					logger.Info(lastError)
+				err = deleteRoute53RecordSet(client, id, recordSet, logger)
+				if err != nil {
+					if lastError != nil {
+						logger.Debug(lastError)
+					}
+					lastError = errors.Wrapf(err, "deleting record set %#+v from zone %s", recordSet, id)
 				}
 			}
 
