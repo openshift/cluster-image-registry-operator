@@ -69,7 +69,7 @@ func GetImageRegistryConditions(cr *imageregistryapiv1.Config) ImageRegistryCond
 			conds.Available = NewConditionStatus(cond)
 		case operatorapiv1.OperatorStatusTypeProgressing:
 			conds.Progressing = NewConditionStatus(cond)
-		case operatorapiv1.OperatorStatusTypeFailing:
+		case operatorapiv1.OperatorStatusTypeDegraded:
 			conds.Failing = NewConditionStatus(cond)
 		case imageregistryapiv1.OperatorStatusTypeRemoved:
 			conds.Removed = NewConditionStatus(cond)
@@ -300,7 +300,7 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 		if c.Type == osapi.OperatorProgressing && c.Status == osapi.ConditionFalse {
 			gotProgressing = true
 		}
-		if c.Type == osapi.OperatorFailing && c.Status == osapi.ConditionFalse {
+		if c.Type == osapi.OperatorDegraded && c.Status == osapi.ConditionFalse {
 			gotFailing = true
 		}
 	}

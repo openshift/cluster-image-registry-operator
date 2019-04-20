@@ -39,7 +39,7 @@ func TestFailing(t *testing.T) {
 	var failing operatorapi.OperatorCondition
 	for _, cond := range cr.Status.Conditions {
 		switch cond.Type {
-		case operatorapi.OperatorStatusTypeFailing:
+		case operatorapi.OperatorStatusTypeDegraded:
 			failing = cond
 		}
 	}
