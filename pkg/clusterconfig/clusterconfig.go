@@ -54,7 +54,7 @@ type Config struct {
 	Storage Storage
 }
 
-func GetCoreClient() (*coreset.CoreV1Client, error) {
+func getCoreClient() (*coreset.CoreV1Client, error) {
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func GetCoreClient() (*coreset.CoreV1Client, error) {
 }
 
 func GetInstallConfig() (*installer.InstallConfig, error) {
-	client, err := GetCoreClient()
+	client, err := getCoreClient()
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 	}
 
-	client, err := GetCoreClient()
+	client, err := getCoreClient()
 	if err != nil {
 		return nil, err
 	}
