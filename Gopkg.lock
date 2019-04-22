@@ -270,7 +270,7 @@
   version = "1.0.1"
 
 [[projects]]
-  digest = "1:68713da7e97656bf5638560792b415f6655912f3870011e91c72e676032518fe"
+  digest = "1:3ab7119676cbdbc43fd449814bdac7a57dfc9c25d9c18b18fc486f0078aeeb0c"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -278,10 +278,10 @@
     "route/v1",
   ]
   pruneopts = ""
-  revision = "ea5d05408a95a765d44b5a4b31561b530f0b1f4c"
+  revision = "e939c41e1a456ad24d7e86c66f48af9c12679d04"
 
 [[projects]]
-  digest = "1:cbd07d16227e80331e32b96524809b8a3bf9292d54ef31696cb8733099d9d12f"
+  digest = "1:a264cd682e37db6e9045406d17c2dd70ced6f085a2ace94a0087dbfb48cfff71"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -302,22 +302,7 @@
     "route/listers/route/v1",
   ]
   pruneopts = ""
-  revision = "31ef839c86359881d2c312c4f0131febc6662400"
-
-[[projects]]
-  branch = "master"
-  digest = "1:95015d347ac1add122adb24396562c4c6451ab228155a8c6787c71f9809978fd"
-  name = "github.com/openshift/installer"
-  packages = [
-    "pkg/ipnet",
-    "pkg/types",
-    "pkg/types/aws",
-    "pkg/types/libvirt",
-    "pkg/types/none",
-    "pkg/types/openstack",
-  ]
-  pruneopts = ""
-  revision = "a20f76e4389414332e9b606ddaaaf408d805fcce"
+  revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
 
 [[projects]]
   branch = "master"
@@ -350,14 +335,6 @@
   pruneopts = ""
   revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
   version = "v2.0.1"
-
-[[projects]]
-  digest = "1:1d7e1867c49a6dd9856598ef7c3123604ea3daabf5b83f303ff457bcbc410b1d"
-  name = "github.com/pkg/errors"
-  packages = ["."]
-  pruneopts = ""
-  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
-  version = "v0.8.1"
 
 [[projects]]
   digest = "1:cbaf13cdbfef0e4734ed8a7504f57fe893d471d62a35b982bf6fb3f036449a66"
@@ -853,7 +830,6 @@
     "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1",
     "github.com/openshift/client-go/route/informers/externalversions",
     "github.com/openshift/client-go/route/listers/route/v1",
-    "github.com/openshift/installer/pkg/types",
     "github.com/openshift/library-go/pkg/operator/resource/resourceread",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
@@ -873,7 +849,6 @@
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/uuid",
     "k8s.io/apimachinery/pkg/util/wait",
-    "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/discovery/fake",
