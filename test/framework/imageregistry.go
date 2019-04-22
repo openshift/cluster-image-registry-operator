@@ -271,8 +271,17 @@ func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error
 		} else if err != nil {
 			return false, err
 		}
-		if cfg == nil || cfg.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc:5000" {
+		if cfg == nil {
 			return false, nil
+		}
+		if len(cfg.Status.InternalRegistryHostname) == 0 {
+			return false, nil
+		}
+		// Bug 1701422: drop port number since we are using HTTPS default port on service
+		if cfg.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc" {
+			return false, fmt.Errorf("expected internal registry hostname %s; got %s",
+				"image-registry.openshift-image-registry.svc",
+				cfg.Status.InternalRegistryHostname)
 		}
 		return true, nil
 	})

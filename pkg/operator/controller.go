@@ -66,6 +66,8 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 
 	p := parameters.Globals{}
 
+	p.Service.Name = imageregistryv1.ImageRegistryName
+
 	p.Deployment.Namespace = namespace
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
 
@@ -75,7 +77,6 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.Service.Name = imageregistryv1.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
 	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
 

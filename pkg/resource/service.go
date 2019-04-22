@@ -24,17 +24,20 @@ type generatorService struct {
 	namespace  string
 	labels     map[string]string
 	port       int
+	targetPort int
 	secretName string
 }
 
 func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorService {
 	return &generatorService{
-		lister:     lister,
-		client:     client,
-		name:       params.Service.Name,
-		namespace:  params.Deployment.Namespace,
-		labels:     params.Deployment.Labels,
-		port:       params.Container.Port,
+		lister:    lister,
+		client:    client,
+		name:      params.Service.Name,
+		namespace: params.Deployment.Namespace,
+		labels:    params.Deployment.Labels,
+		// Bug 1701422: Hard-code service to use HTTPS port
+		port:       443,
+		targetPort: params.Container.Port,
 		secretName: imageregistryv1.ImageRegistryName + "-tls",
 	}
 }
@@ -73,7 +76,7 @@ func (gs *generatorService) expected() *corev1.Service {
 					Name:       fmt.Sprintf("%d-tcp", gs.port),
 					Port:       int32(gs.port),
 					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(gs.port),
+					TargetPort: intstr.FromInt(gs.targetPort),
 				},
 			},
 		},

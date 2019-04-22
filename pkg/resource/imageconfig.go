@@ -180,6 +180,8 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	return externalHostnames, nil
 }
 
+// getServiceHostname returns the host name for the internal registry service.
+// This value is propagated to the OpenShift cluster via the image.config.openshift.io/cluster object.
 func getServiceHostname(serviceLister kcorelisters.ServiceNamespaceLister, serviceName string) (string, error) {
 	svc, err := serviceLister.Get(serviceName)
 	if errors.IsNotFound(err) {
@@ -188,6 +190,6 @@ func getServiceHostname(serviceLister kcorelisters.ServiceNamespaceLister, servi
 	if svc == nil || err != nil {
 		return "", err
 	}
-	svcHostname := fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
+	svcHostname := fmt.Sprintf("%s.%s.svc", svc.Name, svc.Namespace)
 	return svcHostname, nil
 }
