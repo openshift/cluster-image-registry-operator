@@ -4,10 +4,13 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
@@ -79,17 +82,27 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	config, err := regopclient.GetConfig()
+	if err != nil {
+		return cfg, err
+	}
+
+	client, err := clientcorev1.NewForConfig(config)
+	if err != nil {
+		return cfg, err
+	}
+
+	infra, err := osclientset.New(client.RESTClient()).ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		return cfg, err
 	}
 
 	switch {
-	case installConfig.Platform.Libvirt != nil:
+	case infra.Status.Platform == configv1.LibvirtPlatformType:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case installConfig.Platform.AWS != nil:
+	case infra.Status.Platform == configv1.AWSPlatformType:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	case installConfig.Platform.OpenStack != nil:
+	case infra.Status.Platform == configv1.OpenStackPlatformType:
 		// TODO(flaper87): This should be switch to swift as soon as support for
 		// it is complete. Using Emptydir for now so that OpenStack deployments
 		// (and work) can move forward for now. Not production ready!

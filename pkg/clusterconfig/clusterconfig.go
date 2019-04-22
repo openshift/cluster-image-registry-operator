@@ -1,27 +1,25 @@
 package clusterconfig
 
 import (
+	"context"
 	"fmt"
-	"strings"
 	"time"
-
-	installer "github.com/openshift/installer/pkg/types"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/rest"
 
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 const (
-	installerConfigNamespace = "kube-system"
-	installerConfigName      = "cluster-config-v1"
-	cloudCredentialsName     = "installer-cloud-credentials"
+	cloudCredentialsName = "installer-cloud-credentials"
 )
 
 type StorageType string
@@ -68,47 +66,23 @@ func getCoreClient() (*coreset.CoreV1Client, error) {
 	return client, nil
 }
 
-func GetInstallConfig() (*installer.InstallConfig, error) {
-	client, err := getCoreClient()
-	if err != nil {
-		return nil, err
-	}
-
-	cm, err := client.ConfigMaps(installerConfigNamespace).Get(installerConfigName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to read cluster install configuration: %v", err)
-	}
-
-	installConfig := &installer.InstallConfig{}
-	if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(cm.Data["install-config"]), 100).Decode(installConfig); err != nil {
-		return nil, fmt.Errorf("unable to decode cluster install configuration: %v", err)
-	}
-
-	return installConfig, nil
-}
-
-func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
+func GetAWSConfig(ctx context.Context, client rest.Interface, listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
 
-	installConfig, err := GetInstallConfig()
+	infra, err := osclientset.New(client).ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	if installConfig.Platform.AWS != nil {
-		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
-	}
-
-	client, err := getCoreClient()
-	if err != nil {
-		return nil, err
+	if infra.Status.Platform == configv1.AWSPlatformType {
+		cfg.Storage.S3.Region = "us-east-1" // FIXME: installConfig.Platform.AWS.Region
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
 	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		pollErr := wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
-			sec, err = client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(cloudCredentialsName, metav1.GetOptions{})
+			sec, err = coreset.New(client).Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(cloudCredentialsName, metav1.GetOptions{})
 			if err != nil {
 				if errors.IsNotFound(err) {
 					return false, nil

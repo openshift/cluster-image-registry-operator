@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -12,11 +13,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 
 	corev1 "k8s.io/api/core/v1"
-
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -46,11 +50,23 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopcl
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
+	ctx := context.TODO()
+
 	if s3Service != nil {
 		return s3Service, nil
 	}
 
-	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
+	config, err := regopclient.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := clientcorev1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig(ctx, client.RESTClient(), d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +177,19 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 
 // Secrets returns a map of the storage access secrets.
 func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
+	ctx := context.TODO()
+
+	config, err := regopclient.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := clientcorev1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig(ctx, client.RESTClient(), d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -234,12 +262,17 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	ic, err := clusterconfig.GetInstallConfig()
+	config, err := regopclient.GetConfig()
 	if err != nil {
 		return err
 	}
 
-	cv, err := util.GetClusterVersionConfig()
+	client, err := clientcorev1.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	infra, err := osclientset.New(client.RESTClient()).ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -277,7 +310,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(infra.Status.InfrastructureName, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 				generatedName = true
 			}
 
@@ -326,20 +359,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	// Tag the bucket with the openshiftClusterID
-	// along with any user defined tags from the cluster configuration
+	// Tag the bucket with kubernetes.io/cluster/{infrastructureName}
 	if cr.Status.StorageManaged {
-		if ic.Platform.AWS != nil {
-			var tagSet []*s3.Tag
-			tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
-			for k, v := range ic.Platform.AWS.UserTags {
-				tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
-			}
-
+		if infra.Status.Platform == configv1.AWSPlatformType {
 			_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
 				Bucket: aws.String(d.Config.Bucket),
 				Tagging: &s3.Tagging{
-					TagSet: tagSet,
+					TagSet: []*s3.Tag{
+						{
+							Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
+							Value: aws.String("owned"),
+						},
+					},
 				},
 			})
 			if err != nil {
@@ -349,7 +380,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 				}
 			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "UserTags were successfully applied to the S3 bucket")
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "Tags were successfully applied to the S3 bucket")
 			}
 		}
 	}
@@ -487,7 +518,19 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 }
 
 func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
-	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
+	ctx := context.TODO()
+
+	config, err := regopclient.GetConfig()
+	if err != nil {
+		return err
+	}
+
+	client, err := clientcorev1.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := clusterconfig.GetAWSConfig(ctx, client.RESTClient(), d.Listers)
 	if err != nil {
 		return err
 	}
