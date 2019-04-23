@@ -92,18 +92,18 @@ func (c *Controller) setStatusRemoving(cr *imageregistryv1.Config) {
 }
 
 func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr error) {
-	operatorFailing := clusteroperator.ConditionState{
+	operatorDegraded := clusteroperator.ConditionState{
 		Status:  configapiv1.ConditionTrue,
 		Message: fmt.Sprintf("Unable to remove registry: %s", removeErr),
 		Reason:  "RemoveFailed",
 	}
 
-	err := c.clusterStatus.Update(configapiv1.OperatorFailing, operatorFailing, "")
+	err := c.clusterStatus.Update(configapiv1.OperatorDegraded, operatorDegraded, "")
 	if err != nil {
-		glog.Errorf("unable to update cluster status to %s=%s: %s", configapiv1.OperatorFailing, configapiv1.ConditionTrue, err)
+		glog.Errorf("unable to update cluster status to %s=%s: %s", configapiv1.OperatorDegraded, configapiv1.ConditionTrue, err)
 	}
 
-	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
@@ -190,23 +190,23 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
 
-	operatorFailing := clusteroperator.ConditionState{
+	operatorDegraded := clusteroperator.ConditionState{
 		Status:  configapiv1.ConditionFalse,
 		Message: "",
 		Reason:  "",
 	}
 	if e, ok := applyError.(permanentError); ok {
-		operatorFailing.Status = configapiv1.ConditionTrue
-		operatorFailing.Message = applyError.Error()
-		operatorFailing.Reason = e.Reason
+		operatorDegraded.Status = configapiv1.ConditionTrue
+		operatorDegraded.Message = applyError.Error()
+		operatorDegraded.Reason = e.Reason
 	}
 
-	err = c.clusterStatus.Update(configapiv1.OperatorFailing, operatorFailing, "")
+	err = c.clusterStatus.Update(configapiv1.OperatorDegraded, operatorDegraded, "")
 	if err != nil {
-		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", configapiv1.OperatorFailing, operatorFailing.Status, operatorFailing.Message, err)
+		glog.Errorf("unable to update cluster status to %s=%s (%s): %s", configapiv1.OperatorDegraded, operatorDegraded.Status, operatorDegraded.Message, err)
 	}
 
-	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 
 	operatorRemoved := clusteroperator.ConditionState{
 		Status:  configapiv1.ConditionFalse,

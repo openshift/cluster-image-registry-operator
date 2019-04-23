@@ -84,7 +84,7 @@ func (s *StatusHandler) Update(condtype configapiv1.ClusterStatusConditionType, 
 							LastTransitionTime: metaapi.Now(),
 						},
 						{
-							Type:               configapiv1.OperatorFailing,
+							Type:               configapiv1.OperatorDegraded,
 							Status:             configapiv1.ConditionUnknown,
 							LastTransitionTime: metaapi.Now(),
 						},
