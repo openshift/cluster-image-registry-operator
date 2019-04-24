@@ -103,13 +103,13 @@ func (gd *generatorDeployment) Get() (runtime.Object, error) {
 	return gd.lister.Get(gd.GetName())
 }
 
-func (gd *generatorDeployment) Create() error {
+func (gd *generatorDeployment) Create() (runtime.Object, error) {
 	return commonCreate(gd, func(obj runtime.Object) (runtime.Object, error) {
 		return gd.client.Deployments(gd.GetNamespace()).Create(obj.(*appsapi.Deployment))
 	})
 }
 
-func (gd *generatorDeployment) Update(o runtime.Object) (bool, error) {
+func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gd, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gd.client.Deployments(gd.GetNamespace()).Update(obj.(*appsapi.Deployment))
 	})

@@ -74,13 +74,13 @@ func (gs *generatorSecret) Get() (runtime.Object, error) {
 	return gs.lister.Get(gs.GetName())
 }
 
-func (gs *generatorSecret) Create() error {
+func (gs *generatorSecret) Create() (runtime.Object, error) {
 	return commonCreate(gs, func(obj runtime.Object) (runtime.Object, error) {
 		return gs.client.Secrets(gs.GetNamespace()).Create(obj.(*corev1.Secret))
 	})
 }
 
-func (gs *generatorSecret) Update(o runtime.Object) (bool, error) {
+func (gs *generatorSecret) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gs, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gs.client.Secrets(gs.GetNamespace()).Update(obj.(*corev1.Secret))
 	})

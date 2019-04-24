@@ -75,39 +75,38 @@ func (gic *generatorImageConfig) objectMeta() metav1.ObjectMeta {
 	}
 }
 
-func (gic *generatorImageConfig) Create() error {
+func (gic *generatorImageConfig) Create() (runtime.Object, error) {
 	ic := &configapi.Image{
 		ObjectMeta: gic.objectMeta(),
 	}
 
 	ic, err := gic.configClient.Images().Create(ic)
 	if err != nil {
-		return err
+		return ic, err
 	}
 
 	externalHostnames, err := gic.getRouteHostnames()
 	if err != nil {
-		return err
+		return ic, err
 	}
 	ic.Status.ExternalRegistryHostnames = externalHostnames
 
 	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
 	if err != nil {
-		return err
+		return ic, err
 	}
 	ic.Status.InternalRegistryHostname = internalHostname
 
 	// Create strips status fields, so need to explicitly set status separately
-	_, err = gic.configClient.Images().UpdateStatus(ic)
-	return err
+	return gic.configClient.Images().UpdateStatus(ic)
 }
 
-func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
+func (gic *generatorImageConfig) Update(o runtime.Object) (runtime.Object, bool, error) {
 	ic := o.(*configapi.Image)
 
 	externalHostnames, err := gic.getRouteHostnames()
 	if err != nil {
-		return false, err
+		return o, false, err
 	}
 
 	modified := false
@@ -118,7 +117,7 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 
 	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
 	if err != nil {
-		return false, err
+		return o, false, err
 	}
 
 	if ic.Status.InternalRegistryHostname != internalHostname {
@@ -127,11 +126,11 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (bool, error) {
 	}
 
 	if !modified {
-		return false, nil
+		return o, false, nil
 	}
 
-	_, err = gic.configClient.Images().UpdateStatus(ic)
-	return err == nil, err
+	n, err := gic.configClient.Images().UpdateStatus(ic)
+	return n, err == nil, err
 }
 
 func (gic *generatorImageConfig) Delete(opts *metav1.DeleteOptions) error {

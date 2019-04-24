@@ -20,8 +20,8 @@ type Getter interface {
 
 type Mutator interface {
 	Getter
-	Create() error
-	Update(o runtime.Object) (bool, error)
+	Create() (runtime.Object, error)
+	Update(o runtime.Object) (runtime.Object, bool, error)
 	Delete(opts *metaapi.DeleteOptions) error
 	// Owned indicates whether this resource is explicitly owned by the registry operator
 	// and therefore should be removed when the registry config resource is removed.
@@ -45,34 +45,34 @@ type expecter interface {
 	expected() (runtime.Object, error)
 }
 
-func commonCreate(gen expecter, create func(obj runtime.Object) (runtime.Object, error)) error {
+func commonCreate(gen expecter, create func(obj runtime.Object) (runtime.Object, error)) (runtime.Object, error) {
 	o := gen.Type()
 
 	n, err := gen.expected()
 	if err != nil {
-		return err
+		return n, err
 	}
 
 	_, err = strategy.Override(o, n)
 	if err != nil {
-		return err
+		return n, err
 	}
 
-	_, err = create(o)
-	return err
+	c, err := create(o)
+	return c, err
 }
 
-func commonUpdate(gen expecter, o runtime.Object, update func(obj runtime.Object) (runtime.Object, error)) (bool, error) {
+func commonUpdate(gen expecter, o runtime.Object, update func(obj runtime.Object) (runtime.Object, error)) (runtime.Object, bool, error) {
 	n, err := gen.expected()
 	if err != nil {
-		return false, err
+		return o, false, err
 	}
 
 	updated, err := strategy.Override(o, n)
 	if !updated || err != nil {
-		return updated, err
+		return o, updated, err
 	}
 
-	_, err = update(o)
-	return true, err
+	u, err := update(o)
+	return u, true, err
 }

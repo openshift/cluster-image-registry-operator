@@ -54,9 +54,9 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 		}
 		r := bufio.NewReader(log)
 		for {
-			line, readErr := r.ReadSlice('\n')
+			line, readErr := r.ReadString('\n')
 			if len(line) > 0 || readErr == nil {
-				podLog = append(podLog, string(line))
+				podLog = append(podLog, line)
 			}
 			if readErr == io.EOF {
 				break

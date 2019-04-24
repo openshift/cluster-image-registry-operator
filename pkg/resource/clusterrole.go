@@ -106,13 +106,13 @@ func (gcr *generatorClusterRole) Get() (runtime.Object, error) {
 	return gcr.lister.Get(gcr.GetName())
 }
 
-func (gcr *generatorClusterRole) Create() error {
+func (gcr *generatorClusterRole) Create() (runtime.Object, error) {
 	return commonCreate(gcr, func(obj runtime.Object) (runtime.Object, error) {
 		return gcr.client.ClusterRoles().Create(obj.(*rbacapi.ClusterRole))
 	})
 }
 
-func (gcr *generatorClusterRole) Update(o runtime.Object) (bool, error) {
+func (gcr *generatorClusterRole) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcr, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gcr.client.ClusterRoles().Update(obj.(*rbacapi.ClusterRole))
 	})

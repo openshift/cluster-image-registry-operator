@@ -13,6 +13,7 @@ rules:
 - apiGroups:
   - config.openshift.io
   resources:
+  - "clusteroperators"
   - "images"
   - "images/status"
   verbs:
