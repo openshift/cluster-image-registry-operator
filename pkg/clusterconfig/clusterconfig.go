@@ -152,7 +152,20 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 	return cfg, nil
 }
 
-func GetGCSConfig() (*Config, error) {
+func GetGCSConfig(listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
+
+	// Look for a user defined secret to get the GCS credentials from
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil {
+		return nil, err
+	} else {
+		if v, ok := sec.Data["STORAGE_GCS_KEYFILE"]; ok {
+			cfg.Storage.GCS.KeyfileData = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+		}
+	}
+
 	return cfg, nil
 }
