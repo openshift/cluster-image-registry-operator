@@ -12,7 +12,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestFailing(t *testing.T) {
+func TestDegraded(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	defer framework.MustRemoveImageRegistry(t, client)
@@ -31,20 +31,20 @@ func TestFailing(t *testing.T) {
 	})
 	cr := framework.MustEnsureImageRegistryIsProcessed(t, client)
 
-	var failing operatorapi.OperatorCondition
+	var degraded operatorapi.OperatorCondition
 	for _, cond := range cr.Status.Conditions {
 		switch cond.Type {
-		case operatorapi.OperatorStatusTypeFailing:
-			failing = cond
+		case operatorapi.OperatorStatusTypeDegraded:
+			degraded = cond
 		}
 	}
-	if failing.Status != operatorapi.ConditionTrue {
+	if degraded.Status != operatorapi.ConditionTrue {
 		framework.DumpObject(t, "the latest observed image registry resource", cr)
 		framework.DumpOperatorLogs(t, client)
-		t.Fatal("the imageregistry resource is expected to be failing")
+		t.Fatal("the imageregistry resource is expected to be degraded")
 	}
 
-	if expected := "replicas must be greater than or equal to 0"; !strings.Contains(failing.Message, expected) {
-		t.Errorf("expected failing message to contain %q, got %q", expected, failing.Message)
+	if expected := "replicas must be greater than or equal to 0"; !strings.Contains(degraded.Message, expected) {
+		t.Errorf("expected degraded message to contain %q, got %q", expected, degraded.Message)
 	}
 }

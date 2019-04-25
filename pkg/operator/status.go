@@ -72,13 +72,13 @@ func (c *Controller) setStatusRemoving(cr *imageregistryv1.Config) {
 }
 
 func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr error) {
-	operatorFailing := operatorapiv1.OperatorCondition{
+	operatorDegraded := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionTrue,
 		Message: fmt.Sprintf("Unable to remove registry: %s", removeErr),
 		Reason:  "RemoveFailed",
 	}
 
-	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
@@ -146,18 +146,18 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
 
-	operatorFailing := operatorapiv1.OperatorCondition{
+	operatorDegraded := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,
 		Message: "",
 		Reason:  "",
 	}
 	if e, ok := applyError.(permanentError); ok {
-		operatorFailing.Status = operatorapiv1.ConditionTrue
-		operatorFailing.Message = applyError.Error()
-		operatorFailing.Reason = e.Reason
+		operatorDegraded.Status = operatorapiv1.ConditionTrue
+		operatorDegraded.Message = applyError.Error()
+		operatorDegraded.Reason = e.Reason
 	}
 
-	updateCondition(cr, operatorapiv1.OperatorStatusTypeFailing, operatorFailing)
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 
 	operatorRemoved := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,

@@ -56,10 +56,10 @@ func TestBaremetalDefaults(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	cr := framework.MustEnsureImageRegistryIsProcessed(t, client)
 	conds := framework.GetImageRegistryConditions(cr)
-	if !conds.Failing.IsTrue() {
-		t.Errorf("the operator is expected to be failing, got: %s", conds)
+	if !conds.Degraded.IsTrue() {
+		t.Errorf("the operator is expected to be degraded, got: %s", conds)
 	}
-	if want := "StorageNotConfigured"; conds.Failing.Reason() != want {
-		t.Errorf("failing reason: got %q, want %q", conds.Failing.Reason(), want)
+	if want := "StorageNotConfigured"; conds.Degraded.Reason() != want {
+		t.Errorf("degraded reason: got %q, want %q", conds.Degraded.Reason(), want)
 	}
 }

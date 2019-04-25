@@ -57,7 +57,7 @@ func (cs ConditionStatus) Reason() string {
 type ImageRegistryConditions struct {
 	Available   ConditionStatus
 	Progressing ConditionStatus
-	Failing     ConditionStatus
+	Degraded    ConditionStatus
 	Removed     ConditionStatus
 }
 
@@ -69,8 +69,8 @@ func GetImageRegistryConditions(cr *imageregistryapiv1.Config) ImageRegistryCond
 			conds.Available = NewConditionStatus(cond)
 		case operatorapiv1.OperatorStatusTypeProgressing:
 			conds.Progressing = NewConditionStatus(cond)
-		case operatorapiv1.OperatorStatusTypeFailing:
-			conds.Failing = NewConditionStatus(cond)
+		case operatorapiv1.OperatorStatusTypeDegraded:
+			conds.Degraded = NewConditionStatus(cond)
 		case imageregistryapiv1.OperatorStatusTypeRemoved:
 			conds.Removed = NewConditionStatus(cond)
 		}
@@ -80,8 +80,8 @@ func GetImageRegistryConditions(cr *imageregistryapiv1.Config) ImageRegistryCond
 
 func (c ImageRegistryConditions) String() string {
 	return fmt.Sprintf(
-		"available (%s), progressing (%s), failing (%s), removed (%s)",
-		c.Available, c.Progressing, c.Failing, c.Removed,
+		"available (%s), progressing (%s), Degraded (%s), removed (%s)",
+		c.Available, c.Progressing, c.Degraded, c.Removed,
 	)
 }
 
@@ -216,7 +216,7 @@ func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imagereg
 
 		conds := GetImageRegistryConditions(cr)
 		logger.Logf("waiting for the registry: %s", conds)
-		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Failing.IsTrue(), nil
+		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Degraded.IsTrue(), nil
 	})
 	if err != nil {
 		DumpYAML(logger, "the latest observed state of the image registry resource", cr)
@@ -292,7 +292,7 @@ func MustEnsureInternalRegistryHostnameIsSet(t *testing.T, client *Clientset) {
 func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) bool {
 	gotAvailable := false
 	gotProgressing := false
-	gotFailing := false
+	gotDegraded := false
 	for _, c := range status.Status.Conditions {
 		if c.Type == osapi.OperatorAvailable && c.Status == osapi.ConditionTrue {
 			gotAvailable = true
@@ -300,11 +300,11 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 		if c.Type == osapi.OperatorProgressing && c.Status == osapi.ConditionFalse {
 			gotProgressing = true
 		}
-		if c.Type == osapi.OperatorFailing && c.Status == osapi.ConditionFalse {
-			gotFailing = true
+		if c.Type == osapi.OperatorDegraded && c.Status == osapi.ConditionFalse {
+			gotDegraded = true
 		}
 	}
-	return gotAvailable && gotProgressing && gotFailing
+	return gotAvailable && gotProgressing && gotDegraded
 }
 
 func ensureClusterOperatorStatusIsSet(logger Logger, client *Clientset) error {

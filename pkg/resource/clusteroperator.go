@@ -139,8 +139,8 @@ func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperato
 			conditionType = configapi.OperatorAvailable
 		case operatorapi.OperatorStatusTypeProgressing:
 			conditionType = configapi.OperatorProgressing
-		case operatorapi.OperatorStatusTypeFailing:
-			conditionType = configapi.OperatorFailing
+		case operatorapi.OperatorStatusTypeDegraded:
+			conditionType = configapi.OperatorDegraded
 		default:
 			continue
 		}
