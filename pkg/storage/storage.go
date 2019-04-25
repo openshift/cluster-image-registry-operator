@@ -9,6 +9,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
@@ -46,6 +47,11 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 	if cfg.Swift != nil {
 		names = append(names, "Swift")
 		drivers = append(drivers, swift.NewDriver(cfg.Swift, listers))
+	}
+
+	if cfg.GCS != nil {
+		names = append(names, "GCS")
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS, listers))
 	}
 
 	if cfg.PVC != nil {
@@ -95,6 +101,8 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	case installConfig.Platform.AWS != nil:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
+	//case installConfig.Platform.GCS != nil:
+	//	cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 	case installConfig.Platform.OpenStack != nil:
 		// TODO(flaper87): This should be switch to swift as soon as support for
 		// it is complete. Using Emptydir for now so that OpenStack deployments
