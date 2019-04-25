@@ -11,6 +11,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
 )
 
 var (
@@ -40,6 +41,11 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 	if cfg.S3 != nil {
 		names = append(names, "S3")
 		drivers = append(drivers, s3.NewDriver(cfg.S3, listers))
+	}
+
+	if cfg.Swift != nil {
+		names = append(names, "Swift")
+		drivers = append(drivers, swift.NewDriver(cfg.Swift, listers))
 	}
 
 	if cfg.PVC != nil {
