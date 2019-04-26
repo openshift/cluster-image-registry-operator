@@ -4,15 +4,7 @@
 [[projects]]
   digest = "1:25e90949d88e66bcbb646626a293c77a97237b37a8f854c1e8ae817b74b5c2cf"
   name = "cloud.google.com/go"
-  packages = [
-    "compute/metadata",
-    "iam",
-    "internal",
-    "internal/optional",
-    "internal/trace",
-    "internal/version",
-    "storage",
-  ]
+  packages = ["compute/metadata"]
   pruneopts = ""
   revision = "c9474f2f8deb81759839474b6bd1726bbfe1c1c4"
   version = "v0.36.0"
@@ -159,7 +151,6 @@
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
-    "protoc-gen-go/descriptor",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
@@ -192,14 +183,6 @@
   pruneopts = ""
   revision = "9b3b1e0f5f99ae461456d768e7d301a7acdaa2d8"
   version = "v1.1.0"
-
-[[projects]]
-  digest = "1:55c1b46a80db2baf4d762c1d0b5cb4946e46125baa02b8959310abab15b54aee"
-  name = "github.com/googleapis/gax-go"
-  packages = ["v2"]
-  pruneopts = ""
-  revision = "c8a15bac9b9fe955bd9f900272f9a306465d28cf"
-  version = "v2.0.3"
 
 [[projects]]
   digest = "1:16b2837c8b3cf045fa2cdc82af0cf78b19582701394484ae76b2c3bc3c99ad73"
@@ -287,7 +270,7 @@
   version = "1.0.1"
 
 [[projects]]
-  digest = "1:68713da7e97656bf5638560792b415f6655912f3870011e91c72e676032518fe"
+  digest = "1:1267d3ab59b1de9f72b0bd74615c0926814806fbf2a6136cffc0fe1ee66a22f4"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -295,10 +278,10 @@
     "route/v1",
   ]
   pruneopts = ""
-  revision = "ea5d05408a95a765d44b5a4b31561b530f0b1f4c"
+  revision = "77b8897ec79a562e85920134fc65b63300c4d27a"
 
 [[projects]]
-  digest = "1:cbd07d16227e80331e32b96524809b8a3bf9292d54ef31696cb8733099d9d12f"
+  digest = "1:a264cd682e37db6e9045406d17c2dd70ced6f085a2ace94a0087dbfb48cfff71"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -319,7 +302,7 @@
     "route/listers/route/v1",
   ]
   pruneopts = ""
-  revision = "31ef839c86359881d2c312c4f0131febc6662400"
+  revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
 
 [[projects]]
   branch = "master"
@@ -385,29 +368,6 @@
   version = "v1.0.3"
 
 [[projects]]
-  digest = "1:b1bb9332f6cb7821a730e1681819b2813340eba5e873f05381815a7c6807d172"
-  name = "go.opencensus.io"
-  packages = [
-    ".",
-    "exemplar",
-    "internal",
-    "internal/tagencoding",
-    "plugin/ochttp",
-    "plugin/ochttp/propagation/b3",
-    "stats",
-    "stats/internal",
-    "stats/view",
-    "tag",
-    "trace",
-    "trace/internal",
-    "trace/propagation",
-    "trace/tracestate",
-  ]
-  pruneopts = ""
-  revision = "2b5032d79456124f42db6b7eb19ac6c155449dc2"
-  version = "v0.19.0"
-
-[[projects]]
   branch = "master"
   digest = "1:5462386895a322b94a79a5de7314310edbd5f4d15f851ae032f146b2c951b3de"
   name = "golang.org/x/crypto"
@@ -426,8 +386,6 @@
     "http2",
     "http2/hpack",
     "idna",
-    "internal/timeseries",
-    "trace",
   ]
   pruneopts = ""
   revision = "3a22650c66bd7f4fb6d1e8072ffd7b75c8a27898"
@@ -511,25 +469,6 @@
   revision = "8dcb7bc8c7fe0a895995c76c721cef79419ac98a"
 
 [[projects]]
-  digest = "1:1ef3746d0b0a2ab4147e9fe251202756ff89d181c3c3cc67abdf40e375243cbc"
-  name = "google.golang.org/api"
-  packages = [
-    "gensupport",
-    "googleapi",
-    "googleapi/internal/uritemplates",
-    "googleapi/transport",
-    "internal",
-    "iterator",
-    "option",
-    "storage/v1",
-    "transport/http",
-    "transport/http/internal/propagation",
-  ]
-  pruneopts = ""
-  revision = "19e022d8cf43ce81f046bae8cc18c5397cc7732f"
-  version = "v0.1.0"
-
-[[projects]]
   digest = "1:bc09e719c4e2a15d17163f5272d9a3131c45d77542b7fdc53ff518815bc19ab3"
   name = "google.golang.org/appengine"
   packages = [
@@ -547,59 +486,6 @@
   pruneopts = ""
   revision = "e9657d882bb81064595ca3b56cbe2546bbabf7b1"
   version = "v1.4.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:91f75dc679abcf04b29b064a5b9c40a0b0561c86c322010fbf6fc08040cc48bc"
-  name = "google.golang.org/genproto"
-  packages = [
-    "googleapis/api/annotations",
-    "googleapis/iam/v1",
-    "googleapis/rpc/code",
-    "googleapis/rpc/status",
-  ]
-  pruneopts = ""
-  revision = "4b09977fb92221987e99d190c8f88f2c92727a29"
-
-[[projects]]
-  digest = "1:39d4d828b87d58d114fdc211f0638f32dcae84019fe17d6b48f9b697f4b60213"
-  name = "google.golang.org/grpc"
-  packages = [
-    ".",
-    "balancer",
-    "balancer/base",
-    "balancer/roundrobin",
-    "binarylog/grpc_binarylog_v1",
-    "codes",
-    "connectivity",
-    "credentials",
-    "credentials/internal",
-    "encoding",
-    "encoding/proto",
-    "grpclog",
-    "internal",
-    "internal/backoff",
-    "internal/binarylog",
-    "internal/channelz",
-    "internal/envconfig",
-    "internal/grpcrand",
-    "internal/grpcsync",
-    "internal/syscall",
-    "internal/transport",
-    "keepalive",
-    "metadata",
-    "naming",
-    "peer",
-    "resolver",
-    "resolver/dns",
-    "resolver/passthrough",
-    "stats",
-    "status",
-    "tap",
-  ]
-  pruneopts = ""
-  revision = "a02b0774206b209466313a0b525d2c738fe407eb"
-  version = "v1.18.0"
 
 [[projects]]
   digest = "1:75fb3fcfc73a8c723efde7777b40e8e8ff9babf30d8c56160d01beffea8a95a6"
@@ -706,6 +592,7 @@
     "pkg/util/mergepatch",
     "pkg/util/naming",
     "pkg/util/net",
+    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/strategicpatch",
@@ -946,14 +833,14 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "cloud.google.com/go/compute/metadata",
-    "cloud.google.com/go/storage",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/awserr",
     "github.com/aws/aws-sdk-go/aws/credentials",
+    "github.com/aws/aws-sdk-go/aws/request",
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/davecgh/go-spew/spew",
+    "github.com/ghodss/yaml",
     "github.com/golang/glog",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/api/operator/v1",
@@ -968,7 +855,6 @@
     "github.com/openshift/client-go/route/listers/route/v1",
     "github.com/openshift/installer/pkg/types",
     "github.com/openshift/library-go/pkg/operator/resource/resourceread",
-    "google.golang.org/api/googleapi",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1",
@@ -983,6 +869,7 @@
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/intstr",
     "k8s.io/apimachinery/pkg/util/net",
+    "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/uuid",
     "k8s.io/apimachinery/pkg/util/wait",
@@ -995,6 +882,7 @@
     "k8s.io/client-go/kubernetes/typed/apps/v1",
     "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/kubernetes/typed/rbac/v1",
+    "k8s.io/client-go/kubernetes/typed/storage/v1",
     "k8s.io/client-go/listers/apps/v1",
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/listers/rbac/v1",
