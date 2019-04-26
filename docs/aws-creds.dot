@@ -1,0 +1,49 @@
+digraph G {
+    compound = true
+    graph [ordering="out",style="filled",nodesep=0.3,ranksep=0.2,labeljust=l]
+    node  [shape="rectangle",style="rounded,filled",fillcolor="#ffffff",fontsize=10]
+    edge  [fontsize=8]
+
+    {
+        rank = same
+        node [style="filled"]
+
+        installer [shape=box,label="Installer"]
+        cvo [shape=box,label="CVO"]
+        user [shape=box,label="User"]
+    }
+
+    subgraph cluster_0 {
+        label = "IPI"
+        system_creds [label="Secret\nnamespace: kube-system\nname: aws-creds"]
+        local_creds [label="Secret\nnamespace: openshift-image-registry\nname: installer-cloud-credentials"]
+        creds_request [label="CredentialsRequest\nnamespace: openshift-cloud-credential-operator\nname: openshift-image-registry"]
+        cred_minter [shape=box,style="filled",label="Operator: cloud-credential"]
+        system_creds -> cred_minter
+        creds_request -> cred_minter
+        cred_minter -> local_creds
+    }
+
+    subgraph cluster_1 {
+        label = "UPI"
+        user_creds [label="Secret\nnamespace: openshift-image-registry\nname: image-registry-private-configuration-user"]
+    }
+
+    operator [shape=box,style="filled",label="Operator: image-registry"]
+    private [label="Secret\nnamespace: openshit-image-registry\nname: image-registry-private-configuration"]
+    deployment [label="Deployment\nnamespace: openshift-image-registry\nname: image-registry"]
+    containers [shape=box,style="filled",label="Container(s)"]
+    s3 [shape=cylinder,style="filled",label="S3"]
+
+    installer -> system_creds
+    cvo -> creds_request
+    user -> user_creds
+    local_creds -> operator
+    user_creds -> operator
+    operator -> private
+    operator -> deployment
+    private -> deployment [style=dotted,label="EnvVarSource"]
+    deployment -> containers
+    private -> containers
+    containers -> s3
+}
