@@ -69,7 +69,7 @@ The registry operator reports status in two places:
 
 A ClusterOperator resource is defined in the cluster scope which reflects the state of the registry operator at a high level.  Retrievable via:
 
-    oc get clusteroperators.config.openshift.io/cluster-image-registry-operator -o yaml -n openshift-image-registry
+    oc get clusteroperators.config.openshift.io/image-registry -o yaml -n openshift-image-registry
 
 The image-registry resource itself has a status section with detailed conditions indicating the state of the managed registry, you can view this via:
 
