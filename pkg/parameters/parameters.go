@@ -33,4 +33,7 @@ type Globals struct {
 	CAConfig struct {
 		Name string
 	}
+	ServiceCA struct {
+		Name string
+	}
 }

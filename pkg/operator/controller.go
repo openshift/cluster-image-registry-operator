@@ -79,6 +79,7 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.Service.Name = imageregistryv1.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
 	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
+	p.ServiceCA.Name = "serviceca"
 
 	listers := &regopclient.Listers{}
 	c := &Controller{

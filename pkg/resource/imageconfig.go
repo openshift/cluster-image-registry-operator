@@ -91,10 +91,16 @@ func (gic *generatorImageConfig) Create() (runtime.Object, error) {
 	}
 	ic.Status.ExternalRegistryHostnames = externalHostnames
 
-	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
+	internalHostnames, err := getServiceHostnames(gic.serviceLister, gic.serviceName)
 	if err != nil {
 		return ic, err
 	}
+
+	internalHostname := ""
+	if len(internalHostnames) > 0 {
+		internalHostname = internalHostnames[0]
+	}
+
 	ic.Status.InternalRegistryHostname = internalHostname
 
 	// Create strips status fields, so need to explicitly set status separately
@@ -115,9 +121,14 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (runtime.Object, bool,
 		modified = true
 	}
 
-	internalHostname, err := getServiceHostname(gic.serviceLister, gic.serviceName)
+	internalHostnames, err := getServiceHostnames(gic.serviceLister, gic.serviceName)
 	if err != nil {
 		return o, false, err
+	}
+
+	internalHostname := ""
+	if len(internalHostnames) > 0 {
+		internalHostname = internalHostnames[0]
 	}
 
 	if ic.Status.InternalRegistryHostname != internalHostname {
@@ -179,14 +190,21 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 	return externalHostnames, nil
 }
 
-func getServiceHostname(serviceLister kcorelisters.ServiceNamespaceLister, serviceName string) (string, error) {
+func getServiceHostnames(serviceLister kcorelisters.ServiceNamespaceLister, serviceName string) ([]string, error) {
 	svc, err := serviceLister.Get(serviceName)
 	if errors.IsNotFound(err) {
-		return "", nil
+		return nil, nil
 	}
-	if svc == nil || err != nil {
-		return "", err
+	if err != nil {
+		return nil, err
 	}
-	svcHostname := fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, svc.Spec.Ports[0].Port)
-	return svcHostname, nil
+
+	port := ""
+	if svc.Spec.Ports[0].Port != 443 {
+		port = fmt.Sprintf(":%d", svc.Spec.Ports[0].Port)
+	}
+	return []string{
+		fmt.Sprintf("%s.%s.svc%s", svc.Name, svc.Namespace, port),
+		fmt.Sprintf("%s.%s.svc.cluster.local%s", svc.Name, svc.Namespace, port),
+	}, nil
 }
