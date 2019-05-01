@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -59,7 +60,6 @@ func TestAWSDefaults(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig(mockLister)
@@ -305,6 +305,8 @@ func TestAWSDefaults(t *testing.T) {
 			t.Errorf("unable to find environment variable: wanted %s", val.Name)
 		}
 	}
+
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 }
 
 func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
@@ -351,7 +353,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 }
 
 func TestAWSUpdateCredentials(t *testing.T) {
@@ -377,7 +379,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
@@ -407,6 +409,14 @@ func TestAWSUpdateCredentials(t *testing.T) {
 			t.Errorf("%#v", err)
 		}
 	}
+	// Ensure that the clusteroperator reports degraded
+	clusterOperator := framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	for _, cond := range clusterOperator.Status.Conditions {
+		// TODO: Also ensure that Available=false?
+		if cond.Type == configv1.OperatorDegraded && cond.Status != configv1.ConditionTrue {
+			t.Errorf("expected clusteroperator to report Degraded=%s, got %s", configv1.ConditionTrue, cond.Status)
+		}
+	}
 
 	// Remove the image-registry-private-configuration-user secret
 	err = client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Delete(imageregistryv1.ImageRegistryPrivateConfigurationUser, &metav1.DeleteOptions{})
@@ -424,7 +434,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 }
 
 func TestAWSChangeS3Encryption(t *testing.T) {
@@ -443,7 +453,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
@@ -629,7 +639,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
@@ -666,5 +676,6 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if exists {
 		t.Errorf("s3 bucket should have been deleted, but it wasn't")
 	}
+	// TODO: what should be repored for the cluster operator status?
 
 }

@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -62,4 +63,22 @@ func TestBaremetalDefaults(t *testing.T) {
 	if want := "StorageNotConfigured"; conds.Degraded.Reason() != want {
 		t.Errorf("degraded reason: got %q, want %q", conds.Degraded.Reason(), want)
 	}
+
+	clusterOperator := framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	for _, cond := range clusterOperator.Status.Conditions {
+		switch cond.Type {
+		case configv1.OperatorAvailable:
+			if cond.Status != configv1.ConditionFalse {
+				t.Errorf("expected clusteroperator to report Available=%s, got %s", configv1.ConditionFalse, cond.Status)
+			}
+		case configv1.OperatorDegraded:
+			if cond.Status != configv1.ConditionTrue {
+				t.Errorf("expected clusteroperator to report Degraded=%s, got %s", configv1.ConditionTrue, cond.Status)
+			}
+			if cond.Reason != "StorageNotConfigured" {
+				t.Errorf("expected clusteroprator degraded status reason to be %s, got %s", "StorageNotConfigured", cond.Reason)
+			}
+		}
+	}
+
 }

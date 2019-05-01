@@ -36,7 +36,7 @@ func TestBasicEmptyDir(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	deploy, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})

@@ -114,7 +114,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	deployment, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
@@ -159,7 +159,7 @@ func TestRouteConfiguration(t *testing.T) {
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureDefaultExternalRegistryHostnameIsSet(t, client)
 	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
 	framework.MustEnsureDefaultExternalRouteExists(t, client)
@@ -189,7 +189,7 @@ func TestVersionReporting(t *testing.T) {
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`)); err != nil {
 		t.Fatalf("failed to patch operator to new version: %v", err)

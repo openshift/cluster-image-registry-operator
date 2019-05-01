@@ -307,7 +307,7 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 	return gotAvailable && gotProgressing && gotDegraded
 }
 
-func ensureClusterOperatorStatusIsSet(logger Logger, client *Clientset) error {
+func ensureClusterOperatorStatusIsSet(logger Logger, client *Clientset) (*configapiv1.ClusterOperator, error) {
 	var status *configapiv1.ClusterOperator
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		status, err = client.ClusterOperators().Get(imageregistryapiv1.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
@@ -328,12 +328,35 @@ func ensureClusterOperatorStatusIsSet(logger Logger, client *Clientset) error {
 			logger.Logf("clusteroperator conditions are: %#v", status.Status.Conditions)
 		}
 	}
-	return err
+	return status, err
 }
 
-func MustEnsureClusterOperatorStatusIsSet(t *testing.T, client *Clientset) {
-	if err := ensureClusterOperatorStatusIsSet(t, client); err != nil {
+func MustEnsureClusterOperatorStatusIsSet(t *testing.T, client *Clientset) *configapiv1.ClusterOperator {
+	clusterOperator, err := ensureClusterOperatorStatusIsSet(t, client)
+	if err != nil {
 		t.Fatal(err)
+	}
+	return clusterOperator
+}
+
+func MustEnsureClusterOperatorStatusIsNormal(t *testing.T, client *Clientset) {
+	clusterOperator := MustEnsureClusterOperatorStatusIsSet(t, client)
+
+	for _, cond := range clusterOperator.Status.Conditions {
+		switch cond.Type {
+		case configapiv1.OperatorAvailable:
+			if cond.Status != configapiv1.ConditionTrue {
+				t.Errorf("Expected clusteroperator Available=%s, got %s", configapiv1.ConditionTrue, cond.Status)
+			}
+		case configapiv1.OperatorProgressing:
+			if cond.Status != configapiv1.ConditionFalse {
+				t.Errorf("Expected clusteroperator Progressing=%s, got %s", configapiv1.ConditionFalse, cond.Status)
+			}
+		case configapiv1.OperatorDegraded:
+			if cond.Status != configapiv1.ConditionFalse {
+				t.Errorf("Expected clusteroperator Degraded=%s, got %s", configapiv1.ConditionFalse, cond.Status)
+			}
+		}
 	}
 }
 
