@@ -133,7 +133,13 @@ func (c *Controller) sync() error {
 	prevCR := cr.DeepCopy()
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
-		return c.finalizeResources(cr)
+		err = c.finalizeResources(cr)
+
+		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+			glog.Errorf("unable to apply cluster operator: %s", genErr)
+		}
+
+		return err
 	}
 
 	var applyError error
@@ -170,6 +176,10 @@ func (c *Controller) sync() error {
 		}
 		glog.Infof("object changed: %s (metadata=%t, spec=%t): %s", util.ObjectInfo(cr), metadataChanged, specChanged, difference)
 
+		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+			glog.Errorf("unable to apply cluster operator: %s", genErr)
+		}
+
 		client, err := regopset.NewForConfig(c.kubeconfig)
 		if err != nil {
 			return err
@@ -196,6 +206,10 @@ func (c *Controller) sync() error {
 			glog.Errorf("unable to calculate difference in %s: %s", util.ObjectInfo(cr), err)
 		}
 		glog.Infof("object changed: %s (status=%t): %s", util.ObjectInfo(cr), statusChanged, difference)
+
+		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+			glog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
+		}
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
 		if err != nil {

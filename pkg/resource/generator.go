@@ -286,3 +286,55 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 
 	return nil
 }
+
+func (g *Generator) ApplyClusterOperator(cr *imageregistryv1.Config) error {
+	configClient, err := configset.NewForConfig(g.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	gen := newGeneratorClusterOperator(g.listers.Deployments, g.listers.ClusterOperators, configClient, cr, nil)
+
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		o, err := gen.Get()
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
+			}
+
+			n, err := gen.Create()
+			if err != nil {
+				return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
+			}
+
+			str, err := object.DumpString(n)
+			if err != nil {
+				glog.Errorf("unable to dump object: %s", err)
+			}
+
+			glog.Infof("object %s created: %s", Name(gen), str)
+			return nil
+		}
+
+		n, updated, err := gen.Update(o.DeepCopyObject())
+		if err != nil {
+			if errors.IsConflict(err) {
+				return err
+			}
+			return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
+		}
+		if updated {
+			difference, err := object.DiffString(o, n)
+			if err != nil {
+				glog.Errorf("unable to calculate difference: %s", err)
+			}
+			glog.Infof("object %s updated: %s", Name(gen), difference)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("unable to apply objects: %s", err)
+	}
+
+	return nil
+}

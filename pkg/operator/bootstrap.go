@@ -68,6 +68,10 @@ func (c *Controller) Bootstrap() error {
 		err = driver.CompleteConfiguration(cr)
 	}
 
+	if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+		glog.Errorf("unable to apply cluster operator (bootstrap): %s", genErr)
+	}
+
 	client, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
