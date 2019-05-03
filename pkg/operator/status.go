@@ -127,6 +127,9 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 			operatorProgressing.Reason = "Removed"
 		}
 	} else if applyError != nil {
+		if _, ok := applyError.(permanentError); ok {
+			operatorProgressing.Status = operatorapiv1.ConditionFalse
+		}
 		operatorProgressing.Message = fmt.Sprintf("Unable to apply resources: %s", applyError)
 		operatorProgressing.Reason = "Error"
 	} else if deploy == nil {
