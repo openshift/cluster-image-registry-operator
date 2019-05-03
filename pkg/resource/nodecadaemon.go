@@ -4,7 +4,6 @@ import (
 	"os"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -31,7 +30,7 @@ spec:
     metadata:
       labels:
         name: node-ca
-    spec:      
+    spec:
       nodeSelector:
         beta.kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
@@ -45,22 +44,13 @@ spec:
         securityContext:
           privileged: true
         image: docker.io/openshift/origin-cluster-image-registry-operator:latest
-        command: 
+        command:
         - "/bin/sh"
         - "-c"
         - |
-          if [ ! -e /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000 ]; then
-            mkdir /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
-          fi
-          if [ ! -e /etc/docker/certs.d/${internalRegistryHostname} ]; then
-            mkdir /etc/docker/certs.d/${internalRegistryHostname}
-          fi
           while [ true ];
           do
             for f in $(ls /tmp/serviceca); do
-                if [ "${f}" == "service-ca.crt" ]; then
-                    continue
-                fi
                 echo $f
                 ca_file_path="/tmp/serviceca/${f}"
                 f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
@@ -74,25 +64,12 @@ spec:
             done
             for d in $(ls /etc/docker/certs.d); do
                 echo $d
-                if [ "${d}" == "${internalRegistryHostname}" ]; then
-                    continue
-                fi
-                if [ "${d}" == "image-registry.openshift-image-registry.svc.cluster.local:5000" ]; then
-                    continue
-                fi
                 dp=$(echo $d | sed  -r 's/(.*):/\1\.\./')
                 reg_conf_path="/tmp/serviceca/${dp}"
                 if [ ! -e "${reg_conf_path}" ]; then
                     rm -rf /etc/docker/certs.d/$d
                 fi
             done
-            if [ -e /tmp/serviceca/service-ca.crt ]; then
-              cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000
-              cp -u /tmp/serviceca/service-ca.crt /etc/docker/certs.d/${internalRegistryHostname}
-            else 
-              rm /etc/docker/certs.d/image-registry.openshift-image-registry.svc.cluster.local:5000/service-ca.crt
-              rm /etc/docker/certs.d/${internalRegistryHostname}/service-ca.crt
-            fi
             sleep 60
           done
         volumeMounts:
@@ -153,56 +130,20 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 }
 
 func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
-	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
-	if err != nil {
-		return ds.Type(), err
-	}
-
 	daemonSet := resourceread.ReadDaemonSetV1OrDie([]byte(nodeCADaemonSetDefinition))
-	env := corev1.EnvVar{
-		Name:  "internalRegistryHostname",
-		Value: internalHostname,
-	}
-
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
-	daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, env)
 
 	return ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
-	internalHostname, err := getServiceHostname(ds.serviceLister, ds.params.Service.Name)
-	if err != nil {
-		return o, false, err
-	}
-
 	daemonSet := o.(*appsv1.DaemonSet)
 	modified := false
-	exists := false
 
 	newImage := os.Getenv("IMAGE")
 	oldImage := daemonSet.Spec.Template.Spec.Containers[0].Image
 	if newImage != oldImage {
 		daemonSet.Spec.Template.Spec.Containers[0].Image = newImage
-		modified = true
-	}
-
-	for i, env := range daemonSet.Spec.Template.Spec.Containers[0].Env {
-		if env.Name == "internalRegistryHostname" {
-			exists = true
-			if env.Value != internalHostname {
-				daemonSet.Spec.Template.Spec.Containers[0].Env[i].Value = internalHostname
-				modified = true
-			}
-			break
-		}
-	}
-	if !exists {
-		env := corev1.EnvVar{
-			Name:  "internalRegistryHostname",
-			Value: internalHostname,
-		}
-		daemonSet.Spec.Template.Spec.Containers[0].Env = append(daemonSet.Spec.Template.Spec.Containers[0].Env, env)
 		modified = true
 	}
 
