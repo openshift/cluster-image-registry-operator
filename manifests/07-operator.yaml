@@ -22,6 +22,14 @@ spec:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
         operator: Exists
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
       containers:
         - name: cluster-image-registry-operator
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
