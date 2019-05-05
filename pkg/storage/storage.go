@@ -90,14 +90,14 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 		return cfg, err
 	}
 
-	switch installConfig.Platform.Name() {
-	case "libvirt":
+	switch {
+	case installConfig.Platform.Libvirt != nil:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case "aws":
+	case installConfig.Platform.AWS != nil:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	case "azure":
+	case installConfig.Platform.Azure != nil:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case "openstack":
+	case installConfig.Platform.OpenStack != nil:
 		// TODO(flaper87): This should be switch to swift as soon as support for
 		// it is complete. Using Emptydir for now so that OpenStack deployments
 		// (and work) can move forward for now. Not production ready!

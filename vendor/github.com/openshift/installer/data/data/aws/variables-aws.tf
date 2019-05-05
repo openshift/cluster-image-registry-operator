@@ -7,18 +7,19 @@ EOF
   default = "1.0"
 }
 
-variable "aws_master_ec2_type" {
+variable "aws_bootstrap_instance_type" {
   type        = "string"
-  description = "Instance size for the master node(s). Example: `m4.large`."
-
-  # FIXME: get this wired up to the machine default
-  default = "m4.xlarge"
+  description = "Instance type for the bootstrap node. Example: `m4.large`."
 }
 
-variable "aws_ec2_ami_override" {
+variable "aws_master_instance_type" {
   type        = "string"
-  description = "(optional) AMI override for all nodes. Example: `ami-foobar123`."
-  default     = ""
+  description = "Instance type for the master node(s). Example: `m4.large`."
+}
+
+variable "aws_ami" {
+  type        = "string"
+  description = "AMI for all nodes.  An encrypted copy of this AMI will be used.  Example: `ami-foobar123`."
 }
 
 variable "aws_extra_tags" {
@@ -35,19 +36,16 @@ EOF
 
 variable "aws_master_root_volume_type" {
   type        = "string"
-  default     = "gp2"
   description = "The type of volume for the root block device of master nodes."
 }
 
 variable "aws_master_root_volume_size" {
   type        = "string"
-  default     = "120"
   description = "The size of the volume in gigabytes for the root block device of master nodes."
 }
 
 variable "aws_master_root_volume_iops" {
-  type    = "string"
-  default = "400"
+  type = "string"
 
   description = <<EOF
 The amount of provisioned IOPS for the root block device of master nodes.
@@ -58,4 +56,14 @@ EOF
 variable "aws_region" {
   type        = "string"
   description = "The target AWS region for the cluster."
+}
+
+variable "aws_master_availability_zones" {
+  type        = "list"
+  description = "The availability zones in which to create the masters. The length of this list must match master_count."
+}
+
+variable "aws_worker_availability_zones" {
+  type        = "list"
+  description = "The availability zones to provision for workers.  Worker instances are created by the machine-API operator, but this variable controls their supporting infrastructure (subnets, routing, etc.)."
 }

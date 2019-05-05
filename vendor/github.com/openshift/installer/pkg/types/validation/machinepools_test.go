@@ -5,120 +5,149 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/pointer"
 
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
+	"github.com/openshift/installer/pkg/types/azure"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/openstack"
 )
 
+func validMachinePool(name string) *types.MachinePool {
+	return &types.MachinePool{
+		Name:           name,
+		Replicas:       pointer.Int64Ptr(1),
+		Hyperthreading: types.HyperthreadingDisabled,
+	}
+}
+
 func TestValidateMachinePool(t *testing.T) {
 	cases := []struct {
 		name     string
+		platform *types.Platform
 		pool     *types.MachinePool
-		platform string
 		valid    bool
 	}{
 		{
-			name: "minimal",
-			pool: &types.MachinePool{
-				Name: "master",
-			},
-			platform: "aws",
+			name:     "minimal",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool:     validMachinePool("test-name"),
 			valid:    true,
 		},
 		{
-			name: "invalid name",
-			pool: &types.MachinePool{
-				Name: "bad-name",
-			},
-			platform: "aws",
-			valid:    false,
+			name:     "missing replicas",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Replicas = nil
+				return p
+			}(),
+			valid: false,
 		},
 		{
-			name: "invalid replicas",
-			pool: &types.MachinePool{
-				Name:     "master",
-				Replicas: func(x int64) *int64 { return &x }(-1),
-			},
-			platform: "aws",
-			valid:    false,
+			name:     "invalid replicas",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Replicas = pointer.Int64Ptr(-1)
+				return p
+			}(),
+			valid: false,
 		},
 		{
-			name: "valid aws",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "valid aws",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					AWS: &aws.MachinePool{},
-				},
-			},
-			platform: "aws",
-			valid:    true,
+				}
+				return p
+			}(),
+			valid: true,
 		},
 		{
-			name: "invalid aws",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "invalid aws",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					AWS: &aws.MachinePool{
 						EC2RootVolume: aws.EC2RootVolume{
 							IOPS: -10,
 						},
 					},
-				},
-			},
-			platform: "aws",
-			valid:    false,
+				}
+				return p
+			}(),
+			valid: false,
 		},
 		{
-			name: "valid libvirt",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "valid azure",
+			platform: &types.Platform{Azure: &azure.Platform{Region: "eastus"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
+					Azure: &azure.MachinePool{},
+				}
+				return p
+			}(),
+			valid: true,
+		},
+		{
+			name:     "valid libvirt",
+			platform: &types.Platform{Libvirt: &libvirt.Platform{}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					Libvirt: &libvirt.MachinePool{},
-				},
-			},
-			platform: "libvirt",
-			valid:    true,
+				}
+				return p
+			}(),
+			valid: true,
 		},
 		{
-			name: "valid openstack",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "valid openstack",
+			platform: &types.Platform{OpenStack: &openstack.Platform{}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					OpenStack: &openstack.MachinePool{},
-				},
-			},
-			platform: "openstack",
-			valid:    true,
+				}
+				return p
+			}(),
+			valid: true,
 		},
 		{
-			name: "mis-matched platform",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "mis-matched platform",
+			platform: &types.Platform{Libvirt: &libvirt.Platform{}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					AWS: &aws.MachinePool{},
-				},
-			},
-			platform: "libvirt",
-			valid:    false,
+				}
+				return p
+			}(),
+			valid: false,
 		},
 		{
-			name: "multiple platforms",
-			pool: &types.MachinePool{
-				Name: "master",
-				Platform: types.MachinePoolPlatform{
+			name:     "multiple platforms",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validMachinePool("test-name")
+				p.Platform = types.MachinePoolPlatform{
 					AWS:     &aws.MachinePool{},
 					Libvirt: &libvirt.MachinePool{},
-				},
-			},
-			platform: "aws",
-			valid:    false,
+				}
+				return p
+			}(),
+			valid: false,
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateMachinePool(tc.pool, field.NewPath("test-path"), tc.platform).ToAggregate()
+			err := ValidateMachinePool(tc.platform, tc.pool, field.NewPath("test-path")).ToAggregate()
 			if tc.valid {
 				assert.NoError(t, err)
 			} else {

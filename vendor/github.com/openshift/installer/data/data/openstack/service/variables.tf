@@ -8,18 +8,14 @@ variable "swift_container" {
   description = "The Swift container name for bootstrap ignition file."
 }
 
-variable "cluster_name" {
-  type        = "string"
-  description = "The name of the cluster."
-}
-
 variable "cluster_id" {
-  type = "string"
+  type        = "string"
+  description = "The identifier for the cluster."
 }
 
 variable "cluster_domain" {
   type        = "string"
-  description = "The domain name of the cluster."
+  description = "The domain name of the cluster. All DNS records must be under this domain."
 }
 
 variable "ignition" {
@@ -35,7 +31,12 @@ variable "flavor_name" {
 
 variable "service_port_id" {
   type        = "string"
-  description = "The subnet ID for the bootstrap node."
+  description = "The subnet ID for the service node."
+}
+
+variable "service_port_ip" {
+  type        = "string"
+  description = "The subnet IP for the service node."
 }
 
 variable "master_ips" {
@@ -44,6 +45,10 @@ variable "master_ips" {
 
 variable "master_port_names" {
   type = "list"
+}
+
+variable "bootstrap_ip" {
+  type = "string"
 }
 
 variable "lb_floating_ip" {

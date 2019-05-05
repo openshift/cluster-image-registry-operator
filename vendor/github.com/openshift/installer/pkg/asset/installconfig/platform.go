@@ -9,18 +9,24 @@ import (
 
 	"github.com/openshift/installer/pkg/asset"
 	awsconfig "github.com/openshift/installer/pkg/asset/installconfig/aws"
+	azureconfig "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	libvirtconfig "github.com/openshift/installer/pkg/asset/installconfig/libvirt"
 	openstackconfig "github.com/openshift/installer/pkg/asset/installconfig/openstack"
+	vsphereconfig "github.com/openshift/installer/pkg/asset/installconfig/vsphere"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
+	"github.com/openshift/installer/pkg/types/azure"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
+	"github.com/openshift/installer/pkg/types/vsphere"
 )
 
 // Platform is an asset that queries the user for the platform on which to install
 // the cluster.
-type platform types.Platform
+type platform struct {
+	types.Platform
+}
 
 var _ asset.Asset = (*platform)(nil)
 
@@ -47,10 +53,20 @@ func (a *platform) Generate(asset.Parents) error {
 		if err != nil {
 			return err
 		}
+	case azure.Name:
+		a.Azure, err = azureconfig.Platform()
+		if err != nil {
+			return err
+		}
 	case none.Name:
 		a.None = &none.Platform{}
 	case openstack.Name:
 		a.OpenStack, err = openstackconfig.Platform()
+		if err != nil {
+			return err
+		}
+	case vsphere.Name:
+		a.VSphere, err = vsphereconfig.Platform()
 		if err != nil {
 			return err
 		}
@@ -84,4 +100,8 @@ func (a *platform) queryUserForPlatform() (platform string, err error) {
 		},
 	}, &platform)
 	return
+}
+
+func (a *platform) CurrentName() string {
+	return a.Platform.Name()
 }

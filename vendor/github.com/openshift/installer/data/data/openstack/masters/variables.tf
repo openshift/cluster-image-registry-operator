@@ -3,11 +3,13 @@ variable "base_image" {
 }
 
 variable "cluster_id" {
-  type = "string"
+  type        = "string"
+  description = "The identifier for the cluster."
 }
 
-variable "cluster_name" {
-  type = "string"
+variable "cluster_domain" {
+  type        = "string"
+  description = "The domain name of the cluster. All DNS records must be under this domain."
 }
 
 variable "flavor_name" {

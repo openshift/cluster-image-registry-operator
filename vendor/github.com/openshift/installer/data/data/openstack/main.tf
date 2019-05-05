@@ -27,24 +27,25 @@ module "service" {
   source = "./service"
 
   swift_container   = "${openstack_objectstorage_container_v1.container.name}"
-  cluster_name      = "${var.cluster_name}"
   cluster_id        = "${var.cluster_id}"
-  cluster_domain    = "${var.base_domain}"
+  cluster_domain    = "${var.cluster_domain}"
   image_name        = "${var.openstack_base_image}"
   flavor_name       = "${var.openstack_master_flavor_name}"
   ignition          = "${var.ignition_bootstrap}"
   lb_floating_ip    = "${var.openstack_lb_floating_ip}"
   service_port_id   = "${module.topology.service_port_id}"
+  service_port_ip   = "${module.topology.service_port_ip}"
   master_ips        = "${module.topology.master_ips}"
   master_port_names = "${module.topology.master_port_names}"
+  bootstrap_ip      = "${module.topology.bootstrap_port_ip}"
 }
 
 module "bootstrap" {
   source = "./bootstrap"
 
   swift_container     = "${openstack_objectstorage_container_v1.container.name}"
-  cluster_name        = "${var.cluster_name}"
   cluster_id          = "${var.cluster_id}"
+  cluster_domain      = "${var.cluster_domain}"
   image_name          = "${var.openstack_base_image}"
   flavor_name         = "${var.openstack_master_flavor_name}"
   ignition            = "${var.ignition_bootstrap}"
@@ -57,7 +58,7 @@ module "masters" {
 
   base_image          = "${var.openstack_base_image}"
   cluster_id          = "${var.cluster_id}"
-  cluster_name        = "${var.cluster_name}"
+  cluster_domain      = "${var.cluster_domain}"
   flavor_name         = "${var.openstack_master_flavor_name}"
   instance_count      = "${var.master_count}"
   master_sg_ids       = "${concat(var.openstack_master_extra_sg_ids, list(module.topology.master_sg_id))}"
@@ -71,21 +72,22 @@ module "masters" {
 module "topology" {
   source = "./topology"
 
-  cidr_block       = "${var.machine_cidr}"
-  cluster_id       = "${var.cluster_id}"
-  cluster_name     = "${var.cluster_name}"
-  external_network = "${var.openstack_external_network}"
-  masters_count    = "${var.master_count}"
-  lb_floating_ip   = "${var.openstack_lb_floating_ip}"
-  trunk_support    = "${var.openstack_trunk_support}"
+  cidr_block          = "${var.machine_cidr}"
+  cluster_id          = "${var.cluster_id}"
+  external_network    = "${var.openstack_external_network}"
+  external_network_id = "${var.openstack_external_network_id}"
+  masters_count       = "${var.master_count}"
+  lb_floating_ip      = "${var.openstack_lb_floating_ip}"
+  trunk_support       = "${var.openstack_trunk_support}"
 }
 
 resource "openstack_objectstorage_container_v1" "container" {
-  name = "${lower(var.cluster_name)}.${var.base_domain}"
+  name = "${var.cluster_id}"
 
+  # "kubernetes.io/cluster/${var.cluster_id}" = "owned"
   metadata = "${merge(map(
-      "Name", "${var.cluster_name}-ignition-master",
-      "KubernetesCluster", "${var.cluster_name}",
-      "openshiftClusterID", "${var.cluster_id}"
-    ), var.openstack_extra_tags)}"
+    "Name", "${var.cluster_id}-ignition-master",
+
+    "openshiftClusterID", "${var.cluster_id}"
+  ), var.openstack_extra_tags)}"
 }

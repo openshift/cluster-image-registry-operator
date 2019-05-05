@@ -8,13 +8,14 @@ variable "swift_container" {
   description = "The Swift container name for bootstrap ignition file."
 }
 
-variable "cluster_name" {
+variable "cluster_id" {
   type        = "string"
-  description = "The name of the cluster."
+  description = "The identifier for the cluster."
 }
 
-variable "cluster_id" {
-  type = "string"
+variable "cluster_domain" {
+  type        = "string"
+  description = "The domain name of the cluster. All DNS records must be under this domain."
 }
 
 variable "ignition" {

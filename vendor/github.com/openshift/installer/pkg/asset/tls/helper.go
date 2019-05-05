@@ -19,7 +19,11 @@ func assetFilePath(filename string) string {
 }
 
 func apiAddress(cfg *types.InstallConfig) string {
-	return fmt.Sprintf("%s-api.%s", cfg.ObjectMeta.Name, cfg.BaseDomain)
+	return fmt.Sprintf("api.%s", cfg.ClusterDomain())
+}
+
+func internalAPIAddress(cfg *types.InstallConfig) string {
+	return fmt.Sprintf("api-int.%s", cfg.ClusterDomain())
 }
 
 func cidrhost(network net.IPNet, hostNum int) (string, error) {

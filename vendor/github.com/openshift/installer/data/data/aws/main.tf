@@ -1,9 +1,7 @@
 locals {
-  private_zone_id = "${aws_route53_zone.int.zone_id}"
-
   tags = "${merge(map(
-      "openshiftClusterID", "${var.cluster_id}"
-    ), var.aws_extra_tags)}"
+    "kubernetes.io/cluster/${var.cluster_id}", "owned"
+  ), var.aws_extra_tags)}"
 }
 
 provider "aws" {
@@ -13,51 +11,46 @@ provider "aws" {
 module "bootstrap" {
   source = "./bootstrap"
 
-  ami                      = "${var.aws_ec2_ami_override}"
-  cluster_name             = "${var.cluster_name}"
+  ami                      = "${aws_ami_copy.main.id}"
+  instance_type            = "${var.aws_bootstrap_instance_type}"
+  cluster_id               = "${var.cluster_id}"
   ignition                 = "${var.ignition_bootstrap}"
-  subnet_id                = "${module.vpc.public_subnet_ids[0]}"
+  subnet_id                = "${module.vpc.az_to_public_subnet_id[var.aws_master_availability_zones[0]]}"
   target_group_arns        = "${module.vpc.aws_lb_target_group_arns}"
   target_group_arns_length = "${module.vpc.aws_lb_target_group_arns_length}"
   vpc_id                   = "${module.vpc.vpc_id}"
   vpc_security_group_ids   = "${list(module.vpc.master_sg_id)}"
 
-  tags = "${merge(map(
-      "Name", "${var.cluster_name}-bootstrap",
-    ), local.tags)}"
+  tags = "${local.tags}"
 }
 
 module "masters" {
   source = "./master"
 
-  cluster_id   = "${var.cluster_id}"
-  cluster_name = "${var.cluster_name}"
-  ec2_type     = "${var.aws_master_ec2_type}"
+  cluster_id    = "${var.cluster_id}"
+  instance_type = "${var.aws_master_instance_type}"
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-    ), local.tags)}"
+  tags = "${local.tags}"
 
+  availability_zones       = "${var.aws_master_availability_zones}"
+  az_to_subnet_id          = "${module.vpc.az_to_private_subnet_id}"
   instance_count           = "${var.master_count}"
   master_sg_ids            = "${list(module.vpc.master_sg_id)}"
   root_volume_iops         = "${var.aws_master_root_volume_iops}"
   root_volume_size         = "${var.aws_master_root_volume_size}"
   root_volume_type         = "${var.aws_master_root_volume_type}"
-  subnet_ids               = "${module.vpc.private_subnet_ids}"
   target_group_arns        = "${module.vpc.aws_lb_target_group_arns}"
   target_group_arns_length = "${module.vpc.aws_lb_target_group_arns_length}"
-  ec2_ami                  = "${var.aws_ec2_ami_override}"
+  ec2_ami                  = "${aws_ami_copy.main.id}"
   user_data_ign            = "${var.ignition_master}"
 }
 
 module "iam" {
   source = "./iam"
 
-  cluster_name = "${var.cluster_name}"
+  cluster_id = "${var.cluster_id}"
 
-  tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-    ), local.tags)}"
+  tags = "${local.tags}"
 }
 
 module "dns" {
@@ -68,52 +61,34 @@ module "dns" {
   api_internal_lb_dns_name = "${module.vpc.aws_lb_api_internal_dns_name}"
   api_internal_lb_zone_id  = "${module.vpc.aws_lb_api_internal_zone_id}"
   base_domain              = "${var.base_domain}"
-  cluster_name             = "${var.cluster_name}"
-  master_count             = "${var.master_count}"
-  private_zone_id          = "${local.private_zone_id}"
+  cluster_domain           = "${var.cluster_domain}"
+  cluster_id               = "${var.cluster_id}"
+  etcd_count               = "${var.master_count}"
+  etcd_ip_addresses        = "${module.masters.ip_addresses}"
+  tags                     = "${local.tags}"
+  vpc_id                   = "${module.vpc.vpc_id}"
 }
 
 module "vpc" {
   source = "./vpc"
 
-  base_domain  = "${var.base_domain}"
-  cidr_block   = "${var.machine_cidr}"
-  cluster_id   = "${var.cluster_id}"
-  cluster_name = "${var.cluster_name}"
-  region       = "${var.aws_region}"
+  cidr_block         = "${var.machine_cidr}"
+  cluster_id         = "${var.cluster_id}"
+  region             = "${var.aws_region}"
+  availability_zones = "${distinct(concat(var.aws_master_availability_zones, var.aws_worker_availability_zones))}"
+
+  tags = "${local.tags}"
+}
+
+resource "aws_ami_copy" "main" {
+  name              = "${var.cluster_id}-master"
+  source_ami_id     = "${var.aws_ami}"
+  source_ami_region = "${var.aws_region}"
+  encrypted         = true
 
   tags = "${merge(map(
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-    ), local.tags)}"
-}
-
-resource "aws_route53_record" "etcd_a_nodes" {
-  count   = "${var.master_count}"
-  type    = "A"
-  ttl     = "60"
-  zone_id = "${local.private_zone_id}"
-  name    = "${var.cluster_name}-etcd-${count.index}"
-  records = ["${module.masters.ip_addresses[count.index]}"]
-}
-
-resource "aws_route53_record" "etcd_cluster" {
-  type    = "SRV"
-  ttl     = "60"
-  zone_id = "${local.private_zone_id}"
-  name    = "_etcd-server-ssl._tcp.${var.cluster_name}"
-  records = ["${formatlist("0 10 2380 %s", aws_route53_record.etcd_a_nodes.*.fqdn)}"]
-}
-
-resource "aws_route53_zone" "int" {
-  name          = "${var.base_domain}"
-  force_destroy = true
-
-  vpc {
-    vpc_id = "${module.vpc.vpc_id}"
-  }
-
-  tags = "${merge(map(
-      "Name", "${var.cluster_name}_int",
-      "kubernetes.io/cluster/${var.cluster_name}", "owned",
-    ), local.tags)}"
+    "Name", "${var.cluster_id}-master",
+    "sourceAMI", "${var.aws_ami}",
+    "sourceRegion", "${var.aws_region}",
+  ), local.tags)}"
 }

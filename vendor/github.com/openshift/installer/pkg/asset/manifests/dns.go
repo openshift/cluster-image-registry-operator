@@ -14,10 +14,13 @@ import (
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	icaws "github.com/openshift/installer/pkg/asset/installconfig/aws"
+	icazure "github.com/openshift/installer/pkg/asset/installconfig/azure"
 	awstypes "github.com/openshift/installer/pkg/types/aws"
+	azuretypes "github.com/openshift/installer/pkg/types/azure"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	nonetypes "github.com/openshift/installer/pkg/types/none"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
+	vspheretypes "github.com/openshift/installer/pkg/types/vsphere"
 )
 
 var (
@@ -65,7 +68,7 @@ func (d *DNS) Generate(dependencies asset.Parents) error {
 			// not namespaced
 		},
 		Spec: configv1.DNSSpec{
-			BaseDomain: installConfig.Config.BaseDomain,
+			BaseDomain: installConfig.Config.ClusterDomain(),
 		},
 	}
 
@@ -77,11 +80,23 @@ func (d *DNS) Generate(dependencies asset.Parents) error {
 		}
 		config.Spec.PublicZone = &configv1.DNSZone{ID: strings.TrimPrefix(*zone.Id, "/hostedzone/")}
 		config.Spec.PrivateZone = &configv1.DNSZone{Tags: map[string]string{
-			"openshiftClusterID":                                                          clusterID.ClusterID,
-			fmt.Sprintf("kubernetes.io/cluster/%s", installConfig.Config.ObjectMeta.Name): "owned",
-			"Name": fmt.Sprintf("%s_int", installConfig.Config.ObjectMeta.Name),
+			fmt.Sprintf("kubernetes.io/cluster/%s", clusterID.InfraID): "owned",
+			"Name": fmt.Sprintf("%s-int", clusterID.InfraID),
 		}}
-	case libvirttypes.Name, openstacktypes.Name, nonetypes.Name:
+	case azuretypes.Name:
+		dnsConfig, err := icazure.NewDNSConfig()
+		if err != nil {
+			return err
+		}
+
+		//currently, this guesses the azure resource IDs from known parameter.
+		config.Spec.PublicZone = &configv1.DNSZone{
+			ID: dnsConfig.GetDNSZoneID(installConfig.Config.Azure.BaseDomainResourceGroupName, installConfig.Config.BaseDomain),
+		}
+		config.Spec.PrivateZone = &configv1.DNSZone{
+			ID: dnsConfig.GetDNSZoneID(clusterID.InfraID+"-rg", installConfig.Config.ClusterDomain()),
+		}
+	case libvirttypes.Name, openstacktypes.Name, nonetypes.Name, vspheretypes.Name:
 	default:
 		return errors.New("invalid Platform")
 	}

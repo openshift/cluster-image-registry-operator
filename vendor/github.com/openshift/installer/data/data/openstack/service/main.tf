@@ -18,7 +18,7 @@ Description=Load balancer for the OpenShift services
 [Service]
 ExecStartPre=/sbin/setenforce 0
 ExecStartPre=/bin/systemctl disable --now bootkube kubelet progress openshift
-ExecStart=/bin/podman run --name haproxy --rm -ti --net=host -v /etc/haproxy:/usr/local/etc/haproxy:ro docker.io/library/haproxy:1.7
+ExecStart=/bin/podman run --rm -ti --net=host -v /etc/haproxy:/usr/local/etc/haproxy:ro docker.io/library/haproxy:1.7
 ExecStop=/bin/podman stop -t 10 haproxy
 Restart=always
 RestartSec=10
@@ -69,55 +69,72 @@ data "ignition_file" "haproxy_watcher_script" {
 
 set -x
 
+# NOTE(flaper87): We're doing this here for now
+# because our current vendored verison for terraform
+# doesn't support appending to an ignition_file. This
+# is coming in 2.3
+grep -qxF "127.0.0.1 api.${var.cluster_domain}" /etc/hosts || echo "127.0.0.1 api.${var.cluster_domain}" | sudo tee -a /etc/hosts
+
+mkdir -p /etc/haproxy
 export KUBECONFIG=/opt/openshift/auth/kubeconfig
-TEMPLATE="{{range .items}}{{\$name:=.metadata.name}}{{range .status.conditions}}{{if eq .type \"Ready\"}}{{if eq .status \"True\" }}{{\$name}}{{end}}{{end}}{{end}} {{end}}"
+TEMPLATE="{{range .items}}{{\$addresses:=.status.addresses}}{{range .status.conditions}}{{if eq .type \"Ready\"}}{{if eq .status \"True\" }}{{range \$addresses}}{{if eq .type \"InternalIP\"}}{{.address}}{{end}}{{end}}{{end}}{{end}}{{end}} {{end}}"
 MASTERS=$(oc get nodes -l node-role.kubernetes.io/master -ogo-template="$TEMPLATE")
 WORKERS=$(oc get nodes -l node-role.kubernetes.io/worker -ogo-template="$TEMPLATE")
 
+update_cfg_and_restart() {
+    CHANGED=$(diff /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.new)
+
+    if [[ ! -f /etc/haproxy/haproxy.cfg ]] || [[ ! $CHANGED -eq "" ]];
+    then
+        cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.backup || true
+        cp /etc/haproxy/haproxy.cfg.new /etc/haproxy/haproxy.cfg
+        systemctl restart haproxy
+    fi
+}
+
 if [[ $MASTERS -eq "" ]];
 then
-    MASTER_LINES="
-    server ${var.cluster_name}-bootstrap-22623 ${var.cluster_name}-bootstrap.${var.cluster_domain} check port 22623
-    server ${var.cluster_name}-bootstrap-6443 ${var.cluster_name}-bootstrap.${var.cluster_domain} check port 6443"
-    MASTERS="${var.cluster_name}-master-0 ${var.cluster_name}-master-1 ${var.cluster_name}-master-2"
+cat > /etc/haproxy/haproxy.cfg.new << EOF
+listen ${var.cluster_id}-api-masters
+    bind 0.0.0.0:6443
+    bind 0.0.0.0:22623
+    mode tcp
+    balance roundrobin
+    server bootstrap-22623 ${var.bootstrap_ip} check port 22623
+    server bootstrap-6443 ${var.bootstrap_ip} check port 6443
+    ${replace(join("\n    ", formatlist("server master-%s %s check port 6443", var.master_port_names, var.master_ips)), "master-port-", "")}
+EOF
+    update_cfg_and_restart
+    exit 0
 fi
 
 for master in $MASTERS;
 do
     MASTER_LINES="$MASTER_LINES
-    server $master $master.${var.cluster_domain} check port 6443"
+    server $master $master check port 6443"
 done
 
 for worker in $WORKERS;
 do
     WORKER_LINES="$WORKER_LINES
-    server $worker $worker.${var.cluster_domain} check port 443"
+    server $worker $worker check port 443"
 done
 
 cat > /etc/haproxy/haproxy.cfg.new << EOF
-listen ${var.cluster_name}-api-masters
+listen ${var.cluster_id}-api-masters
     bind 0.0.0.0:6443
     bind 0.0.0.0:22623
     mode tcp
     balance roundrobin$MASTER_LINES
 
-listen ${var.cluster_name}-api-workers
+listen ${var.cluster_id}-api-workers
     bind 0.0.0.0:80
     bind 0.0.0.0:443
     mode tcp
     balance roundrobin$WORKER_LINES
 EOF
 
-
-mkdir -p /etc/haproxy
-CHANGED=$(diff /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.new)
-
-if [[ ! -f /etc/haproxy/haproxy.cfg ]] || [[ ! $CHANGED -eq "" ]];
-then
-    cp /etc/haproxy/haproxy.cfg /etc/haproxy/haproxy.cfg.backup || true
-    cp /etc/haproxy/haproxy.cfg.new /etc/haproxy/haproxy.cfg
-    systemctl restart haproxy
-fi
+update_cfg_and_restart
 TFEOF
   }
 }
@@ -134,19 +151,31 @@ data "ignition_file" "corefile" {
     errors
     reload 10s
 
-${length(var.lb_floating_ip) == 0 ? "" : "    file /etc/coredns/db.${var.cluster_domain} ${var.cluster_name}-api.${var.cluster_domain} {\n    }\n"}
+${length(var.lb_floating_ip) == 0 ? "" : "    file /etc/coredns/db.${var.cluster_domain} api.${var.cluster_domain} {\n    }\n"}
 
-
-    file /etc/coredns/db.${var.cluster_domain} _etcd-server-ssl._tcp.${var.cluster_name}.${var.cluster_domain} {
+    hosts {
+        ${replace(join("\n", formatlist("%s %s", var.master_ips, var.master_port_names)), "port-", "")}
+        fallthrough
     }
 
-${replace(join("\n", formatlist("    file /etc/coredns/db.${var.cluster_domain} ${var.cluster_name}-etcd-%s.${var.cluster_domain} {\n    upstream /etc/resolv.conf\n    }\n", var.master_port_names)), "master-port-", "")}
+
+    file /etc/coredns/db.${var.cluster_domain} _etcd-server-ssl._tcp.${var.cluster_domain} {
+    }
+
+    file /etc/coredns/db.${var.cluster_domain} bootstrap.${var.cluster_domain} {
+        upstream /etc/resolv.conf
+    }
+
+${replace(join("\n", formatlist("    file /etc/coredns/db.${var.cluster_domain} master-%s.${var.cluster_domain} {\n    upstream /etc/resolv.conf\n    }\n", var.master_port_names)), "${var.cluster_id}-master-port-", "")}
+
+${replace(join("\n", formatlist("    file /etc/coredns/db.${var.cluster_domain} etcd-%s.${var.cluster_domain} {\n    upstream /etc/resolv.conf\n    }\n", var.master_port_names)), "${var.cluster_id}-master-port-", "")}
+
 
     forward . /etc/resolv.conf {
     }
 }
 
-${var.cluster_name}.${var.cluster_domain} {
+${var.cluster_domain} {
     log
     errors
     reload 10s
@@ -168,7 +197,7 @@ data "ignition_file" "coredb" {
   content {
     content = <<EOF
 $ORIGIN ${var.cluster_domain}.
-@    3600 IN SOA host-${var.cluster_name}.${var.cluster_domain}. hostmaster (
+@    3600 IN SOA host.${var.cluster_domain}. hostmaster (
                                 2017042752 ; serial
                                 7200       ; refresh (2 hours)
                                 3600       ; retry (1 hour)
@@ -176,12 +205,17 @@ $ORIGIN ${var.cluster_domain}.
                                 3600       ; minimum (1 hour)
                                 )
 
-${length(var.lb_floating_ip) == 0 ? "" : "${var.cluster_name}-api  IN  A  ${var.lb_floating_ip}"}
-${length(var.lb_floating_ip) == 0 ? "" : "*.apps.${var.cluster_name}  IN  A  ${var.lb_floating_ip}"}
+${length(var.lb_floating_ip) == 0 ? "api  IN  A  ${var.service_port_ip}" : "api  IN  A  ${var.lb_floating_ip}"}
+${length(var.lb_floating_ip) == 0 ? "*.apps  IN  A  ${var.service_port_ip}" : "*.apps  IN  A  ${var.lb_floating_ip}"}
 
-${replace(join("\n", formatlist("${var.cluster_name}-etcd-%s  IN  CNAME  ${var.cluster_name}-master-%s", var.master_port_names, var.master_port_names)), "master-port-", "")}
+api-int  IN  A  ${var.service_port_ip}
 
-${replace(join("\n", formatlist("_etcd-server-ssl._tcp.${var.cluster_name}  8640  IN  SRV  0  10  2380   ${var.cluster_name}-etcd-%s.${var.cluster_domain}.", var.master_port_names)), "master-port-", "")}
+bootstrap.${var.cluster_domain}  IN  A  ${var.bootstrap_ip}
+${replace(join("\n", formatlist("%s  IN  A %s", var.master_port_names, var.master_ips)), "port-", "")}
+${replace(join("\n", formatlist("master-%s  IN  A %s", var.master_port_names, var.master_ips)), "${var.cluster_id}-master-port-", "")}
+
+${replace(join("\n", formatlist("etcd-%s  IN  A  %s", var.master_port_names, var.master_ips)), "${var.cluster_id}-master-port-", "")}
+${replace(join("\n", formatlist("_etcd-server-ssl._tcp  8640  IN  SRV  0  10  2380   etcd-%s.${var.cluster_domain}.", var.master_port_names)), "${var.cluster_id}-master-port-", "")}
 EOF
   }
 }
@@ -201,6 +235,18 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
+}
+
+data "ignition_file" "hostname" {
+  filesystem = "root"
+  mode       = "420"           // 0644
+  path       = "/etc/hostname"
+
+  content {
+    content = <<EOF
+${var.cluster_id}-api
+EOF
+  }
 }
 
 data "ignition_user" "core" {
@@ -226,6 +272,7 @@ data "ignition_config" "service_redirect" {
   }
 
   files = [
+    "${data.ignition_file.hostname.id}",
     "${data.ignition_file.haproxy_watcher_script.id}",
     "${data.ignition_file.corefile.id}",
     "${data.ignition_file.coredb.id}",
@@ -244,7 +291,7 @@ data "ignition_config" "service_redirect" {
 }
 
 resource "openstack_compute_instance_v2" "load_balancer" {
-  name      = "${var.cluster_name}-api"
+  name      = "${var.cluster_id}-api"
   flavor_id = "${data.openstack_compute_flavor_v2.bootstrap_flavor.id}"
   image_id  = "${data.openstack_images_image_v2.bootstrap_image.id}"
 
@@ -255,9 +302,10 @@ resource "openstack_compute_instance_v2" "load_balancer" {
   }
 
   metadata {
-    Name = "${var.cluster_name}-bootstrap"
+    Name     = "${var.cluster_id}-api"
+    Hostname = "${var.cluster_id}-api.${var.cluster_domain}"
 
-    # "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+    # "kubernetes.io/cluster/${var.cluster_id}" = "owned"
     openshiftClusterID = "${var.cluster_id}"
   }
 }

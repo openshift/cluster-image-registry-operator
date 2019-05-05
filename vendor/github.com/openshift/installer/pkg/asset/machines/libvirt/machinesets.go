@@ -14,7 +14,7 @@ import (
 )
 
 // MachineSets returns a list of machinesets for a machinepool.
-func MachineSets(clusterID string, config *types.InstallConfig, pool *types.MachinePool, role, userDataSecret string) ([]machineapi.MachineSet, error) {
+func MachineSets(clusterID string, config *types.InstallConfig, pool *types.MachinePool, role, userDataSecret string) ([]*machineapi.MachineSet, error) {
 	if configPlatform := config.Platform.Name(); configPlatform != libvirt.Name {
 		return nil, fmt.Errorf("non-Libvirt configuration: %q", configPlatform)
 	}
@@ -22,7 +22,6 @@ func MachineSets(clusterID string, config *types.InstallConfig, pool *types.Mach
 	if poolPlatform := pool.Platform.Name(); poolPlatform != "" && poolPlatform != libvirt.Name {
 		return nil, fmt.Errorf("non-Libvirt machine-pool: %q", poolPlatform)
 	}
-	clustername := config.ObjectMeta.Name
 	platform := config.Platform.Libvirt
 	// FIXME: libvirt actuator does not support any options from machinepool.
 	// mpool := pool.Platform.Libvirt
@@ -32,37 +31,37 @@ func MachineSets(clusterID string, config *types.InstallConfig, pool *types.Mach
 		total = *pool.Replicas
 	}
 
-	provider := provider(clustername, config.Networking.MachineCIDR.String(), platform, userDataSecret)
-	name := fmt.Sprintf("%s-%s-%d", clustername, pool.Name, 0)
-	mset := machineapi.MachineSet{
+	provider := provider(clusterID, config.Networking.MachineCIDR.String(), platform, userDataSecret)
+	name := fmt.Sprintf("%s-%s-%d", clusterID, pool.Name, 0)
+	mset := &machineapi.MachineSet{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "cluster.k8s.io/v1alpha1",
+			APIVersion: "machine.openshift.io/v1beta1",
 			Kind:       "MachineSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "openshift-machine-api",
 			Name:      name,
 			Labels: map[string]string{
-				"sigs.k8s.io/cluster-api-cluster":      clustername,
-				"sigs.k8s.io/cluster-api-machine-role": role,
-				"sigs.k8s.io/cluster-api-machine-type": role,
+				"machine.openshift.io/cluster-api-cluster":      clusterID,
+				"machine.openshift.io/cluster-api-machine-role": role,
+				"machine.openshift.io/cluster-api-machine-type": role,
 			},
 		},
 		Spec: machineapi.MachineSetSpec{
 			Replicas: pointer.Int32Ptr(int32(total)),
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"sigs.k8s.io/cluster-api-machineset": name,
-					"sigs.k8s.io/cluster-api-cluster":    clustername,
+					"machine.openshift.io/cluster-api-machineset": name,
+					"machine.openshift.io/cluster-api-cluster":    clusterID,
 				},
 			},
 			Template: machineapi.MachineTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"sigs.k8s.io/cluster-api-machineset":   name,
-						"sigs.k8s.io/cluster-api-cluster":      clustername,
-						"sigs.k8s.io/cluster-api-machine-role": role,
-						"sigs.k8s.io/cluster-api-machine-type": role,
+						"machine.openshift.io/cluster-api-machineset":   name,
+						"machine.openshift.io/cluster-api-cluster":      clusterID,
+						"machine.openshift.io/cluster-api-machine-role": role,
+						"machine.openshift.io/cluster-api-machine-type": role,
 					},
 				},
 				Spec: machineapi.MachineSpec{
@@ -75,5 +74,5 @@ func MachineSets(clusterID string, config *types.InstallConfig, pool *types.Mach
 		},
 	}
 
-	return []machineapi.MachineSet{mset}, nil
+	return []*machineapi.MachineSet{mset}, nil
 }

@@ -45,7 +45,7 @@ enough to store the ignition config files, so they are served by swift instead.
   values. For example (as an OpenStack admin) `openstack quota set --secgroups 100 --secgroup-rules 1000 <project>`
 
 * The installer requires a proper RHCOS image in the OpenStack cluster or project:
-`openstack image create --container-format=bare --disk-format=qcow2 --file redhat-coreos-${RHCOSVERSION}-openstack.qcow2 redhat-coreos-${RHCOSVERSION}`
+`openstack image create --container-format=bare --disk-format=qcow2 --file rhcos-${RHCOSVERSION}-openstack.qcow2 rhcos-${RHCOSVERSION}`
 
 **NOTE:** Depending on your OpenStack environment you can upload the RHCOS image
 as `raw` or `qcow2`. See [Disk and container formats for images](https://docs.openstack.org/image-guide/image-formats.html) for more information.
@@ -59,6 +59,16 @@ openstack network list --long -c ID -c Name -c "Router Type"
 | 148a8023-62a7-4672-b018-003462f8d7dc | public_network | External    |
 +--------------------------------------+----------------+-------------+
 ```
+
+### Isolated Development
+
+If you would like to set up an isolated development environment, you may use a
+bare metal host running CentOS 7.  The following repository includes some
+instructions and scripts to help with creating a single-node OpenStack
+development environment for running the installer.  Please refer to the
+documentation in that repository for further details.
+
+* https://github.com/shiftstack-dev-tools/ocp-doit
 
 ## OpenShift API Access
 
@@ -77,19 +87,24 @@ First, create the floating IP:
 
     $ openstack floating ip create <external network>
 
-Note the actual IP address. We will use `10.19.115.117` throughout this document.
+Note the actual IP address. We will use `10.19.115.117` throughout this
+document.
 
-Next, add the `<cluster name>-api.<cluster domain>` and `*.apps.<cluster name>-api.<cluster domain>` name records pointing to that floating IP to your DNS:
+Next, add the `api.<cluster name>.<cluster domain>` and `*.apps.<cluster
+name>.<cluster domain>` name records pointing to that floating IP to your DNS:
 
-    ostest-api.shiftstack.com IN A 10.19.115.117
+    api.ostest.shiftstack.com IN A 10.19.115.117
     *.apps.ostest.shiftstack.com  IN  A  10.19.115.117
 
-If you don't have a DNS server under your control, you finish the installation by adding the following to your `/etc/hosts`:
+If you don't have a DNS server under your control, you finish the installation
+by adding the following to your `/etc/hosts`:
 
-    10.19.115.117 ostest-api.shiftstack.com
+    10.19.115.117 api.ostest.shiftstack.com
     10.19.115.117 console-openshift-console.apps.ostest.shiftstack.com
 
-**NOTE:** *this will make the API accessible only to you. This is fine for your own testing (and it is enough for the installation to succeed), but it is not enough for a production deployment.*
+**NOTE:** *this will make the API accessible only to you. This is fine for your
+own testing (and it is enough for the installation to succeed), but it is not
+enough for a production deployment.*
 
 Finally, add the floating IP address to `install-config.yaml`.
 
@@ -183,10 +198,9 @@ It will print the console URL, username and password and you should be able to g
 
 ```
 INFO Install complete!
-INFO Run 'export KUBECONFIG=/home/thomas/go/src/github.com/openshift/installer/ostest/auth/kubeconfig' to manage the cluster with 'oc', the OpenShift CLI.
-INFO The cluster is ready when 'oc login -u kubeadmin -p siDhh-STMU3-hWDPW-jM4co' succeeds (wait a few minutes).
+INFO To access the cluster as the system:admin user when using 'oc', run 'export KUBECONFIG=/path/to/installer/auth/kubeconfig'
 INFO Access the OpenShift web-console here: https://console-openshift-console.apps.ostest.shiftstack.com
-INFO Login to the console with user: kubeadmin, password: siDhh-STMU3-hWDPW-jM4co
+INFO Login to the console with user: kubeadmin, password: 5char-5char-5char-5char
 ```
 
 ## Using an External Load Balancer
@@ -273,6 +287,18 @@ Now that the DNS and load balancer has been moved, we can take down the existing
 api VM:
 
 * `openstack server delete <cluster name>-api`
+
+## Disambiguating the External Network
+
+The installer assumes that the name of the external network is unique.  In case
+there is more than one network with the same name as the desired external
+network, it’s possible to provide a UUID to specify which network should be
+used.
+
+```
+$ env TF_VAR_openstack_external_network_id="6a32627e-d98d-40d8-9324-5da7cf1452fc" \
+> bin/openshift-install create cluster
+```
 
 ## Troubleshooting
 

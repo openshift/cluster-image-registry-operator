@@ -1,17 +1,18 @@
+variable "availability_zones" {
+  type        = "list"
+  description = "List of the availability zones in which to create the masters. The length of this list must match instance_count."
+}
+
+variable "az_to_subnet_id" {
+  type        = "map"
+  description = "Map from availability zone name to the ID of the subnet in that availability zone"
+}
+
 variable "cluster_id" {
   type = "string"
 }
 
-variable "cluster_name" {
-  type = "string"
-}
-
-variable "dns_server_ip" {
-  type    = "string"
-  default = ""
-}
-
-variable "ec2_type" {
+variable "instance_type" {
   type = "string"
 }
 
@@ -36,7 +37,6 @@ variable "master_sg_ids" {
 
 variable "root_volume_iops" {
   type        = "string"
-  default     = "100"
   description = "The amount of provisioned IOPS for the root block device."
 }
 
@@ -48,10 +48,6 @@ variable "root_volume_size" {
 variable "root_volume_type" {
   type        = "string"
   description = "The type of volume for the root block device."
-}
-
-variable "subnet_ids" {
-  type = "list"
 }
 
 variable "tags" {

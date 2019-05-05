@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/mock"
@@ -41,7 +42,7 @@ func TestInstallConfigGenerate_FillsInDefaults(t *testing.T) {
 	clusterName := &clusterName{"test-cluster"}
 	pullSecret := &pullSecret{`{"auths":{"example.com":{"auth":"authorization value"}}}`}
 	platform := &platform{
-		None: &none.Platform{},
+		Platform: types.Platform{None: &none.Platform{}},
 	}
 	installConfig := &InstallConfig{}
 	parents := asset.Parents{}
@@ -64,24 +65,26 @@ func TestInstallConfigGenerate_FillsInDefaults(t *testing.T) {
 		},
 		BaseDomain: "test-domain",
 		Networking: &types.Networking{
-			MachineCIDR: ipnet.MustParseCIDR("10.0.0.0/16"),
-			Type:        "OpenShiftSDN",
-			ServiceCIDR: ipnet.MustParseCIDR("172.30.0.0/16"),
-			ClusterNetworks: []types.ClusterNetworkEntry{
+			MachineCIDR:    ipnet.MustParseCIDR("10.0.0.0/16"),
+			NetworkType:    "OpenShiftSDN",
+			ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("172.30.0.0/16")},
+			ClusterNetwork: []types.ClusterNetworkEntry{
 				{
-					CIDR:             *ipnet.MustParseCIDR("10.128.0.0/14"),
-					HostSubnetLength: 9,
+					CIDR:       *ipnet.MustParseCIDR("10.128.0.0/14"),
+					HostPrefix: 23,
 				},
 			},
 		},
-		Machines: []types.MachinePool{
+		ControlPlane: &types.MachinePool{
+			Name:           "master",
+			Replicas:       pointer.Int64Ptr(3),
+			Hyperthreading: types.HyperthreadingEnabled,
+		},
+		Compute: []types.MachinePool{
 			{
-				Name:     "master",
-				Replicas: func(x int64) *int64 { return &x }(3),
-			},
-			{
-				Name:     "worker",
-				Replicas: func(x int64) *int64 { return &x }(3),
+				Name:           "worker",
+				Replicas:       pointer.Int64Ptr(3),
+				Hyperthreading: types.HyperthreadingEnabled,
 			},
 		},
 		Platform: types.Platform{
@@ -104,7 +107,7 @@ func TestInstallConfigLoad(t *testing.T) {
 		{
 			name: "valid InstallConfig",
 			data: `
-apiVersion: v1beta2
+apiVersion: v1
 metadata:
   name: test-cluster
 baseDomain: test-domain
@@ -123,24 +126,26 @@ pullSecret: "{\"auths\":{\"example.com\":{\"auth\":\"authorization value\"}}}"
 				},
 				BaseDomain: "test-domain",
 				Networking: &types.Networking{
-					MachineCIDR: ipnet.MustParseCIDR("10.0.0.0/16"),
-					Type:        "OpenShiftSDN",
-					ServiceCIDR: ipnet.MustParseCIDR("172.30.0.0/16"),
-					ClusterNetworks: []types.ClusterNetworkEntry{
+					MachineCIDR:    ipnet.MustParseCIDR("10.0.0.0/16"),
+					NetworkType:    "OpenShiftSDN",
+					ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("172.30.0.0/16")},
+					ClusterNetwork: []types.ClusterNetworkEntry{
 						{
-							CIDR:             *ipnet.MustParseCIDR("10.128.0.0/14"),
-							HostSubnetLength: 9,
+							CIDR:       *ipnet.MustParseCIDR("10.128.0.0/14"),
+							HostPrefix: 23,
 						},
 					},
 				},
-				Machines: []types.MachinePool{
+				ControlPlane: &types.MachinePool{
+					Name:           "master",
+					Replicas:       pointer.Int64Ptr(3),
+					Hyperthreading: types.HyperthreadingEnabled,
+				},
+				Compute: []types.MachinePool{
 					{
-						Name:     "master",
-						Replicas: func(x int64) *int64 { return &x }(3),
-					},
-					{
-						Name:     "worker",
-						Replicas: func(x int64) *int64 { return &x }(3),
+						Name:           "worker",
+						Replicas:       pointer.Int64Ptr(3),
+						Hyperthreading: types.HyperthreadingEnabled,
 					},
 				},
 				Platform: types.Platform{
@@ -177,6 +182,60 @@ metadata:
 			name:          "error fetching file",
 			fetchError:    errors.New("fetch failed"),
 			expectedError: true,
+		},
+		{
+			name: "old valid InstallConfig",
+			data: `
+apiVersion: v1beta3
+metadata:
+  name: test-cluster
+baseDomain: test-domain
+platform:
+  aws:
+    region: us-east-1
+pullSecret: "{\"auths\":{\"example.com\":{\"auth\":\"authorization value\"}}}"
+network:
+  type: OpenShiftSDN
+`,
+			expectedFound: true,
+			expectedConfig: &types.InstallConfig{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: types.InstallConfigVersion,
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-cluster",
+				},
+				BaseDomain: "test-domain",
+				Networking: &types.Networking{
+					MachineCIDR:    ipnet.MustParseCIDR("10.0.0.0/16"),
+					NetworkType:    "OpenShiftSDN",
+					ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("172.30.0.0/16")},
+					ClusterNetwork: []types.ClusterNetworkEntry{
+						{
+							CIDR:       *ipnet.MustParseCIDR("10.128.0.0/14"),
+							HostPrefix: 23,
+						},
+					},
+				},
+				ControlPlane: &types.MachinePool{
+					Name:           "master",
+					Replicas:       pointer.Int64Ptr(3),
+					Hyperthreading: types.HyperthreadingEnabled,
+				},
+				Compute: []types.MachinePool{
+					{
+						Name:           "worker",
+						Replicas:       pointer.Int64Ptr(3),
+						Hyperthreading: types.HyperthreadingEnabled,
+					},
+				},
+				Platform: types.Platform{
+					AWS: &aws.Platform{
+						Region: "us-east-1",
+					},
+				},
+				PullSecret: `{"auths":{"example.com":{"auth":"authorization value"}}}`,
+			},
 		},
 	}
 	for _, tc := range cases {
