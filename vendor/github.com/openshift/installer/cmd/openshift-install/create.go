@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -63,16 +65,6 @@ var (
 		assets: targetassets.Manifests,
 	}
 
-	manifestTemplatesTarget = target{
-		name: "Manifest templates",
-		command: &cobra.Command{
-			Use:   "manifest-templates",
-			Short: "Generates the unrendered Kubernetes manifest templates",
-			Long:  "",
-		},
-		assets: targetassets.ManifestTemplates,
-	}
-
 	ignitionConfigsTarget = target{
 		name: "Ignition Configs",
 		command: &cobra.Command{
@@ -102,21 +94,21 @@ var (
 					logrus.Fatal(errors.Wrap(err, "loading kubeconfig"))
 				}
 
-				err = destroyBootstrap(ctx, config, rootOpts.dir)
+				err = waitForBootstrapComplete(ctx, config, rootOpts.dir)
+				if err != nil {
+					if err2 := runGatherBootstrapCmd(rootOpts.dir); err2 != nil {
+						logrus.Error(err2)
+					}
+					logrus.Fatal(err)
+				}
+
+				logrus.Info("Destroying the bootstrap resources...")
+				err = destroybootstrap.Destroy(rootOpts.dir)
 				if err != nil {
 					logrus.Fatal(err)
 				}
 
-				if err := waitForInitializedCluster(ctx, config); err != nil {
-					logrus.Fatal(err)
-				}
-
-				consoleURL, err := waitForConsole(ctx, config, rootOpts.dir)
-				if err != nil {
-					logrus.Fatal(err)
-				}
-
-				err = logComplete(rootOpts.dir, consoleURL)
+				err = waitForInstallComplete(ctx, config, rootOpts.dir)
 				if err != nil {
 					logrus.Fatal(err)
 				}
@@ -125,7 +117,7 @@ var (
 		assets: targetassets.Cluster,
 	}
 
-	targets = []target{installConfigTarget, manifestTemplatesTarget, manifestsTarget, ignitionConfigsTarget, clusterTarget}
+	targets = []target{installConfigTarget, manifestsTarget, ignitionConfigsTarget, clusterTarget}
 )
 
 func newCreateCmd() *cobra.Command {
@@ -150,11 +142,11 @@ func runTargetCmd(targets ...asset.WritableAsset) func(cmd *cobra.Command, args 
 	runner := func(directory string) error {
 		assetStore, err := assetstore.NewStore(directory)
 		if err != nil {
-			return errors.Wrapf(err, "failed to create asset store")
+			return errors.Wrap(err, "failed to create asset store")
 		}
 
 		for _, a := range targets {
-			err := assetStore.Fetch(a)
+			err := assetStore.Fetch(a, targets...)
 			if err != nil {
 				err = errors.Wrapf(err, "failed to fetch %s", a.Name())
 			}
@@ -186,9 +178,59 @@ func runTargetCmd(targets ...asset.WritableAsset) func(cmd *cobra.Command, args 
 	}
 }
 
+// addRouterCAToClusterCA adds router CA to cluster CA in kubeconfig
+func addRouterCAToClusterCA(config *rest.Config, directory string) (err error) {
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return errors.Wrap(err, "creating a Kubernetes client")
+	}
+
+	// Configmap may not exist. log and accept not-found errors with configmap.
+	caConfigMap, err := client.CoreV1().ConfigMaps("openshift-config-managed").Get("router-ca", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			logrus.Infof("router-ca resource not found in cluster, perhaps you are not using default router CA")
+			return nil
+		}
+		return errors.Wrap(err, "fetching router-ca configmap from openshift-config-managed namespace")
+	}
+
+	routerCrtBytes := []byte(caConfigMap.Data["ca-bundle.crt"])
+	kubeconfig := filepath.Join(directory, "auth", "kubeconfig")
+	kconfig, err := clientcmd.LoadFromFile(kubeconfig)
+	if err != nil {
+		return errors.Wrap(err, "loading kubeconfig")
+	}
+
+	if kconfig == nil || len(kconfig.Clusters) == 0 {
+		return errors.New("kubeconfig is missing expected data")
+	}
+
+	for _, c := range kconfig.Clusters {
+		clusterCABytes := c.CertificateAuthorityData
+		if len(clusterCABytes) == 0 {
+			return errors.New("kubeconfig CertificateAuthorityData not found")
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(clusterCABytes) {
+			return errors.New("cluster CA found in kubeconfig not valid PEM format")
+		}
+		if !certPool.AppendCertsFromPEM(routerCrtBytes) {
+			return errors.New("ca-bundle.crt from router-ca configmap not valid PEM format")
+		}
+
+		newCA := append(routerCrtBytes, clusterCABytes...)
+		c.CertificateAuthorityData = newCA
+	}
+	if err := clientcmd.WriteToFile(*kconfig, kubeconfig); err != nil {
+		return errors.Wrap(err, "writing kubeconfig")
+	}
+	return nil
+}
+
 // FIXME: pulling the kubeconfig and metadata out of the root
 // directory is a bit cludgy when we already have them in memory.
-func destroyBootstrap(ctx context.Context, config *rest.Config, directory string) (err error) {
+func waitForBootstrapComplete(ctx context.Context, config *rest.Config, directory string) (err error) {
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return errors.Wrap(err, "creating a Kubernetes client")
@@ -197,7 +239,7 @@ func destroyBootstrap(ctx context.Context, config *rest.Config, directory string
 	discovery := client.Discovery()
 
 	apiTimeout := 30 * time.Minute
-	logrus.Infof("Waiting up to %v for the Kubernetes API...", apiTimeout)
+	logrus.Infof("Waiting up to %v for the Kubernetes API at %s...", apiTimeout, config.Host)
 	apiContext, cancel := context.WithTimeout(ctx, apiTimeout)
 	defer cancel()
 	// Poll quickly so we notice changes, but only log when the response
@@ -230,64 +272,53 @@ func destroyBootstrap(ctx context.Context, config *rest.Config, directory string
 		return errors.Wrap(err, "waiting for Kubernetes API")
 	}
 
-	events := client.CoreV1().Events("kube-system")
+	return waitForBootstrapConfigMap(ctx, client)
+}
 
-	eventTimeout := 30 * time.Minute
-	logrus.Infof("Waiting up to %v for the bootstrap-complete event...", eventTimeout)
-	eventContext, cancel := context.WithTimeout(ctx, eventTimeout)
+// waitForBootstrapConfigMap watches the configmaps in the kube-system namespace
+// and waits for the bootstrap configmap to report that bootstrapping has
+// completed.
+func waitForBootstrapConfigMap(ctx context.Context, client *kubernetes.Clientset) error {
+	timeout := 30 * time.Minute
+	logrus.Infof("Waiting up to %v for bootstrapping to complete...", timeout)
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	_, err = Until(
-		eventContext,
-		"",
-		func(sinceResourceVersion string) (watch.Interface, error) {
-			for {
-				watcher, err := events.Watch(metav1.ListOptions{
-					ResourceVersion: sinceResourceVersion,
-				})
-				if err == nil {
-					return watcher, nil
-				}
-				select {
-				case <-eventContext.Done():
-					return watcher, err
-				default:
-					logrus.Warningf("Failed to connect events watcher: %s", err)
-					time.Sleep(2 * time.Second)
-				}
+
+	_, err := clientwatch.UntilWithSync(
+		waitCtx,
+		cache.NewListWatchFromClient(client.CoreV1().RESTClient(), "configmaps", "kube-system", fields.OneTermEqualSelector("metadata.name", "bootstrap")),
+		&corev1.ConfigMap{},
+		nil,
+		func(event watch.Event) (bool, error) {
+			switch event.Type {
+			case watch.Added, watch.Modified:
+			default:
+				return false, nil
 			}
-		},
-		func(watchEvent watch.Event) (bool, error) {
-			event, ok := watchEvent.Object.(*corev1.Event)
+			cm, ok := event.Object.(*corev1.ConfigMap)
 			if !ok {
+				logrus.Warnf("Expected a core/v1.ConfigMap object but got a %q object instead", event.Object.GetObjectKind().GroupVersionKind())
 				return false, nil
 			}
-
-			if watchEvent.Type == watch.Error {
-				logrus.Debugf("error %s: %s", event.Name, event.Message)
+			status, ok := cm.Data["status"]
+			if !ok {
+				logrus.Debugf("No status found in bootstrap configmap")
 				return false, nil
 			}
-
-			if watchEvent.Type != watch.Added {
-				return false, nil
-			}
-
-			logrus.Debugf("added %s: %s", event.Name, event.Message)
-			return event.Name == "bootstrap-complete", nil
+			logrus.Debugf("Bootstrap status: %v", status)
+			return status == "complete", nil
 		},
 	)
-	if err != nil {
-		return errors.Wrap(err, "waiting for bootstrap-complete")
-	}
 
-	logrus.Info("Destroying the bootstrap resources...")
-	return destroybootstrap.Destroy(rootOpts.dir)
+	return errors.Wrap(err, "failed to wait for bootstrapping to complete")
 }
 
 // waitForInitializedCluster watches the ClusterVersion waiting for confirmation
 // that the cluster has been initialized.
 func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 	timeout := 30 * time.Minute
-	logrus.Infof("Waiting up to %v for the cluster to initialize...", timeout)
+	logrus.Infof("Waiting up to %v for the cluster at %s to initialize...", timeout, config.Host)
 	cc, err := configclient.NewForConfig(config)
 	if err != nil {
 		return errors.Wrap(err, "failed to create a config client")
@@ -295,8 +326,7 @@ func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 	clusterVersionContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	var clusterVersion *configv1.ClusterVersion
-
+	var lastError string
 	_, err = clientwatch.UntilWithSync(
 		clusterVersionContext,
 		cache.NewListWatchFromClient(cc.ConfigV1().RESTClient(), "clusterversions", "", fields.OneTermEqualSelector("metadata.name", "version")),
@@ -310,27 +340,29 @@ func waitForInitializedCluster(ctx context.Context, config *rest.Config) error {
 					logrus.Warnf("Expected a ClusterVersion object but got a %q object instead", event.Object.GetObjectKind().GroupVersionKind())
 					return false, nil
 				}
-				clusterVersion = cv
 				if cov1helpers.IsStatusConditionTrue(cv.Status.Conditions, configv1.OperatorAvailable) {
-					logrus.Debug("Cluster is initialized")
 					return true, nil
 				}
 				if cov1helpers.IsStatusConditionTrue(cv.Status.Conditions, configv1.OperatorFailing) {
-					logrus.Debugf("Still waiting for the cluster to initialize: %v",
-						cov1helpers.FindStatusCondition(cv.Status.Conditions, configv1.OperatorFailing).Message)
-					return false, nil
+					lastError = cov1helpers.FindStatusCondition(cv.Status.Conditions, configv1.OperatorFailing).Message
+				} else if cov1helpers.IsStatusConditionTrue(cv.Status.Conditions, configv1.OperatorProgressing) {
+					lastError = cov1helpers.FindStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing).Message
 				}
+				logrus.Debugf("Still waiting for the cluster to initialize: %s", lastError)
+				return false, nil
 			}
 			logrus.Debug("Still waiting for the cluster to initialize...")
 			return false, nil
 		},
 	)
 
-	// If we timed out and the CVO failed, print out the failure message
-	if err != nil && clusterVersion != nil {
-		if cov1helpers.IsStatusConditionTrue(clusterVersion.Status.Conditions, configv1.OperatorFailing) {
-			err = errors.New(cov1helpers.FindStatusCondition(clusterVersion.Status.Conditions, configv1.OperatorFailing).Message)
-		}
+	if err == nil {
+		logrus.Debug("Cluster is initialized")
+		return nil
+	}
+
+	if lastError != "" {
+		return errors.Wrapf(err, "failed to initialize the cluster: %s", lastError)
 	}
 
 	return errors.Wrap(err, "failed to initialize the cluster")
@@ -404,9 +436,25 @@ func logComplete(directory, consoleURL string) error {
 		return err
 	}
 	logrus.Info("Install complete!")
-	logrus.Infof("Run 'export KUBECONFIG=%s' to manage the cluster with 'oc', the OpenShift CLI.", kubeconfig)
-	logrus.Infof("The cluster is ready when 'oc login -u kubeadmin -p %s' succeeds (wait a few minutes).", pw)
+	logrus.Infof("To access the cluster as the system:admin user when using 'oc', run 'export KUBECONFIG=%s'", kubeconfig)
 	logrus.Infof("Access the OpenShift web-console here: %s", consoleURL)
 	logrus.Infof("Login to the console with user: kubeadmin, password: %s", pw)
 	return nil
+}
+
+func waitForInstallComplete(ctx context.Context, config *rest.Config, directory string) error {
+	if err := waitForInitializedCluster(ctx, config); err != nil {
+		return err
+	}
+
+	consoleURL, err := waitForConsole(ctx, config, rootOpts.dir)
+	if err != nil {
+		return err
+	}
+
+	if err = addRouterCAToClusterCA(config, rootOpts.dir); err != nil {
+		return err
+	}
+
+	return logComplete(rootOpts.dir, consoleURL)
 }

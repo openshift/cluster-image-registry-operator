@@ -2,6 +2,14 @@ output "vpc_id" {
   value = "${data.aws_vpc.cluster_vpc.id}"
 }
 
+output "az_to_private_subnet_id" {
+  value = "${zipmap(var.availability_zones, local.private_subnet_ids)}"
+}
+
+output "az_to_public_subnet_id" {
+  value = "${zipmap(var.availability_zones, local.public_subnet_ids)}"
+}
+
 output "public_subnet_ids" {
   value = "${local.public_subnet_ids}"
 }
@@ -16,14 +24,6 @@ output "master_sg_id" {
 
 output "worker_sg_id" {
   value = "${aws_security_group.worker.id}"
-}
-
-output "api_sg_id" {
-  value = "${aws_security_group.api.id}"
-}
-
-output "console_sg_id" {
-  value = "${aws_security_group.console.id}"
 }
 
 output "aws_lb_target_group_arns" {

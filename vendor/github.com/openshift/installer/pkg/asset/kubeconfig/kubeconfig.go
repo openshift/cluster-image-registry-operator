@@ -20,19 +20,20 @@ type kubeconfig struct {
 
 // generate generates the kubeconfig.
 func (k *kubeconfig) generate(
-	rootCA tls.CertKeyInterface,
+	ca tls.CertInterface,
 	clientCertKey tls.CertKeyInterface,
-	installConfig *types.InstallConfig,
+	apiURL string,
+	cluster string,
 	userName string,
 	kubeconfigPath string,
 ) error {
 	k.Config = &clientcmd.Config{
 		Clusters: []clientcmd.NamedCluster{
 			{
-				Name: installConfig.ObjectMeta.Name,
+				Name: cluster,
 				Cluster: clientcmd.Cluster{
-					Server: fmt.Sprintf("https://%s-api.%s:6443", installConfig.ObjectMeta.Name, installConfig.BaseDomain),
-					CertificateAuthorityData: []byte(rootCA.Cert()),
+					Server: apiURL,
+					CertificateAuthorityData: ca.Cert(),
 				},
 			},
 		},
@@ -40,8 +41,8 @@ func (k *kubeconfig) generate(
 			{
 				Name: userName,
 				AuthInfo: clientcmd.AuthInfo{
-					ClientCertificateData: []byte(clientCertKey.Cert()),
-					ClientKeyData:         []byte(clientCertKey.Key()),
+					ClientCertificateData: clientCertKey.Cert(),
+					ClientKeyData:         clientCertKey.Key(),
 				},
 			},
 		},
@@ -49,7 +50,7 @@ func (k *kubeconfig) generate(
 			{
 				Name: userName,
 				Context: clientcmd.Context{
-					Cluster:  installConfig.ObjectMeta.Name,
+					Cluster:  cluster,
 					AuthInfo: userName,
 				},
 			},
@@ -90,9 +91,17 @@ func (k *kubeconfig) load(f asset.FileFetcher, name string) (found bool, err err
 
 	config := &clientcmd.Config{}
 	if err := yaml.Unmarshal(file.Data, config); err != nil {
-		return false, errors.Wrapf(err, "failed to unmarshal")
+		return false, errors.Wrap(err, "failed to unmarshal")
 	}
 
 	k.File, k.Config = file, config
 	return true, nil
+}
+
+func getExtAPIServerURL(ic *types.InstallConfig) string {
+	return fmt.Sprintf("https://api.%s:6443", ic.ClusterDomain())
+}
+
+func getIntAPIServerURL(ic *types.InstallConfig) string {
+	return fmt.Sprintf("https://api-int.%s:6443", ic.ClusterDomain())
 }

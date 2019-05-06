@@ -16,6 +16,7 @@ import (
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	"github.com/openshift/installer/pkg/asset/templates/content/bootkube"
 	"github.com/openshift/installer/pkg/asset/tls"
+	"github.com/openshift/installer/pkg/types"
 )
 
 const (
@@ -60,24 +61,33 @@ func (m *Manifests) Dependencies() []asset.Asset {
 		&Networking{},
 		&tls.RootCA{},
 		&tls.EtcdCA{},
-		&tls.IngressCertKey{},
-		&tls.KubeCA{},
+		&tls.EtcdSignerCertKey{},
+		&tls.EtcdCABundle{},
+		&tls.EtcdSignerClientCertKey{},
 		&tls.EtcdClientCertKey{},
+		&tls.EtcdMetricCABundle{},
+		&tls.EtcdMetricSignerCertKey{},
+		&tls.EtcdMetricSignerClientCertKey{},
 		&tls.MCSCertKey{},
-		&tls.KubeletCertKey{},
 
-		&bootkube.KubeCloudConfig{},
-		&bootkube.MachineConfigServerTLSSecret{},
-		&bootkube.Pull{},
 		&bootkube.CVOOverrides{},
-		&bootkube.HostEtcdServiceEndpointsKubeSystem{},
-		&bootkube.KubeSystemConfigmapEtcdServingCA{},
+		&bootkube.EtcdCAConfigMap{},
+		&bootkube.EtcdClientSecret{},
+		&bootkube.EtcdHostServiceEndpoints{},
+		&bootkube.EtcdHostService{},
+		&bootkube.EtcdMetricClientSecret{},
+		&bootkube.EtcdMetricServingCAConfigMap{},
+		&bootkube.EtcdMetricSignerSecret{},
+		&bootkube.EtcdNamespace{},
+		&bootkube.EtcdService{},
+		&bootkube.EtcdSignerClientSecret{},
+		&bootkube.EtcdSignerSecret{},
+		&bootkube.KubeCloudConfig{},
+		&bootkube.EtcdServingCAConfigMap{},
 		&bootkube.KubeSystemConfigmapRootCA{},
-		&bootkube.KubeSystemSecretEtcdClient{},
-
+		&bootkube.MachineConfigServerTLSSecret{},
+		&bootkube.OpenshiftConfigSecretPullSecret{},
 		&bootkube.OpenshiftMachineConfigOperator{},
-		&bootkube.EtcdServiceKubeSystem{},
-		&bootkube.HostEtcdServiceKubeSystem{},
 	}
 }
 
@@ -90,9 +100,13 @@ func (m *Manifests) Generate(dependencies asset.Parents) error {
 	installConfig := &installconfig.InstallConfig{}
 	dependencies.Get(installConfig, ingress, dns, network, infra)
 
+	redactedConfig, err := redactedInstallConfig(*installConfig.Config)
+	if err != nil {
+		return errors.Wrap(err, "failed to redact install-config")
+	}
 	// mao go to kube-system config map
 	m.KubeSysConfig = configMap("kube-system", "cluster-config-v1", genericData{
-		"install-config": string(installConfig.Files()[0].Data),
+		"install-config": string(redactedConfig),
 	})
 	kubeSysConfigData, err := yaml.Marshal(m.KubeSysConfig)
 	if err != nil {
@@ -126,89 +140,89 @@ func (m *Manifests) generateBootKubeManifests(dependencies asset.Parents) []*ass
 	clusterID := &installconfig.ClusterID{}
 	installConfig := &installconfig.InstallConfig{}
 	etcdCA := &tls.EtcdCA{}
-	kubeCA := &tls.KubeCA{}
 	mcsCertKey := &tls.MCSCertKey{}
 	etcdClientCertKey := &tls.EtcdClientCertKey{}
+	etcdMetricCABundle := &tls.EtcdMetricCABundle{}
+	etcdMetricSignerClientCertKey := &tls.EtcdMetricSignerClientCertKey{}
+	etcdMetricSignerCertKey := &tls.EtcdMetricSignerCertKey{}
 	rootCA := &tls.RootCA{}
+	etcdSignerCertKey := &tls.EtcdSignerCertKey{}
+	etcdCABundle := &tls.EtcdCABundle{}
+	etcdSignerClientCertKey := &tls.EtcdSignerClientCertKey{}
 	dependencies.Get(
 		clusterID,
 		installConfig,
 		etcdCA,
+		etcdSignerCertKey,
+		etcdCABundle,
+		etcdSignerClientCertKey,
 		etcdClientCertKey,
-		kubeCA,
+		etcdMetricCABundle,
+		etcdMetricSignerClientCertKey,
+		etcdMetricSignerCertKey,
 		mcsCertKey,
 		rootCA,
 	)
 
-	etcdEndpointHostnames := make([]string, installConfig.Config.MasterCount())
+	etcdEndpointHostnames := make([]string, *installConfig.Config.ControlPlane.Replicas)
 	for i := range etcdEndpointHostnames {
-		etcdEndpointHostnames[i] = fmt.Sprintf("%s-etcd-%d", installConfig.Config.ObjectMeta.Name, i)
+		etcdEndpointHostnames[i] = fmt.Sprintf("etcd-%d", i)
 	}
 
 	templateData := &bootkubeTemplateData{
-		Base64encodeCloudProviderConfig: "", // FIXME
-		EtcdCaCert:                      string(etcdCA.Cert()),
-		EtcdClientCert:                  base64.StdEncoding.EncodeToString(etcdClientCertKey.Cert()),
-		EtcdClientKey:                   base64.StdEncoding.EncodeToString(etcdClientCertKey.Key()),
-		KubeCaCert:                      base64.StdEncoding.EncodeToString(kubeCA.Cert()),
-		KubeCaKey:                       base64.StdEncoding.EncodeToString(kubeCA.Key()),
-		McsTLSCert:                      base64.StdEncoding.EncodeToString(mcsCertKey.Cert()),
-		McsTLSKey:                       base64.StdEncoding.EncodeToString(mcsCertKey.Key()),
-		PullSecretBase64:                base64.StdEncoding.EncodeToString([]byte(installConfig.Config.PullSecret)),
-		RootCaCert:                      string(rootCA.Cert()),
-		CVOClusterID:                    clusterID.ClusterID,
-		EtcdEndpointHostnames:           etcdEndpointHostnames,
-		EtcdEndpointDNSSuffix:           installConfig.Config.BaseDomain,
+		CVOClusterID:               clusterID.UUID,
+		EtcdCaBundle:               base64.StdEncoding.EncodeToString(etcdCABundle.Cert()),
+		EtcdCaCert:                 string(etcdCA.Cert()),
+		EtcdClientCaCert:           base64.StdEncoding.EncodeToString(etcdCA.Cert()),
+		EtcdClientCaKey:            base64.StdEncoding.EncodeToString(etcdCA.Key()),
+		EtcdClientCert:             base64.StdEncoding.EncodeToString(etcdClientCertKey.Cert()),
+		EtcdClientKey:              base64.StdEncoding.EncodeToString(etcdClientCertKey.Key()),
+		EtcdEndpointDNSSuffix:      installConfig.Config.ClusterDomain(),
+		EtcdEndpointHostnames:      etcdEndpointHostnames,
+		EtcdMetricCaCert:           string(etcdMetricCABundle.Cert()),
+		EtcdMetricSignerCert:       base64.StdEncoding.EncodeToString(etcdMetricSignerCertKey.Cert()),
+		EtcdMetricSignerClientCert: base64.StdEncoding.EncodeToString(etcdMetricSignerClientCertKey.Cert()),
+		EtcdMetricSignerClientKey:  base64.StdEncoding.EncodeToString(etcdMetricSignerClientCertKey.Key()),
+		EtcdMetricSignerKey:        base64.StdEncoding.EncodeToString(etcdMetricSignerCertKey.Key()),
+		EtcdSignerCert:             base64.StdEncoding.EncodeToString(etcdSignerCertKey.Cert()),
+		EtcdSignerClientCert:       base64.StdEncoding.EncodeToString(etcdSignerClientCertKey.Cert()),
+		EtcdSignerClientKey:        base64.StdEncoding.EncodeToString(etcdSignerClientCertKey.Key()),
+		EtcdSignerKey:              base64.StdEncoding.EncodeToString(etcdSignerCertKey.Key()),
+		McsTLSCert:                 base64.StdEncoding.EncodeToString(mcsCertKey.Cert()),
+		McsTLSKey:                  base64.StdEncoding.EncodeToString(mcsCertKey.Key()),
+		PullSecretBase64:           base64.StdEncoding.EncodeToString([]byte(installConfig.Config.PullSecret)),
+		RootCaCert:                 string(rootCA.Cert()),
 	}
 
-	kubeCloudConfig := &bootkube.KubeCloudConfig{}
-	machineConfigServerTLSSecret := &bootkube.MachineConfigServerTLSSecret{}
-	pull := &bootkube.Pull{}
-	cVOOverrides := &bootkube.CVOOverrides{}
-	hostEtcdServiceEndpointsKubeSystem := &bootkube.HostEtcdServiceEndpointsKubeSystem{}
-	kubeSystemConfigmapEtcdServingCA := &bootkube.KubeSystemConfigmapEtcdServingCA{}
-	kubeSystemConfigmapRootCA := &bootkube.KubeSystemConfigmapRootCA{}
-	kubeSystemSecretEtcdClient := &bootkube.KubeSystemSecretEtcdClient{}
-
-	openshiftMachineConfigOperator := &bootkube.OpenshiftMachineConfigOperator{}
-	etcdServiceKubeSystem := &bootkube.EtcdServiceKubeSystem{}
-	hostEtcdServiceKubeSystem := &bootkube.HostEtcdServiceKubeSystem{}
-	dependencies.Get(
-		kubeCloudConfig,
-		machineConfigServerTLSSecret,
-		pull,
-		cVOOverrides,
-		hostEtcdServiceEndpointsKubeSystem,
-		kubeSystemConfigmapEtcdServingCA,
-		kubeSystemConfigmapRootCA,
-		kubeSystemSecretEtcdClient,
-		openshiftMachineConfigOperator,
-		etcdServiceKubeSystem,
-		hostEtcdServiceKubeSystem,
-	)
-	assetData := map[string][]byte{
-		"kube-cloud-config.yaml":                     applyTemplateData(kubeCloudConfig.Files()[0].Data, templateData),
-		"machine-config-server-tls-secret.yaml":      applyTemplateData(machineConfigServerTLSSecret.Files()[0].Data, templateData),
-		"pull.json":                                  applyTemplateData(pull.Files()[0].Data, templateData),
-		"cvo-overrides.yaml":                         applyTemplateData(cVOOverrides.Files()[0].Data, templateData),
-		"host-etcd-service-endpoints.yaml":           applyTemplateData(hostEtcdServiceEndpointsKubeSystem.Files()[0].Data, templateData),
-		"kube-system-configmap-etcd-serving-ca.yaml": applyTemplateData(kubeSystemConfigmapEtcdServingCA.Files()[0].Data, templateData),
-		"kube-system-configmap-root-ca.yaml":         applyTemplateData(kubeSystemConfigmapRootCA.Files()[0].Data, templateData),
-		"kube-system-secret-etcd-client.yaml":        applyTemplateData(kubeSystemSecretEtcdClient.Files()[0].Data, templateData),
-
-		"04-openshift-machine-config-operator.yaml": []byte(openshiftMachineConfigOperator.Files()[0].Data),
-		"etcd-service.yaml":                         []byte(etcdServiceKubeSystem.Files()[0].Data),
-		"host-etcd-service.yaml":                    []byte(hostEtcdServiceKubeSystem.Files()[0].Data),
+	files := []*asset.File{}
+	for _, a := range []asset.WritableAsset{
+		&bootkube.CVOOverrides{},
+		&bootkube.EtcdCAConfigMap{},
+		&bootkube.EtcdClientSecret{},
+		&bootkube.EtcdHostServiceEndpoints{},
+		&bootkube.EtcdHostService{},
+		&bootkube.EtcdMetricClientSecret{},
+		&bootkube.EtcdMetricSignerSecret{},
+		&bootkube.EtcdMetricServingCAConfigMap{},
+		&bootkube.EtcdNamespace{},
+		&bootkube.EtcdService{},
+		&bootkube.EtcdServingCAConfigMap{},
+		&bootkube.EtcdSignerSecret{},
+		&bootkube.EtcdSignerClientSecret{},
+		&bootkube.KubeCloudConfig{},
+		&bootkube.KubeSystemConfigmapRootCA{},
+		&bootkube.MachineConfigServerTLSSecret{},
+		&bootkube.OpenshiftConfigSecretPullSecret{},
+		&bootkube.OpenshiftMachineConfigOperator{},
+	} {
+		dependencies.Get(a)
+		for _, f := range a.Files() {
+			files = append(files, &asset.File{
+				Filename: filepath.Join(manifestDir, strings.TrimSuffix(filepath.Base(f.Filename), ".template")),
+				Data:     applyTemplateData(f.Data, templateData),
+			})
+		}
 	}
-
-	files := make([]*asset.File, 0, len(assetData))
-	for name, data := range assetData {
-		files = append(files, &asset.File{
-			Filename: filepath.Join(manifestDir, name),
-			Data:     data,
-		})
-	}
-
 	return files
 }
 
@@ -236,7 +250,7 @@ func (m *Manifests) Load(f asset.FileFetcher) (bool, error) {
 	for _, file := range fileList {
 		if file.Filename == kubeSysConfigPath {
 			if err := yaml.Unmarshal(file.Data, kubeSysConfig); err != nil {
-				return false, errors.Wrapf(err, "failed to unmarshal cluster-config.yaml")
+				return false, errors.Wrap(err, "failed to unmarshal cluster-config.yaml")
 			}
 			found = true
 		}
@@ -252,6 +266,17 @@ func (m *Manifests) Load(f asset.FileFetcher) (bool, error) {
 	asset.SortFiles(m.FileList)
 
 	return true, nil
+}
+
+func redactedInstallConfig(config types.InstallConfig) ([]byte, error) {
+	config.PullSecret = ""
+	if config.Platform.VSphere != nil {
+		p := *config.Platform.VSphere
+		p.Username = ""
+		p.Password = ""
+		config.Platform.VSphere = &p
+	}
+	return yaml.Marshal(config)
 }
 
 func indent(indention int, v string) string {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	"github.com/openshift/installer/pkg/asset"
 	"github.com/openshift/installer/pkg/asset/installconfig"
@@ -23,18 +24,16 @@ func TestMasterGenerate(t *testing.T) {
 			},
 			BaseDomain: "test-domain",
 			Networking: &types.Networking{
-				ServiceCIDR: ipnet.MustParseCIDR("10.0.1.0/24"),
+				ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("10.0.1.0/24")},
 			},
 			Platform: types.Platform{
 				AWS: &aws.Platform{
 					Region: "us-east",
 				},
 			},
-			Machines: []types.MachinePool{
-				{
-					Name:     "master",
-					Replicas: func(x int64) *int64 { return &x }(3),
-				},
+			ControlPlane: &types.MachinePool{
+				Name:     "master",
+				Replicas: pointer.Int64Ptr(3),
 			},
 		},
 	}

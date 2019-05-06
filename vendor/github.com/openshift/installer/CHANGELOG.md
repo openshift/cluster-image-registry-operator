@@ -4,6 +4,346 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 0.16.0 - 2019-04-01
+
+### Added
+
+- Documentation for [user-provided infrastructure on bare
+  metal](docs/user/metal/install_upi.md).
+
+### Changed
+
+- Authorized SSH keys are now supplied via installer-generated
+  MachineConfig manifests instead of the stub Ignition configurations.
+  Additional MachineConfig manifests may be provided during a [staged
+  install](docs/user/overview.md#multiple-invocations).
+- [The certificate signer][kubecsr] used for etcd bootstrapping is now
+  sourced from the release image instead of from
+  `quay.io/coreos/kube-etcd-signer-server`.
+- The pinned RHCOS bootimage has been bumped from 400.7.20190306.0 to
+  410.8.20190325.0 to transition from a RHEL 7 base to RHEL 8.
+- The detailed networking configuration manifest has been moved from
+  `networkconfigs.networkoperator.openshift.io` to
+  `networks.operator.openshift.io`.
+- When installation fails after bootstrap removal, the installer will
+  now pass along the status reported by [the cluster-version
+  operator][cluster-version-operator], to make it easier to identify
+  underlying issues.
+- On AWS, when specific availability zones are requested for all
+  machine pools in `install-config.yaml`, the installer will now only
+  create per-zone resources for those zones.  This allows for clusters
+  in high-zone regions like us-east-1 without requiring limit bumps.
+- On OpenStack, we have restored the ability to create Machine(Set)s
+  with trunk support enabled.
+- On OpenStack, machines are now tagged with `Name` and
+  `openshiftClusterID`.
+- Several cleanups to docs, internal code, and user-provided
+  infrastructure support.
+
+### Fixed
+
+- On AWS, creating a new cluster using the same Kubernetes API URL as
+  an existing cluster will now error out instead of clobbering public
+  Route 53 records for the existing cluster.  This adds an additional
+  install-time permission requirement:
+  `s3:GetBucketObjectLockConfiguration`.
+- On AWS, install-config validation now requires any explicitly
+  configured machine-pool zones to be in the configured platform
+  region.  Installs never worked for zones from other regions, but the
+  improved validation gives a more obivous error message and avoids
+  partially provisioning a cluster before hitting the error.
+
+## 0.15.0 - 2019-03-25
+
+### Added
+
+- We now initialize TLS certificates for etcd metrics over TCP on port
+  9979.  We also store etcd certificates in various `kube-system`
+  Secrets and ConfigMaps.
+- The Kubernetes client is now extracted from the release image's
+  `kube-client-agent` reference, replacing
+  `quay.io/coreos/kube-client-agent`.
+- On the control-plane and compute nodes, CRI-O's pause image is now
+  extracted from the release image's `pod` reference.
+- Initial work for user-provided infrastructure on AWS and vSphere,
+  including a new `user-provided-infrastructure` subcommand.
+
+### Changed
+
+- The install-config version has been bumped to `v1beta4` for changes
+  to more closely align with `Network.config.openshift.io`:
+    - `serviceCIDR` is now `serviceNetwork`.
+    - `clusterNetworks` is now `clusterNetwork`.
+    - `type` is now `networkType`.
+    - `hostSubnetLength` is now `hostPrefix`.
+    `v1beta3` is deprecated and will be removed in a future release.
+- On AWS and OpenStack, ports 9000 through 9999 are now open for UDP.
+  They had been open for TCP since 0.4.0, with a bugfix for 9990 ->
+  9999 in 0.13.0.
+- On AWS, we now create network interfaces for the control-plane
+  nodes explicitly, which allows for faster resource-creation time by
+  allowing greater parallelization.
+- On AWS, we now ask the machine-API operator to use
+  `aws-cloud-credentials` (created by [the credential
+  operator][credential-operator]) to fulfill our Machine(Set)s.
+- On OpenStack, resources are prefixed with the cluster ID to avoid
+  conflicts when running multiple clusters under the same tenant.
+- On OpenStack, machines are now configured with hostnames to allow
+  inter-VM communication.
+- On OpenStack, machines are now configured with default DNS
+  nameservers (1.1.1.1 and 208.67.222.222).
+- Several doc and internal cleanups.
+
+### Fixed
+
+- On AWS, the credentials-checking logic now allows root credentials,
+  although it logs a warning because this approach is not recommended.
+- On AWS, we only consider available zones when calculating defaults.
+  This reduces the chance of errors from attempting resource creation
+  in impaired or unavailable zones, although there's still a
+  possibility for a zone going unavailable after our check but before
+  resource creation.
+- On AWS, the bootstrap machine is now created in the first public
+  subnet, restoring SSH and journald access, and fixing a bug from
+  0.14.0.
+- On AWS, the Kubernetes API load balancers now use `/readyz` instead
+  of `/healthz` for health checks, which allows for more graceful
+  control-plane rotation.
+- On AWS, `destroy cluster` has some fixes for:
+    - Removing snapshots associated with copied AMIs, fixing a bug
+      from 0.14.0.
+    - Deleting network interfaces, where we now remove all network
+      interfaces in an owned VPC regardless of whether those network
+      interfaces were themselves tagged as owned.
+    - Instance termination, where we now attempt to terminate
+      instances which are stopped, stopping, or shutting down in
+      addition to those which are pending or running.
+    - Instance profiles (which cannot be tagged directly) are now
+      removed by name in a final deletion step, covering cases where
+      they slipped through tag-based deletion because some external
+      actor removed both the referencing instances and roles but left
+      the instance profiles.
+    - `InvalidGroup.NotFound` is now caught and considered a succesful
+      deletion in more situations than with previous releases.
+    - Error handling where subsequent successes no longer mask earlier
+      errors.
+    - Rate-limiting delete cycles, to reduce excessive AWS API usage
+      (and associated throttling) while waiting for removed
+      dependencies to resolve.
+- On OpenStack, Machine(Set)s now use the correct security group name.
+- On OpenStack, we now set `api` and `*.apps` DNS entries for internal
+  IPs when a floating IP is not configured.
+- The `none` platform no longer creates Machine(Set)s, because there
+  is, by definition, no machine-API support for that platform.
+
+### Removed
+
+- The deprecated `cluster-config-v1` ConfigMap no longer contains the
+  pull secret, now that all pull-secret consumers have been migrated
+  to the `coreos-pull-secret` Secret.
+- On AWS, control-plane nodes no longer allow ingress on ports 12379
+  or 12380 (which had, in the distant past, been used for etcd
+  bootstrapping).
+
+## 0.14.0 - 2019-03-05
+
+### Changed
+
+- A new, long-lived, self-signed certificate authority has been added
+  to sign kubelet certificate-signing requests.  This works around the
+  current lack of certificate rotation in the machine-config operator.
+- Machine(Set) labels have been migrated from
+  `sigs.k8s.io/cluster-api-...` to `machine.openshift.io`, continuing
+  the transition begun in 0.13.0.
+- On AWS, control-plane nodes are now based on encrypted AMIs.  These
+  AMIs are copied into the target account from unencrypted, public
+  AMIs provided by Red Hat.  To support the copy and post-cluster
+  cleanup, the installer requires the following additional AWS
+  credentials: ec2:CopyImage, ec2:DeregisterImage, and
+  ec2:DeleteSnapshot.  0.14.0 doesn't actually clean up the snapshots
+  associated with the copied AMIs yet, but we have a fix for that
+  landed for the next release.  In the meantime, you should manually
+  prune your snapshots after destroying a cluster.
+- On AWS, the security-group simplification from 0.13.1 accidentially
+  removed global SSH access to the bootstrap machine.  We've fixed
+  that with this release.  Unfortunately, this release also moves the
+  bootstrap machine into the same subnet as the first control-plane
+  node, and since 0.13.0, control-plane nodes are in private subnets.
+  So SSH access to the bootstrap machine from outside the cluster is
+  still broken, but we've landed a fix to get it working again in the
+  next release.  In the meantime, you can set up a SSH bastion or
+  debug pod if you need SSH access to cluster machines.
+- On OpenStack, the Machine(Set)s have been updated to track provider
+  changes.  For example, the `SecurityGroups` schema has changed, as
+  has the schema for selecting subnets.
+- Several doc and internal cleanups.
+
+### Fixed
+
+- On AWS, we now respect the availability zones configured in the
+  control-plane Machine manifests, which are in turn fed by the
+  install-config (previously control-plane nodes were always striped
+  over zones regardless of the configuration).
+- On AWS, the credentials-checking logic now uses the standard logger
+  instead of creating its own custom logger.
+
+## 0.13.1 - 2019-02-28
+
+### Changed
+
+- The aggregator and etcd-client certificate authorities are now
+  self-signed authorities decoupled from the root certificate
+  authority, continuing the transition begun in 0.13.0.
+- On AWS, Route 53 A records for the API load balancer no longer use
+  health checks.
+- On AWS, the security group configuration has been simplified, with
+  several stale rules being removed.
+
+### Fixed
+
+- When rendering manifests before pushing them to the cluster, the
+  bootstrap machine now correctly cleans up broken renders before
+  re-rendering.
+- The bootstrap machine now uses an `etcdctl` referenced from the
+  release image, instead of hard-coding its own version.
+
+### Removed
+
+- The nominal install-config compatibility with `v1beta1` and
+  `v1beta2` has been removed, so the installer will error out if
+  provided with an older `install-config.yaml`.  `v1beta1` was
+  deprecated in 0.12.0 and `v1beta2` was deprecated in 0.13.0.  In
+  both cases, the installer would ignore removed properties but not
+  error out.
+
+## 0.13.0 - 2019-02-26
+
+### Added
+
+- When cluster-creation times out waiting for cluster-version
+  completion, the installer now logs the last failing-operator
+  message (if any).
+- The installer now invokes the [cluster-config
+  operator][cluster-config-operator] on the bootstrap machine to
+  generate `config.openshift.io` custom resource definitions.
+
+### Changed
+
+- The install-config version has been bumped from `v1beta2` to
+  `v1beta3`.  All users will need to update any saved
+  `install-config.yaml` to use the new schema.
+
+    - `machines` has been split into `controlPlane` and `compute`.
+      Multiple compute pools are now supported (previously, only a
+      single `worker` pool was supported).  Every compute pool will
+      use the same Ignition configuration.  The installer will warn
+      about but allow configurations where there are zero compute
+      replicas.
+    - On libvirt, the `masterIPs` property has been removed, since you
+      cannot configure master IPs via the libvirt machine API
+      provider.
+    - On OpenStack, there is also a new `lbFloatingIP` property, which
+      allows you to provide an IP address to be used by the load
+      balancer.  This allows you to create local DNS entries ahead of
+      time before calling `create cluster`.
+
+- Cluster domain names have been adjusted so that the cluster lives
+  entirely within a per-cluster subdomain.  This keeps split-horizon
+  DNS from masking other clusters with the same base domain.
+- The cluster-version update URL has been changed from the dummy
+  `http://localhost:8080/graph` to the functioning
+  `https://api.openshift.com/api/upgrades_info/v1/graph` and the
+  channel has been changed from `fast` to `stable-4.0`, to opt
+  clusters in to 4.0 upgrades.
+- Machine-API resources have been moved from `cluster.k8s.io` to
+  `machine.openshift.io` to clarify our divergence from the upstream
+  types while they are unstable.  The `openshift-cluster-api`
+  namespace has been replaced with `openshift-machine-api` as well.
+- The installer now uses etcd and OS images referenced by the update
+  payload when configuring the machine-config operator.
+- The etcd, aggregator, and other certificate authorities are now
+  self-signed, decoupling their chains of trust from the root
+  certificate authority.
+- The installer no longer creates a service-serving certificate
+  authority.  The certificate authority is now created by the
+  [service-CA operator][service-ca-operator].
+- On AWS, the worker IAM role permissions were reduced to a smaller
+  set required for kubelet initialization.
+- On AWS, the worker security group has been expanded to allow ports
+  9000-9999 for for host network services.  This matches the approach
+  we have been using for masters since 0.4.0.  The master security
+  group has also been adjusted to fix a 9990 -> 9999 typo from 0.4.0.
+- On libvirt, the default compute nodes have been bumped from 2 to 4
+  GiB of memory and the control-plane nodes have been bumped from 4 to
+  6 GiB of memory and 2 to 4 vCPUs.
+- Several doc and internal cleanups and minor fixes.
+
+### Fixed
+
+- The router certificate authority is appended to the admin
+  `kubeconfig` to fix the OAuth flow behind `oc login`.
+- The `install-config.yaml` validation is now more robust, with the
+  installer:
+
+    - Validating cluster names (it previously only validated cluster
+      names provided via the install-config wizard).
+    - Validating `networking.clusterNetworks[].cidr` and explicitly
+      checking for `nil` `machineCIDR` and `serviceCIDR`.
+
+- Terraform variables are now generated from master machine
+  configurations instead of from the install configuration.  This
+  allows them to reflect changes made by editing master machine
+  configurations during [staged
+  installs](docs/user/overview.md#multiple-invocations).
+- `metadata.json` is generated before the Terraform invocation, fixing
+  a bug introduced in 0.12.0 which made it hard to clean up after
+  failed Terraform creation.
+- The machine-config server has moved its Ignition-config
+  service from port 49500 to 22623 to avoid the dynamic-port range
+  starting at [49152][rfc-6335-s6].
+- When the installer prompts for AWS credentials, it now respects
+  `AWS_PROFILE` and will update an existing credentials file instead
+  of erroring out.
+- On AWS, the default [instance types][aws-instance-types] now depend
+  on the selected region, with regions that do not support m4 types
+  falling back to m5.
+- On AWS, the installer now verifies that the user-supplied
+  credentials have sufficient permissions for creating a cluster.
+  Previously, permissions issues would surface as Terraform errors or
+  broken cluster functionality after a nominally successful install.
+- On AWS, the `destroy cluster` implementation is now more robust,
+  fixing several bugs from 0.10.1:
+
+    - The destroy code now checks for `nil` before dereferencing,
+      avoiding panics when removing internet gateways which had not
+      yet been associated with a VPC, and in other similar cases.
+    - The destoy code now treats already-deleted instances as
+      successfully deleted, instead of looping forever while trying to
+      delete them.
+    - The destroy code now treats a non-existant public DNS zone as
+      success, instead of looping forever while trying to delete
+      records from it.
+
+- On AWS and OpenStack, there is a new infra ID that is a uniqified,
+  possibly-abbreviated form of the cluster name.  The infra ID is used
+  to name and tag cluster resources, allowing for multiple clusters
+  that share the same cluster name in a single account without naming
+  conflicts (beyond DNS conflicts if both clusters also share the same
+  base domain).
+- On OpenStack, the HAProxy configuration on the service VM now only
+  balances ports 80 and 443 across compute nodes (it used to also
+  balance them across control-plane nodes).
+- On OpenStack, the service VM now uses CoreDNS instead of dnsmasq.
+  And it now includes records for `*.apps.{cluster-domain}` and the
+  Kubernetes API.
+- On OpenStack, the service VM has been moved to its own subnet.
+
+### Removed
+
+- On AWS, control-plane nodes have been moved to private subnets and
+  no longer have public IPs.  Use a VPN or bastion host if you need
+  SSH access to them.
+
 ## 0.12.0 - 2019-02-05
 
 ### Changed
@@ -70,7 +410,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   install-config version has been bumped from `v1beta1` to `v1beta2`.
   All users, regardless of platform, will need to update any saved
   `install-config.yaml` to use the new version.  IAM roles are being
-  replaced by [the credentials operator][credential-operator], and
+  replaced by [the credential operator][credential-operator], and
   while we still create IAM roles for our master, worker, and
   bootstrap machines, we're removing the user-facing property now to
   avoid making this breaking change later.
@@ -192,7 +532,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   shell-completion code (currently only for Bash).
 - On AWS, `destroy cluster` now also removed IAM users with the usual
   tags.  We don't create these users yet, but the removal sets the
-  stage for the coming credentials operator.
+  stage for the coming [credential operator][credential-operator].
 
 ### Changed
 
@@ -623,7 +963,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - etcd discovery now happens via `SRV` records.  On libvirt, this
   requires a new Terraform provider, so users with older providers
   should [install a newer
-  version](docs/dev/libvirt-howto.md#install-the-terraform-provider).
+  version](docs/dev/libvirt/README.md#install-the-terraform-provider).
   This also allows all masters to use a single Ignition file.
 - On AWS, the API and service load balancers have been changed from
   [classic load balancers][aws-elb] to [network load
@@ -822,7 +1162,7 @@ The configuration and command-line interface are quite different, so
 previous `tectonic` users are encouraged to start from scratch when
 getting acquainted with `openshift-install`.  AWS users should look
 [here](README.md#quick-start).  Libvirt users should look
-[here](docs/dev/libvirt-howto.md).  The new `openshift-install` also
+[here](docs/dev/libvirt/README.md).  The new `openshift-install` also
 includes an interactive configuration generator, so you can launch the
 installer and follow along as it guides you through the process.
 
@@ -844,6 +1184,7 @@ the new `openshift-install` command instead.
 [cluster-api-provider-aws]: https://github.com/openshift/cluster-api-provider-aws
 [cluster-api-provider-aws-012575c1-AWSMachineProviderConfig]: https://github.com/openshift/cluster-api-provider-aws/blob/012575c1c8d758f81c979b0b2354950a2193ec1a/pkg/apis/awsproviderconfig/v1alpha1/awsmachineproviderconfig_types.go#L86-L139
 [cluster-bootstrap]: https://github.com/openshift/cluster-bootstrap
+[cluster-config-operator]: https://github.com/openshift/cluster-config-operator
 [cluster-version-operator]: https://github.com/openshift/cluster-version-operator
 [ClusterVersion]: https://github.com/openshift/cluster-version-operator/blob/master/docs/dev/clusterversion.md
 [credential-operator]: https://github.com/openshift/cloud-credential-operator
@@ -853,13 +1194,16 @@ the new `openshift-install` command instead.
 [kube-apiserver-operator]: https://github.com/openshift/cluster-kube-apiserver-operator
 [kube-controller-manager-operator]: https://github.com/openshift/cluster-kube-controller-manager-operator
 [kube-selector]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors
+[kubecsr]: https://github.com/openshift/kubecsr/
 [machine-api-operator]: https://github.com/openshift/machine-api-operator
 [machine-config-operator]: https://github.com/openshift/machine-config-operator
 [machine-config-daemon-ssh-keys]: https://github.com/openshift/machine-config-operator/blob/master/docs/Update-SSHKeys.md
 [openshift-ansible]: https://github.com/openshift/openshift-ansible
 [Prometheus]: https://github.com/prometheus/prometheus
+[service-ca-operator]: https://github.com/openshift/service-ca-operator
 [ssh.ParseAuthorizedKey]: https://godoc.org/golang.org/x/crypto/ssh#ParseAuthorizedKey
 [registry-operator]: https://github.com/openshift/cluster-image-registry-operator
 [rfc-1123-s2.1]: https://tools.ietf.org/html/rfc1123#section-2
+[rfc-6335-s6]: https://tools.ietf.org/html/rfc6335#section-6
 [rhcos-pipeline]: https://releases-rhcos.svc.ci.openshift.org/storage/releases/maipo/builds.json
 [service-serving-cert-signer]: https://github.com/openshift/service-serving-cert-signer

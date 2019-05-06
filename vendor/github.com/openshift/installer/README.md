@@ -3,7 +3,7 @@
 ## Supported Platforms
 
 * [AWS](docs/user/aws/README.md)
-* [Libvirt with KVM](docs/dev/libvirt-howto.md) (development only)
+* [Libvirt with KVM](docs/dev/libvirt/README.md) (development only)
 * [OpenStack (experimental)](docs/user/openstack/README.md)
 
 ## Quick Start
@@ -36,8 +36,7 @@ Example output:
 ```sh
 INFO Waiting 10m0s for the openshift-console route to be created...
 INFO Install complete!
-INFO Run 'export KUBECONFIG=/path/to/auth/kubeconfig' to manage the cluster with 'oc', the OpenShift CLI.
-INFO The cluster is ready when 'oc login -u kubeadmin -p 5char-5char-5char-5char' succeeds (wait a few minutes).
+INFO To access the cluster as the system:admin user when using 'oc', run 'export KUBECONFIG=/path/to/installer/auth/kubeconfig'
 INFO Access the OpenShift web-console here: https://console-openshift-console.apps.${CLUSTER_NAME}.${BASE_DOMAIN}:6443
 INFO Login to the console with user: kubeadmin, password: 5char-5char-5char-5char
 ```

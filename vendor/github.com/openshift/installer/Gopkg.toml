@@ -3,6 +3,11 @@ ignored = [
   "github.com/openshift/installer/pkg/terraform/exec*"
 ]
 
+required = [
+  #needed in pkg/terraform/exec
+  "golang.org/x/net/html/charset"
+]
+
 [prune]
   non-go = true
   go-tests = true
@@ -15,6 +20,10 @@ ignored = [
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
   version = "1.16.14"
+
+[[constraint]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  version = "25.1.0"
 
 [[constraint]]
   name = "github.com/coreos/ignition"
@@ -52,9 +61,9 @@ ignored = [
   name = "k8s.io/client-go"
   version = "9.0.0"
 
-[[constraint]]
+[[override]]
   name = "github.com/openshift/cluster-api"
-  revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
+  revision = "d8958b539e331bf5ebb056b7f872541e13fb8e01"
 
 [[constraint]]
   name = "sigs.k8s.io/cluster-api-provider-aws"
@@ -79,7 +88,7 @@ ignored = [
 
 [[constraint]]
   name = "github.com/gophercloud/utils"
-  revision = "34f5991525d116b3832e0d9409492274f1c06bda"
+  branch = "master"
 
 [[constraint]]
   branch = "master"
@@ -89,3 +98,8 @@ ignored = [
   branch = "master"
   name = "sigs.k8s.io/cluster-api-provider-openstack"
   source = "https://github.com/openshift/cluster-api-provider-openstack.git"
+
+[[constraint]]
+  branch = "openshiftnocluster"
+  name = "sigs.k8s.io/cluster-api-provider-azure"
+  source = "https://github.com/awesomenix/cluster-api-provider-azure.git"

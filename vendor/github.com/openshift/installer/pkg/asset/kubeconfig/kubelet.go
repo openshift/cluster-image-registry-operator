@@ -22,23 +22,24 @@ var _ asset.WritableAsset = (*Kubelet)(nil)
 // Dependencies returns the dependency of the kubeconfig.
 func (k *Kubelet) Dependencies() []asset.Asset {
 	return []asset.Asset{
-		&tls.RootCA{},
-		&tls.KubeletCertKey{},
+		&tls.KubeAPIServerCompleteCABundle{},
+		&tls.KubeletClientCertKey{},
 		&installconfig.InstallConfig{},
 	}
 }
 
 // Generate generates the kubeconfig.
 func (k *Kubelet) Generate(parents asset.Parents) error {
-	rootCA := &tls.RootCA{}
-	kubeletCertKey := &tls.KubeletCertKey{}
+	ca := &tls.KubeAPIServerCompleteCABundle{}
+	clientcertkey := &tls.KubeletClientCertKey{}
 	installConfig := &installconfig.InstallConfig{}
-	parents.Get(rootCA, kubeletCertKey, installConfig)
+	parents.Get(ca, clientcertkey, installConfig)
 
 	return k.kubeconfig.generate(
-		rootCA,
-		kubeletCertKey,
-		installConfig.Config,
+		ca,
+		clientcertkey,
+		getIntAPIServerURL(installConfig.Config),
+		installConfig.Config.GetName(),
 		"kubelet",
 		kubeconfigKubeletPath,
 	)

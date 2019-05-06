@@ -4,43 +4,37 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"k8s.io/utils/pointer"
 
 	"github.com/openshift/installer/pkg/ipnet"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
 	awsdefaults "github.com/openshift/installer/pkg/types/aws/defaults"
+	"github.com/openshift/installer/pkg/types/azure"
+	azuredefaults "github.com/openshift/installer/pkg/types/azure/defaults"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	libvirtdefaults "github.com/openshift/installer/pkg/types/libvirt/defaults"
 	"github.com/openshift/installer/pkg/types/none"
 	nonedefaults "github.com/openshift/installer/pkg/types/none/defaults"
 	"github.com/openshift/installer/pkg/types/openstack"
 	openstackdefaults "github.com/openshift/installer/pkg/types/openstack/defaults"
-	"k8s.io/utils/pointer"
 )
 
 func defaultInstallConfig() *types.InstallConfig {
 	return &types.InstallConfig{
 		Networking: &types.Networking{
-			MachineCIDR: defaultMachineCIDR,
-			Type:        defaultNetworkPlugin,
-			ServiceCIDR: defaultServiceCIDR,
-			ClusterNetworks: []types.ClusterNetworkEntry{
+			MachineCIDR:    defaultMachineCIDR,
+			NetworkType:    defaultNetworkType,
+			ServiceNetwork: []ipnet.IPNet{*defaultServiceNetwork},
+			ClusterNetwork: []types.ClusterNetworkEntry{
 				{
-					CIDR:             *defaultClusterCIDR,
-					HostSubnetLength: int32(defaultHostSubnetLength),
+					CIDR:       *defaultClusterNetwork,
+					HostPrefix: int32(defaultHostPrefix),
 				},
 			},
 		},
-		Machines: []types.MachinePool{
-			{
-				Name:     "master",
-				Replicas: func(x int64) *int64 { return &x }(3),
-			},
-			{
-				Name:     "worker",
-				Replicas: func(x int64) *int64 { return &x }(3),
-			},
-		},
+		ControlPlane: defaultMachinePool("master"),
+		Compute:      []types.MachinePool{*defaultMachinePool("worker")},
 	}
 }
 
@@ -51,15 +45,20 @@ func defaultAWSInstallConfig() *types.InstallConfig {
 	return c
 }
 
+func defaultAzureInstallConfig() *types.InstallConfig {
+	c := defaultInstallConfig()
+	c.Platform.Azure = &azure.Platform{}
+	azuredefaults.SetPlatformDefaults(c.Platform.Azure)
+	return c
+}
+
 func defaultLibvirtInstallConfig() *types.InstallConfig {
 	c := defaultInstallConfig()
 	c.Networking.MachineCIDR = libvirtdefaults.DefaultMachineCIDR
 	c.Platform.Libvirt = &libvirt.Platform{}
 	libvirtdefaults.SetPlatformDefaults(c.Platform.Libvirt)
-	for i, m := range c.Machines {
-		m.Replicas = func(x int64) *int64 { return &x }(1)
-		c.Machines[i] = m
-	}
+	c.ControlPlane.Replicas = pointer.Int64Ptr(1)
+	c.Compute[0].Replicas = pointer.Int64Ptr(1)
 	return c
 }
 
@@ -98,6 +97,15 @@ func TestSetInstallConfigDefaults(t *testing.T) {
 			expected: defaultAWSInstallConfig(),
 		},
 		{
+			name: "empty Azure",
+			config: &types.InstallConfig{
+				Platform: types.Platform{
+					Azure: &azure.Platform{},
+				},
+			},
+			expected: defaultAzureInstallConfig(),
+		},
+		{
 			name: "empty Libvirt",
 			config: &types.InstallConfig{
 				Platform: types.Platform{
@@ -126,62 +134,66 @@ func TestSetInstallConfigDefaults(t *testing.T) {
 			name: "Networking types present",
 			config: &types.InstallConfig{
 				Networking: &types.Networking{
-					Type: "test-networking-type",
+					NetworkType: "test-networking-type",
 				},
 			},
 			expected: func() *types.InstallConfig {
 				c := defaultInstallConfig()
-				c.Networking.Type = "test-networking-type"
+				c.Networking.NetworkType = "test-networking-type"
 				return c
 			}(),
 		},
 		{
-			name: "Service CIDR present",
+			name: "Service network present",
 			config: &types.InstallConfig{
 				Networking: &types.Networking{
-					ServiceCIDR: ipnet.MustParseCIDR("1.2.3.4/8"),
+					ServiceNetwork: []ipnet.IPNet{*ipnet.MustParseCIDR("1.2.3.4/8")},
 				},
 			},
 			expected: func() *types.InstallConfig {
 				c := defaultInstallConfig()
-				c.Networking.ServiceCIDR = ipnet.MustParseCIDR("1.2.3.4/8")
+				c.Networking.ServiceNetwork[0] = *ipnet.MustParseCIDR("1.2.3.4/8")
 				return c
 			}(),
 		},
 		{
-			name: "Cluster Networks present",
+			name: "Cluster network present",
 			config: &types.InstallConfig{
 				Networking: &types.Networking{
-					ClusterNetworks: []types.ClusterNetworkEntry{
+					ClusterNetwork: []types.ClusterNetworkEntry{
 						{
-							CIDR:             *ipnet.MustParseCIDR("8.8.0.0/18"),
-							HostSubnetLength: 10,
+							CIDR:       *ipnet.MustParseCIDR("8.8.0.0/18"),
+							HostPrefix: 22,
 						},
 					},
 				},
 			},
 			expected: func() *types.InstallConfig {
 				c := defaultInstallConfig()
-				c.Networking.ClusterNetworks = []types.ClusterNetworkEntry{
+				c.Networking.ClusterNetwork = []types.ClusterNetworkEntry{
 					{
-						CIDR:             *ipnet.MustParseCIDR("8.8.0.0/18"),
-						HostSubnetLength: 10,
+						CIDR:       *ipnet.MustParseCIDR("8.8.0.0/18"),
+						HostPrefix: 22,
 					},
 				}
 				return c
 			}(),
 		},
 		{
-			name: "Machines present",
+			name: "control plane present",
 			config: &types.InstallConfig{
-				Machines: []types.MachinePool{{Name: "test-machine"}},
+				ControlPlane: &types.MachinePool{},
+			},
+			expected: defaultInstallConfig(),
+		},
+		{
+			name: "Compute present",
+			config: &types.InstallConfig{
+				Compute: []types.MachinePool{{Name: "test-compute"}},
 			},
 			expected: func() *types.InstallConfig {
 				c := defaultInstallConfig()
-				c.Machines = []types.MachinePool{{
-					Name:     "test-machine",
-					Replicas: pointer.Int64Ptr(0),
-				}}
+				c.Compute = []types.MachinePool{*defaultMachinePool("test-compute")}
 				return c
 			}(),
 		},
@@ -194,6 +206,18 @@ func TestSetInstallConfigDefaults(t *testing.T) {
 			},
 			expected: func() *types.InstallConfig {
 				c := defaultAWSInstallConfig()
+				return c
+			}(),
+		},
+		{
+			name: "Azure platform present",
+			config: &types.InstallConfig{
+				Platform: types.Platform{
+					Azure: &azure.Platform{},
+				},
+			},
+			expected: func() *types.InstallConfig {
+				c := defaultAzureInstallConfig()
 				return c
 			}(),
 		},

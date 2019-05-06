@@ -14,14 +14,13 @@ import (
 )
 
 // MachineSets returns a list of machinesets for a machinepool.
-func MachineSets(clusterID string, config *types.InstallConfig, pool *types.MachinePool, osImage, role, userDataSecret string) ([]clusterapi.MachineSet, error) {
+func MachineSets(clusterID string, config *types.InstallConfig, pool *types.MachinePool, osImage, role, userDataSecret string) ([]*clusterapi.MachineSet, error) {
 	if configPlatform := config.Platform.Name(); configPlatform != openstack.Name {
 		return nil, fmt.Errorf("non-OpenStack configuration: %q", configPlatform)
 	}
 	if poolPlatform := pool.Platform.Name(); poolPlatform != openstack.Name {
 		return nil, fmt.Errorf("non-OpenStack machine-pool: %q", poolPlatform)
 	}
-	clustername := config.ObjectMeta.Name
 	platform := config.Platform.OpenStack
 	mpool := pool.Platform.OpenStack
 
@@ -31,44 +30,45 @@ func MachineSets(clusterID string, config *types.InstallConfig, pool *types.Mach
 	}
 
 	// TODO(flaper87): Add support for availability zones
-	var machinesets []clusterapi.MachineSet
+	var machinesets []*clusterapi.MachineSet
 	az := ""
-	provider, err := provider(clusterID, clustername, platform, mpool, osImage, az, role, userDataSecret)
+	trunk := config.Platform.OpenStack.TrunkSupport
+	provider, err := provider(clusterID, platform, mpool, osImage, az, role, userDataSecret, trunk)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create provider")
 	}
 	// TODO(flaper87): Implement AZ support sometime soon
 	//name := fmt.Sprintf("%s-%s-%s", clustername, pool.Name, az)
-	name := fmt.Sprintf("%s-%s", clustername, pool.Name)
-	mset := clusterapi.MachineSet{
+	name := fmt.Sprintf("%s-%s", clusterID, pool.Name)
+	mset := &clusterapi.MachineSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "machine.openshift.io/v1beta1",
 			Kind:       "MachineSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "openshift-cluster-api",
+			Namespace: "openshift-machine-api",
 			Name:      name,
 			Labels: map[string]string{
-				"sigs.k8s.io/cluster-api-cluster":      clustername,
-				"sigs.k8s.io/cluster-api-machine-role": role,
-				"sigs.k8s.io/cluster-api-machine-type": role,
+				"machine.openshift.io/cluster-api-cluster":      clusterID,
+				"machine.openshift.io/cluster-api-machine-role": role,
+				"machine.openshift.io/cluster-api-machine-type": role,
 			},
 		},
 		Spec: clusterapi.MachineSetSpec{
 			Replicas: &total,
 			Selector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
-					"sigs.k8s.io/cluster-api-machineset": name,
-					"sigs.k8s.io/cluster-api-cluster":    clustername,
+					"machine.openshift.io/cluster-api-machineset": name,
+					"machine.openshift.io/cluster-api-cluster":    clusterID,
 				},
 			},
 			Template: clusterapi.MachineTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
-						"sigs.k8s.io/cluster-api-machineset":   name,
-						"sigs.k8s.io/cluster-api-cluster":      clustername,
-						"sigs.k8s.io/cluster-api-machine-role": role,
-						"sigs.k8s.io/cluster-api-machine-type": role,
+						"machine.openshift.io/cluster-api-machineset":   name,
+						"machine.openshift.io/cluster-api-cluster":      clusterID,
+						"machine.openshift.io/cluster-api-machine-role": role,
+						"machine.openshift.io/cluster-api-machine-type": role,
 					},
 				},
 				Spec: clusterapi.MachineSpec{

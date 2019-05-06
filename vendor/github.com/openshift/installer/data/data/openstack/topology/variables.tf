@@ -6,11 +6,13 @@ variable "cluster_id" {
   type = "string"
 }
 
-variable "cluster_name" {
-  type = "string"
+variable "external_network" {
+  description = "Name of the external network providing Floating IP addresses."
+  type        = "string"
+  default     = ""
 }
 
-variable "external_network" {
+variable "external_network_id" {
   description = "UUID of the external network providing Floating IP addresses."
   type        = "string"
   default     = ""

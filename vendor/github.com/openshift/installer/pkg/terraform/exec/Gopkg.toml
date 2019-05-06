@@ -1,5 +1,10 @@
 ignored = [
-  "github.com/openshift/installer/pkg/terraform/exec/plugins*"
+  "github.com/openshift/installer/pkg/terraform/exec/plugins*",
+  "golang.org/x/net*"
+]
+
+required = [
+  "github.com/hashicorp/terraform/helper/acctest"
 ]
 
 [prune]

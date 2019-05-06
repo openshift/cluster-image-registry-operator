@@ -3,8 +3,8 @@ resource "aws_route_table" "private_routes" {
   vpc_id = "${data.aws_vpc.cluster_vpc.id}"
 
   tags = "${merge(map(
-      "Name","${var.cluster_name}-private-${local.new_subnet_azs[count.index]}",
-    ), var.tags)}"
+    "Name","${var.cluster_id}-private-${var.availability_zones[count.index]}",
+  ), var.tags)}"
 }
 
 resource "aws_route" "to_nat_gw" {
@@ -13,6 +13,10 @@ resource "aws_route" "to_nat_gw" {
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = "${element(aws_nat_gateway.nat_gw.*.id, count.index)}"
   depends_on             = ["aws_route_table.private_routes"]
+
+  timeouts {
+    create = "20m"
+  }
 }
 
 resource "aws_subnet" "private_subnet" {
@@ -22,12 +26,12 @@ resource "aws_subnet" "private_subnet" {
 
   cidr_block = "${cidrsubnet(local.new_private_cidr_range, 3, count.index)}"
 
-  availability_zone = "${local.new_subnet_azs[count.index]}"
+  availability_zone = "${var.availability_zones[count.index]}"
 
   tags = "${merge(map(
-      "Name", "${var.cluster_name}-private-${local.new_subnet_azs[count.index]}",
-      "kubernetes.io/role/internal-elb", "",
-    ), var.tags)}"
+    "Name", "${var.cluster_id}-private-${var.availability_zones[count.index]}",
+    "kubernetes.io/role/internal-elb", "",
+  ), var.tags)}"
 }
 
 resource "aws_route_table_association" "private_routing" {

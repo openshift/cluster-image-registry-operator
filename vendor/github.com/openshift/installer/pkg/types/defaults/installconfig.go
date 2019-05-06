@@ -4,18 +4,19 @@ import (
 	"github.com/openshift/installer/pkg/ipnet"
 	"github.com/openshift/installer/pkg/types"
 	awsdefaults "github.com/openshift/installer/pkg/types/aws/defaults"
+	azuredefaults "github.com/openshift/installer/pkg/types/azure/defaults"
 	libvirtdefaults "github.com/openshift/installer/pkg/types/libvirt/defaults"
 	nonedefaults "github.com/openshift/installer/pkg/types/none/defaults"
 	openstackdefaults "github.com/openshift/installer/pkg/types/openstack/defaults"
-	"k8s.io/utils/pointer"
+	vspheredefaults "github.com/openshift/installer/pkg/types/vsphere/defaults"
 )
 
 var (
-	defaultMachineCIDR      = ipnet.MustParseCIDR("10.0.0.0/16")
-	defaultServiceCIDR      = ipnet.MustParseCIDR("172.30.0.0/16")
-	defaultClusterCIDR      = ipnet.MustParseCIDR("10.128.0.0/14")
-	defaultHostSubnetLength = 9 // equivalent to a /23 per node
-	defaultNetworkPlugin    = "OpenShiftSDN"
+	defaultMachineCIDR    = ipnet.MustParseCIDR("10.0.0.0/16")
+	defaultServiceNetwork = ipnet.MustParseCIDR("172.30.0.0/16")
+	defaultClusterNetwork = ipnet.MustParseCIDR("10.128.0.0/14")
+	defaultHostPrefix     = 23
+	defaultNetworkType    = "OpenShiftSDN"
 )
 
 // SetInstallConfigDefaults sets the defaults for the install config.
@@ -29,62 +30,42 @@ func SetInstallConfigDefaults(c *types.InstallConfig) {
 			c.Networking.MachineCIDR = libvirtdefaults.DefaultMachineCIDR
 		}
 	}
-	if c.Networking.Type == "" {
-		c.Networking.Type = defaultNetworkPlugin
+	if c.Networking.NetworkType == "" {
+		c.Networking.NetworkType = defaultNetworkType
 	}
-	if c.Networking.ServiceCIDR == nil {
-		c.Networking.ServiceCIDR = defaultServiceCIDR
+	if len(c.Networking.ServiceNetwork) == 0 {
+		c.Networking.ServiceNetwork = []ipnet.IPNet{*defaultServiceNetwork}
 	}
-	if len(c.Networking.ClusterNetworks) == 0 {
-		c.Networking.ClusterNetworks = []types.ClusterNetworkEntry{
+	if len(c.Networking.ClusterNetwork) == 0 {
+		c.Networking.ClusterNetwork = []types.ClusterNetworkEntry{
 			{
-				CIDR:             *defaultClusterCIDR,
-				HostSubnetLength: int32(defaultHostSubnetLength),
+				CIDR:       *defaultClusterNetwork,
+				HostPrefix: int32(defaultHostPrefix),
 			},
 		}
 	}
-	numberOfMasters := int64(3)
-	numberOfWorkers := int64(3)
-	if c.Platform.Libvirt != nil {
-		numberOfMasters = 1
-		numberOfWorkers = 1
+	if c.ControlPlane == nil {
+		c.ControlPlane = &types.MachinePool{}
 	}
-	if len(c.Machines) == 0 {
-		c.Machines = []types.MachinePool{
-			{
-				Name:     "master",
-				Replicas: &numberOfMasters,
-			},
-			{
-				Name:     "worker",
-				Replicas: &numberOfWorkers,
-			},
-		}
-	} else {
-		for i := range c.Machines {
-			switch c.Machines[i].Name {
-			case "master":
-				if c.Machines[i].Replicas == nil {
-					c.Machines[i].Replicas = &numberOfMasters
-				}
-			case "worker":
-				if c.Machines[i].Replicas == nil {
-					c.Machines[i].Replicas = &numberOfWorkers
-				}
-			default:
-				if c.Machines[i].Replicas == nil {
-					c.Machines[i].Replicas = pointer.Int64Ptr(0)
-				}
-			}
-		}
+	c.ControlPlane.Name = "master"
+	SetMachinePoolDefaults(c.ControlPlane, c.Platform.Name())
+	if len(c.Compute) == 0 {
+		c.Compute = []types.MachinePool{{Name: "worker"}}
+	}
+	for i := range c.Compute {
+		SetMachinePoolDefaults(&c.Compute[i], c.Platform.Name())
 	}
 	switch {
 	case c.Platform.AWS != nil:
 		awsdefaults.SetPlatformDefaults(c.Platform.AWS)
+	case c.Platform.Azure != nil:
+		azuredefaults.SetPlatformDefaults(c.Platform.Azure)
 	case c.Platform.Libvirt != nil:
 		libvirtdefaults.SetPlatformDefaults(c.Platform.Libvirt)
 	case c.Platform.OpenStack != nil:
 		openstackdefaults.SetPlatformDefaults(c.Platform.OpenStack)
+	case c.Platform.VSphere != nil:
+		vspheredefaults.SetPlatformDefaults(c.Platform.VSphere, c)
 	case c.Platform.None != nil:
 		nonedefaults.SetPlatformDefaults(c.Platform.None)
 	}

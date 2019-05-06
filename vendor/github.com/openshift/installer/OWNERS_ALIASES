@@ -2,18 +2,32 @@
 
 aliases:
   installer-approvers:
-    - aaronlevy
     - abhinavdahiya
     - crawford
-    - rajatchopra
     - smarterclayton
     - staebler
     - steveeJ
     - wking
   installer-reviewers:
-    - vikramsk
+    - jcpowermac
+    - jhixson74
+    - jstuever
+    - mtnbikenc
+    - patrickdillon
+    - vrutkovs
+  libvirt-approvers:
+    - abhinavdahiya
+    - enxebre
+    - praveenkumar
+    - zeenix
+  libvirt-reviewers:
   openstack-approvers:
     - flaper87
     - tomassedovic
     - hardys
     - russellb
+    - trown
+  vsphere-approvers:
+    - abhinavdahiya
+    - dav1x
+    - staebler

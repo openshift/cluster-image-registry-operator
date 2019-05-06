@@ -72,7 +72,7 @@ func TestCreatedAssetsAreNotDirty(t *testing.T) {
 			}
 
 			for _, a := range tc.targets {
-				if err := assetStore.Fetch(a); err != nil {
+				if err := assetStore.Fetch(a, tc.targets...); err != nil {
 					t.Fatalf("failed to fetch %q: %v", a.Name(), err)
 				}
 
@@ -86,19 +86,20 @@ func TestCreatedAssetsAreNotDirty(t *testing.T) {
 				t.Fatalf("failed to create new asset store: %v", err)
 			}
 
-			exists := struct{}{}
-			emptyAssets := map[string]struct{}{
-				"Master Machines": exists, // no files for the 'none' platform
-				"Metadata":        exists, // read-only
+			emptyAssets := map[string]bool{
+				"Master Machines":    true, // no files for the 'none' platform
+				"Worker Machines":    true, // no files for the 'none' platform
+				"Metadata":           true, // read-only
+				"Kubeadmin Password": true, // read-only
 			}
 			for _, a := range tc.targets {
 				name := a.Name()
 				newAsset := reflect.New(reflect.TypeOf(a).Elem()).Interface().(asset.WritableAsset)
-				if err := newAssetStore.Fetch(newAsset); err != nil {
+				if err := newAssetStore.Fetch(newAsset, tc.targets...); err != nil {
 					t.Fatalf("failed to fetch %q in new store: %v", a.Name(), err)
 				}
 				assetState := newAssetStore.assets[reflect.TypeOf(a)]
-				if _, ok := emptyAssets[name]; !ok {
+				if !emptyAssets[name] {
 					assert.Truef(t, assetState.presentOnDisk, "asset %q was not found on disk", a.Name())
 				}
 			}
@@ -106,6 +107,9 @@ func TestCreatedAssetsAreNotDirty(t *testing.T) {
 			assert.Equal(t, len(assetStore.assets), len(newAssetStore.assets), "new asset store does not have the same number of assets as original")
 
 			for _, a := range newAssetStore.assets {
+				if emptyAssets[a.asset.Name()] {
+					continue
+				}
 				originalAssetState, ok := assetStore.assets[reflect.TypeOf(a.asset)]
 				if !ok {
 					t.Fatalf("asset %q not found in original store", a.asset.Name())

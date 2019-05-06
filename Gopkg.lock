@@ -306,18 +306,20 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:95015d347ac1add122adb24396562c4c6451ab228155a8c6787c71f9809978fd"
+  digest = "1:4628782f2524725a2afaac44c749517f0f64d96476d260b83df50f38c0bc2f8e"
   name = "github.com/openshift/installer"
   packages = [
     "pkg/ipnet",
     "pkg/types",
     "pkg/types/aws",
+    "pkg/types/azure",
     "pkg/types/libvirt",
     "pkg/types/none",
     "pkg/types/openstack",
+    "pkg/types/vsphere",
   ]
   pruneopts = ""
-  revision = "a20f76e4389414332e9b606ddaaaf408d805fcce"
+  revision = "0bdcd0995bc0f7eb8f58fd3b9734be4a51e0b2a2"
 
 [[projects]]
   branch = "master"
