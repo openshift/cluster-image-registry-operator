@@ -59,7 +59,7 @@ func TestAWSDefaults(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig(mockLister)
@@ -351,7 +351,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 }
 
 func TestAWSUpdateCredentials(t *testing.T) {
@@ -377,7 +377,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
@@ -424,7 +424,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 }
 
 func TestAWSChangeS3Encryption(t *testing.T) {
@@ -443,7 +443,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
@@ -629,7 +629,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {

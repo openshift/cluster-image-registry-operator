@@ -157,16 +157,25 @@ func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperato
 				continue
 			}
 
-			if clusterOperatorCondition.Status == newStatus {
-				continue
+			if clusterOperatorCondition.Status != newStatus {
+				op.Status.Conditions[i].Status = newStatus
+				modified = true
 			}
 
-			op.Status.Conditions[i].Status = newStatus
-			op.Status.Conditions[i].LastTransitionTime = resourceCondition.LastTransitionTime
-			op.Status.Conditions[i].Reason = resourceCondition.Reason
-			op.Status.Conditions[i].Message = resourceCondition.Message
+			if op.Status.Conditions[i].LastTransitionTime != resourceCondition.LastTransitionTime {
+				op.Status.Conditions[i].LastTransitionTime = resourceCondition.LastTransitionTime
+				modified = true
+			}
 
-			modified = true
+			if op.Status.Conditions[i].Reason != resourceCondition.Reason {
+				op.Status.Conditions[i].Reason = resourceCondition.Reason
+				modified = true
+			}
+
+			if op.Status.Conditions[i].Message != resourceCondition.Message {
+				op.Status.Conditions[i].Message = resourceCondition.Message
+				modified = true
+			}
 		}
 
 		if !found {
