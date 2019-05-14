@@ -200,9 +200,25 @@
   branch = "master"
   digest = "1:6dead34fd2251daa1688cdb3b6c99761fed934979e9f27d457501a30d04380ba"
   name = "github.com/gophercloud/gophercloud"
-  packages = ["."]
+  packages = [
+    ".",
+    "openstack",
+    "openstack/identity/v2/tenants",
+    "openstack/identity/v2/tokens",
+    "openstack/identity/v3/tokens",
+    "openstack/utils",
+    "pagination",
+  ]
   pruneopts = ""
   revision = "7892efa714f10951c5483a28c7471d8051b12975"
+
+[[projects]]
+  branch = "master"
+  digest = "1:cc99de931f574da0c1b4006e5f326fdc1667d7970a4738f7cdbdd4b9a1951efe"
+  name = "github.com/gophercloud/utils"
+  packages = ["openstack/clientconfig"]
+  pruneopts = ""
+  revision = "0bcc8e728cb54c9dce9ed46924688b817ab14f31"
 
 [[projects]]
   branch = "master"
@@ -852,7 +868,7 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
-    "github.com/gophercloud/gophercloud",
+    "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/api/operator/v1",
     "github.com/openshift/api/route/v1",

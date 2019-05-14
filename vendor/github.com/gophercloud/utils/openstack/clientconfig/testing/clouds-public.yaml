@@ -1,0 +1,4 @@
+public-clouds:
+  rackspace:
+    auth:
+      auth_url: "https://identity.api.rackspacecloud.com/v2.0/"
