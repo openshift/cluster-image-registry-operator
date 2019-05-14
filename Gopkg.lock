@@ -198,6 +198,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:6dead34fd2251daa1688cdb3b6c99761fed934979e9f27d457501a30d04380ba"
+  name = "github.com/gophercloud/gophercloud"
+  packages = ["."]
+  pruneopts = ""
+  revision = "7892efa714f10951c5483a28c7471d8051b12975"
+
+[[projects]]
+  branch = "master"
   digest = "1:326d7083af3723768cd8150db99b8ac730837b05ef290d5a042562905cc26210"
   name = "github.com/gregjones/httpcache"
   packages = [
@@ -844,6 +852,7 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
+    "github.com/gophercloud/gophercloud",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/api/operator/v1",
     "github.com/openshift/api/route/v1",
