@@ -1,0 +1,136 @@
+clouds:
+  hawaii:
+    auth:
+      auth_url: "https://hi.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+      domain_name: "default"
+    region_name: "HNL"
+  florida:
+    auth:
+      auth_url: "https://fl.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_id: "12345"
+      user_domain_id: "abcde"
+    region_name: "MIA"
+  california:
+    auth:
+      auth_url: "https://ca.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+      project_domain_name: "default"
+      user_domain_name: "default"
+    regions:
+      - SAN
+      - LAX
+  arizona:
+    auth_type: "token"
+    auth:
+      auth_url: "https://az.example.com:5000/v3"
+      token: "12345"
+      project_name: "Some Project"
+      domain_name: "default"
+    region_name: "PHX"
+  newmexico:
+    auth_type: "password"
+    auth:
+      auth_url: "https://nm.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+      project_domain_name: "Some Domain"
+      user_domain_name: "Other Domain"
+      domain_name: "default"
+    region_name: "SAF"
+  nevada:
+    auth_type: "password"
+    auth:
+      auth_url: "https://nv.example.com:5000/v3"
+      user_id: "12345"
+      password: "password"
+      project_name: "Some Project"
+      project_domain_name: "Some Domain"
+    region_name: "LAS"
+  texas:
+    auth:
+      auth_url: "https://tx.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+      user_domain_name: "Some Domain"
+      default_domain: "default"
+    region_name: "AUS"
+  alberta:
+    auth_type: "password"
+    auth:
+      auth_url: "https://ab.example.com:5000/v2.0"
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+    region_name: "YYC"
+  yukon:
+    auth_type: "v2token"
+    auth:
+      auth_url: "https://yt.example.com:5000/v2.0"
+      token: "12345"
+      project_name: "Some Project"
+    region_name: "YXY"
+  florida_insecure:
+    auth:
+      auth_url: "https://fl.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_id: "12345"
+      user_domain_id: "abcde"
+    region_name: "MIA"
+    verify: False
+  florida_secure:
+    auth:
+      auth_url: "https://fl.example.com:5000/v3"
+      username: "jdoe"
+      password: "password"
+      project_id: "12345"
+      user_domain_id: "abcde"
+    region_name: "MIA"
+    key: /home/myhome/client-cert.key
+    cert: /home/myhome/client-cert.crt
+    cacert: /home/myhome/ca.crt
+  chicago:
+    profile: rackspace
+    auth:
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+    region_name: "ORD"
+  chicago_legacy:
+    cloud: rackspace
+    auth:
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+    region_name: "ORD"
+  chicago_useprofile:
+    profile: rackspace
+    cloud: rackspace
+    auth:
+      username: "jdoe"
+      password: "password"
+      project_name: "Some Project"
+    region_name: "ORD"
+  philadelphia:
+    auth:
+      auth_url: "https://phl.example.com:5000/v3"
+      username: "jdoe"
+      password: "this should be overwritten by secure.yaml"
+      project_name: "Some Project"
+    region_name: "PHL"
+  virginia:
+    auth_type: "v3applicationcredential"
+    auth:
+      auth_url: "https://va.example.com:5000/v3"
+      application_credential_id: "app-cred-id"
+      application_credential_secret: "secret"
+    region_name: "VA"

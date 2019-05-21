@@ -192,13 +192,17 @@ type ImageRegistryConfigStorageS3 struct {
 	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty"`
 }
 
+// ImageRegistryConfigStorageSwift holds the information to configure
+// the registry to use the OpenStack Swift service for backend storage
+// https://docs.docker.com/registry/storage-drivers/swift/
 type ImageRegistryConfigStorageSwift struct {
-	AuthURL   string `json:"authURL"`
-	Container string `json:"container"`
-	Domain    string `json:"domain"`
-	DomainID  string `json:"domainID"`
-	Tenant    string `json:"tenant"`
-	TenantID  string `json:"tenantID"`
+	AuthURL    string `json:"authURL"`
+	Container  string `json:"container"`
+	Domain     string `json:"domain"`
+	DomainID   string `json:"domainID"`
+	Tenant     string `json:"tenant"`
+	TenantID   string `json:"tenantID"`
+	RegionName string `json:"regionName"`
 }
 
 type ImageRegistryConfigStoragePVC struct {
