@@ -175,10 +175,10 @@ func GetGCSConfig(listers *regopclient.Listers) (*Config, error) {
 	} else {
 		// GCS credentials are stored in a file that can be downloaded from the
 		// GCP console
-		if v, ok := sec.Data["STORAGE_GCS_KEYFILE"]; ok {
+		if v, ok := sec.Data["REGISTRY_STORAGE_GCS_KEYFILE"]; ok {
 			cfg.Storage.GCS.KeyfileData = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
 		}
 	}
 

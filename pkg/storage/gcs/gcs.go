@@ -31,7 +31,7 @@ func (d *driver) Secrets() (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"STORAGE_GCS_KEYFILE": cfg.Storage.GCS.KeyfileData,
+		"REGISTRY_STORAGE_GCS_KEYFILE": cfg.Storage.GCS.KeyfileData,
 	}, nil
 }
 
@@ -54,7 +54,7 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 				SecretName: imageregistryv1.ImageRegistryPrivateConfiguration,
 				Items: []corev1.KeyToPath{
 					{
-						Key:  "STORAGE_GCS_KEYFILE",
+						Key:  "REGISTRY_STORAGE_GCS_KEYFILE",
 						Path: "keyfile",
 					},
 				},
