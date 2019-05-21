@@ -14,7 +14,6 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -58,16 +57,6 @@ func (c *Controller) Bootstrap() error {
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
 
-	driver, err := storage.NewDriver(&cr.Spec.Storage, c.listers)
-	if err != nil && err != storage.ErrStorageNotConfigured {
-		return err
-	}
-
-	err = nil
-	if driver != nil {
-		err = driver.CompleteConfiguration(cr)
-	}
-
 	if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
 		glog.Errorf("unable to apply cluster operator (bootstrap): %s", genErr)
 	}
@@ -77,10 +66,7 @@ func (c *Controller) Bootstrap() error {
 		return err
 	}
 
-	_, cerr := client.Configs().Create(cr)
-	if cerr != nil {
-		return cerr
-	}
+	_, err = client.Configs().Create(cr)
 	if err != nil {
 		return err
 	}

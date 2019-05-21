@@ -483,25 +483,4 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket has been removed.")
 
 	return false, nil
-
-}
-
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
-	cfg, err := clusterconfig.GetAWSConfig(d.Listers)
-	if err != nil {
-		return err
-	}
-
-	if len(d.Config.Region) == 0 {
-		d.Config.Region = cfg.Storage.S3.Region
-	}
-	if cr.Spec.Storage.S3 == nil {
-		cr.Spec.Storage.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	}
-	if cr.Status.Storage.S3 == nil {
-		cr.Status.Storage.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	}
-	cr.Spec.Storage.S3 = d.Config.DeepCopy()
-
-	return nil
 }
