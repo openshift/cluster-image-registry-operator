@@ -82,8 +82,3 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	return false, nil
 }
-
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
-	cr.Spec.Storage.EmptyDir = d.Config.DeepCopy()
-	return nil
-}

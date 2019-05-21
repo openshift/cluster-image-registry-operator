@@ -207,11 +207,6 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retriable bool, err 
 	return false, nil
 }
 
-func (d *driver) CompleteConfiguration(cr *imageregistryv1.Config) error {
-	cr.Status.Storage.PVC = d.Config.DeepCopy()
-	return nil
-}
-
 func pvcIsCreatedByOperator(claim *corev1.PersistentVolumeClaim) (exist bool) {
 	_, exist = claim.Annotations[pvcOwnerAnnotation]
 	return
