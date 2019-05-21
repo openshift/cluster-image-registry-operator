@@ -192,6 +192,10 @@ type ImageRegistryConfigStorageS3 struct {
 	CloudFront *ImageRegistryConfigStorageS3CloudFront `json:"cloudFront,omitempty"`
 }
 
+type ImageRegistryConfigStorageGCS struct {
+	Bucket string `json:"bucket,omitempty"`
+}
+
 // ImageRegistryConfigStorageSwift holds the information to configure
 // the registry to use the OpenStack Swift service for backend storage
 // https://docs.docker.com/registry/storage-drivers/swift/
@@ -220,6 +224,8 @@ type ImageRegistryConfigStorage struct {
 	EmptyDir *ImageRegistryConfigStorageEmptyDir `json:"emptyDir,omitempty"`
 	// S3 represents configuration that uses Amazon Simple Storage Service.
 	S3 *ImageRegistryConfigStorageS3 `json:"s3,omitempty"`
+	// GCS represents configuration that uses Google Cloud Storage
+	GCS *ImageRegistryConfigStorageGCS `json:"gcs,omitempty"`
 	// Swift represents configuration that uses OpenStack Object Storage.
 	// This configuration is EXPERIMENTAL and is subject to change without notice.
 	Swift *ImageRegistryConfigStorageSwift `json:"swift,omitempty"`
