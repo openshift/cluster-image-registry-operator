@@ -103,7 +103,10 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 	case installConfig.Platform.Azure != nil:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	case installConfig.Platform.OpenStack != nil:
-		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
+		// TODO(mfedosin): Swift storage needs cloud-credential-operator support
+		// to obtain system credentials. Until it's done we'll use EmptyDir for
+		// OpenStack deployment.
+		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	}
 
 	return cfg, nil
