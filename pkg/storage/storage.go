@@ -107,6 +107,10 @@ func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
 		// to obtain system credentials. Until it's done we'll use EmptyDir for
 		// OpenStack deployment.
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+	default:
+		// To faciliate unknown cloud providers, default to EmptyDir storage
+		// This will result in the operator reporting the `Degraded=true` condition
+		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	}
 
 	return cfg, nil

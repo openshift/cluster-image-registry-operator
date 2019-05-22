@@ -6,8 +6,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
@@ -36,7 +36,9 @@ func TestBasicEmptyDir(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.MustEnsureClusterOperatorCondition(t, client, configv1.OperatorAvailable, configv1.ConditionTrue)
+	framework.MustEnsureClusterOperatorCondition(t, client, configv1.OperatorProgressing, configv1.ConditionFalse)
+	framework.MustEnsureClusterOperatorCondition(t, client, configv1.OperatorDegraded, configv1.ConditionTrue)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	deploy, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})

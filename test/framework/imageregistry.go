@@ -340,23 +340,25 @@ func MustEnsureClusterOperatorStatusIsSet(t *testing.T, client *Clientset) *conf
 }
 
 func MustEnsureClusterOperatorStatusIsNormal(t *testing.T, client *Clientset) {
-	clusterOperator := MustEnsureClusterOperatorStatusIsSet(t, client)
+	MustEnsureClusterOperatorCondition(t, client, configapiv1.OperatorAvailable, configapiv1.ConditionTrue)
+	MustEnsureClusterOperatorCondition(t, client, configapiv1.OperatorProgressing, configapiv1.ConditionFalse)
+	MustEnsureClusterOperatorCondition(t, client, configapiv1.OperatorDegraded, configapiv1.ConditionFalse)
+}
 
+func MustEnsureClusterOperatorCondition(t *testing.T, client *Clientset, condition configapiv1.ClusterStatusConditionType, status configapiv1.ConditionStatus) {
+	clusterOperator := MustEnsureClusterOperatorStatusIsSet(t, client)
+	found := false
 	for _, cond := range clusterOperator.Status.Conditions {
-		switch cond.Type {
-		case configapiv1.OperatorAvailable:
-			if cond.Status != configapiv1.ConditionTrue {
-				t.Errorf("Expected clusteroperator Available=%s, got %s", configapiv1.ConditionTrue, cond.Status)
+		if cond.Type == condition {
+			found = true
+			if cond.Status != status {
+				t.Errorf("Expected clusteropertor %s=%s, got %s", condition, status, cond.Status)
 			}
-		case configapiv1.OperatorProgressing:
-			if cond.Status != configapiv1.ConditionFalse {
-				t.Errorf("Expected clusteroperator Progressing=%s, got %s", configapiv1.ConditionFalse, cond.Status)
-			}
-		case configapiv1.OperatorDegraded:
-			if cond.Status != configapiv1.ConditionFalse {
-				t.Errorf("Expected clusteroperator Degraded=%s, got %s", configapiv1.ConditionFalse, cond.Status)
-			}
+			break
 		}
+	}
+	if !found {
+		t.Errorf("Expected clusteroperator condition %s does not exist.", condition)
 	}
 }
 

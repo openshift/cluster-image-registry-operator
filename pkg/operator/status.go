@@ -158,6 +158,10 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorDegraded.Status = operatorapiv1.ConditionTrue
 		operatorDegraded.Message = applyError.Error()
 		operatorDegraded.Reason = e.Reason
+	} else if cr.Status.Storage.EmptyDir != nil {
+		operatorDegraded.Status = operatorapiv1.ConditionTrue
+		operatorDegraded.Message = "Registry is not using persistent storage - image data may be lost"
+		operatorDegraded.Reason = "StorageNotPersisted"
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
