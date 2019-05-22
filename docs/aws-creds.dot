@@ -30,7 +30,7 @@ digraph G {
     }
 
     operator [shape=box,style="filled",label="Operator: image-registry"]
-    private [label="Secret\nnamespace: openshit-image-registry\nname: image-registry-private-configuration"]
+    private [label="Secret\nnamespace: openshift-image-registry\nname: image-registry-private-configuration"]
     deployment [label="Deployment\nnamespace: openshift-image-registry\nname: image-registry"]
     containers [shape=box,style="filled",label="Container(s)"]
     s3 [shape=cylinder,style="filled",label="S3"]
