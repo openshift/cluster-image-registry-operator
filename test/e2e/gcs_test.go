@@ -29,7 +29,7 @@ var (
   "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/image-registy-testing%40openshift-test-project.iam.gserviceaccount.com"
 }`
 	fakeGCSCredsData = map[string]string{
-		"STORAGE_GCS_KEYFILE": fakeGCSKeyfile,
+		"REGISTRY_STORAGE_GCS_KEYFILE": fakeGCSKeyfile,
 	}
 )
 
@@ -85,7 +85,7 @@ func TestGCSMinimal(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfiguration, err)
 	}
-	keyfileData, _ := imageRegistryPrivateConfiguration.Data["STORAGE_GCS_KEYFILE"]
+	keyfileData, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_GCS_KEYFILE"]
 	if string(keyfileData) != fakeGCSKeyfile {
 		t.Errorf("secret %s/%s contains incorrect gcs credentials", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfiguration)
 	}

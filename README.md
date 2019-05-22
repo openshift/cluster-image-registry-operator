@@ -59,9 +59,12 @@ Provides additional CAs for contacting upstream registries.  Mounted to `/etc/pk
 Provides credentials needed for storage management/access, overrides the default
 credentials used by the operator, if default credentials were found.
 
-For S3 storage it is expected to contain two keys:
+For S3 storage it is expected to contain two keys whose values are the AWS access key and secret key that you want to use:
 * REGISTRY_STORAGE_S3_ACCESSKEY
 * REGISTRY_STORAGE_S3_SECRETKEY
+
+For GCS storage it is expected to contain one key whose value is the contents of a credentials file provided by GCP:
+* REGISTRY_STORAGE_GCS_KEYFILE
 
 # Troubleshooting
 
@@ -69,11 +72,11 @@ The registry operator reports status in two places:
 
 A ClusterOperator resource is defined in the cluster scope which reflects the state of the registry operator at a high level.  Retrievable via:
 
-    oc get clusteroperators.config.openshift.io/cluster-image-registry-operator -o yaml -n openshift-image-registry
+    oc get clusteroperators.config.openshift.io/cluster-image-registry-operator -o yaml
 
 The image-registry resource itself has a status section with detailed conditions indicating the state of the managed registry, you can view this via:
 
-    oc get configs.imageregistry.operator.openshift.io/cluster  -o yaml -n openshift-image-registry
+    oc get configs.imageregistry.operator.openshift.io/cluster -o yaml
 
 
 **If you cannot access your registry, check the following:**
