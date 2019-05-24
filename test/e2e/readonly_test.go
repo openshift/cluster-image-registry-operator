@@ -26,11 +26,8 @@ func TestReadOnly(t *testing.T) {
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			ReadOnly: true,
-			Replicas: 1,
+			ReadOnly:        true,
+			Replicas:        1,
 		},
 	}
 	framework.MustDeployImageRegistry(t, client, cr)

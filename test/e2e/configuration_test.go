@@ -33,10 +33,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
+			Replicas:        1,
 			Resources: &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{
 					corev1.ResourceMemory: resource.MustParse("512Mi"),
@@ -105,11 +102,8 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas:    1,
-			Tolerations: tolerations,
+			Replicas:        1,
+			Tolerations:     tolerations,
 		},
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
@@ -144,11 +138,8 @@ func TestRouteConfiguration(t *testing.T) {
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas:     1,
-			DefaultRoute: true,
+			Replicas:        1,
+			DefaultRoute:    true,
 			Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
 				{
 					Name:     "testroute",
@@ -181,10 +172,7 @@ func TestVersionReporting(t *testing.T) {
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
+			Replicas:        1,
 		},
 	}
 	framework.MustDeployImageRegistry(t, client, cr)
