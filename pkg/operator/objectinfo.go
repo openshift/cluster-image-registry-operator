@@ -1,4 +1,4 @@
-package util
+package operator
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func ObjectInfo(o interface{}) string {
+func utilObjectInfo(o interface{}) string {
 	object := o.(metav1.Object)
 	s := fmt.Sprintf("%T, ", o)
 	if namespace := object.GetNamespace(); namespace != "" {

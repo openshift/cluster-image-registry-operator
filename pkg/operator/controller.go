@@ -33,7 +33,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 const (
@@ -173,9 +172,9 @@ func (c *Controller) sync() error {
 	if metadataChanged || specChanged {
 		difference, err := object.DiffString(prevCR, cr)
 		if err != nil {
-			glog.Errorf("unable to calculate difference in %s: %s", util.ObjectInfo(cr), err)
+			glog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
 		}
-		glog.Infof("object changed: %s (metadata=%t, spec=%t): %s", util.ObjectInfo(cr), metadataChanged, specChanged, difference)
+		glog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
 
 		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
 			glog.Errorf("unable to apply cluster operator: %s", genErr)
@@ -189,7 +188,7 @@ func (c *Controller) sync() error {
 		updatedCR, err := client.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update %s: %s", util.ObjectInfo(cr), err)
+				glog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
 			}
 			return err
 		}
@@ -204,9 +203,9 @@ func (c *Controller) sync() error {
 	if statusChanged {
 		difference, err := object.DiffString(prevCR, cr)
 		if err != nil {
-			glog.Errorf("unable to calculate difference in %s: %s", util.ObjectInfo(cr), err)
+			glog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
 		}
-		glog.Infof("object changed: %s (status=%t): %s", util.ObjectInfo(cr), statusChanged, difference)
+		glog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
 
 		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
 			glog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
@@ -220,7 +219,7 @@ func (c *Controller) sync() error {
 		_, err = client.ImageregistryV1().Configs().UpdateStatus(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update status %s: %s", util.ObjectInfo(cr), err)
+				glog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
 			}
 			return err
 		}
@@ -269,7 +268,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (add)", util.ObjectInfo(o))
+			glog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
@@ -293,7 +292,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (update)", util.ObjectInfo(n))
+			glog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -316,7 +315,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (delete)", util.ObjectInfo(object))
+			glog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
 	}
