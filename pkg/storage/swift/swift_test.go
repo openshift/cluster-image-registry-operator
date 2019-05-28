@@ -92,7 +92,7 @@ func (m MockIPISecretNamespaceLister) List(selector labels.Selector) ([]*corev1.
 	}, nil
 }
 
-func handleAuthentication(t *testing.T) {
+func handleAuthentication(t *testing.T, endpointType string) {
 	th.Mux.HandleFunc("/v3/auth/tokens", func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "POST")
 		th.TestHeader(t, r, "Content-Type", "application/json")
@@ -136,7 +136,7 @@ func handleAuthentication(t *testing.T) {
 					"region": "RegionOne",
 					"region_id": "RegionOne"
 					}],
-					"type": "container",
+					"type": "`+endpointType+`",
 					"name": "swift"
 				}]
 			}
@@ -147,7 +147,7 @@ func handleAuthentication(t *testing.T) {
 func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "PUT")
@@ -192,7 +192,7 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "DELETE")
@@ -237,7 +237,7 @@ func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 func TestSwiftStorageExistsNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "HEAD")
@@ -333,7 +333,7 @@ func TestSwiftSecrets(t *testing.T) {
 func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	fakeCloudsYAMLData := []byte(`clouds:
   ` + cloudName + `:
@@ -389,7 +389,7 @@ func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	fakeCloudsYAMLData := []byte(`clouds:
   ` + cloudName + `:
@@ -445,7 +445,7 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 func TestSwiftStorageExistsCloudConfig(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
-	handleAuthentication(t)
+	handleAuthentication(t, "container")
 
 	fakeCloudsYAMLData := []byte(`clouds:
   ` + cloudName + `:
@@ -547,4 +547,49 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	th.AssertEquals(t, true, res[7].ValueFrom != nil)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_PASSWORD", res[8].Name)
 	th.AssertEquals(t, true, res[8].ValueFrom != nil)
+}
+
+func TestSwiftEndpointTypeObjectStore(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+	handleAuthentication(t, "object-store")
+
+	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		th.TestMethod(t, r, "PUT")
+		th.TestHeader(t, r, "Accept", "application/json")
+
+		w.Header().Set("Content-Length", "0")
+		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
+		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	config := imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:   th.Endpoint() + "v3",
+		Container: container,
+		Domain:    domain,
+		Tenant:    tenant,
+	}
+	d := driver{
+		Listers: &regopclient.Listers{
+			Secrets: MockUPISecretNamespaceLister{},
+		},
+		Config: &config,
+	}
+
+	installConfig := imageregistryv1.Config{
+		Spec: imageregistryv1.ImageRegistrySpec{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				Swift: &config,
+			},
+		},
+	}
+
+	d.CreateStorage(&installConfig)
+
+	th.AssertEquals(t, true, installConfig.Status.StorageManaged)
+	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
+	th.AssertEquals(t, operatorapi.ConditionTrue, installConfig.Status.Conditions[0].Status)
+	th.AssertEquals(t, container, installConfig.Status.Storage.Swift.Container)
 }
