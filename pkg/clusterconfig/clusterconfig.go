@@ -3,14 +3,12 @@ package clusterconfig
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -116,20 +114,9 @@ func GetAWSConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*Confi
 	// Look for a user defined secret to get the AWS credentials from first
 	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
-		pollErr := wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
-			sec, err = client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(cloudCredentialsName, metav1.GetOptions{})
-			if err != nil {
-				if errors.IsNotFound(err) {
-					return false, nil
-				} else {
-					return false, err
-				}
-			}
-			return true, nil
-		})
-
-		if sec == nil || pollErr != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), pollErr)
+		sec, err = client.Secrets(imageregistryv1.ImageRegistryOperatorNamespace).Get(cloudCredentialsName, metav1.GetOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), err)
 		}
 
 		if v, ok := sec.Data["aws_access_key_id"]; ok {
@@ -190,19 +177,9 @@ func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
 	if err != nil && errors.IsNotFound(err) {
 		// If no user defined credentials were provided, then try to find them in the secret,
 		// created by cloud-credential-operator.
-		pollErr := wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
-			sec, err = listers.Secrets.Get(cloudCredentialsName)
-			if err != nil {
-				if errors.IsNotFound(err) {
-					return false, nil
-				}
-				return false, err
-			}
-			return true, nil
-		})
-
-		if sec == nil || pollErr != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), pollErr)
+		sec, err = listers.Secrets.Get(cloudCredentialsName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, cloudCredentialsName), err)
 		}
 
 		// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
