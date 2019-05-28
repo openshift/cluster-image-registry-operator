@@ -63,11 +63,21 @@ func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.Servic
 
 	endpointOpts := gophercloud.EndpointOpts{
 		Region: d.Config.RegionName,
+		Name:   "swift",
 	}
 
-	client, err := openstack.NewContainerV1(provider, endpointOpts)
+	var client *gophercloud.ServiceClient
+	client, err = openstack.NewContainerV1(provider, endpointOpts)
 	if err != nil {
-		return nil, err
+		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
+			endpointOpts.Type = "object-store"
+			client, err = openstack.NewContainerV1(provider, endpointOpts)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	return client, nil
