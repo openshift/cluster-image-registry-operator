@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -29,7 +30,7 @@ type Driver interface {
 	StorageChanged(*imageregistryv1.Config) bool
 }
 
-func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopclient.Listers) (Driver, error) {
+func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	var names []string
 	var drivers []Driver
 
@@ -40,7 +41,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 
 	if cfg.S3 != nil {
 		names = append(names, "S3")
-		drivers = append(drivers, s3.NewDriver(cfg.S3, listers))
+		drivers = append(drivers, s3.NewDriver(cfg.S3, kubeconfig, listers))
 	}
 
 	if cfg.Swift != nil {
@@ -54,7 +55,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 	}
 
 	if cfg.PVC != nil {
-		drv, err := pvc.NewDriver(cfg.PVC)
+		drv, err := pvc.NewDriver(cfg.PVC, kubeconfig)
 		if err != nil {
 			return nil, err
 		}
@@ -72,14 +73,14 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
-func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopclient.Listers) (Driver, error) {
-	drv, err := newDriver(cfg, listers)
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
+	drv, err := newDriver(cfg, kubeconfig, listers)
 	if err == ErrStorageNotConfigured {
-		*cfg, err = getPlatformStorage()
+		*cfg, err = getPlatformStorage(kubeconfig)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
-		drv, err = newDriver(cfg, listers)
+		drv, err = newDriver(cfg, kubeconfig, listers)
 	}
 	return drv, err
 }
@@ -87,10 +88,10 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, listers *regopcl
 // getPlatformStorage returns the storage configuration that should be used
 // based on the cloudplatform we are running on, as determined from the
 // installer configuration.
-func getPlatformStorage() (imageregistryv1.ImageRegistryConfigStorage, error) {
+func getPlatformStorage(kubeconfig *rest.Config) (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
 	if err != nil {
 		return cfg, err
 	}

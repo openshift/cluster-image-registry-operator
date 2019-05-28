@@ -44,7 +44,7 @@ func TestAWSDefaults(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestAWSDefaults(t *testing.T) {
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
-	cfg, err := clusterconfig.GetAWSConfig(mockLister)
+	cfg, err := clusterconfig.GetAWSConfig(kcfg, mockLister)
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
@@ -158,7 +158,7 @@ func TestAWSDefaults(t *testing.T) {
 		t.Errorf("unable to get tagging information for s3 bucket: %#v", err)
 	}
 
-	cv, err := util.GetClusterVersionConfig()
+	cv, err := util.GetClusterVersionConfig(kcfg)
 	if err != nil {
 		t.Errorf("unable to get cluster version: %#v", err)
 	}
@@ -308,7 +308,12 @@ func TestAWSDefaults(t *testing.T) {
 }
 
 func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
-	installConfig, err := clusterconfig.GetInstallConfig()
+	kubeconfig, err := regopclient.GetConfig()
+	if err != nil {
+		t.Fatalf("unable to get kubeconfig: %s", err)
+	}
+
+	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -320,7 +325,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+	if _, err := framework.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser), err)
 	}
 
@@ -362,7 +367,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -381,7 +386,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+		if _, err := framework.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
 		}
@@ -392,7 +397,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Check that the user provided credentials override the system provided ones
-	cfgUser, err := clusterconfig.GetAWSConfig(mockLister)
+	cfgUser, err := clusterconfig.GetAWSConfig(kcfg, mockLister)
 	if err != nil {
 		t.Errorf("unable to get aws configuration: %#v", err)
 	}
@@ -428,7 +433,12 @@ func TestAWSUpdateCredentials(t *testing.T) {
 }
 
 func TestAWSChangeS3Encryption(t *testing.T) {
-	installConfig, err := clusterconfig.GetInstallConfig()
+	kubeconfig, err := regopclient.GetConfig()
+	if err != nil {
+		t.Fatalf("unable to get kubeconfig: %s", err)
+	}
+
+	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -614,7 +624,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig()
+	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -640,7 +650,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
-	driver, err := storage.NewDriver(&cr.Spec.Storage, mockLister)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, kcfg, mockLister)
 	if err != nil {
 		t.Fatal("unable to create new s3 driver")
 	}

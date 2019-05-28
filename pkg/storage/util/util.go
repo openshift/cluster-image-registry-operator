@@ -1,27 +1,15 @@
 package util
 
 import (
-	"fmt"
-
-	"github.com/golang/glog"
-
-	operatorapi "github.com/openshift/api/operator/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-
-	coreapi "k8s.io/api/core/v1"
-
-	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/util/retry"
+	"k8s.io/client-go/rest"
 
 	configv1 "github.com/openshift/api/config/v1"
-
+	operatorapi "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+
+	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 // UpdateCondition will update or add the provided condition.
@@ -62,64 +50,7 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
-func CreateOrUpdateSecret(name string, namespace string, data map[string]string) (*coreapi.Secret, error) {
-	kubeconfig, err := regopclient.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := coreset.NewForConfig(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	var updatedSecret *coreapi.Secret
-
-	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		// Skip using the cache here so we don't have as many
-		// retries due to slow cache updates
-		cur, err := client.Secrets(namespace).Get(name, metaapi.GetOptions{})
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				return err
-			}
-
-			glog.Warningf("secret %q not found: %s, creating", fmt.Sprintf("%s/%s", namespace, name), err)
-
-			cur = &coreapi.Secret{
-				ObjectMeta: metaapi.ObjectMeta{
-					Name:      name,
-					Namespace: namespace,
-				},
-			}
-		}
-
-		if cur.StringData == nil {
-			cur.StringData = make(map[string]string)
-		}
-		for k, v := range data {
-			cur.StringData[k] = v
-		}
-
-		if errors.IsNotFound(err) {
-			_, err := client.Secrets(namespace).Create(cur)
-			return err
-		}
-		updatedSecret, err = client.Secrets(namespace).Update(cur)
-		return err
-
-	}); err != nil {
-		return nil, err
-	}
-
-	return updatedSecret, err
-}
-
-func GetClusterVersionConfig() (*configv1.ClusterVersion, error) {
-	kubeconfig, err := regopclient.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
+func GetClusterVersionConfig(kubeconfig *rest.Config) (*configv1.ClusterVersion, error) {
 	client, err := configv1client.NewForConfig(kubeconfig)
 	if err != nil {
 		return nil, err

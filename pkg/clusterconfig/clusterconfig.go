@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -67,12 +68,7 @@ type Config struct {
 	Storage Storage
 }
 
-func GetCoreClient() (*coreset.CoreV1Client, error) {
-	kubeconfig, err := regopclient.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-
+func GetCoreClient(kubeconfig *rest.Config) (*coreset.CoreV1Client, error) {
 	client, err := coreset.NewForConfig(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -81,8 +77,8 @@ func GetCoreClient() (*coreset.CoreV1Client, error) {
 	return client, nil
 }
 
-func GetInstallConfig() (*installer.InstallConfig, error) {
-	client, err := GetCoreClient()
+func GetInstallConfig(kubeconfig *rest.Config) (*installer.InstallConfig, error) {
+	client, err := GetCoreClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -100,10 +96,10 @@ func GetInstallConfig() (*installer.InstallConfig, error) {
 	return installConfig, nil
 }
 
-func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
+func GetAWSConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
 
-	installConfig, err := GetInstallConfig()
+	installConfig, err := GetInstallConfig(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +108,7 @@ func GetAWSConfig(listers *regopclient.Listers) (*Config, error) {
 		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
 	}
 
-	client, err := GetCoreClient()
+	client, err := GetCoreClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
