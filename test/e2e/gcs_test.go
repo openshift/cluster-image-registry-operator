@@ -2,7 +2,6 @@ package e2e
 
 import (
 	operatorapi "github.com/openshift/api/operator/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -63,7 +62,7 @@ func TestGCSMinimal(t *testing.T) {
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err := wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := util.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeGCSCredsData); err != nil {
+		if _, err := framework.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeGCSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
 		}

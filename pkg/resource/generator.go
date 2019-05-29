@@ -79,7 +79,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 		return nil, err
 	}
 
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.listers)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
 	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.listers)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 		glog.Infof("object %s deleted", Name(gen))
 	}
 
-	driver, err := storage.NewDriver(&cr.Status.Storage, g.listers)
+	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, g.listers)
 	if err != nil {
 		return err
 	}

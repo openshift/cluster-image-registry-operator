@@ -15,7 +15,6 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/util"
 )
 
 func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
@@ -39,7 +38,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return nil
 	}
 
-	glog.Infof("finalizing %s", util.ObjectInfo(o))
+	glog.Infof("finalizing %s", utilObjectInfo(o))
 
 	client, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
@@ -59,7 +58,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 			// retries due to slow cache updates
 			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
+				return fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
 			}
 			finalizers = []string{}
 			for _, v := range cr.ObjectMeta.Finalizers {
@@ -79,7 +78,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("unable to update finalizers in %s: %s", util.ObjectInfo(o), err)
+		return fmt.Errorf("unable to update finalizers in %s: %s", utilObjectInfo(o), err)
 	}
 
 	// These errors may indicate a transient error that we can retry in tests.
@@ -116,7 +115,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 				return false, nil
 			}
 
-			err = fmt.Errorf("failed to get %s: %s", util.ObjectInfo(o), err)
+			err = fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
 			return
 		}
 
@@ -124,7 +123,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 	})
 
 	if err != nil {
-		return fmt.Errorf("unable to wait for %s deletion: %s", util.ObjectInfo(o), err)
+		return fmt.Errorf("unable to wait for %s deletion: %s", utilObjectInfo(o), err)
 	}
 
 	return nil

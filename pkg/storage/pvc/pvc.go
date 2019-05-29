@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -29,15 +30,10 @@ type driver struct {
 	Client    *coreset.CoreV1Client
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStoragePVC) (*driver, error) {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStoragePVC, kubeconfig *rest.Config) (*driver, error) {
 	namespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get watch namespace: %s", err)
-	}
-
-	kubeconfig, err := regopclient.GetConfig()
-	if err != nil {
-		return nil, err
 	}
 
 	client, err := coreset.NewForConfig(kubeconfig)
