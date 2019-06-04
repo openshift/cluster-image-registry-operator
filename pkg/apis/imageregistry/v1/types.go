@@ -218,6 +218,13 @@ type ImageRegistryConfigStoragePVC struct {
 	Claim string `json:"claim"`
 }
 
+// ImageRegistryConfigStorageAzure holds the information to configure
+// the registry to use Azure Blob Storage for backend storage.
+type ImageRegistryConfigStorageAzure struct {
+	AccountName string `json:"accountName"`
+	Container   string `json:"container"`
+}
+
 // ImageRegistryConfigStorage describes how the storage should be configured
 // for the image registry.
 type ImageRegistryConfigStorage struct {
@@ -236,6 +243,8 @@ type ImageRegistryConfigStorage struct {
 	Swift *ImageRegistryConfigStorageSwift `json:"swift,omitempty"`
 	// PVC represents configuration that uses a PersistentVolumeClaim.
 	PVC *ImageRegistryConfigStoragePVC `json:"pvc,omitempty"`
+	// Azure represents configuration that uses Azure Blob Storage.
+	Azure *ImageRegistryConfigStorageAzure `json:"azure,omitempty"`
 }
 
 type ImageRegistryConfigRequests struct {
