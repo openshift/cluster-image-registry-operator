@@ -45,18 +45,6 @@ git clone https://github.com/openshift/installer.git
 cd installer
 ```
 
-### Make sure you have permissions for `qemu:///system`
-You may want to grant yourself permissions to use libvirt as a non-root user. You could allow all users in the wheel group by doing the following:
-```sh
-cat <<EOF >> /etc/polkit-1/rules.d/80-libvirt.rules
-polkit.addRule(function(action, subject) {
-  if (action.id == "org.libvirt.unix.manage" && subject.local && subject.active && subject.isInGroup("wheel")) {
-      return polkit.Result.YES;
-  }
-});
-EOF
-```
-
 ### Enable IP Forwarding
 
 Libvirt creates a bridged connection to the host machine, but in order for the
@@ -130,40 +118,37 @@ Next, restart libvirt: `systemctl restart libvirtd`
 Finally, if you have a firewall, you may have to allow connections to the
 libvirt daemon from the IP range used by your cluster nodes.
 
-The following examples use the default cluster IP range of `192.168.126.0/24` (which is currently not configurable) and a libvirt `default` subnet of `192.168.124.0/24`, which might be different in your configuration.
+The following examples use the default cluster IP range of `192.168.126.0/24` (which is currently not configurable) and a libvirt `default` subnet of `192.168.122.0/24`, which might be different in your configuration.
 If you're uncertain about the libvirt *default* subnet you should be able to see its address using the command `ip -4 a show dev virbr0` or by inspecting `virsh --connect qemu:///system net-dumpxml default`.
 Ensure the cluster IP range does not overlap your `virbr0` IP address.
 
 #### iptables
 
 ```sh
-iptables -I INPUT -p tcp -s 192.168.126.0/24 -d 192.168.124.1 --dport 16509 -j ACCEPT -m comment --comment "Allow insecure libvirt clients"
+iptables -I INPUT -p tcp -s 192.168.126.0/24 -d 192.168.122.1 --dport 16509 -j ACCEPT -m comment --comment "Allow insecure libvirt clients"
 ```
 
 #### Firewalld
 
-If using `firewalld`, simply obtain the name of the existing active zone which
-can be used to integrate the appropriate source and ports to allow connections from
-the IP range used by your cluster nodes. An example is shown below.
+If using `firewalld`, the specifics will depend on how your distribution setup the
+various zones.
 
-```console
-$ sudo firewall-cmd --get-active-zones
-FedoraWorkstation
-  interfaces: enp0s25 tun0
-```
-With the name of the active zone, include the source and port to allow connections
-from the IP range used by your cluster nodes.
+On Fedora Workstation, as we don't want to expose the libvirt port externally,
+we'll need to actively block it. We then use the preexisting `dmz` zone for the
+traffic between VMs.
 
 ```sh
-sudo firewall-cmd --zone=FedoraWorkstation --add-source=192.168.126.0/24
-sudo firewall-cmd --zone=FedoraWorkstation --add-port=16509/tcp
+sudo firewall-cmd --add-rich-rule "rule service name="libvirt" reject"
+sudo firewall-cmd --zone=dmz --change-interface=virbr0
+sudo firewall-cmd --zone=dmz --change-interface=tt0
+sudo firewall-cmd --zone=dmz --add-service=libvirt
 ```
 
-Verification of the source and port can be done listing the zone
+On RHEL8, the bridges used by the VMs are already isolated in their own zones,
+so we only need to allow traffic on the libvirt port:
 
 ```sh
-sudo firewall-cmd --zone=FedoraWorkstation --list-ports
-sudo firewall-cmd --zone=FedoraWorkstation --list-sources
+sudo firewall-cmd --zone=libvirt --add-service=libvirt
 ```
 
 NOTE: When the firewall rules are no longer needed, `sudo firewall-cmd --reload`
@@ -288,6 +273,40 @@ kubectl get --all-namespaces pods
 
 ## Troubleshooting
 If following the above steps hasn't quite worked, please review this section for well known issues.
+
+### Console doesn't come up
+In case of libvirt there is no wildcard DNS resolution and console depends on the route which is created by auth operator ([Issue #1007](https://github.com/openshift/installer/issues/1007)).
+To make it work we need to first create the manifests and edit the `domain` for ingress config, before directly creating the cluster.
+
+- Add another domain entry in the openshift.conf which used by dnsmasq.
+Here `tt.testing` is the domain which I choose when running the installer.
+Here the IP in the address belong to one of the worker node.
+```console
+$ cat /etc/NetworkManager/dnsmasq.d/openshift.conf
+server=/tt.testing/192.168.126.1
+address=/.apps.tt.testing/192.168.126.51
+```
+
+- Make sure you restart the NetworkManager after change in the openshift.conf
+```console
+$ sudo systemctl restart NetworkManager
+```
+
+- Create the manifests
+```console
+$ openshift-install --dir $INSTALL_DIR create manifests
+```
+
+- Domain entry for cluster-ingress-02-config.yml file should be following (here domain is what your created initially)
+```console
+$ grep domain $INSTALL_DIR/manifests/cluster-ingress-02-config.yml
+domain: apps.tt.testing
+```
+
+- Start the installer to create the cluster
+```console
+$ openshift-install --dir $INSTALL_DIR create cluster
+```
 
 ### Install throws an `Unable to resolve address 'localhost'` error
 

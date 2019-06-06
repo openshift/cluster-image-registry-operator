@@ -28,6 +28,21 @@
         {"shape":"ThrottlingException"}
       ]
     },
+    "CancelDeploymentJob":{
+      "name":"CancelDeploymentJob",
+      "http":{
+        "method":"POST",
+        "requestUri":"/cancelDeploymentJob"
+      },
+      "input":{"shape":"CancelDeploymentJobRequest"},
+      "output":{"shape":"CancelDeploymentJobResponse"},
+      "errors":[
+        {"shape":"ResourceNotFoundException"},
+        {"shape":"InvalidParameterException"},
+        {"shape":"InternalServerException"},
+        {"shape":"ThrottlingException"}
+      ]
+    },
     "CancelSimulationJob":{
       "name":"CancelSimulationJob",
       "http":{
@@ -587,6 +602,18 @@
       }
     },
     "Boolean":{"type":"boolean"},
+    "CancelDeploymentJobRequest":{
+      "type":"structure",
+      "required":["job"],
+      "members":{
+        "job":{"shape":"Arn"}
+      }
+    },
+    "CancelDeploymentJobResponse":{
+      "type":"structure",
+      "members":{
+      }
+    },
     "CancelSimulationJobRequest":{
       "type":"structure",
       "required":["job"],
@@ -604,6 +631,12 @@
       "max":64,
       "min":1,
       "pattern":"[a-zA-Z0-9_\\-=]*"
+    },
+    "Command":{
+      "type":"string",
+      "max":1024,
+      "min":1,
+      "pattern":"[a-zA-Z0-9_.\\-]*"
     },
     "ConcurrentDeploymentException":{
       "type":"structure",
@@ -815,6 +848,7 @@
       "members":{
         "arn":{"shape":"Arn"},
         "status":{"shape":"SimulationJobStatus"},
+        "lastStartedAt":{"shape":"LastStartedAt"},
         "lastUpdatedAt":{"shape":"LastUpdatedAt"},
         "failureBehavior":{"shape":"FailureBehavior"},
         "failureCode":{"shape":"SimulationJobErrorCode"},
@@ -923,8 +957,11 @@
       "type":"string",
       "enum":[
         "ResourceNotFound",
+        "EnvironmentSetupError",
+        "EtagMismatch",
         "FailureThresholdBreached",
         "RobotDeploymentNoResponse",
+        "RobotAgentConnectionTimeout",
         "GreengrassDeploymentFailed",
         "MissingRobotArchitecture",
         "MissingRobotApplicationArchitecture",
@@ -950,10 +987,10 @@
         "launchFile"
       ],
       "members":{
-        "packageName":{"shape":"GenericString"},
-        "preLaunchFile":{"shape":"GenericString"},
-        "launchFile":{"shape":"GenericString"},
-        "postLaunchFile":{"shape":"GenericString"},
+        "packageName":{"shape":"Command"},
+        "preLaunchFile":{"shape":"Path"},
+        "launchFile":{"shape":"Command"},
+        "postLaunchFile":{"shape":"Path"},
         "environmentVariables":{"shape":"EnvironmentVariableMap"}
       }
     },
@@ -964,7 +1001,8 @@
         "Preparing",
         "InProgress",
         "Failed",
-        "Succeeded"
+        "Succeeded",
+        "Canceled"
       ]
     },
     "DeploymentVersion":{
@@ -1112,6 +1150,7 @@
         "arn":{"shape":"Arn"},
         "name":{"shape":"Name"},
         "status":{"shape":"SimulationJobStatus"},
+        "lastStartedAt":{"shape":"LastStartedAt"},
         "lastUpdatedAt":{"shape":"LastUpdatedAt"},
         "failureBehavior":{"shape":"FailureBehavior"},
         "failureCode":{"shape":"SimulationJobErrorCode"},
@@ -1188,6 +1227,7 @@
       "max":200,
       "min":0
     },
+    "GenericInteger":{"type":"integer"},
     "GenericString":{"type":"string"},
     "IamRole":{
       "type":"string",
@@ -1225,6 +1265,7 @@
       "exception":true
     },
     "JobDuration":{"type":"long"},
+    "LastStartedAt":{"type":"timestamp"},
     "LastUpdatedAt":{"type":"timestamp"},
     "LaunchConfig":{
       "type":"structure",
@@ -1233,8 +1274,8 @@
         "launchFile"
       ],
       "members":{
-        "packageName":{"shape":"GenericString"},
-        "launchFile":{"shape":"GenericString"},
+        "packageName":{"shape":"Command"},
+        "launchFile":{"shape":"Command"},
         "environmentVariables":{"shape":"EnvironmentVariableMap"}
       }
     },
@@ -1376,6 +1417,16 @@
       "min":1,
       "pattern":"[a-zA-Z0-9_.\\-\\/+=]*"
     },
+    "Path":{
+      "type":"string",
+      "max":1024,
+      "min":1
+    },
+    "PercentDone":{
+      "type":"float",
+      "max":100.0,
+      "min":0.0
+    },
     "Percentage":{
       "type":"integer",
       "max":100,
@@ -1384,7 +1435,9 @@
     "ProgressDetail":{
       "type":"structure",
       "members":{
-        "currentProgress":{"shape":"GenericString"},
+        "currentProgress":{"shape":"RobotDeploymentStep"},
+        "percentDone":{"shape":"PercentDone"},
+        "estimatedTimeRemainingSeconds":{"shape":"GenericInteger"},
         "targetResource":{"shape":"GenericString"}
       }
     },
@@ -1505,7 +1558,8 @@
         "name":{"shape":"Name"},
         "arn":{"shape":"Arn"},
         "version":{"shape":"Version"},
-        "lastUpdatedAt":{"shape":"LastUpdatedAt"}
+        "lastUpdatedAt":{"shape":"LastUpdatedAt"},
+        "robotSoftwareSuite":{"shape":"RobotSoftwareSuite"}
       }
     },
     "RobotDeployment":{
@@ -1519,6 +1573,17 @@
         "failureReason":{"shape":"GenericString"},
         "failureCode":{"shape":"DeploymentJobErrorCode"}
       }
+    },
+    "RobotDeploymentStep":{
+      "type":"string",
+      "enum":[
+        "Validating",
+        "DownloadingExtracting",
+        "ExecutingPreLaunch",
+        "Launching",
+        "ExecutingPostLaunch",
+        "Finished"
+      ]
     },
     "RobotDeploymentSummary":{
       "type":"list",
@@ -1612,7 +1677,9 @@
         "name":{"shape":"Name"},
         "arn":{"shape":"Arn"},
         "version":{"shape":"Version"},
-        "lastUpdatedAt":{"shape":"LastUpdatedAt"}
+        "lastUpdatedAt":{"shape":"LastUpdatedAt"},
+        "robotSoftwareSuite":{"shape":"RobotSoftwareSuite"},
+        "simulationSoftwareSuite":{"shape":"SimulationSoftwareSuite"}
       }
     },
     "SimulationJob":{
@@ -1621,6 +1688,7 @@
         "arn":{"shape":"Arn"},
         "name":{"shape":"Name"},
         "status":{"shape":"SimulationJobStatus"},
+        "lastStartedAt":{"shape":"LastStartedAt"},
         "lastUpdatedAt":{"shape":"LastUpdatedAt"},
         "failureBehavior":{"shape":"FailureBehavior"},
         "failureCode":{"shape":"SimulationJobErrorCode"},
@@ -1707,7 +1775,7 @@
     },
     "SimulationSoftwareSuiteVersionType":{
       "type":"string",
-      "pattern":"7"
+      "pattern":"7|9"
     },
     "SimulationTimeMillis":{"type":"long"},
     "Source":{
