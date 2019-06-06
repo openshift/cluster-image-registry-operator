@@ -8,6 +8,7 @@ all: generate build build-image verify
 
 generate:
 	./hack/codegen/update-generated.sh
+	./hack/codegen/update-crd.sh
 
 build:
 	./hack/build/build.sh
@@ -24,7 +25,8 @@ test-e2e:
 	./hack/test-go.sh -count 1 -timeout 30m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 
 verify:
-	hack/verify.sh
+	./hack/verify.sh
+	./hack/codegen/update-crd.sh --verify-only
 
 clean:
 	rm -rf tmp
