@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,13 +9,17 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	assetstore "github.com/openshift/installer/pkg/asset/store"
 	"github.com/openshift/installer/pkg/terraform"
+	gatheraws "github.com/openshift/installer/pkg/terraform/gather/aws"
+	gatherazure "github.com/openshift/installer/pkg/terraform/gather/azure"
+	gatherlibvirt "github.com/openshift/installer/pkg/terraform/gather/libvirt"
+	gatheropenstack "github.com/openshift/installer/pkg/terraform/gather/openstack"
 	"github.com/openshift/installer/pkg/types"
 	awstypes "github.com/openshift/installer/pkg/types/aws"
+	azuretypes "github.com/openshift/installer/pkg/types/azure"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
 )
@@ -85,17 +87,11 @@ func runGatherBootstrapCmd(directory string) error {
 		return errors.Wrapf(err, "failed to fetch %s", config.Name())
 	}
 
-	sfRaw, err := ioutil.ReadFile(tfStateFilePath)
+	tfstate, err := terraform.ReadState(tfStateFilePath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read %q", tfStateFilePath)
+		return errors.Wrapf(err, "failed to read state from %q", tfStateFilePath)
 	}
-
-	var tfstate terraformState
-	if err := json.Unmarshal(sfRaw, &tfstate); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal %q", tfStateFilePath)
-	}
-
-	bootstrap, masters, err := extractHostAddresses(config.Config, tfstate)
+	bootstrap, port, masters, err := extractHostAddresses(config.Config, tfstate)
 	if err != nil {
 		if err2, ok := err.(errUnSupportedGatherPlatform); ok {
 			logrus.Error(err2)
@@ -104,116 +100,71 @@ func runGatherBootstrapCmd(directory string) error {
 		return errors.Wrapf(err, "failed to get bootstrap and control plane host addresses from %q", tfStateFilePath)
 	}
 
-	logGatherBootstrap(bootstrap, masters)
+	logGatherBootstrap(bootstrap, port, masters)
 	return nil
 }
 
-func logGatherBootstrap(bootstrap string, masters []string) {
+func logGatherBootstrap(bootstrap string, port int, masters []string) {
+	var (
+		sshport string
+		scpport string
+	)
+	if port != 22 {
+		sshport = fmt.Sprintf(" -p %d", port)
+		scpport = fmt.Sprintf(" -P %d", port)
+	}
 	if s, ok := os.LookupEnv("SSH_AUTH_SOCK"); !ok || s == "" {
 		logrus.Info("Make sure ssh-agent is running, env SSH_AUTH_SOCK is set to the ssh-agent's UNIX socket and your private key is added to the agent.")
 	}
 	logrus.Info("Use the following commands to gather logs from the cluster")
-	logrus.Infof("ssh -A core@%s '/usr/local/bin/installer-gather.sh %s'", bootstrap, strings.Join(masters, " "))
-	logrus.Infof("scp core@%s:~/log-bundle.tar.gz .", bootstrap)
+	logrus.Infof("ssh -A%s core@%s '/usr/local/bin/installer-gather.sh %s'", sshport, bootstrap, strings.Join(masters, " "))
+	logrus.Infof("scp%s core@%s:~/log-bundle.tar.gz .", scpport, bootstrap)
 }
 
-func extractHostAddresses(config *types.InstallConfig, tfstate terraformState) (bootstrap string, masters []string, err error) {
-	mcount := *config.ControlPlane.Replicas
+func extractHostAddresses(config *types.InstallConfig, tfstate *terraform.State) (bootstrap string, port int, masters []string, err error) {
+	port = 22
 	switch config.Platform.Name() {
 	case awstypes.Name:
-		bm := tfstate.Modules["root/bootstrap"]
-		bootstrap, _, err = unstructured.NestedString(bm.Resources["aws_instance.bootstrap"], "primary", "attributes", "public_ip")
+		bootstrap, err = gatheraws.BootstrapIP(tfstate)
 		if err != nil {
-			return bootstrap, masters, errors.Wrapf(err, "failed to get bootstrap host addresses")
+			return bootstrap, port, masters, err
 		}
-
-		mm := tfstate.Modules["root/masters"]
-		for idx := int64(0); idx < mcount; idx++ {
-			r := fmt.Sprintf("aws_instance.master.%d", idx)
-			if mcount == 1 {
-				r = "aws_instance.master"
-			}
-			var master string
-			master, _, err = unstructured.NestedString(mm.Resources[r], "primary", "attributes", "private_ip")
-			if err != nil {
-				return bootstrap, masters, errors.Wrapf(err, "failed to get master host addresses")
-			}
-			masters = append(masters, master)
+		masters, err = gatheraws.ControlPlaneIPs(tfstate)
+		if err != nil {
+			logrus.Error(err)
+		}
+	case azuretypes.Name:
+		port = 2200
+		bootstrap, err = gatherazure.BootstrapIP(tfstate)
+		if err != nil {
+			return bootstrap, port, masters, err
+		}
+		masters, err = gatherazure.ControlPlaneIPs(tfstate)
+		if err != nil {
+			logrus.Error(err)
 		}
 	case libvirttypes.Name:
-		bm := tfstate.Modules["root/bootstrap"]
-		bootstrap, _, err = unstructured.NestedString(bm.Resources["libvirt_domain.bootstrap"], "primary", "attributes", "network_interface.0.hostname")
+		bootstrap, err = gatherlibvirt.BootstrapIP(tfstate)
 		if err != nil {
-			return bootstrap, masters, errors.Wrapf(err, "failed to get bootstrap host addresses")
+			return bootstrap, port, masters, err
 		}
-
-		rm := tfstate.Modules["root"]
-		for idx := int64(0); idx < mcount; idx++ {
-			r := fmt.Sprintf("libvirt_domain.master.%d", idx)
-			if mcount == 1 {
-				r = "libvirt_domain.master"
-			}
-			var master string
-			master, _, err = unstructured.NestedString(rm.Resources[r], "primary", "attributes", "network_interface.0.hostname")
-			if err != nil {
-				return bootstrap, masters, errors.Wrapf(err, "failed to get master host addresses")
-			}
-			masters = append(masters, master)
+		masters, err = gatherlibvirt.ControlPlaneIPs(tfstate)
+		if err != nil {
+			logrus.Error(err)
 		}
 	case openstacktypes.Name:
-		bm := tfstate.Modules["root/bootstrap"]
-		bootstrap, _, err = unstructured.NestedString(bm.Resources["openstack_compute_instance_v2.bootstrap"], "primary", "attributes", "access_ip_v4")
+		bootstrap, err = gatheropenstack.BootstrapIP(tfstate)
 		if err != nil {
-			return bootstrap, masters, errors.Wrapf(err, "failed to get bootstrap host addresses")
+			return bootstrap, port, masters, err
 		}
-
-		mm := tfstate.Modules["root/masters"]
-		for idx := int64(0); idx < mcount; idx++ {
-			r := fmt.Sprintf("openstack_compute_instance_v2.master_conf.%d", idx)
-			if mcount == 1 {
-				r = "openstack_compute_instance_v2.master_conf"
-			}
-			var master string
-			master, _, err = unstructured.NestedString(mm.Resources[r], "primary", "attributes", "access_ip_v4")
-			if err != nil {
-				return bootstrap, masters, errors.Wrapf(err, "failed to get master host addresses")
-			}
-			masters = append(masters, master)
+		masters, err = gatheropenstack.ControlPlaneIPs(tfstate)
+		if err != nil {
+			logrus.Error(err)
 		}
 	default:
-		return "", nil, errUnSupportedGatherPlatform{Message: fmt.Sprintf("Cannot fetch the bootstrap and control plane host addresses from state file for %s platform", config.Platform.Name())}
+		return "", port, nil, errUnSupportedGatherPlatform{Message: fmt.Sprintf("Cannot fetch the bootstrap and control plane host addresses from state file for %s platform", config.Platform.Name())}
 	}
-	return bootstrap, masters, nil
-}
-
-type terraformState struct {
-	Modules map[string]terraformStateModule
-}
-
-type terraformStateModule struct {
-	Resources map[string]map[string]interface{} `json:"resources"`
-}
-
-func (tfs *terraformState) UnmarshalJSON(raw []byte) error {
-	var transform struct {
-		Modules []struct {
-			Path []string `json:"path"`
-			terraformStateModule
-		} `json:"modules"`
-	}
-	if err := json.Unmarshal(raw, &transform); err != nil {
-		return err
-	}
-	if tfs == nil {
-		tfs = &terraformState{}
-	}
-	if tfs.Modules == nil {
-		tfs.Modules = make(map[string]terraformStateModule)
-	}
-	for _, m := range transform.Modules {
-		tfs.Modules[strings.Join(m.Path, "/")] = terraformStateModule{Resources: m.Resources}
-	}
-	return nil
+	return bootstrap, port, masters, nil
 }
 
 type errUnSupportedGatherPlatform struct {
@@ -229,6 +180,6 @@ func unSupportedPlatformGather() error {
 		return errors.New("boostrap host address and at least one control plane host address must be provided")
 	}
 
-	logGatherBootstrap(gatherBootstrapOpts.bootstrap, gatherBootstrapOpts.masters)
+	logGatherBootstrap(gatherBootstrapOpts.bootstrap, 22, gatherBootstrapOpts.masters)
 	return nil
 }

@@ -7,7 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	libvirtapi "github.com/openshift/cluster-api-provider-libvirt/pkg/apis"
-	libvirtprovider "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1alpha1"
+	libvirtprovider "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1beta1"
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"github.com/pkg/errors"
@@ -33,6 +33,7 @@ import (
 	awstypes "github.com/openshift/installer/pkg/types/aws"
 	awsdefaults "github.com/openshift/installer/pkg/types/aws/defaults"
 	azuretypes "github.com/openshift/installer/pkg/types/azure"
+	azuredefaults "github.com/openshift/installer/pkg/types/azure/defaults"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	nonetypes "github.com/openshift/installer/pkg/types/none"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
@@ -177,6 +178,7 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 			}
 		case azuretypes.Name:
 			mpool := defaultAzureMachinePoolPlatform()
+			mpool.InstanceType = azuredefaults.InstanceClass(installconfig.Config.Platform.Azure.Region)
 			mpool.Set(ic.Platform.Azure.DefaultMachinePlatform)
 			mpool.Set(pool.Platform.Azure)
 			pool.Platform.Azure = &mpool

@@ -10,21 +10,23 @@
   version = "v0.4.11"
 
 [[projects]]
-  digest = "1:43d8579bc621651f7290504d0204f8815cc1328b1fc34cb69549ab2dfa949ed5"
+  digest = "1:10262e67150b920c9eb818e235089b00040f848060c34606885476f731bbdb1a"
   name = "github.com/Azure/azure-sdk-for-go"
   packages = [
     "profiles/latest/dns/mgmt/dns",
     "profiles/latest/resources/mgmt/subscriptions",
     "services/dns/mgmt/2017-10-01/dns",
-    "services/resources/mgmt/2016-06-01/subscriptions",
+    "services/preview/dns/mgmt/2018-03-01-preview/dns",
+    "services/resources/mgmt/2018-05-01/resources",
+    "services/resources/mgmt/2018-06-01/subscriptions",
     "version",
   ]
   pruneopts = "NUT"
-  revision = "2ea98fc438b9d78aa2ab32bab44c7f68e506385e"
-  version = "v25.1.0"
+  revision = "77258e94d84ea36012a72c0e0a1e2faa409c6396"
+  version = "v29.0.0"
 
 [[projects]]
-  digest = "1:6c5cc479885a19f9425d5472e83740d3445a2b2dc96118da4ab95526de3b6795"
+  digest = "1:5bdc6288ed7890d169ec6a68e032bbf977449e25159ec57ed92f7533eb260284"
   name = "github.com/Azure/go-autorest"
   packages = [
     "autorest",
@@ -39,8 +41,8 @@
     "tracing",
   ]
   pruneopts = "NUT"
-  revision = "3b1641ed03046f2ee28d73f7a51e5b884d55b92a"
-  version = "v11.7.0"
+  revision = "f29a2eccaa178b367df0405778cd85e0af7b4225"
+  version = "v12.1.0"
 
 [[projects]]
   branch = "go15"
@@ -483,18 +485,18 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:47912c28d561553d2574f8b0933885a5399f7b31bfa955c142ad9431e52c5480"
+  digest = "1:38df3f2dd17d211412c30f9fe9656e2a42f3e21d61cf39acf4f536eeef444e01"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
     "route/v1",
   ]
   pruneopts = "NUT"
-  revision = "0f522af5ff8bb3aa7a7181e163a7b9294b55cc4d"
+  revision = "10f647f62efca0c361334c29499f68ad1a37e266"
 
 [[projects]]
   branch = "master"
-  digest = "1:20b3ab7f151b642ff806ffe312834d14017b838663580312d1ccb3e10b4dffcc"
+  digest = "1:bd5d973adae92f863286231aa348cbf7881a10d50fd4790c4f4b2a639f074e9e"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -505,7 +507,7 @@
     "route/clientset/versioned/typed/route/v1",
   ]
   pruneopts = "NUT"
-  revision = "8ae2a9c33ba2a3d2ed5dc13d536ca935fc9625b9"
+  revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
 
 [[projects]]
   branch = "master"
@@ -521,7 +523,7 @@
   revision = "4b6d10a82cd4949ade8056e5fbbf29e0765a0f47"
 
 [[projects]]
-  digest = "1:705c8e1100e31273e6c51367ea08b44e04c4f4687ef44c855f43f276f3ee7ec3"
+  digest = "1:03fe1745d2916b44cf208a1014a783ad9f1663ad16f03b939cd2e66e30bb3c74"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -530,17 +532,17 @@
     "pkg/apis/machine/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "d8958b539e331bf5ebb056b7f872541e13fb8e01"
+  revision = "cad0f8326cd26bd92fe2f0f90b5ca2e2cbc8a210"
 
 [[projects]]
-  digest = "1:64f129e3a0f9d8419e57ab6b65cceedc136d6dc5bcd9398545890bd4217bf6f2"
+  digest = "1:7996646bfd4a19e15e2e3828fc8c2c3c5d751e906f18a2820ffba9d08a394e27"
   name = "github.com/openshift/cluster-api-provider-libvirt"
   packages = [
     "pkg/apis",
-    "pkg/apis/libvirtproviderconfig/v1alpha1",
+    "pkg/apis/libvirtproviderconfig/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "c23986b36a2521cd69ac22d7adb74a22bca9f7aa"
+  revision = "2705e5265b62886d8df453b8d4a4601dc0c33084"
 
 [[projects]]
   branch = "master"
@@ -1117,16 +1119,16 @@
   source = "https://github.com/openshift/cluster-api-provider-aws.git"
 
 [[projects]]
-  branch = "openshiftnocluster"
-  digest = "1:11da7b70c976e0b5eb337035eb62f2aa4a8bec102a23cc43fe89df459e15a903"
+  branch = "master"
+  digest = "1:1ec43d1093555bc7a4f63f0cec39c215d1c5754b90bd9741d7ded6c2110fc465"
   name = "sigs.k8s.io/cluster-api-provider-azure"
   packages = [
     "pkg/apis",
     "pkg/apis/azureprovider/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "5d24bf040dbd469e149dc54d938698a7be71e7c9"
-  source = "https://github.com/awesomenix/cluster-api-provider-azure.git"
+  revision = "106e77fea15a9a0a39776b3edbc5666aa337ca70"
+  source = "https://github.com/openshift/cluster-api-provider-azure.git"
 
 [[projects]]
   branch = "master"
@@ -1166,6 +1168,8 @@
   input-imports = [
     "github.com/Azure/azure-sdk-for-go/profiles/latest/dns/mgmt/dns",
     "github.com/Azure/azure-sdk-for-go/profiles/latest/resources/mgmt/subscriptions",
+    "github.com/Azure/azure-sdk-for-go/services/preview/dns/mgmt/2018-03-01-preview/dns",
+    "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources",
     "github.com/Azure/go-autorest/autorest",
     "github.com/Azure/go-autorest/autorest/azure",
     "github.com/Azure/go-autorest/autorest/azure/auth",
@@ -1207,8 +1211,6 @@
     "github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers",
     "github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects",
     "github.com/gophercloud/utils/openstack/clientconfig",
-    "github.com/gregjones/httpcache",
-    "github.com/gregjones/httpcache/diskcache",
     "github.com/libvirt/libvirt-go",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
@@ -1216,12 +1218,11 @@
     "github.com/openshift/cloud-credential-operator/pkg/aws",
     "github.com/openshift/cloud-credential-operator/pkg/controller/utils",
     "github.com/openshift/cluster-api-provider-libvirt/pkg/apis",
-    "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1alpha1",
+    "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1beta1",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers",
     "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1",
     "github.com/pborman/uuid",
-    "github.com/peterbourgon/diskv",
     "github.com/pkg/errors",
     "github.com/shurcooL/vfsgen",
     "github.com/sirupsen/logrus",

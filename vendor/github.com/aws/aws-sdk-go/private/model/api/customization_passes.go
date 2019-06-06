@@ -58,6 +58,19 @@ func (a *API) customizationPasses() {
 		// MTurk smoke test is invalid. The service requires AWS account to be
 		// linked to Amazon Mechanical Turk Account.
 		"mturk": supressSmokeTest,
+
+		// Backfill the authentication type for cognito identity and sts.
+		// Removes the need for the customizations in these services.
+		"cognitoidentity": backfillAuthType(NoneAuthType,
+			"GetId",
+			"GetOpenIdToken",
+			"UnlinkIdentity",
+			"GetCredentialsForIdentity",
+		),
+		"sts": backfillAuthType(NoneAuthType,
+			"AssumeRoleWithSAML",
+			"AssumeRoleWithWebIdentity",
+		),
 	}
 
 	for k := range mergeServices {
@@ -94,6 +107,22 @@ func s3Customizations(a *API) {
 		for _, refName := range []string{"Bucket", "SSECustomerKey", "CopySourceSSECustomerKey"} {
 			if ref, ok := s.MemberRefs[refName]; ok {
 				ref.GenerateGetter = true
+			}
+		}
+
+		// Decorate member references that are modeled with the wrong type.
+		// Specifically the case where a member was modeled as a string, but is
+		// expected to sent across the wire as a base64 value.
+		//
+		// e.g. S3's SSECustomerKey and CopySourceSSECustomerKey
+		for _, refName := range []string{
+			"SSECustomerKey",
+			"CopySourceSSECustomerKey",
+		} {
+			if ref, ok := s.MemberRefs[refName]; ok {
+				ref.CustomTags = append(ref.CustomTags, ShapeTag{
+					"marshal-as", "blob",
+				})
 			}
 		}
 
@@ -217,4 +246,21 @@ func rdsCustomizations(a *API) {
 
 func disableEndpointResolving(a *API) {
 	a.Metadata.NoResolveEndpoint = true
+}
+
+func backfillAuthType(typ AuthType, opNames ...string) func(*API) {
+	return func(a *API) {
+		for _, opName := range opNames {
+			op, ok := a.Operations[opName]
+			if !ok {
+				panic("unable to backfill auth-type for unknown operation " + opName)
+			}
+			if v := op.AuthType; len(v) != 0 {
+				fmt.Fprintf(os.Stderr, "unable to backfill auth-type for %s, already set, %s", opName, v)
+				continue
+			}
+
+			op.AuthType = typ
+		}
+	}
 }

@@ -80,6 +80,10 @@ type StorageGatewayAPI interface {
 	AddWorkingStorageWithContext(aws.Context, *storagegateway.AddWorkingStorageInput, ...request.Option) (*storagegateway.AddWorkingStorageOutput, error)
 	AddWorkingStorageRequest(*storagegateway.AddWorkingStorageInput) (*request.Request, *storagegateway.AddWorkingStorageOutput)
 
+	AssignTapePool(*storagegateway.AssignTapePoolInput) (*storagegateway.AssignTapePoolOutput, error)
+	AssignTapePoolWithContext(aws.Context, *storagegateway.AssignTapePoolInput, ...request.Option) (*storagegateway.AssignTapePoolOutput, error)
+	AssignTapePoolRequest(*storagegateway.AssignTapePoolInput) (*request.Request, *storagegateway.AssignTapePoolOutput)
+
 	AttachVolume(*storagegateway.AttachVolumeInput) (*storagegateway.AttachVolumeOutput, error)
 	AttachVolumeWithContext(aws.Context, *storagegateway.AttachVolumeInput, ...request.Option) (*storagegateway.AttachVolumeOutput, error)
 	AttachVolumeRequest(*storagegateway.AttachVolumeInput) (*request.Request, *storagegateway.AttachVolumeOutput)
@@ -252,6 +256,9 @@ type StorageGatewayAPI interface {
 	ListFileSharesWithContext(aws.Context, *storagegateway.ListFileSharesInput, ...request.Option) (*storagegateway.ListFileSharesOutput, error)
 	ListFileSharesRequest(*storagegateway.ListFileSharesInput) (*request.Request, *storagegateway.ListFileSharesOutput)
 
+	ListFileSharesPages(*storagegateway.ListFileSharesInput, func(*storagegateway.ListFileSharesOutput, bool) bool) error
+	ListFileSharesPagesWithContext(aws.Context, *storagegateway.ListFileSharesInput, func(*storagegateway.ListFileSharesOutput, bool) bool, ...request.Option) error
+
 	ListGateways(*storagegateway.ListGatewaysInput) (*storagegateway.ListGatewaysOutput, error)
 	ListGatewaysWithContext(aws.Context, *storagegateway.ListGatewaysInput, ...request.Option) (*storagegateway.ListGatewaysOutput, error)
 	ListGatewaysRequest(*storagegateway.ListGatewaysInput) (*request.Request, *storagegateway.ListGatewaysOutput)
@@ -267,9 +274,15 @@ type StorageGatewayAPI interface {
 	ListTagsForResourceWithContext(aws.Context, *storagegateway.ListTagsForResourceInput, ...request.Option) (*storagegateway.ListTagsForResourceOutput, error)
 	ListTagsForResourceRequest(*storagegateway.ListTagsForResourceInput) (*request.Request, *storagegateway.ListTagsForResourceOutput)
 
+	ListTagsForResourcePages(*storagegateway.ListTagsForResourceInput, func(*storagegateway.ListTagsForResourceOutput, bool) bool) error
+	ListTagsForResourcePagesWithContext(aws.Context, *storagegateway.ListTagsForResourceInput, func(*storagegateway.ListTagsForResourceOutput, bool) bool, ...request.Option) error
+
 	ListTapes(*storagegateway.ListTapesInput) (*storagegateway.ListTapesOutput, error)
 	ListTapesWithContext(aws.Context, *storagegateway.ListTapesInput, ...request.Option) (*storagegateway.ListTapesOutput, error)
 	ListTapesRequest(*storagegateway.ListTapesInput) (*request.Request, *storagegateway.ListTapesOutput)
+
+	ListTapesPages(*storagegateway.ListTapesInput, func(*storagegateway.ListTapesOutput, bool) bool) error
+	ListTapesPagesWithContext(aws.Context, *storagegateway.ListTapesInput, func(*storagegateway.ListTapesOutput, bool) bool, ...request.Option) error
 
 	ListVolumeInitiators(*storagegateway.ListVolumeInitiatorsInput) (*storagegateway.ListVolumeInitiatorsOutput, error)
 	ListVolumeInitiatorsWithContext(aws.Context, *storagegateway.ListVolumeInitiatorsInput, ...request.Option) (*storagegateway.ListVolumeInitiatorsOutput, error)
@@ -353,6 +366,10 @@ type StorageGatewayAPI interface {
 	UpdateSMBFileShare(*storagegateway.UpdateSMBFileShareInput) (*storagegateway.UpdateSMBFileShareOutput, error)
 	UpdateSMBFileShareWithContext(aws.Context, *storagegateway.UpdateSMBFileShareInput, ...request.Option) (*storagegateway.UpdateSMBFileShareOutput, error)
 	UpdateSMBFileShareRequest(*storagegateway.UpdateSMBFileShareInput) (*request.Request, *storagegateway.UpdateSMBFileShareOutput)
+
+	UpdateSMBSecurityStrategy(*storagegateway.UpdateSMBSecurityStrategyInput) (*storagegateway.UpdateSMBSecurityStrategyOutput, error)
+	UpdateSMBSecurityStrategyWithContext(aws.Context, *storagegateway.UpdateSMBSecurityStrategyInput, ...request.Option) (*storagegateway.UpdateSMBSecurityStrategyOutput, error)
+	UpdateSMBSecurityStrategyRequest(*storagegateway.UpdateSMBSecurityStrategyInput) (*request.Request, *storagegateway.UpdateSMBSecurityStrategyOutput)
 
 	UpdateSnapshotSchedule(*storagegateway.UpdateSnapshotScheduleInput) (*storagegateway.UpdateSnapshotScheduleOutput, error)
 	UpdateSnapshotScheduleWithContext(aws.Context, *storagegateway.UpdateSnapshotScheduleInput, ...request.Option) (*storagegateway.UpdateSnapshotScheduleOutput, error)

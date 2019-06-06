@@ -18,15 +18,69 @@ package klog
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
+	"io/ioutil"
 	stdLog "log"
+	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+// Test that no duplicated logs are written to logfile.
+func TestDedupLogsInSingleLogFileMode(t *testing.T) {
+	setFlags()
+
+	tmpLogFile := "tmp-klog"
+	errMsg := "Test. This is an error"
+	tmpFile, err := ioutil.TempFile("", tmpLogFile)
+	defer deleteFile(tmpFile.Name())
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	logging.logFile = tmpFile.Name()
+	logging.toStderr = false
+	logging.alsoToStderr = false
+	logging.skipLogHeaders = true
+	Error(errMsg)
+	logging.flushAll()
+
+	f, err := os.Open(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("error %v", err)
+	}
+	content := make([]byte, 1000)
+	f.Read(content)
+	tmpFile.Close()
+
+	// the log message is of format (w/ header): Lmmdd hh:mm:ss.uuuuuu threadid file:line] %v
+	expectedRegx := fmt.Sprintf(
+		`E[0-9]{4}\s+[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6}\s+[0-9]+\s+klog_test.go:[0-9]+]\s+%v`, errMsg)
+	re := regexp.MustCompile(expectedRegx)
+	actual := string(content)
+	// Verify the logFile doesn't have duplicated log items. If log-file not specified, Error log will also show
+	// up in Warning and Info log.
+	if !re.MatchString(actual) {
+		t.Fatalf("Was expecting Error and Fatal logs both show up and show up only once, result equals\n  %v",
+			actual)
+	}
+}
+
+func deleteFile(path string) {
+	var err = os.Remove(path)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+}
+
+// TODO: This test package should be refactored so that tests cannot
+// interfere with each-other.
 
 // Test that shortHostname works as advertised.
 func TestShortHostname(t *testing.T) {
@@ -83,6 +137,18 @@ func contains(s severity, str string, t *testing.T) bool {
 // setFlags configures the logging flags how the test expects them.
 func setFlags() {
 	logging.toStderr = false
+	logging.logFile = ""
+	logging.alsoToStderr = false
+	logging.skipLogHeaders = false
+
+	for s := fatalLog; s >= infoLog; s-- {
+		if logging.file[s] != nil {
+			os.Remove(logging.file[s].(*syncBuffer).file.Name())
+			logging.file[s] = nil
+		}
+	}
+	logging.singleModeFile = nil
+
 }
 
 // Test that Info works as advertised.
@@ -335,7 +401,6 @@ func TestRollover(t *testing.T) {
 	}
 	defer func(previous uint64) { MaxSize = previous }(MaxSize)
 	MaxSize = 512
-
 	Info("x") // Be sure we have a file.
 	info, ok := logging.file[infoLog].(*syncBuffer)
 	if !ok {
@@ -366,8 +431,79 @@ func TestRollover(t *testing.T) {
 	if fname0 == fname1 {
 		t.Errorf("info.f.Name did not change: %v", fname0)
 	}
-	if info.nbytes >= MaxSize {
+	if info.nbytes >= info.maxbytes {
 		t.Errorf("file size was not reset: %d", info.nbytes)
+	}
+}
+
+func TestOpenAppendOnStart(t *testing.T) {
+	const (
+		x string = "xxxxxxxxxx"
+		y string = "yyyyyyyyyy"
+	)
+
+	setFlags()
+	var err error
+	defer func(previous func(error)) { logExitFunc = previous }(logExitFunc)
+	logExitFunc = func(e error) {
+		err = e
+	}
+
+	f, err := ioutil.TempFile("", "test_klog_OpenAppendOnStart")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	logging.logFile = f.Name()
+
+	// Erase files created by prior tests,
+	for i := range logging.file {
+		logging.file[i] = nil
+	}
+
+	// Logging creates the file
+	Info(x)
+	_, ok := logging.singleModeFile.(*syncBuffer)
+	if !ok {
+		t.Fatal("info wasn't created")
+	}
+	if err != nil {
+		t.Fatalf("info has initial error: %v", err)
+	}
+	// ensure we wrote what we expected
+	logging.flushAll()
+	b, err := ioutil.ReadFile(logging.logFile)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(b), x) {
+		t.Fatalf("got %s, missing expected Info log: %s", string(b), x)
+	}
+
+	// Set the file to nil so it gets "created" (opened) again on the next write.
+	for i := range logging.file {
+		logging.file[i] = nil
+	}
+
+	// Logging agagin should open the file again with O_APPEND instead of O_TRUNC
+	Info(y)
+	// ensure we wrote what we expected
+	logging.flushAll()
+	b, err = ioutil.ReadFile(logging.logFile)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(b), y) {
+		t.Fatalf("got %s, missing expected Info log: %s", string(b), y)
+	}
+	// The initial log message should be preserved across create calls.
+	logging.flushAll()
+	b, err = ioutil.ReadFile(logging.logFile)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(b), x) {
+		t.Fatalf("got %s, missing expected Info log: %s", string(b), x)
 	}
 }
 
@@ -411,5 +547,68 @@ func BenchmarkHeader(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		buf, _, _ := logging.header(infoLog, 0)
 		logging.putBuffer(buf)
+	}
+}
+
+// Test the logic on checking log size limitation.
+func TestFileSizeCheck(t *testing.T) {
+	setFlags()
+	testData := map[string]struct {
+		testLogFile          string
+		testLogFileMaxSizeMB uint64
+		testCurrentSize      uint64
+		expectedResult       bool
+	}{
+		"logFile not specified, exceeds max size": {
+			testLogFile:          "",
+			testLogFileMaxSizeMB: 1,
+			testCurrentSize:      1024 * 1024 * 2000, //exceeds the maxSize
+			expectedResult:       true,
+		},
+
+		"logFile not specified, not exceeds max size": {
+			testLogFile:          "",
+			testLogFileMaxSizeMB: 1,
+			testCurrentSize:      1024 * 1024 * 1000, //smaller than the maxSize
+			expectedResult:       false,
+		},
+		"logFile specified, exceeds max size": {
+			testLogFile:          "/tmp/test.log",
+			testLogFileMaxSizeMB: 500,                // 500MB
+			testCurrentSize:      1024 * 1024 * 1000, //exceeds the logFileMaxSizeMB
+			expectedResult:       true,
+		},
+		"logFile specified, not exceeds max size": {
+			testLogFile:          "/tmp/test.log",
+			testLogFileMaxSizeMB: 500,               // 500MB
+			testCurrentSize:      1024 * 1024 * 300, //smaller than the logFileMaxSizeMB
+			expectedResult:       false,
+		},
+	}
+
+	for name, test := range testData {
+		logging.logFile = test.testLogFile
+		logging.logFileMaxSizeMB = test.testLogFileMaxSizeMB
+		actualResult := test.testCurrentSize >= CalculateMaxSize()
+		if test.expectedResult != actualResult {
+			t.Fatalf("Error on test case '%v': Was expecting result equals %v, got %v",
+				name, test.expectedResult, actualResult)
+		}
+	}
+}
+
+func TestInitFlags(t *testing.T) {
+	fs1 := flag.NewFlagSet("test1", flag.PanicOnError)
+	InitFlags(fs1)
+	fs1.Set("log_dir", "/test1")
+	fs1.Set("log_file_max_size", "1")
+	fs2 := flag.NewFlagSet("test2", flag.PanicOnError)
+	InitFlags(fs2)
+	if logging.logDir != "/test1" {
+		t.Fatalf("Expected log_dir to be %q, got %q", "/test1", logging.logDir)
+	}
+	fs2.Set("log_file_max_size", "2048")
+	if logging.logFileMaxSizeMB != 2048 {
+		t.Fatal("Expected log_file_max_size to be 2048")
 	}
 }
