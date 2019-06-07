@@ -3,6 +3,7 @@ package request_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -21,15 +22,34 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/client/metadata"
-	"github.com/aws/aws-sdk-go/aws/corehandlers"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/awstesting"
 	"github.com/aws/aws-sdk-go/awstesting/unit"
-	"github.com/aws/aws-sdk-go/private/protocol/jsonrpc"
 	"github.com/aws/aws-sdk-go/private/protocol/rest"
+)
+
+type tempNetworkError struct {
+	op     string
+	msg    string
+	isTemp bool
+}
+
+func (e *tempNetworkError) Temporary() bool { return e.isTemp }
+func (e *tempNetworkError) Error() string {
+	return fmt.Sprintf("%s: %s", e.op, e.msg)
+}
+
+var (
+	// net.OpError accept, are always temporary
+	errAcceptConnectionResetStub = &tempNetworkError{isTemp: true, op: "accept", msg: "connection reset"}
+
+	// net.OpError read for ECONNRESET is not temporary.
+	errReadConnectionResetStub = &tempNetworkError{isTemp: false, op: "read", msg: "connection reset"}
+
+	// Generic connection reset error
+	errConnectionResetStub = errors.New("connection reset")
 )
 
 type testData struct {
@@ -288,7 +308,7 @@ func TestMakeAddtoUserAgentHandler(t *testing.T) {
 	r.HTTPRequest.Header.Set("User-Agent", "foo/bar")
 	fn(r)
 
-	if e, a := "foo/bar name/version (extra1; extra2)", r.HTTPRequest.Header.Get("User-Agent"); e != a {
+	if e, a := "foo/bar name/version (extra1; extra2)", r.HTTPRequest.Header.Get("User-Agent"); !strings.HasPrefix(a, e) {
 		t.Errorf("expect %q user agent, got %q", e, a)
 	}
 }
@@ -299,14 +319,13 @@ func TestMakeAddtoUserAgentFreeFormHandler(t *testing.T) {
 	r.HTTPRequest.Header.Set("User-Agent", "foo/bar")
 	fn(r)
 
-	if e, a := "foo/bar name/version (extra1; extra2)", r.HTTPRequest.Header.Get("User-Agent"); e != a {
+	if e, a := "foo/bar name/version (extra1; extra2)", r.HTTPRequest.Header.Get("User-Agent"); !strings.HasPrefix(a, e) {
 		t.Errorf("expect %q user agent, got %q", e, a)
 	}
 }
 
 func TestRequestUserAgent(t *testing.T) {
 	s := awstesting.NewClient(&aws.Config{Region: aws.String("us-east-1")})
-	//	s.Handlers.Validate.Clear()
 
 	req := s.NewRequest(&request.Operation{Name: "Operation"}, nil, &testData{})
 	req.HTTPRequest.Header.Set("User-Agent", "foo/bar")
@@ -316,7 +335,7 @@ func TestRequestUserAgent(t *testing.T) {
 
 	expectUA := fmt.Sprintf("foo/bar %s/%s (%s; %s; %s)",
 		aws.SDKName, aws.SDKVersion, runtime.Version(), runtime.GOOS, runtime.GOARCH)
-	if e, a := expectUA, req.HTTPRequest.Header.Get("User-Agent"); e != a {
+	if e, a := expectUA, req.HTTPRequest.Header.Get("User-Agent"); !strings.HasPrefix(a, e) {
 		t.Errorf("expect %q user agent, got %q", e, a)
 	}
 }
@@ -609,85 +628,6 @@ func TestWithGetResponseHeaders(t *testing.T) {
 
 	if e, a := "headerValue", headers.Get("x-a-header"); e != a {
 		t.Errorf("expect %q header value got %q", e, a)
-	}
-}
-
-type connResetCloser struct {
-	Err error
-}
-
-func (rc *connResetCloser) Read(b []byte) (int, error) {
-	return 0, rc.Err
-}
-
-func (rc *connResetCloser) Close() error {
-	return nil
-}
-
-func TestSerializationErrConnectionReset_accept(t *testing.T) {
-	count := 0
-	handlers := request.Handlers{}
-	handlers.Send.PushBack(func(r *request.Request) {
-		count++
-		r.HTTPResponse = &http.Response{}
-		r.HTTPResponse.Body = &connResetCloser{
-			Err: errAcceptConnectionResetStub,
-		}
-	})
-
-	handlers.Sign.PushBackNamed(v4.SignRequestHandler)
-	handlers.Build.PushBackNamed(jsonrpc.BuildHandler)
-	handlers.Unmarshal.PushBackNamed(jsonrpc.UnmarshalHandler)
-	handlers.UnmarshalMeta.PushBackNamed(jsonrpc.UnmarshalMetaHandler)
-	handlers.UnmarshalError.PushBackNamed(jsonrpc.UnmarshalErrorHandler)
-	handlers.AfterRetry.PushBackNamed(corehandlers.AfterRetryHandler)
-
-	op := &request.Operation{
-		Name:       "op",
-		HTTPMethod: "POST",
-		HTTPPath:   "/",
-	}
-
-	meta := metadata.ClientInfo{
-		ServiceName:   "fooService",
-		SigningName:   "foo",
-		SigningRegion: "foo",
-		Endpoint:      "localhost",
-		APIVersion:    "2001-01-01",
-		JSONVersion:   "1.1",
-		TargetPrefix:  "Foo",
-	}
-	cfg := unit.Session.Config.Copy()
-	cfg.MaxRetries = aws.Int(5)
-
-	req := request.New(
-		*cfg,
-		meta,
-		handlers,
-		client.DefaultRetryer{NumMaxRetries: 5},
-		op,
-		&struct {
-		}{},
-		&struct {
-		}{},
-	)
-
-	osErr := errAcceptConnectionResetStub
-	req.ApplyOptions(request.WithResponseReadTimeout(time.Second))
-	err := req.Send()
-	if err == nil {
-		t.Error("Expected rror 'SerializationError', but received nil")
-	}
-	if aerr, ok := err.(awserr.Error); ok && aerr.Code() != "SerializationError" {
-		t.Errorf("Expected 'SerializationError', but received %q", aerr.Code())
-	} else if !ok {
-		t.Errorf("Expected 'awserr.Error', but received %v", reflect.TypeOf(err))
-	} else if aerr.OrigErr().Error() != osErr.Error() {
-		t.Errorf("Expected %q, but received %q", osErr.Error(), aerr.OrigErr().Error())
-	}
-
-	if count != 6 {
-		t.Errorf("Expected '6', but received %d", count)
 	}
 }
 

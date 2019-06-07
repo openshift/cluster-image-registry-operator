@@ -8,373 +8,380 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
-	"go/scanner"
-	"go/token"
+	"go/parser"
 	"go/types"
-	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/internal/lsp/debug"
 	"golang.org/x/tools/internal/lsp/source"
+	"golang.org/x/tools/internal/span"
 )
 
-type View struct {
-	mu sync.Mutex // protects all mutable state of the view
+type view struct {
+	session *session
+	id      string
 
-	Config packages.Config
+	// mu protects all mutable state of the view.
+	mu sync.Mutex
 
-	files map[source.URI]*File
+	// baseCtx is the context handed to NewView. This is the parent of all
+	// background contexts created for this view.
+	baseCtx context.Context
 
-	analysisCache *source.AnalysisCache
+	// backgroundCtx is the current context used by background tasks initiated
+	// by the view.
+	backgroundCtx context.Context
+
+	// cancel is called when all action being performed by the current view
+	// should be stopped.
+	cancel context.CancelFunc
+
+	// Name is the user visible name of this view.
+	name string
+
+	// Folder is the root of this view.
+	folder span.URI
+
+	// env is the environment to use when invoking underlying tools.
+	env []string
+
+	// buildFlags is the build flags to use when invoking underlying tools.
+	buildFlags []string
+
+	// keep track of files by uri and by basename, a single file may be mapped
+	// to multiple uris, and the same basename may map to multiple files
+	filesByURI  map[span.URI]viewFile
+	filesByBase map[string][]viewFile
+
+	// mcache caches metadata for the packages of the opened files in a view.
+	mcache *metadataCache
+
+	// pcache caches type information for the packages of the opened files in a view.
+	pcache *packageCache
+
+	// builtinPkg is the AST package used to resolve builtin types.
+	builtinPkg *ast.Package
+
+	// ignoredURIs is the set of URIs of files that we ignore.
+	ignoredURIs map[span.URI]struct{}
 }
 
-// NewView creates a new View, given a root path and go/packages configuration.
-// If config is nil, one is created with the directory set to the rootPath.
-func NewView(config *packages.Config) *View {
-	return &View{
-		Config: *config,
-		files:  make(map[source.URI]*File),
+type metadataCache struct {
+	mu       sync.Mutex
+	packages map[string]*metadata
+}
+
+type metadata struct {
+	id, pkgPath, name string
+	files             []string
+	typesSizes        types.Sizes
+	parents, children map[string]bool
+}
+
+type packageCache struct {
+	mu       sync.Mutex
+	packages map[string]*entry
+}
+
+type entry struct {
+	pkg   *pkg
+	err   error
+	ready chan struct{} // closed to broadcast ready condition
+}
+
+func (v *view) Session() source.Session {
+	return v.session
+}
+
+// Name returns the user visible name of this view.
+func (v *view) Name() string {
+	return v.name
+}
+
+// Folder returns the root of this view.
+func (v *view) Folder() span.URI {
+	return v.folder
+}
+
+// Config returns the configuration used for the view's interaction with the
+// go/packages API. It is shared across all views.
+func (v *view) buildConfig() *packages.Config {
+	//TODO:should we cache the config and/or overlay somewhere?
+	folderPath, err := v.folder.Filename()
+	if err != nil {
+		folderPath = ""
+	}
+	return &packages.Config{
+		Context:    v.backgroundCtx,
+		Dir:        folderPath,
+		Env:        v.env,
+		BuildFlags: v.buildFlags,
+		Mode: packages.NeedName |
+			packages.NeedFiles |
+			packages.NeedCompiledGoFiles |
+			packages.NeedImports |
+			packages.NeedDeps |
+			packages.NeedTypesSizes,
+		Fset:      v.session.cache.fset,
+		Overlay:   v.session.buildOverlay(),
+		ParseFile: parseFile,
+		Tests:     true,
 	}
 }
 
-func (v *View) FileSet() *token.FileSet {
-	return v.Config.Fset
+func (v *view) Env() []string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.env
 }
 
-func (v *View) GetAnalysisCache() *source.AnalysisCache {
-	if v.analysisCache == nil {
-		v.analysisCache = source.NewAnalysisCache()
+func (v *view) SetEnv(env []string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	//TODO: this should invalidate the entire view
+	v.env = env
+}
+
+func (v *view) SetBuildFlags(buildFlags []string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.buildFlags = buildFlags
+}
+
+func (v *view) Shutdown(ctx context.Context) {
+	v.session.removeView(ctx, v)
+}
+
+func (v *view) shutdown(context.Context) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.cancel != nil {
+		v.cancel()
+		v.cancel = nil
 	}
-	return v.analysisCache
+	debug.DropView(debugView{v})
 }
 
-// SetContent sets the overlay contents for a file. A nil content value will
-// remove the file from the active set and revert it to its on-disk contents.
-func (v *View) SetContent(ctx context.Context, uri source.URI, content []byte) (source.View, error) {
+// Ignore checks if the given URI is a URI we ignore.
+// As of right now, we only ignore files in the "builtin" package.
+func (v *view) Ignore(uri span.URI) bool {
+	_, ok := v.ignoredURIs[uri]
+	return ok
+}
+
+func (v *view) BackgroundContext() context.Context {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
-	f := v.getFile(uri)
-	f.content = content
+	return v.backgroundCtx
+}
 
-	// Resetting the contents invalidates the ast, token, and pkg fields.
+func (v *view) BuiltinPackage() *ast.Package {
+	return v.builtinPkg
+}
+
+// buildBuiltinPkg builds the view's builtin package.
+// It assumes that the view is not active yet,
+// i.e. it has not been added to the session's list of views.
+func (v *view) buildBuiltinPkg() {
+	cfg := *v.buildConfig()
+	pkgs, _ := packages.Load(&cfg, "builtin")
+	if len(pkgs) != 1 {
+		v.builtinPkg, _ = ast.NewPackage(cfg.Fset, nil, nil, nil)
+		return
+	}
+	pkg := pkgs[0]
+	files := make(map[string]*ast.File)
+	for _, filename := range pkg.GoFiles {
+		file, err := parser.ParseFile(cfg.Fset, filename, nil, parser.ParseComments)
+		if err != nil {
+			v.builtinPkg, _ = ast.NewPackage(cfg.Fset, nil, nil, nil)
+			return
+		}
+		files[filename] = file
+		v.ignoredURIs[span.NewURI(filename)] = struct{}{}
+	}
+	v.builtinPkg, _ = ast.NewPackage(cfg.Fset, files, nil, nil)
+}
+
+// SetContent sets the overlay contents for a file.
+func (v *view) SetContent(ctx context.Context, uri span.URI, content []byte) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	// Cancel all still-running previous requests, since they would be
+	// operating on stale data.
+	v.cancel()
+	v.backgroundCtx, v.cancel = context.WithCancel(v.baseCtx)
+
+	v.session.SetOverlay(uri, content)
+
+	return nil
+}
+
+func (f *goFile) invalidate() {
+	f.view.pcache.mu.Lock()
+	defer f.view.pcache.mu.Unlock()
+	// TODO(rstambler): Should we recompute these here?
 	f.ast = nil
 	f.token = nil
-	f.pkg = nil
 
-	// We might need to update the overlay.
-	switch {
-	case f.active && content == nil:
-		// The file was active, so we need to forget its content.
-		f.active = false
-		if filename, err := f.URI.Filename(); err == nil {
-			delete(f.view.Config.Overlay, filename)
-		}
-		f.content = nil
-	case content != nil:
-		// This is an active overlay, so we update the map.
-		f.active = true
-		if filename, err := f.URI.Filename(); err == nil {
-			f.view.Config.Overlay[filename] = f.content
+	// Remove the package and all of its reverse dependencies from the cache.
+	if f.pkg != nil {
+		f.view.remove(f.pkg.pkgPath, map[string]struct{}{})
+	}
+	f.handle = nil
+}
+
+// remove invalidates a package and its reverse dependencies in the view's
+// package cache. It is assumed that the caller has locked both the mutexes
+// of both the mcache and the pcache.
+func (v *view) remove(pkgPath string, seen map[string]struct{}) {
+	if _, ok := seen[pkgPath]; ok {
+		return
+	}
+	m, ok := v.mcache.packages[pkgPath]
+	if !ok {
+		return
+	}
+	seen[pkgPath] = struct{}{}
+	for parentPkgPath := range m.parents {
+		v.remove(parentPkgPath, seen)
+	}
+	// All of the files in the package may also be holding a pointer to the
+	// invalidated package.
+	for _, filename := range m.files {
+		if f, _ := v.findFile(span.FileURI(filename)); f != nil {
+			if gof, ok := f.(*goFile); ok {
+				gof.pkg = nil
+			}
 		}
 	}
-
-	// TODO(rstambler): We should really return a new, updated view.
-	return v, nil
+	delete(v.pcache.packages, pkgPath)
 }
 
-// GetFile returns a File for the given URI. It will always succeed because it
-// adds the file to the managed set if needed.
-func (v *View) GetFile(ctx context.Context, uri source.URI) (source.File, error) {
+// FindFile returns the file if the given URI is already a part of the view.
+func (v *view) FindFile(ctx context.Context, uri span.URI) source.File {
 	v.mu.Lock()
-	f := v.getFile(uri)
-	v.mu.Unlock()
-	return f, nil
-}
-
-// getFile is the unlocked internal implementation of GetFile.
-func (v *View) getFile(uri source.URI) *File {
-	f, found := v.files[uri]
-	if !found {
-		f = &File{
-			URI:  uri,
-			view: v,
-		}
-		v.files[uri] = f
+	defer v.mu.Unlock()
+	f, err := v.findFile(uri)
+	if err != nil {
+		return nil
 	}
 	return f
 }
 
-func (v *View) parse(uri source.URI) error {
-	path, err := uri.Filename()
+// GetFile returns a File for the given URI. It will always succeed because it
+// adds the file to the managed set if needed.
+func (v *view) GetFile(ctx context.Context, uri span.URI) (source.File, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
+	return v.getFile(uri)
+}
+
+// getFile is the unlocked internal implementation of GetFile.
+func (v *view) getFile(uri span.URI) (viewFile, error) {
+	if f, err := v.findFile(uri); err != nil {
+		return nil, err
+	} else if f != nil {
+		return f, nil
+	}
+	filename, err := uri.Filename()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	pkgs, err := packages.Load(&v.Config, fmt.Sprintf("file=%s", path))
-	if len(pkgs) == 0 {
-		if err == nil {
-			err = fmt.Errorf("no packages found for %s", path)
+	var f viewFile
+	switch ext := filepath.Ext(filename); ext {
+	case ".go":
+		f = &goFile{
+			fileBase: fileBase{
+				view:  v,
+				fname: filename,
+			},
 		}
-		return err
-	}
-	var foundPkg bool // true if we found the package for uri
-	for _, pkg := range pkgs {
-		// TODO(rstambler): Get real TypeSizes from go/packages (golang.org/issues/30139).
-		pkg.TypesSizes = &types.StdSizes{}
-
-		imp := &importer{
-			entries:         make(map[string]*entry),
-			packages:        make(map[string]*packages.Package),
-			v:               v,
-			topLevelPkgPath: pkg.PkgPath,
-		}
-		if err := imp.addImports(pkg.PkgPath, pkg); err != nil {
-			return err
-		}
-		// Start prefetching direct imports.
-		for importPath := range pkg.Imports {
-			go imp.Import(importPath)
-		}
-		imp.importPackage(pkg.PkgPath)
-
-		// Add every file in this package to our cache.
-		for _, file := range pkg.Syntax {
-			// TODO: If a file is in multiple packages, which package do we store?
-			if !file.Pos().IsValid() {
-				log.Printf("invalid position for file %v", file.Name)
-				continue
-			}
-			tok := imp.v.Config.Fset.File(file.Pos())
-			if tok == nil {
-				log.Printf("no token.File for %v", file.Name)
-				continue
-			}
-			fURI := source.ToURI(tok.Name())
-			if fURI == uri {
-				foundPkg = true
-			}
-			f := imp.v.getFile(fURI)
-			f.token = tok
-			f.ast = file
-			f.pkg = pkg
-		}
-	}
-	if !foundPkg {
-		return fmt.Errorf("no package found for %v", uri)
-	}
-	return nil
-}
-
-type importer struct {
-	mu              sync.Mutex
-	entries         map[string]*entry
-	packages        map[string]*packages.Package
-	topLevelPkgPath string
-
-	v *View
-}
-
-type entry struct {
-	pkg   *types.Package
-	err   error
-	ready chan struct{}
-}
-
-func (imp *importer) addImports(path string, pkg *packages.Package) error {
-	imp.packages[path] = pkg
-	for importPath, importPkg := range pkg.Imports {
-		if err := imp.addImports(importPath, importPkg); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (imp *importer) Import(path string) (*types.Package, error) {
-	if path == imp.topLevelPkgPath {
-		return nil, fmt.Errorf("import cycle: [%v]", path)
-	}
-	imp.mu.Lock()
-	e, ok := imp.entries[path]
-	if ok {
-		// cache hit
-		imp.mu.Unlock()
-		// wait for entry to become ready
-		<-e.ready
-	} else {
-		// cache miss
-		e = &entry{ready: make(chan struct{})}
-		imp.entries[path] = e
-		imp.mu.Unlock()
-
-		// This goroutine becomes responsible for populating
-		// the entry and broadcasting its readiness.
-		e.pkg, e.err = imp.importPackage(path)
-		close(e.ready)
-	}
-	return e.pkg, e.err
-}
-
-func (imp *importer) importPackage(pkgPath string) (*types.Package, error) {
-	imp.mu.Lock()
-	pkg, ok := imp.packages[pkgPath]
-	imp.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("no metadata for %v", pkgPath)
-	}
-	pkg.Fset = imp.v.Config.Fset
-	appendError := func(err error) {
-		imp.appendPkgError(pkg, err)
-	}
-	files, errs := imp.parseFiles(pkg.CompiledGoFiles)
-	for _, err := range errs {
-		appendError(err)
-	}
-	pkg.Syntax = files
-	cfg := &types.Config{
-		Error:    appendError,
-		Importer: imp,
-	}
-	pkg.Types = types.NewPackage(pkg.PkgPath, pkg.Name)
-	pkg.TypesInfo = &types.Info{
-		Types:      make(map[ast.Expr]types.TypeAndValue),
-		Defs:       make(map[*ast.Ident]types.Object),
-		Uses:       make(map[*ast.Ident]types.Object),
-		Implicits:  make(map[ast.Node]types.Object),
-		Selections: make(map[*ast.SelectorExpr]*types.Selection),
-		Scopes:     make(map[ast.Node]*types.Scope),
-	}
-	check := types.NewChecker(cfg, imp.v.Config.Fset, pkg.Types, pkg.TypesInfo)
-	check.Files(pkg.Syntax)
-
-	return pkg.Types, nil
-}
-
-func (imp *importer) appendPkgError(pkg *packages.Package, err error) {
-	if err == nil {
-		return
-	}
-	var errs []packages.Error
-	switch err := err.(type) {
-	case *scanner.Error:
-		errs = append(errs, packages.Error{
-			Pos:  err.Pos.String(),
-			Msg:  err.Msg,
-			Kind: packages.ParseError,
+		v.session.filesWatchMap.Watch(uri, func() {
+			f.(*goFile).invalidate()
 		})
-	case scanner.ErrorList:
-		// The first parser error is likely the root cause of the problem.
-		if err.Len() > 0 {
-			errs = append(errs, packages.Error{
-				Pos:  err[0].Pos.String(),
-				Msg:  err[0].Msg,
-				Kind: packages.ParseError,
-			})
+	case ".mod":
+		f = &modFile{
+			fileBase: fileBase{
+				view:  v,
+				fname: filename,
+			},
 		}
-	case types.Error:
-		errs = append(errs, packages.Error{
-			Pos:  imp.v.Config.Fset.Position(err.Pos).String(),
-			Msg:  err.Msg,
-			Kind: packages.TypeError,
-		})
+	case ".sum":
+		f = &sumFile{
+			fileBase: fileBase{
+				view:  v,
+				fname: filename,
+			},
+		}
+	default:
+		return nil, fmt.Errorf("unsupported file extension: %s", ext)
 	}
-	pkg.Errors = append(pkg.Errors, errs...)
+	v.mapFile(uri, f)
+	return f, nil
 }
 
-// We use a counting semaphore to limit
-// the number of parallel I/O calls per process.
-var ioLimit = make(chan bool, 20)
-
-// parseFiles reads and parses the Go source files and returns the ASTs
-// of the ones that could be at least partially parsed, along with a
-// list of I/O and parse errors encountered.
+// findFile checks the cache for any file matching the given uri.
 //
-// Because files are scanned in parallel, the token.Pos
-// positions of the resulting ast.Files are not ordered.
-//
-func (imp *importer) parseFiles(filenames []string) ([]*ast.File, []error) {
-	var wg sync.WaitGroup
-	n := len(filenames)
-	parsed := make([]*ast.File, n)
-	errors := make([]error, n)
-	for i, file := range filenames {
-		if imp.v.Config.Context != nil {
-			if imp.v.Config.Context.Err() != nil {
-				parsed[i] = nil
-				errors[i] = imp.v.Config.Context.Err()
-				continue
-			}
+// An error is only returned for an irreparable failure, for example, if the
+// filename in question does not exist.
+func (v *view) findFile(uri span.URI) (viewFile, error) {
+	if f := v.filesByURI[uri]; f != nil {
+		// a perfect match
+		return f, nil
+	}
+	// no exact match stored, time to do some real work
+	// check for any files with the same basename
+	fname, err := uri.Filename()
+	if err != nil {
+		return nil, err
+	}
+	basename := basename(fname)
+	if candidates := v.filesByBase[basename]; candidates != nil {
+		pathStat, err := os.Stat(fname)
+		if os.IsNotExist(err) {
+			return nil, err
+		} else if err != nil {
+			return nil, nil // the file may exist, return without an error
 		}
-		wg.Add(1)
-		go func(i int, filename string) {
-			ioLimit <- true // wait
-			// ParseFile may return both an AST and an error.
-			var src []byte
-			for f, contents := range imp.v.Config.Overlay {
-				if sameFile(f, filename) {
-					src = contents
+		for _, c := range candidates {
+			if cStat, err := os.Stat(c.filename()); err == nil {
+				if os.SameFile(pathStat, cStat) {
+					// same file, map it
+					v.mapFile(uri, c)
+					return c, nil
 				}
 			}
-			var err error
-			if src == nil {
-				src, err = ioutil.ReadFile(filename)
-			}
-			if err != nil {
-				parsed[i], errors[i] = nil, err
-			} else {
-				parsed[i], errors[i] = imp.v.Config.ParseFile(imp.v.Config.Fset, filename, src)
-			}
-			<-ioLimit // signal
-			wg.Done()
-		}(i, file)
-	}
-	wg.Wait()
-
-	// Eliminate nils, preserving order.
-	var o int
-	for _, f := range parsed {
-		if f != nil {
-			parsed[o] = f
-			o++
 		}
 	}
-	parsed = parsed[:o]
-
-	o = 0
-	for _, err := range errors {
-		if err != nil {
-			errors[o] = err
-			o++
-		}
-	}
-	errors = errors[:o]
-
-	return parsed, errors
+	// no file with a matching name was found, it wasn't in our cache
+	return nil, nil
 }
 
-// sameFile returns true if x and y have the same basename and denote
-// the same file.
-//
-func sameFile(x, y string) bool {
-	if x == y {
-		// It could be the case that y doesn't exist.
-		// For instance, it may be an overlay file that
-		// hasn't been written to disk. To handle that case
-		// let x == y through. (We added the exact absolute path
-		// string to the CompiledGoFiles list, so the unwritten
-		// overlay case implies x==y.)
-		return true
-	}
-	if strings.EqualFold(filepath.Base(x), filepath.Base(y)) { // (optimisation)
-		if xi, err := os.Stat(x); err == nil {
-			if yi, err := os.Stat(y); err == nil {
-				return os.SameFile(xi, yi)
-			}
-		}
-	}
-	return false
+func (f *fileBase) addURI(uri span.URI) int {
+	f.uris = append(f.uris, uri)
+	return len(f.uris)
 }
+
+func (v *view) mapFile(uri span.URI, f viewFile) {
+	v.filesByURI[uri] = f
+	if f.addURI(uri) == 1 {
+		basename := basename(f.filename())
+		v.filesByBase[basename] = append(v.filesByBase[basename], f)
+	}
+}
+
+type debugView struct{ *view }
+
+func (v debugView) ID() string             { return v.id }
+func (v debugView) Session() debug.Session { return debugSession{v.session} }

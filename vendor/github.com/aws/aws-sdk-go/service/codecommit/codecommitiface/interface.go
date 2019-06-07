@@ -68,6 +68,10 @@ type CodeCommitAPI interface {
 	CreateBranchWithContext(aws.Context, *codecommit.CreateBranchInput, ...request.Option) (*codecommit.CreateBranchOutput, error)
 	CreateBranchRequest(*codecommit.CreateBranchInput) (*request.Request, *codecommit.CreateBranchOutput)
 
+	CreateCommit(*codecommit.CreateCommitInput) (*codecommit.CreateCommitOutput, error)
+	CreateCommitWithContext(aws.Context, *codecommit.CreateCommitInput, ...request.Option) (*codecommit.CreateCommitOutput, error)
+	CreateCommitRequest(*codecommit.CreateCommitInput) (*request.Request, *codecommit.CreateCommitOutput)
+
 	CreatePullRequest(*codecommit.CreatePullRequestInput) (*codecommit.CreatePullRequestOutput, error)
 	CreatePullRequestWithContext(aws.Context, *codecommit.CreatePullRequestInput, ...request.Option) (*codecommit.CreatePullRequestOutput, error)
 	CreatePullRequestRequest(*codecommit.CreatePullRequestInput) (*request.Request, *codecommit.CreatePullRequestOutput)
@@ -181,6 +185,10 @@ type CodeCommitAPI interface {
 	ListRepositoriesPages(*codecommit.ListRepositoriesInput, func(*codecommit.ListRepositoriesOutput, bool) bool) error
 	ListRepositoriesPagesWithContext(aws.Context, *codecommit.ListRepositoriesInput, func(*codecommit.ListRepositoriesOutput, bool) bool, ...request.Option) error
 
+	ListTagsForResource(*codecommit.ListTagsForResourceInput) (*codecommit.ListTagsForResourceOutput, error)
+	ListTagsForResourceWithContext(aws.Context, *codecommit.ListTagsForResourceInput, ...request.Option) (*codecommit.ListTagsForResourceOutput, error)
+	ListTagsForResourceRequest(*codecommit.ListTagsForResourceInput) (*request.Request, *codecommit.ListTagsForResourceOutput)
+
 	MergePullRequestByFastForward(*codecommit.MergePullRequestByFastForwardInput) (*codecommit.MergePullRequestByFastForwardOutput, error)
 	MergePullRequestByFastForwardWithContext(aws.Context, *codecommit.MergePullRequestByFastForwardInput, ...request.Option) (*codecommit.MergePullRequestByFastForwardOutput, error)
 	MergePullRequestByFastForwardRequest(*codecommit.MergePullRequestByFastForwardInput) (*request.Request, *codecommit.MergePullRequestByFastForwardOutput)
@@ -205,9 +213,17 @@ type CodeCommitAPI interface {
 	PutRepositoryTriggersWithContext(aws.Context, *codecommit.PutRepositoryTriggersInput, ...request.Option) (*codecommit.PutRepositoryTriggersOutput, error)
 	PutRepositoryTriggersRequest(*codecommit.PutRepositoryTriggersInput) (*request.Request, *codecommit.PutRepositoryTriggersOutput)
 
+	TagResource(*codecommit.TagResourceInput) (*codecommit.TagResourceOutput, error)
+	TagResourceWithContext(aws.Context, *codecommit.TagResourceInput, ...request.Option) (*codecommit.TagResourceOutput, error)
+	TagResourceRequest(*codecommit.TagResourceInput) (*request.Request, *codecommit.TagResourceOutput)
+
 	TestRepositoryTriggers(*codecommit.TestRepositoryTriggersInput) (*codecommit.TestRepositoryTriggersOutput, error)
 	TestRepositoryTriggersWithContext(aws.Context, *codecommit.TestRepositoryTriggersInput, ...request.Option) (*codecommit.TestRepositoryTriggersOutput, error)
 	TestRepositoryTriggersRequest(*codecommit.TestRepositoryTriggersInput) (*request.Request, *codecommit.TestRepositoryTriggersOutput)
+
+	UntagResource(*codecommit.UntagResourceInput) (*codecommit.UntagResourceOutput, error)
+	UntagResourceWithContext(aws.Context, *codecommit.UntagResourceInput, ...request.Option) (*codecommit.UntagResourceOutput, error)
+	UntagResourceRequest(*codecommit.UntagResourceInput) (*request.Request, *codecommit.UntagResourceOutput)
 
 	UpdateComment(*codecommit.UpdateCommentInput) (*codecommit.UpdateCommentOutput, error)
 	UpdateCommentWithContext(aws.Context, *codecommit.UpdateCommentInput, ...request.Option) (*codecommit.UpdateCommentOutput, error)

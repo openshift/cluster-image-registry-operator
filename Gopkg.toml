@@ -10,6 +10,7 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/code-generator/cmd/openapi-gen",
   "k8s.io/gengo/args",
+  "github.com/openshift/library-go/cmd/crd-schema-gen",
 ]
 
 [[override]]
@@ -38,12 +39,21 @@ required = [
   branch = "origin-4.0-kubernetes-1.12.4"
 
 [[override]]
+  name = "sigs.k8s.io/controller-tools"
+  source = "https://github.com/openshift/kubernetes-sigs-controller-tools.git"
+  branch = "origin-4.0-kubernetes-1.12.4"
+
+[[override]]
   name = "github.com/openshift/client-go"
   revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
 
 [[override]]
   name = "github.com/openshift/api"
   revision = "77b8897ec79a562e85920134fc65b63300c4d27a"
+
+[[override]]
+  name = "github.com/openshift/library-go"
+  revision = "160e3e0c53fc0b0d707ba97cb09ea490119b1257"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"

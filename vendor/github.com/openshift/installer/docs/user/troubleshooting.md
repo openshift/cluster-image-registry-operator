@@ -21,16 +21,16 @@ If the API is unavailable, that will need to be [investigated first](#kubernetes
 The previous command should yield output similar to the following:
 
 ```
-NAME                             DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
-cluster-autoscaler-operator      1         1         1            1           1d
-clusterapi-manager-controllers   1         1         1            1           1d
-machine-api-operator             1         1         1            1           1d
+NAME                          READY   UP-TO-DATE   AVAILABLE   AGE
+cluster-autoscaler-operator   1/1     1            1           86m
+machine-api-controllers       1/1     1            1           85m
+machine-api-operator          1/1     1            1           86m
 ```
 
 Check the machine controller logs with the following command.
 
 ```sh
-oc --config=${INSTALL_DIR}/auth/kubeconfig --namespace=openshift-machine-api logs deployments/clusterapi-manager-controllers --container=machine-controller
+oc --config=${INSTALL_DIR}/auth/kubeconfig --namespace=openshift-machine-api logs deployments/machine-api-controllers --container=machine-controller
 ```
 
 ### Kubernetes API is Unavailable
@@ -109,7 +109,7 @@ The installer uses the [cluster-version-operator] to create all the components o
       selfLink: /apis/config.openshift.io/v1/clusterversions/version
       uid: 6e0f4cf8-3ade-11e9-9034-0a923b47ded4
     spec:
-      channel: stable-4.1
+      channel: stable-4.2
       clusterID: 5ec312f9-f729-429d-a454-61d4906896ca
       upstream: https://api.openshift.com/api/upgrades_info/v1/graph
     status:
