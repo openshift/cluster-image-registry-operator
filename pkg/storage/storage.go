@@ -104,10 +104,7 @@ func getPlatformStorage(kubeconfig *rest.Config) (imageregistryv1.ImageRegistryC
 	case installConfig.Platform.Azure != nil:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	case installConfig.Platform.OpenStack != nil:
-		// TODO(mfedosin): Swift storage needs cloud-credential-operator support
-		// to obtain system credentials. Until it's done we'll use EmptyDir for
-		// OpenStack deployment.
-		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 	}
 
 	return cfg, nil
