@@ -179,6 +179,14 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return false
 }
 
+func generateContainerName(prefix string) string {
+	bytes := make([]byte, 16)
+	for i := 0; i < 16; i++ {
+		bytes[i] = byte(65 + rand.Intn(25)) // A=65 and Z=65+25
+	}
+	return prefix + string(bytes)
+}
+
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	client, err := d.getSwiftClient(cr)
 	if err != nil {
@@ -190,11 +198,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// The name has a prefix "image_registry_", which is complemented by 16 capital latin letters
 	// Example of a generated name: image_registry_FHEIBGDDGBLWPXFR
 	if cr.Spec.Storage.Swift.Container == "" {
-		bytes := make([]byte, 16)
-		for i := 0; i < 16; i++ {
-			bytes[i] = byte(65 + rand.Intn(25)) // A=65 and Z=65+25
-		}
-		cr.Spec.Storage.Swift.Container = "image_registry_" + string(bytes)
+		cr.Spec.Storage.Swift.Container = generateContainerName("image_registry_")
 	}
 
 	_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, containers.CreateOpts{}).Extract()
