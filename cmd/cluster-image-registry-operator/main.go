@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"math/rand"
 	"runtime"
+	"time"
 
 	"github.com/golang/glog"
 
@@ -25,6 +27,8 @@ func main() {
 	flag.Lookup("logtostderr").Value.Set("true")
 
 	printVersion()
+
+	rand.Seed(time.Now().UnixNano())
 
 	cfg, err := regopclient.GetConfig()
 	if err != nil {

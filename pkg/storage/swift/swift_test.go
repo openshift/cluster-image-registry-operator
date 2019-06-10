@@ -593,3 +593,10 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 	th.AssertEquals(t, operatorapi.ConditionTrue, installConfig.Status.Conditions[0].Status)
 	th.AssertEquals(t, container, installConfig.Status.Storage.Swift.Container)
 }
+
+func TestSwiftGenerateContainerName(t *testing.T) {
+	name1 := generateContainerName("image_registry_")
+	name2 := generateContainerName("image_registry_")
+
+	th.AssertEquals(t, false, name1 == name2)
+}
