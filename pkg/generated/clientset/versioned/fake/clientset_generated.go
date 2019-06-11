@@ -59,8 +59,3 @@ var _ clientset.Interface = &Clientset{}
 func (c *Clientset) ImageregistryV1() imageregistryv1.ImageregistryV1Interface {
 	return &fakeimageregistryv1.FakeImageregistryV1{Fake: &c.Fake}
 }
-
-// Imageregistry retrieves the ImageregistryV1Client
-func (c *Clientset) Imageregistry() imageregistryv1.ImageregistryV1Interface {
-	return &fakeimageregistryv1.FakeImageregistryV1{Fake: &c.Fake}
-}
