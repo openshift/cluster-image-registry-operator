@@ -1,3 +1,43 @@
+Release v1.19.47 (2019-06-10)
+===
+
+### Service Client Updates
+* `service/codebuild`: Updates service API and documentation
+  * AWS CodeBuild adds support for source version on project level.
+* `service/codecommit`: Updates service API, documentation, and paginators
+  * This release adds two merge strategies for merging pull requests: squash and three-way. It also adds functionality for resolving merge conflicts, testing merge outcomes, and for merging branches using one of the three supported merge strategies.
+* `service/personalize`: Adds new service
+* `service/personalize-events`: Adds new service
+* `service/personalize-runtime`: Adds new service
+
+Release v1.19.46 (2019-06-07)
+===
+
+### Service Client Updates
+* `service/ec2`: Updates service API and documentation
+  * Adds DNS entries and NLB ARNs to describe-vpc-endpoint-connections API response. Adds owner ID to describe-vpc-endpoints and create-vpc-endpoint API responses.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+
+Release v1.19.45 (2019-06-06)
+===
+
+### Service Client Updates
+* `service/dynamodb`: Updates service documentation
+  * Documentation updates for dynamodb
+* `service/ecs`: Updates service API and documentation
+  * This release of Amazon Elastic Container Service (Amazon ECS) introduces support for launching container instances using supported Amazon EC2 instance types that have increased elastic network interface density. Using these instance types and opting in to the awsvpcTrunking account setting provides increased elastic network interface (ENI) density on newly launched container instances which allows you to place more tasks on each container instance.
+* `service/email`: Updates service API and documentation
+  * You can now specify whether the Amazon Simple Email Service must deliver email over a connection that is encrypted using Transport Layer Security (TLS).
+* `service/guardduty`: Updates service API, documentation, paginators, and examples
+  * Improve FindingCriteria Condition field names, support long-typed conditions and deprecate old Condition field names.
+* `service/logs`: Updates service documentation
+  * Documentation updates for logs
+* `service/mediaconnect`: Updates service API and documentation
+* `service/organizations`: Updates service API, documentation, and paginators
+  * You can tag and untag accounts in your organization and view tags on an account in your organization.
+* `service/ssm`: Updates service API and documentation
+  * OpsCenter is a new Systems Manager capability that allows you to view, diagnose, and remediate, operational issues, aka OpsItems, related to various AWS resources by bringing together contextually relevant investigation information. New APIs to create, update, describe, and get OpsItems as well as OpsItems summary API.
+
 Release v1.19.44 (2019-06-05)
 ===
 

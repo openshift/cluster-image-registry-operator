@@ -21,14 +21,16 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"github.com/openshift/library-go/pkg/operator/condition"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/management"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
-const controllerWorkQueueKey = "key"
+const (
+	operatorStatusResourceSyncControllerDegraded = "ResourceSyncControllerDegraded"
+	controllerWorkQueueKey                       = "key"
+)
 
 // ResourceSyncController is a controller that will copy source configmaps and secrets to their destinations.
 // It will also mirror deletions by deleting destinations.
@@ -189,7 +191,7 @@ func (c *ResourceSyncController) sync() error {
 
 	if len(errors) > 0 {
 		cond := operatorv1.OperatorCondition{
-			Type:    condition.ResourceSyncControllerDegradedConditionType,
+			Type:    operatorStatusResourceSyncControllerDegraded,
 			Status:  operatorv1.ConditionTrue,
 			Reason:  "Error",
 			Message: v1helpers.NewMultiLineAggregate(errors).Error(),
@@ -201,7 +203,7 @@ func (c *ResourceSyncController) sync() error {
 	}
 
 	cond := operatorv1.OperatorCondition{
-		Type:   condition.ResourceSyncControllerDegradedConditionType,
+		Type:   operatorStatusResourceSyncControllerDegraded,
 		Status: operatorv1.ConditionFalse,
 	}
 	if _, _, updateError := v1helpers.UpdateStatus(c.operatorConfigClient, v1helpers.UpdateConditionFn(cond)); updateError != nil {

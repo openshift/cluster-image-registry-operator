@@ -6,7 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/sets"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/operator/configobserver"
@@ -93,10 +92,8 @@ func (c *cloudProviderObserver) ObserveCloudProviderNames(genericListers configo
 		Namespace: sourceCloudConfigNamespace,
 		Name:      sourceCloudConfigMap,
 	}
-
-	// we set cloudprovider configmap values only for some cloud providers.
-	validCloudProviders := sets.NewString("azure", "vsphere")
-	if !validCloudProviders.Has(cloudProvider) {
+	// we set cloudprovider configmap values only for vsphere.
+	if cloudProvider != "vsphere" {
 		sourceCloudConfigMap = ""
 	}
 
@@ -146,7 +143,6 @@ func getPlatformName(platformType configv1.PlatformType, recorder events.Recorde
 		cloudProvider = "azure"
 	case configv1.VSpherePlatformType:
 		cloudProvider = "vsphere"
-	case configv1.BareMetalPlatformType:
 	case configv1.LibvirtPlatformType:
 	case configv1.OpenStackPlatformType:
 		// TODO(flaper87): Enable this once we've figured out a way to write the cloud provider config in the master nodes

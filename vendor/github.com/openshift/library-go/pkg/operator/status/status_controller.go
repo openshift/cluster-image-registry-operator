@@ -2,7 +2,6 @@ package status
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/klog"
@@ -71,7 +70,7 @@ func NewClusterOperatorStatusController(
 		operatorClient:        operatorClient,
 		eventRecorder:         recorder.WithComponentSuffix("status-controller"),
 
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "StatusSyncer_"+strings.Replace(name, "-", "_", -1)),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "StatusSyncer-"+name),
 	}
 
 	operatorClient.Informer().AddEventHandler(c.eventHandler())

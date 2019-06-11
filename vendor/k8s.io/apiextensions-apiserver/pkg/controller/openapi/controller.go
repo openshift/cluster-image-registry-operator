@@ -23,14 +23,13 @@ import (
 	"time"
 
 	"github.com/go-openapi/spec"
-	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 	"k8s.io/kube-openapi/pkg/handler"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -79,9 +78,9 @@ func NewController(crdInformer informers.CustomResourceDefinitionInformer) *Cont
 func (c *Controller) Run(staticSpec *spec.Swagger, openAPIService *handler.OpenAPIService, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
-	defer glog.Infof("Shutting down OpenAPI controller")
+	defer klog.Infof("Shutting down OpenAPI controller")
 
-	glog.Infof("Starting OpenAPI controller")
+	klog.Infof("Starting OpenAPI controller")
 
 	c.staticSpec = staticSpec
 	c.openAPIService = openAPIService
@@ -93,7 +92,7 @@ func (c *Controller) Run(staticSpec *spec.Swagger, openAPIService *handler.OpenA
 
 	// create initial spec to avoid merging once per CRD on startup
 	crds, err := c.crdLister.List(labels.Everything())
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("failed to initially list all CRDs: %v", err))
 		return
 	}
@@ -103,14 +102,13 @@ func (c *Controller) Run(staticSpec *spec.Swagger, openAPIService *handler.OpenA
 		}
 		newSpecs, changed, err := buildVersionSpecs(crd, nil)
 		if err != nil {
-			glog.Warningf("failed to build OpenAPI spec of CRD %s: %v", crd.Name, err)
-		}
-		if !changed {
+			utilruntime.HandleError(fmt.Errorf("failed to build OpenAPI spec of CRD %s: %v", crd.Name, err))
+		} else if !changed {
 			continue
 		}
 		c.crdSpecs[crd.Name] = newSpecs
 	}
-	if err := c.updateSpec(); err != nil {
+	if err := c.updateSpecLocked(); err != nil {
 		utilruntime.HandleError(fmt.Errorf("failed to initially create OpenAPI spec for CRDs: %v", err))
 		return
 	}
@@ -138,7 +136,7 @@ func (c *Controller) processNextWorkItem() bool {
 	defer func() {
 		elapsed := time.Since(start)
 		if elapsed > time.Second {
-			glog.Warningf("slow openapi aggregation of %q: %s", key.(string), elapsed)
+			klog.Warningf("slow openapi aggregation of %q: %s", key.(string), elapsed)
 		}
 	}()
 
@@ -168,7 +166,7 @@ func (c *Controller) sync(name string) error {
 			return nil
 		}
 		delete(c.crdSpecs, name)
-		return c.updateSpec()
+		return c.updateSpecLocked()
 	}
 
 	// compute CRD spec and see whether it changed
@@ -183,7 +181,7 @@ func (c *Controller) sync(name string) error {
 
 	// update specs of this CRD
 	c.crdSpecs[crd.Name] = newSpecs
-	return c.updateSpec()
+	return c.updateSpecLocked()
 }
 
 func buildVersionSpecs(crd *apiextensions.CustomResourceDefinition, oldSpecs map[string]*spec.Swagger) (map[string]*spec.Swagger, bool, error) {
@@ -198,7 +196,7 @@ func buildVersionSpecs(crd *apiextensions.CustomResourceDefinition, oldSpecs map
 			return nil, false, err
 		}
 		newSpecs[v.Name] = spec
-		if oldSpecs[v.Name] != nil && !reflect.DeepEqual(oldSpecs[v.Name], spec) {
+		if oldSpecs[v.Name] == nil || !reflect.DeepEqual(oldSpecs[v.Name], spec) {
 			anyChanged = true
 		}
 	}
@@ -209,7 +207,9 @@ func buildVersionSpecs(crd *apiextensions.CustomResourceDefinition, oldSpecs map
 	return newSpecs, true, nil
 }
 
-func (c *Controller) updateSpec() error {
+// updateSpecLocked aggregates all OpenAPI specs and updates openAPIService.
+// It is not thread-safe. The caller is responsible to hold proper lock (Controller.lock).
+func (c *Controller) updateSpecLocked() error {
 	crdSpecs := []*spec.Swagger{}
 	for _, versionSpecs := range c.crdSpecs {
 		for _, s := range versionSpecs {
@@ -221,13 +221,13 @@ func (c *Controller) updateSpec() error {
 
 func (c *Controller) addCustomResourceDefinition(obj interface{}) {
 	castObj := obj.(*apiextensions.CustomResourceDefinition)
-	glog.V(4).Infof("Adding customresourcedefinition %s", castObj.Name)
+	klog.V(4).Infof("Adding customresourcedefinition %s", castObj.Name)
 	c.enqueue(castObj)
 }
 
 func (c *Controller) updateCustomResourceDefinition(oldObj, newObj interface{}) {
 	castNewObj := newObj.(*apiextensions.CustomResourceDefinition)
-	glog.V(4).Infof("Updating customresourcedefinition %s", castNewObj.Name)
+	klog.V(4).Infof("Updating customresourcedefinition %s", castNewObj.Name)
 	c.enqueue(castNewObj)
 }
 
@@ -236,16 +236,16 @@ func (c *Controller) deleteCustomResourceDefinition(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			glog.Errorf("Couldn't get object from tombstone %#v", obj)
+			klog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
 		castObj, ok = tombstone.Obj.(*apiextensions.CustomResourceDefinition)
 		if !ok {
-			glog.Errorf("Tombstone contained object that is not expected %#v", obj)
+			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}
-	glog.V(4).Infof("Deleting customresourcedefinition %q", castObj.Name)
+	klog.V(4).Infof("Deleting customresourcedefinition %q", castObj.Name)
 	c.enqueue(castObj)
 }
 

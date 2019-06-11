@@ -124,26 +124,32 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 			in: &apiextensions.JSONSchemaProps{
 				ID: testStr,
 			},
-			expected: new(spec.Schema).
-				WithID(testStr),
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: new(spec.Schema).
+			// 	WithID(testStr),
 		},
 		{
 			name: "$schema",
 			in: &apiextensions.JSONSchemaProps{
 				Schema: "test",
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Schema: "test",
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		Schema: "test",
+			// 	},
+			// },
 		},
 		{
 			name: "$ref",
 			in: &apiextensions.JSONSchemaProps{
 				Ref: &testStr,
 			},
-			expected: spec.RefSchema(testStr),
+			expected: new(spec.Schema),
+			// https://github.com/kubernetes/kube-openapi/pull/143/files#diff-62afddb578e9db18fb32ffb6b7802d92R104
+			// expected: spec.RefSchema(testStr),
 		},
 		{
 			name: "description",
@@ -311,16 +317,18 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Items: &spec.SchemaOrArray{
-						Schemas: []spec.Schema{
-							*spec.BooleanProperty(),
-							*spec.StringProperty(),
-						},
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// https://github.com/kubernetes/kube-openapi/pull/143/files#diff-62afddb578e9db18fb32ffb6b7802d92R272
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		Items: &spec.SchemaOrArray{
+			// 			Schemas: []spec.Schema{
+			// 				*spec.BooleanProperty(),
+			// 				*spec.StringProperty(),
+			// 			},
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "allOf",
@@ -342,6 +350,7 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 				},
 			},
 			expected: new(spec.Schema),
+			// not supported by openapi v2
 			// expected: &spec.Schema{
 			// 	SchemaProps: spec.SchemaProps{
 			// 		OneOf: []spec.Schema{
@@ -360,6 +369,7 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 				},
 			},
 			expected: new(spec.Schema),
+			// not supported by openapi v2
 			// expected: &spec.Schema{
 			// 	SchemaProps: spec.SchemaProps{
 			// 		AnyOf: []spec.Schema{
@@ -377,6 +387,7 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 				},
 			},
 			expected: new(spec.Schema),
+			// not supported by openapi v2
 			// expected: &spec.Schema{
 			// 	SchemaProps: spec.SchemaProps{
 			// 		Not: spec.BooleanProperty(),
@@ -497,13 +508,15 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					testStr: {Type: "boolean"},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					PatternProperties: map[string]spec.Schema{
-						testStr: *spec.BooleanProperty(),
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		PatternProperties: map[string]spec.Schema{
+			// 			testStr: *spec.BooleanProperty(),
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "dependencies schema",
@@ -514,15 +527,17 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Dependencies: spec.Dependencies{
-						testStr: spec.SchemaOrStringArray{
-							Schema: spec.BooleanProperty(),
-						},
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		Dependencies: spec.Dependencies{
+			// 			testStr: spec.SchemaOrStringArray{
+			// 				Schema: spec.BooleanProperty(),
+			// 			},
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "dependencies string array",
@@ -533,15 +548,17 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Dependencies: spec.Dependencies{
-						testStr: spec.SchemaOrStringArray{
-							Property: []string{testStr2},
-						},
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		Dependencies: spec.Dependencies{
+			// 			testStr: spec.SchemaOrStringArray{
+			// 				Property: []string{testStr2},
+			// 			},
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "additionalItems",
@@ -551,14 +568,16 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					Schema: &apiextensions.JSONSchemaProps{Type: "boolean"},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					AdditionalItems: &spec.SchemaOrBool{
-						Allows: true,
-						Schema: spec.BooleanProperty(),
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		AdditionalItems: &spec.SchemaOrBool{
+			// 			Allows: true,
+			// 			Schema: spec.BooleanProperty(),
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "definitions",
@@ -567,13 +586,15 @@ func Test_ConvertJSONSchemaPropsToOpenAPIv2SchemaFuzzing(t *testing.T) {
 					testStr: apiextensions.JSONSchemaProps{Type: "boolean"},
 				},
 			},
-			expected: &spec.Schema{
-				SchemaProps: spec.SchemaProps{
-					Definitions: spec.Definitions{
-						testStr: *spec.BooleanProperty(),
-					},
-				},
-			},
+			expected: new(spec.Schema),
+			// not supported by gnostic
+			// expected: &spec.Schema{
+			// 	SchemaProps: spec.SchemaProps{
+			// 		Definitions: spec.Definitions{
+			// 			testStr: *spec.BooleanProperty(),
+			// 		},
+			// 	},
+			// },
 		},
 		{
 			name: "externalDocs",
@@ -616,7 +637,6 @@ func TestKubeOpenapiRejectionFiltering(t *testing.T) {
 		t.Run(fmt.Sprintf("iteration %d", i), func(t *testing.T) {
 			f := fuzz.New()
 			seed := time.Now().UnixNano()
-			//seed = int64(1550678935445547778)
 			randSource := rand.New(rand.NewSource(seed))
 			f.RandSource(randSource)
 			t.Logf("seed = %d", seed)
@@ -700,7 +720,7 @@ func TestKubeOpenapiRejectionFiltering(t *testing.T) {
 
 			// load with kube-openapi/pkg/util/proto
 			if _, err := proto.NewOpenAPIData(doc); err != nil {
-				t.Fatalf("failed to convert to kube-openapi/pkg/util/proto model: %V", err)
+				t.Fatalf("failed to convert to kube-openapi/pkg/util/proto model: %v", err)
 			}
 		})
 	}
