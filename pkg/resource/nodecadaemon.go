@@ -32,7 +32,7 @@ spec:
         name: node-ca
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
       tolerations:
       - effect: NoSchedule
