@@ -136,6 +136,15 @@ spec:
               description: Storage details for configuring registry storage, e.g.
                 S3 bucket coordinates.
               properties:
+                azure:
+                  description: Azure represents configuration that uses Azure Blob
+                    Storage.
+                  properties:
+                    accountName:
+                      type: string
+                    container:
+                      type: string
+                  type: object
                 emptyDir:
                   description: EmptyDir represents ephemeral storage on the pod's
                     host node. This storage cannot be used with more than 1 replica
@@ -295,6 +304,15 @@ spec:
               description: Storage indicates the current applied storage configuration
                 of the registry
               properties:
+                azure:
+                  description: Azure represents configuration that uses Azure Blob
+                    Storage.
+                  properties:
+                    accountName:
+                      type: string
+                    container:
+                      type: string
+                  type: object
                 emptyDir:
                   description: EmptyDir represents ephemeral storage on the pod's
                     host node. This storage cannot be used with more than 1 replica
