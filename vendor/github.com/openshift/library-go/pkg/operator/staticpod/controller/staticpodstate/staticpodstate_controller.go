@@ -17,7 +17,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
-	"github.com/openshift/library-go/pkg/operator/condition"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/management"
 	"github.com/openshift/library-go/pkg/operator/status"
@@ -25,6 +24,7 @@ import (
 )
 
 var (
+	staticPodStateControllerDegraded     = "StaticPodsDegraded"
 	staticPodStateControllerWorkQueueKey = "key"
 )
 
@@ -135,15 +135,11 @@ func (c *StaticPodStateController) sync() error {
 			c.operandName,
 			status.VersionForOperandFromEnv(),
 		)
-		c.versionRecorder.SetVersion(
-			"operator",
-			status.VersionForOperatorFromEnv(),
-		)
 	}
 
 	// update failing condition
 	cond := operatorv1.OperatorCondition{
-		Type:   condition.StaticPodsDegradedConditionType,
+		Type:   staticPodStateControllerDegraded,
 		Status: operatorv1.ConditionFalse,
 	}
 	// Failing errors
@@ -158,7 +154,9 @@ func (c *StaticPodStateController) sync() error {
 		cond.Message = v1helpers.NewMultiLineAggregate(errs).Error()
 	}
 	if _, _, updateError := v1helpers.UpdateStaticPodStatus(c.operatorClient, v1helpers.UpdateStaticPodConditionFn(cond), v1helpers.UpdateStaticPodConditionFn(cond)); updateError != nil {
-		return updateError
+		if err == nil {
+			return updateError
+		}
 	}
 
 	return err

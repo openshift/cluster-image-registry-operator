@@ -107,7 +107,7 @@ func (c *FakeConfigs) DeleteCollection(options *v1.DeleteOptions, listOptions v1
 // Patch applies the patch and returns the patched config.
 func (c *FakeConfigs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *imageregistryv1.Config, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(configsResource, name, data, subresources...), &imageregistryv1.Config{})
+		Invokes(testing.NewRootPatchSubresourceAction(configsResource, name, pt, data, subresources...), &imageregistryv1.Config{})
 	if obj == nil {
 		return nil, err
 	}

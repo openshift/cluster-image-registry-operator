@@ -38,10 +38,7 @@ func (r *inMemoryEventRecorder) ComponentName() string {
 }
 
 func (r *inMemoryEventRecorder) ForComponent(component string) Recorder {
-	r.Lock()
-	defer r.Unlock()
-	r.source = component
-	return r
+	return &inMemoryEventRecorder{events: []*corev1.Event{}, source: component}
 }
 
 func (r *inMemoryEventRecorder) WithComponentSuffix(suffix string) Recorder {

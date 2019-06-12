@@ -2,7 +2,6 @@ package management
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/klog"
@@ -15,7 +14,6 @@ import (
 
 	operatorv1 "github.com/openshift/api/operator/v1"
 
-	"github.com/openshift/library-go/pkg/operator/condition"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 	operatorv1helpers "github.com/openshift/library-go/pkg/operator/v1helpers"
@@ -45,7 +43,7 @@ func NewOperatorManagementStateController(
 		operatorClient: operatorClient,
 		eventRecorder:  recorder,
 
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ManagementStateController_"+strings.Replace(name, "-", "_", -1)),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ManagementStateController-"+name),
 	}
 
 	operatorClient.Informer().AddEventHandler(c.eventHandler())
@@ -63,7 +61,7 @@ func (c ManagementStateController) sync() error {
 	}
 
 	cond := operatorv1.OperatorCondition{
-		Type:   condition.ManagementStateDegradedConditionType,
+		Type:   "ManagementStateDegraded",
 		Status: operatorv1.ConditionFalse,
 	}
 

@@ -69,6 +69,10 @@ func BuildSwagger(crd *apiextensions.CustomResourceDefinition, version string) (
 			return nil, err
 		}
 	}
+	// TODO(roycaihw): remove the WebService templating below. The following logic
+	// comes from function registerResourceHandlers() in k8s.io/apiserver.
+	// Alternatives are either (ideally) refactoring registerResourceHandlers() to
+	// reuse the code, or faking an APIInstaller for CR to feed to registerResourceHandlers().
 	b := newBuilder(crd, version, schema)
 
 	// Sample response types for building web service
@@ -91,7 +95,7 @@ func BuildSwagger(crd *apiextensions.CustomResourceDefinition, version string) (
 	if b.namespaced {
 		routes = append(routes, b.buildRoute(root, "", "GET", "list", sampleList).
 			Operation("list"+b.kind+"ForAllNamespaces"))
-		root = fmt.Sprintf("/apis/%s/%s/namespaces/{namespaces}/%s", b.group, b.version, b.plural)
+		root = fmt.Sprintf("/apis/%s/%s/namespaces/{namespace}/%s", b.group, b.version, b.plural)
 	}
 	routes = append(routes, b.buildRoute(root, "", "GET", "list", sampleList))
 	routes = append(routes, b.buildRoute(root, "", "POST", "create", sample).Reads(sample))
@@ -140,7 +144,7 @@ type CRDCanonicalTypeNamer struct {
 	kind    string
 }
 
-// CanonicalTypeName returns canonical type name for given CRD
+// OpenAPICanonicalTypeName returns canonical type name for given CRD
 func (c *CRDCanonicalTypeNamer) OpenAPICanonicalTypeName() string {
 	return fmt.Sprintf("%s/%s.%s", c.group, c.version, c.kind)
 }
@@ -265,6 +269,7 @@ func (b *builder) buildRoute(root, path, action, verb string, sample interface{}
 		endpoints.AddObjectParams(b.ws, route, &metav1.CreateOptions{})
 	case "delete":
 		endpoints.AddObjectParams(b.ws, route, &metav1.DeleteOptions{})
+		route.Reads(&metav1.DeleteOptions{}).ParameterNamed("body").Required(false)
 	}
 
 	// Build responses
@@ -292,7 +297,7 @@ func (b *builder) buildKubeNative(schema *spec.Schema) *spec.Schema {
 		schema = &spec.Schema{
 			SchemaProps: spec.SchemaProps{Type: []string{"object"}},
 		}
-		// not we cannot add more properties here, not even TypeMeta/ObjectMeta because kubectl will complain about
+		// no, we cannot add more properties here, not even TypeMeta/ObjectMeta because kubectl will complain about
 		// unknown fields for anything else.
 	} else {
 		schema.SetProperty("metadata", *spec.RefSchema(objectMetaSchemaRef).
@@ -334,7 +339,7 @@ func addTypeMetaProperties(s *spec.Schema) {
 
 // buildListSchema builds the list kind schema for the CRD
 func (b *builder) buildListSchema() *spec.Schema {
-	name := definitionPrefix + openapi.FriendlyName(fmt.Sprintf("%s/%s/%s", b.group, b.version, b.kind))
+	name := definitionPrefix + util.ToRESTFriendlyName(fmt.Sprintf("%s/%s/%s", b.group, b.version, b.kind))
 	doc := fmt.Sprintf("List of %s. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md", b.plural)
 	s := new(spec.Schema).WithDescription(fmt.Sprintf("%s is a list of %s", b.listKind, b.kind)).
 		WithRequired("items").
@@ -388,7 +393,11 @@ func (b *builder) getOpenAPIConfig() *common.Config {
 
 func newBuilder(crd *apiextensions.CustomResourceDefinition, version string, schema *spec.Schema) *builder {
 	b := &builder{
-		ws: &restful.WebService{},
+		schema: &spec.Schema{
+			SchemaProps: spec.SchemaProps{Type: []string{"object"}},
+		},
+		listSchema: &spec.Schema{},
+		ws:         &restful.WebService{},
 
 		group:    crd.Spec.Group,
 		version:  version,

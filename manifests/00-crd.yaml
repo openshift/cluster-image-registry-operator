@@ -157,6 +157,53 @@ spec:
                     claim:
                       type: string
                   type: object
+                s3:
+                  description: S3 represents configuration that uses Amazon Simple
+                    Storage Service.
+                  properties:
+                    bucket:
+                      description: Bucket is the bucket name in which you want to
+                        store the registry's data Optional, will be generated if not
+                        provided
+                      type: string
+                    cloudFront:
+                      description: CloudFront configures Amazon Cloudfront as the
+                        storage middleware in a registry.
+                      properties:
+                        baseURL:
+                          description: BaseURL contains the SCHEME://HOST[/PATH] at
+                            which Cloudfront is served.
+                          type: string
+                        duration:
+                          description: Duration is the duration of the Cloudfront
+                            session (optional).
+                          type: string
+                        keypairID:
+                          description: KeypairID is key pair ID provided by AWS.
+                          type: string
+                        privateKey:
+                          description: PrivateKey points to secret containing the
+                            private key, provided by AWS.
+                          type: object
+                      type: object
+                    encrypt:
+                      description: Encrypt specifies whether the registry stores the
+                        image in encrypted format or not Optional, defaults to false
+                      type: boolean
+                    keyID:
+                      description: KeyID is the KMS key ID to use for encryption Optional,
+                        Encrypt must be true, or this parameter is ignored
+                      type: string
+                    region:
+                      description: Region is the AWS region in which your bucket exists
+                        Optional, will be set based on the installed AWS Region
+                      type: string
+                    regionEndpoint:
+                      description: RegionEndpoint is the endpoint for S3 compatible
+                        storage services Optional, defaults based on the Region that
+                        is provided
+                      type: string
+                  type: object
                 swift:
                   description: Swift represents configuration that uses OpenStack
                     Object Storage. This configuration is EXPERIMENTAL and is subject
@@ -265,6 +312,53 @@ spec:
                   description: PVC represents configuration that uses a PersistentVolumeClaim.
                   properties:
                     claim:
+                      type: string
+                  type: object
+                s3:
+                  description: S3 represents configuration that uses Amazon Simple
+                    Storage Service.
+                  properties:
+                    bucket:
+                      description: Bucket is the bucket name in which you want to
+                        store the registry's data Optional, will be generated if not
+                        provided
+                      type: string
+                    cloudFront:
+                      description: CloudFront configures Amazon Cloudfront as the
+                        storage middleware in a registry.
+                      properties:
+                        baseURL:
+                          description: BaseURL contains the SCHEME://HOST[/PATH] at
+                            which Cloudfront is served.
+                          type: string
+                        duration:
+                          description: Duration is the duration of the Cloudfront
+                            session (optional).
+                          type: string
+                        keypairID:
+                          description: KeypairID is key pair ID provided by AWS.
+                          type: string
+                        privateKey:
+                          description: PrivateKey points to secret containing the
+                            private key, provided by AWS.
+                          type: object
+                      type: object
+                    encrypt:
+                      description: Encrypt specifies whether the registry stores the
+                        image in encrypted format or not Optional, defaults to false
+                      type: boolean
+                    keyID:
+                      description: KeyID is the KMS key ID to use for encryption Optional,
+                        Encrypt must be true, or this parameter is ignored
+                      type: string
+                    region:
+                      description: Region is the AWS region in which your bucket exists
+                        Optional, will be set based on the installed AWS Region
+                      type: string
+                    regionEndpoint:
+                      description: RegionEndpoint is the endpoint for S3 compatible
+                        storage services Optional, defaults based on the Region that
+                        is provided
                       type: string
                   type: object
                 swift:
