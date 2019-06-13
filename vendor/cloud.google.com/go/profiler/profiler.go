@@ -188,7 +188,7 @@ func (o *allowUntilSuccess) do(f func() error) (err error) {
 			o.done = 1
 		}
 	} else {
-		debugLog("profiler.Start() called again after it was previously called")
+		log.Printf("profiler.Start() called again after it was previously called")
 		err = nil
 	}
 	return err

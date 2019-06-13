@@ -1,5 +1,3 @@
-// +build go1.12
-
 /*
  *
  * Copyright 2019 gRPC authors.
@@ -39,11 +37,12 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/serviceconfig"
 )
 
 const (
 	defaultTimeout = 10 * time.Second
-	xdsName        = "xds"
+	xdsName        = "xds_experimental"
 )
 
 var (
@@ -90,6 +89,14 @@ func (b *xdsBalancerBuilder) Build(cc balancer.ClientConn, opts balancer.BuildOp
 
 func (b *xdsBalancerBuilder) Name() string {
 	return xdsName
+}
+
+func (b *xdsBalancerBuilder) ParseConfig(c json.RawMessage) (serviceconfig.LoadBalancingConfig, error) {
+	var cfg xdsConfig
+	if err := json.Unmarshal(c, &cfg); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal balancer config %s into xds config", string(c))
+	}
+	return &cfg, nil
 }
 
 // edsBalancerInterface defines the interface that edsBalancer must implement to
@@ -219,26 +226,6 @@ func (x *xdsBalancer) run() {
 	}
 }
 
-func getBalancerConfig(serviceConfig string) *xdsConfig {
-	sc := parseFullServiceConfig(serviceConfig)
-	if sc == nil {
-		return nil
-	}
-	var xdsConfigRaw json.RawMessage
-	for _, lbcfg := range sc.LoadBalancingConfig {
-		if lbcfg.Name == xdsName {
-			xdsConfigRaw = lbcfg.Config
-			break
-		}
-	}
-	var cfg xdsConfig
-	if err := json.Unmarshal(xdsConfigRaw, &cfg); err != nil {
-		grpclog.Warningf("unable to unmarshal balancer config %s into xds config", string(xdsConfigRaw))
-		return nil
-	}
-	return &cfg
-}
-
 func (x *xdsBalancer) handleGRPCUpdate(update interface{}) {
 	switch u := update.(type) {
 	case *subConnStateUpdate:
@@ -252,11 +239,10 @@ func (x *xdsBalancer) handleGRPCUpdate(update interface{}) {
 				x.fallbackLB.HandleSubConnStateChange(u.sc, u.state.ConnectivityState)
 			}
 		}
-	case *resolver.State:
-		cfg := getBalancerConfig(u.ServiceConfig)
+	case *balancer.ClientConnState:
+		cfg, _ := u.BalancerConfig.(*xdsConfig)
 		if cfg == nil {
-			// service config parsing failed. should never happen. And this parsing will be removed, once
-			// we support service config validation.
+			// service config parsing failed. should never happen.
 			return
 		}
 
@@ -268,7 +254,7 @@ func (x *xdsBalancer) handleGRPCUpdate(update interface{}) {
 				x.startNewXDSClient(cfg)
 				x.config = cfg
 				x.fallbackInitData = &resolver.State{
-					Addresses: u.Addresses,
+					Addresses: u.ResolverState.Addresses,
 					// TODO(yuxuanli): get the fallback balancer config once the validation change completes, where
 					// we can pass along the config struct.
 				}
@@ -294,15 +280,15 @@ func (x *xdsBalancer) handleGRPCUpdate(update interface{}) {
 			}
 		}
 
-		if x.fallbackLB != nil && (!reflect.DeepEqual(x.fallbackInitData.Addresses, u.Addresses) || fallbackChanged) {
+		if x.fallbackLB != nil && (!reflect.DeepEqual(x.fallbackInitData.Addresses, u.ResolverState.Addresses) || fallbackChanged) {
 			x.updateFallbackWithResolverState(&resolver.State{
-				Addresses: u.Addresses,
+				Addresses: u.ResolverState.Addresses,
 			})
 		}
 
 		x.config = cfg
 		x.fallbackInitData = &resolver.State{
-			Addresses: u.Addresses,
+			Addresses: u.ResolverState.Addresses,
 			// TODO(yuxuanli): get the fallback balancer config once the validation change completes, where
 			// we can pass along the config struct.
 		}
@@ -416,20 +402,7 @@ func (x *xdsBalancer) UpdateSubConnState(sc balancer.SubConn, state balancer.Sub
 	}
 }
 
-type serviceConfig struct {
-	LoadBalancingConfig []*loadBalancingConfig
-}
-
-func parseFullServiceConfig(s string) *serviceConfig {
-	var ret serviceConfig
-	err := json.Unmarshal([]byte(s), &ret)
-	if err != nil {
-		return nil
-	}
-	return &ret
-}
-
-func (x *xdsBalancer) UpdateResolverState(s resolver.State) {
+func (x *xdsBalancer) UpdateClientConnState(s balancer.ClientConnState) {
 	select {
 	case x.grpcUpdate <- &s:
 	case <-x.ctx.Done():
@@ -450,9 +423,8 @@ func (x *xdsBalancer) newADSResponse(ctx context.Context, resp proto.Message) er
 	var update interface{}
 	switch u := resp.(type) {
 	case *cdspb.Cluster:
-		if u.GetName() != x.buildOpts.Target.Endpoint {
-			return fmt.Errorf("unmatched service name, got %s, want %s", u.GetName(), x.buildOpts.Target.Endpoint)
-		}
+		// TODO: EDS requests should use CDS response's Name. Store
+		// `u.GetName()` in `x.clusterName` and use it in xds_client.
 		if u.GetType() != cdspb.Cluster_EDS {
 			return fmt.Errorf("unexpected service discovery type, got %v, want %v", u.GetType(), cdspb.Cluster_EDS)
 		}
@@ -497,11 +469,11 @@ func (x *xdsBalancer) switchFallback() {
 
 func (x *xdsBalancer) updateFallbackWithResolverState(s *resolver.State) {
 	if lb, ok := x.fallbackLB.(balancer.V2Balancer); ok {
-		lb.UpdateResolverState(resolver.State{
+		lb.UpdateClientConnState(balancer.ClientConnState{ResolverState: resolver.State{
 			Addresses: s.Addresses,
 			// TODO(yuxuanli): get the fallback balancer config once the validation change completes, where
 			// we can pass along the config struct.
-		})
+		}})
 	} else {
 		x.fallbackLB.HandleResolvedAddrs(s.Addresses, nil)
 	}
@@ -540,6 +512,7 @@ func (x *xdsBalancer) buildFallBackBalancer(c *xdsConfig) {
 	// builder will always be non-nil, since when parse JSON into xdsConfig, we check whether the specified
 	// balancer is registered or not.
 	builder := balancer.Get(c.FallBackPolicy.Name)
+
 	x.fallbackLB = builder.Build(x.cc, x.buildOpts)
 }
 
@@ -598,6 +571,7 @@ func createDrainedTimer() *time.Timer {
 }
 
 type xdsConfig struct {
+	serviceconfig.LoadBalancingConfig
 	BalancerName   string
 	ChildPolicy    *loadBalancingConfig
 	FallBackPolicy *loadBalancingConfig

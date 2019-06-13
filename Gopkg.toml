@@ -10,7 +10,10 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/gengo/args",
   "github.com/openshift/library-go/cmd/crd-schema-gen",
-  "golang.org/x/net/http/httpproxy"
+  "golang.org/x/net/http/httpproxy",
+  "cloud.google.com/go",
+  "github.com/aws/aws-sdk-go",
+  "github.com/googleapis/gax-go",
 ]
 
 [[override]]
@@ -58,6 +61,10 @@ required = [
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
   version = "1.19.47"
+
+[[constraint]]
+  name = "cloud.google.com/go"
+  version = "v0.40.0"
 
 [[constraint]]
   branch = "master"

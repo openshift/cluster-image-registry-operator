@@ -1,12 +1,14 @@
 package cluster
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/user"
 
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
+	gcpprovider "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	libvirtprovider "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1beta1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -20,15 +22,18 @@ import (
 	"github.com/openshift/installer/pkg/asset/ignition/machine"
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	azureconfig "github.com/openshift/installer/pkg/asset/installconfig/azure"
+	gcpconfig "github.com/openshift/installer/pkg/asset/installconfig/gcp"
 	"github.com/openshift/installer/pkg/asset/machines"
 	"github.com/openshift/installer/pkg/asset/rhcos"
 	"github.com/openshift/installer/pkg/tfvars"
 	awstfvars "github.com/openshift/installer/pkg/tfvars/aws"
 	azuretfvars "github.com/openshift/installer/pkg/tfvars/azure"
+	gcptfvars "github.com/openshift/installer/pkg/tfvars/gcp"
 	libvirttfvars "github.com/openshift/installer/pkg/tfvars/libvirt"
 	openstacktfvars "github.com/openshift/installer/pkg/tfvars/openstack"
 	"github.com/openshift/installer/pkg/types/aws"
 	"github.com/openshift/installer/pkg/types/azure"
+	"github.com/openshift/installer/pkg/types/gcp"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
@@ -170,6 +175,34 @@ func (t *TerraformVariables) Generate(parents asset.Parents) error {
 		data, err := azuretfvars.TFVars(
 			auth,
 			installConfig.Config.Azure.BaseDomainResourceGroupName,
+			masterConfigs,
+		)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get %s Terraform variables", platform)
+		}
+		t.FileList = append(t.FileList, &asset.File{
+			Filename: fmt.Sprintf(TfPlatformVarsFileName, platform),
+			Data:     data,
+		})
+	case gcp.Name:
+		sess, err := gcpconfig.GetSession(context.TODO())
+		if err != nil {
+			return err
+		}
+		auth := gcptfvars.Auth{
+			ProjectID:      installConfig.Config.GCP.ProjectID,
+			ServiceAccount: string(sess.Credentials.JSON),
+		}
+		masters, err := mastersAsset.Machines()
+		if err != nil {
+			return err
+		}
+		masterConfigs := make([]*gcpprovider.GCPMachineProviderSpec, len(masters))
+		for i, m := range masters {
+			masterConfigs[i] = m.Spec.ProviderSpec.Value.Object.(*gcpprovider.GCPMachineProviderSpec)
+		}
+		data, err := gcptfvars.TFVars(
+			auth,
 			masterConfigs,
 		)
 		if err != nil {

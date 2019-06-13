@@ -57,7 +57,6 @@ func insertMetadata(ctx context.Context, mds ...metadata.MD) context.Context {
 func DefaultAuthScopes() []string {
 	return []string{
 		"https://www.googleapis.com/auth/cloud-platform",
-		"https://www.googleapis.com/auth/cloudkms",
 	}
 }
 
@@ -98,4 +97,4 @@ func versionGo() string {
 	return "UNKNOWN"
 }
 
-const versionClient = "20190626"
+const versionClient = "20190528"
