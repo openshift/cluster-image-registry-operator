@@ -10,7 +10,7 @@
   version = "v0.40.0"
 
 [[projects]]
-  digest = "1:a960a527552b31abd560811cdb88fe599482513c2d30ab322532a7e725dcf564"
+  digest = "1:bbdcfeb04711ba8d71bcce0391627e15a5e3373c70c5111c8bd6cef7e3dfbf7e"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -50,8 +50,8 @@
     "service/sts",
   ]
   pruneopts = ""
-  revision = "bdafd99f31a0103ec73bcabfc9498aef3252d515"
-  version = "v1.19.47"
+  revision = "b9b2c2cd61a6814e3cd5d07e4c200dac18b357a4"
+  version = "v1.19.49"
 
 [[projects]]
   digest = "1:0deddd908b6b4b768cfc272c16ee61e7088a60f7fe2f06c547bd3d8e1f8b8e77"
@@ -148,7 +148,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1a3f6645cd32274c5d2ba22273a994b3b43c5807ea72bc88ed374940e3acdee2"
+  digest = "1:374b5718b94a8831c43a77c6c7ca2866f2e95ab48a57c6b4b40b8d31ce5b47cb"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -162,7 +162,7 @@
     "testhelper",
   ]
   pruneopts = ""
-  revision = "46d131b669762bc8c44f6523abd7c8a8e1df1a8b"
+  revision = "75c6f25947188acd3c5b5e2ecd225d2a349c08cf"
 
 [[projects]]
   branch = "master"
@@ -239,7 +239,8 @@
   version = "1.0.1"
 
 [[projects]]
-  digest = "1:1267d3ab59b1de9f72b0bd74615c0926814806fbf2a6136cffc0fe1ee66a22f4"
+  branch = "master"
+  digest = "1:ffb981d4dd895d161c980cacbfb5145cefe469ec8c86b498d5ec9d6f7aac541b"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -247,10 +248,11 @@
     "route/v1",
   ]
   pruneopts = ""
-  revision = "master"
+  revision = "5114e14c97ff18657b68d15224a520a278861e8a"
 
 [[projects]]
-  digest = "1:a264cd682e37db6e9045406d17c2dd70ced6f085a2ace94a0087dbfb48cfff71"
+  branch = "master"
+  digest = "1:bd3f6f9ab7b465bafa9332ae82a90b4f3fd40f98bfa1985ff011400299a92a97"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -271,11 +273,11 @@
     "route/listers/route/v1",
   ]
   pruneopts = ""
-  revision = "master"
+  revision = "f4b242dfe08529a11803996e325ab6dc127d4e1d"
 
 [[projects]]
   branch = "master"
-  digest = "1:7dbf84b2be1b2c2bf2bf1ea2a3d6db9314d053451f315e4e8fcd80cfdced1149"
+  digest = "1:85bf5f9db5a78e870f94a0439fc1bb38696c790105f99b7d5f52c04a5b08570d"
   name = "github.com/openshift/installer"
   packages = [
     "pkg/ipnet",
@@ -288,10 +290,11 @@
     "pkg/types/vsphere",
   ]
   pruneopts = ""
-  revision = "7cc42fa81b7a26c6ae180af3ff097f32d8c30c51"
+  revision = "7a54a6b120a0044cf9c07b14331760af8e3c216b"
 
 [[projects]]
-  digest = "1:8fee784e23b7798b98e7ff9d6178cf0e55304982186aed461197addf64f96bc5"
+  branch = "master"
+  digest = "1:0f141e35ca7c5c47f61bb8de2a5e0fcda6bb6f8bccda609e974ba371e2d3c42f"
   name = "github.com/openshift/library-go"
   packages = [
     "cmd/crd-schema-gen",
@@ -299,7 +302,7 @@
     "pkg/operator/resource/resourceread",
   ]
   pruneopts = ""
-  revision = "master"
+  revision = "82c43d8ee9b1b3230025e0b1f347f6590f78ab36"
 
 [[projects]]
   digest = "1:a5484d4fa43127138ae6e7b2299a6a52ae006c7f803d98d717f60abf3e97192e"
@@ -350,11 +353,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9d150270ca2c3356f2224a0878daa1652e4d0b25b345f18b4f6e156cc4b8ec5e"
+  digest = "1:a688b7859ee696f20cc5823f4685da54850e388fe9e7288f5d1653de48162c55"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = ""
-  revision = "f99c8df09eb5bff426315721bfa5f16a99cad32c"
+  revision = "5c40567a22f818bd14a1ea7245dad9f8ef0691aa"
 
 [[projects]]
   branch = "master"
@@ -387,14 +390,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e2a6a7d92d5bdb8002c65aa0916c725c4afc019827d415a46046acafc42edb16"
+  digest = "1:6e7646c0e844c2dc1950f6f9ce089ef7b978241a6c789adccdba925136d50655"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = ""
-  revision = "93c9922d18aeb82498a065f07aec7ad7fa60dfb7"
+  revision = "5ed2794edfdc1c54dfb61d619c5944285f35d444"
 
 [[projects]]
   digest = "1:740b51a55815493a8d0f2b1e0d0ae48fe48953bf7eaf3fcc4198823bf67768c0"
@@ -431,7 +434,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:38f2af4bd8dfecd292807c9ca3d117f922926286bf7d287ecd783d04c782b71a"
+  digest = "1:250e38e8ef1c6acfc58a730c6bccd34453f676c3eea3c916df041ad987f2a765"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -448,7 +451,7 @@
     "internal/semver",
   ]
   pruneopts = ""
-  revision = "1d0142ba474adf78a8a775fad0cda91af822e947"
+  revision = "d4e310b4a8a5f0fe33e0a7e813a14ff19b433da4"
 
 [[projects]]
   digest = "1:47f391ee443f578f01168347818cb234ed819521e49e4d2c8dd2fb80d48ee41a"
@@ -533,14 +536,14 @@
 
 [[projects]]
   branch = "origin-4.2-kubernetes-1.14.0"
-  digest = "1:726ddb893a95d79f36980c4481cb50ee3d506ec971461903c2ac283853506554"
+  digest = "1:7282eda39889742c26b2fa6ae6c3c144b5e0d5b98304785a3b58a30f4b2a5d1c"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
     "pkg/apis/apiextensions/v1beta1",
   ]
   pruneopts = ""
-  revision = "b146dc0b36ca23726a14389af9d690bc1d5c4d21"
+  revision = "d4b26e32461e939592c021a8a75d9f1b2c809d08"
   source = "https://github.com/openshift/kubernetes-apiextensions-apiserver.git"
 
 [[projects]]
@@ -809,12 +812,12 @@
   revision = "e17681d19d3ac4837a019ece36c2a0ec31ffe985"
 
 [[projects]]
-  digest = "1:975a70b988168c3be18acc1d95bca85974f18be63c2024d14eb97fdcacab672a"
+  digest = "1:9eaf86f4f6fb4a8f177220d488ef1e3255d06a691cca95f14ef085d4cd1cef3c"
   name = "k8s.io/klog"
   packages = ["."]
   pruneopts = ""
-  revision = "78315d914a8af2453db4864e69230b647b1ff711"
-  version = "v0.3.2"
+  revision = "d98d8acdac006fb39831f1b25640813fef9c314f"
+  version = "v0.3.3"
 
 [[projects]]
   branch = "master"
