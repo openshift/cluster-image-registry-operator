@@ -86,14 +86,14 @@ func (gr *generatorRoute) expected() (runtime.Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		if v, ok := secret.StringData["tls.crt"]; ok {
-			r.Spec.TLS.Certificate = v
+		if v, ok := secret.Data["tls.crt"]; ok {
+			r.Spec.TLS.Certificate = string(v)
 		}
-		if v, ok := secret.StringData["tls.key"]; ok {
-			r.Spec.TLS.Key = v
+		if v, ok := secret.Data["tls.key"]; ok {
+			r.Spec.TLS.Key = string(v)
 		}
-		if v, ok := secret.StringData["tls.cacrt"]; ok {
-			r.Spec.TLS.CACertificate = v
+		if v, ok := secret.Data["tls.cacrt"]; ok {
+			r.Spec.TLS.CACertificate = string(v)
 		}
 	}
 	return r, nil
