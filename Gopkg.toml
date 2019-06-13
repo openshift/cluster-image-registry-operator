@@ -44,15 +44,15 @@ required = [
 
 [[override]]
   name = "github.com/openshift/client-go"
-  revision = "master"
+  branch = "master"
 
 [[override]]
   name = "github.com/openshift/api"
-  revision = "master"
+  branch = "master"
 
 [[override]]
   name = "github.com/openshift/library-go"
-  revision = "master"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"

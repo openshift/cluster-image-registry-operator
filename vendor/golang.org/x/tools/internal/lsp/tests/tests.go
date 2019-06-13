@@ -1,4 +1,4 @@
-// Copyright 2019q The Go Authors. All rights reserved.
+// Copyright 2019 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import (
 	"context"
 	"flag"
 	"go/ast"
-	"go/parser"
 	"go/token"
 	"io/ioutil"
 	"path/filepath"
@@ -26,7 +25,7 @@ import (
 // We hardcode the expected number of test cases to ensure that all tests
 // are being executed. If a test is added, this number must be changed.
 const (
-	ExpectedCompletionsCount       = 121
+	ExpectedCompletionsCount       = 122
 	ExpectedCompletionSnippetCount = 14
 	ExpectedDiagnosticsCount       = 17
 	ExpectedFormatCount            = 5
@@ -191,7 +190,7 @@ func Load(t testing.TB, exporter packagestest.Exporter, dir string) *Data {
 	data.Config.Fset = token.NewFileSet()
 	data.Config.Context = context.Background()
 	data.Config.ParseFile = func(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
-		return parser.ParseFile(fset, filename, src, parser.AllErrors|parser.ParseComments)
+		panic("ParseFile should not be called")
 	}
 
 	// Do a first pass to collect special markers for completion.
