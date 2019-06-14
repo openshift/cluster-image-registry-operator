@@ -1,8 +1,11 @@
 package swift
 
 import (
+	"fmt"
 	"math/rand"
+	"net/url"
 	"reflect"
+	"strings"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
@@ -45,6 +48,8 @@ func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.Servic
 	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Storage.Swift.Domain)
 	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.Storage.Swift.DomainID)
 	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.Storage.Swift.RegionName)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.Storage.Swift.IdentityAPIVersion)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
 
 	opts := &gophercloud.AuthOptions{
 		IdentityEndpoint: d.Config.AuthURL,
@@ -116,6 +121,13 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Storage.Swift.Domain)
 	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.Storage.Swift.DomainID)
 	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.Storage.Swift.RegionName)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.Storage.Swift.IdentityAPIVersion)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
+
+	err = d.ensureAuthURLHasAPIVersion()
+	if err != nil {
+		return nil, err
+	}
 
 	envs = append(envs,
 		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
@@ -148,9 +160,41 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			},
 		},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName},
+		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: d.Config.AuthVersion},
 	)
 
 	return
+}
+
+func (d *driver) ensureAuthURLHasAPIVersion() error {
+	authURL := d.Config.AuthURL
+	authVersion := d.Config.AuthVersion
+
+	parsedURL, err := url.Parse(authURL)
+	if err != nil {
+		return err
+	}
+
+	path := parsedURL.Path
+
+	// check if authUrl contains API version
+	if strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") || strings.HasPrefix(path, "/v3") {
+		return nil
+	}
+
+	// check that path is empty
+	if !(path == "/" || path == "") {
+		return fmt.Errorf("Incorrect Auth URL")
+	}
+
+	// append trailing / to the url
+	if !strings.HasSuffix(d.Config.AuthURL, "/") {
+		authURL = authURL + "/"
+	}
+
+	d.Config.AuthURL = authURL + "v" + authVersion
+
+	return nil
 }
 
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
