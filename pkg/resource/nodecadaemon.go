@@ -44,6 +44,10 @@ spec:
         securityContext:
           privileged: true
         image: docker.io/openshift/origin-cluster-image-registry-operator:latest
+        resources:
+          requests:
+            cpu: 10m
+            memory: 10Mi
         command:
         - "/bin/sh"
         - "-c"
