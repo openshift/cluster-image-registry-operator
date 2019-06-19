@@ -200,13 +200,14 @@ type ImageRegistryConfigStorageGCS struct {
 // the registry to use the OpenStack Swift service for backend storage
 // https://docs.docker.com/registry/storage-drivers/swift/
 type ImageRegistryConfigStorageSwift struct {
-	AuthURL    string `json:"authURL"`
-	Container  string `json:"container"`
-	Domain     string `json:"domain"`
-	DomainID   string `json:"domainID"`
-	Tenant     string `json:"tenant"`
-	TenantID   string `json:"tenantID"`
-	RegionName string `json:"regionName"`
+	AuthURL     string `json:"authURL"`
+	AuthVersion string `json:"authVersion"`
+	Container   string `json:"container"`
+	Domain      string `json:"domain"`
+	DomainID    string `json:"domainID"`
+	Tenant      string `json:"tenant"`
+	TenantID    string `json:"tenantID"`
+	RegionName  string `json:"regionName"`
 }
 
 type ImageRegistryConfigStoragePVC struct {

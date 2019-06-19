@@ -45,14 +45,15 @@ type S3 struct {
 }
 
 type Swift struct {
-	AuthURL    string
-	Username   string
-	Password   string
-	Tenant     string
-	TenantID   string
-	Domain     string
-	DomainID   string
-	RegionName string
+	AuthURL            string
+	Username           string
+	Password           string
+	Tenant             string
+	TenantID           string
+	Domain             string
+	DomainID           string
+	RegionName         string
+	IdentityAPIVersion string
 }
 
 type Storage struct {
@@ -205,6 +206,7 @@ func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
 					cfg.Storage.Swift.DomainID = cloud.AuthInfo.UserDomainID
 				}
 				cfg.Storage.Swift.RegionName = cloud.RegionName
+				cfg.Storage.Swift.IdentityAPIVersion = cloud.IdentityAPIVersion
 			} else {
 				return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
 			}

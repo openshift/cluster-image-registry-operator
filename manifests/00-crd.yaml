@@ -211,6 +211,8 @@ spec:
                   properties:
                     authURL:
                       type: string
+                    authVersion:
+                      type: string
                     container:
                       type: string
                     domain:
@@ -367,6 +369,8 @@ spec:
                     to change without notice.
                   properties:
                     authURL:
+                      type: string
+                    authVersion:
                       type: string
                     container:
                       type: string

@@ -547,6 +547,87 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	th.AssertEquals(t, true, res[7].ValueFrom != nil)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_PASSWORD", res[8].Name)
 	th.AssertEquals(t, true, res[8].ValueFrom != nil)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_REGION", res[9].Name)
+	th.AssertEquals(t, "RegionOne", res[9].Value)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHVERSION", res[10].Name)
+	th.AssertEquals(t, "3", res[10].Value)
+}
+
+func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
+	config := imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/v3",
+		AuthVersion: "3",
+	}
+	d := driver{
+		Config: &config,
+	}
+	err := d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/v3/",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v3/", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000",
+		AuthVersion: "2",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v2", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/v2.0",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v2.0", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "INVALID_URL",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertEquals(t, true, err != nil)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/abracadabra",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertEquals(t, true, err != nil)
 }
 
 func TestSwiftEndpointTypeObjectStore(t *testing.T) {
