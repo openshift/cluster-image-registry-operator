@@ -59,7 +59,11 @@ const (
 	// that we created has encryption enabled
 	StorageEncrypted = "StorageEncrypted"
 
-	// StorageIncompleteUploadCleanupEnabled denotes whethere or not the registry storage
+	// StoragePublicAccessBlocked denotes whether or not the registry storage medium
+	// that we created has had public access to itself and its objects blocked
+	StoragePublicAccessBlocked = "StoragePublicAccessBlocked"
+
+	// StorageIncompleteUploadCleanupEnabled denotes whether or not the registry storage
 	// medium is configured to automatically cleanup incomplete uploads
 	StorageIncompleteUploadCleanupEnabled = "StorageIncompleteUploadCleanupEnabled"
 
