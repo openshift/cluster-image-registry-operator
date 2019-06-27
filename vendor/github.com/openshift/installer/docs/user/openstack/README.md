@@ -12,7 +12,7 @@ The installer assumes the following about the OpenStack cloud you run against:
 * You must create a `clouds.yaml` file with the auth URL and credentials
     necessary to access the OpenStack cloud you want to use.  Information on
     this file can be found at
-    https://docs.openstack.org/os-client-config/latest/user/configuration.html
+    https://docs.openstack.org/openstacksdk/latest/user/config/configuration.html#config-files
     and it looks like:
 ```
 clouds:
@@ -45,10 +45,10 @@ enough to store the ignition config files, so they are served by swift instead.
   values. For example (as an OpenStack admin) `openstack quota set --secgroups 100 --secgroup-rules 1000 <project>`
 
 * The installer requires a proper RHCOS image in the OpenStack cluster or project:
-`openstack image create --container-format=bare --disk-format=qcow2 --file rhcos-${RHCOSVERSION}-openstack.qcow2 rhcos-${RHCOSVERSION}`
+`openstack image create --container-format=bare --disk-format=qcow2 --file rhcos-${RHCOSVERSION}-openstack.qcow2 rhcos`
 
 **NOTE:** Depending on your OpenStack environment you can upload the RHCOS image
-as `raw` or `qcow2`. See [Disk and container formats for images](https://docs.openstack.org/image-guide/image-formats.html) for more information.
+as `raw` or `qcow2`. See [Disk and container formats for images](https://docs.openstack.org/image-guide/image-formats.html) for more information. The installer looks for an image named rhcos. This could be overridden via the `OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE` environment variable if for instance your cloud operator provides the image under a different name.
 
 * The public network should be created by the OSP admin. Verify the name/ID of the 'External' network:
 ```
@@ -59,6 +59,8 @@ openstack network list --long -c ID -c Name -c "Router Type"
 | 148a8023-62a7-4672-b018-003462f8d7dc | public_network | External    |
 +--------------------------------------+----------------+-------------+
 ```
+
+**NOTE:** If the `neutron` `trunk` service plugin is enabled, trunk port will be created by default. for more information, please refer to [neutron trunk port](https://wiki.openstack.org/wiki/Neutron/TrunkPort).
 
 ### Isolated Development
 

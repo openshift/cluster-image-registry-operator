@@ -11,9 +11,11 @@ import (
 	"go/scanner"
 	"go/token"
 	"go/types"
+	"sync"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/internal/lsp/source"
 	"golang.org/x/tools/internal/span"
 )
 
@@ -92,7 +94,6 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 	pkg := &pkg{
 		id:         meta.id,
 		pkgPath:    meta.pkgPath,
-		files:      meta.files,
 		imports:    make(map[packagePath]*pkg),
 		typesSizes: meta.typesSizes,
 		typesInfo: &types.Info{
@@ -105,14 +106,50 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 		},
 		analyses: make(map[*analysis.Analyzer]*analysisEntry),
 	}
+
 	// Ignore function bodies for any dependency packages.
-	ignoreFuncBodies := imp.topLevelPkgID != pkg.id
-	files, parseErrs, err := imp.parseFiles(meta.files, ignoreFuncBodies)
-	if err != nil {
-		return nil, err
+	mode := source.ParseFull
+	if imp.topLevelPkgID != pkg.id {
+		mode = source.ParseExported
 	}
-	for _, err := range parseErrs {
-		imp.view.appendPkgError(pkg, err)
+	var (
+		files []*astFile
+		phs   []source.ParseGoHandle
+		wg    sync.WaitGroup
+	)
+	for _, filename := range meta.files {
+		uri := span.FileURI(filename)
+		f, err := imp.view.getFile(imp.ctx, uri)
+		if err != nil {
+			continue
+		}
+		ph := imp.view.session.cache.ParseGoHandle(f.Handle(imp.ctx), mode)
+		phs = append(phs, ph)
+		files = append(files, &astFile{
+			uri:       ph.File().Identity().URI,
+			isTrimmed: mode == source.ParseExported,
+			ph:        ph,
+		})
+	}
+	for i, ph := range phs {
+		wg.Add(1)
+		go func(i int, ph source.ParseGoHandle) {
+			defer wg.Done()
+
+			files[i].file, files[i].err = ph.Parse(imp.ctx)
+		}(i, ph)
+	}
+	wg.Wait()
+
+	for _, f := range files {
+		pkg.files = append(pkg.files, f)
+
+		if f.err != nil {
+			if f.err == context.Canceled {
+				return nil, f.err
+			}
+			imp.view.session.cache.appendPkgError(pkg, f.err)
+		}
 	}
 
 	// Use the default type information for the unsafe package.
@@ -124,8 +161,6 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 		pkg.types = types.NewPackage(string(meta.pkgPath), meta.name)
 	}
 
-	pkg.syntax = files
-
 	// Handle circular imports by copying previously seen imports.
 	seen := make(map[packageID]struct{})
 	for k, v := range imp.seen {
@@ -135,9 +170,9 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 
 	cfg := &types.Config{
 		Error: func(err error) {
-			imp.view.appendPkgError(pkg, err)
+			imp.view.session.cache.appendPkgError(pkg, err)
 		},
-		IgnoreFuncBodies: ignoreFuncBodies,
+		IgnoreFuncBodies: mode == source.ParseExported,
 		Importer: &importer{
 			view:          imp.view,
 			ctx:           imp.ctx,
@@ -147,51 +182,31 @@ func (imp *importer) typeCheck(id packageID) (*pkg, error) {
 		},
 	}
 	check := types.NewChecker(cfg, imp.fset, pkg.types, pkg.typesInfo)
+
+	// Ignore type-checking errors.
 	check.Files(pkg.GetSyntax())
 
 	// Add every file in this package to our cache.
-	imp.cachePackage(imp.ctx, pkg, meta)
+	if err := imp.cachePackage(imp.ctx, pkg, meta, mode); err != nil {
+		return nil, err
+	}
 
 	return pkg, nil
 }
 
-func (imp *importer) cachePackage(ctx context.Context, pkg *pkg, meta *metadata) {
-	for _, filename := range pkg.files {
-		// TODO: If a file is in multiple packages, which package do we store?
-
-		fURI := span.FileURI(filename)
-		f, err := imp.view.getFile(fURI)
+func (imp *importer) cachePackage(ctx context.Context, pkg *pkg, meta *metadata, mode source.ParseMode) error {
+	for _, file := range pkg.files {
+		f, err := imp.view.getFile(ctx, file.uri)
 		if err != nil {
-			imp.view.Session().Logger().Errorf(ctx, "no file: %v", err)
-			continue
+			return fmt.Errorf("no such file %s: %v", file.uri, err)
 		}
 		gof, ok := f.(*goFile)
 		if !ok {
-			imp.view.Session().Logger().Errorf(ctx, "%v is not a Go file", f.URI())
-			continue
+			return fmt.Errorf("non Go file %s", file.uri)
 		}
-
-		// Set the package even if we failed to parse the file otherwise
-		// future updates to this file won't refresh the package.
-		gof.pkg = pkg
-
-		fAST := pkg.syntax[filename]
-		if fAST == nil {
-			continue
+		if err := imp.cachePerFile(gof, file, pkg); err != nil {
+			return fmt.Errorf("failed to cache file %s: %v", gof.URI(), err)
 		}
-
-		if !fAST.file.Pos().IsValid() {
-			imp.view.Session().Logger().Errorf(ctx, "invalid position for file %v", fAST.file.Name)
-			continue
-		}
-		tok := imp.view.Session().Cache().FileSet().File(fAST.file.Pos())
-		if tok == nil {
-			imp.view.Session().Logger().Errorf(ctx, "no token.File for %v", fAST.file.Name)
-			continue
-		}
-		gof.token = tok
-		gof.ast = fAST
-		gof.imports = fAST.file.Imports
 	}
 
 	// Set imports of package to correspond to cached packages.
@@ -204,9 +219,43 @@ func (imp *importer) cachePackage(ctx context.Context, pkg *pkg, meta *metadata)
 		}
 		pkg.imports[importPkg.pkgPath] = importPkg
 	}
+
+	return nil
 }
 
-func (v *view) appendPkgError(pkg *pkg, err error) {
+func (imp *importer) cachePerFile(gof *goFile, file *astFile, p *pkg) error {
+	gof.mu.Lock()
+	defer gof.mu.Unlock()
+
+	// Set the package even if we failed to parse the file.
+	if gof.pkgs == nil {
+		gof.pkgs = make(map[packageID]*pkg)
+	}
+	gof.pkgs[p.id] = p
+
+	// Get the AST for the file.
+	gof.ast = file
+	if gof.ast == nil {
+		return fmt.Errorf("no AST information for %s", file.uri)
+	}
+	if gof.ast.file == nil {
+		return fmt.Errorf("no AST for %s", file.uri)
+	}
+	// Get the *token.File directly from the AST.
+	pos := gof.ast.file.Pos()
+	if !pos.IsValid() {
+		return fmt.Errorf("AST for %s has an invalid position", file.uri)
+	}
+	tok := imp.view.session.cache.FileSet().File(pos)
+	if tok == nil {
+		return fmt.Errorf("no *token.File for %s", file.uri)
+	}
+	gof.token = tok
+	gof.imports = gof.ast.file.Imports
+	return nil
+}
+
+func (c *cache) appendPkgError(pkg *pkg, err error) {
 	if err == nil {
 		return
 	}
@@ -229,7 +278,7 @@ func (v *view) appendPkgError(pkg *pkg, err error) {
 		}
 	case types.Error:
 		errs = append(errs, packages.Error{
-			Pos:  v.Session().Cache().FileSet().Position(err.Pos).String(),
+			Pos:  c.FileSet().Position(err.Pos).String(),
 			Msg:  err.Msg,
 			Kind: packages.TypeError,
 		})

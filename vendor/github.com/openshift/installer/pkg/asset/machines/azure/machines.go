@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	cloudsSecret          = "azure-credentials"
-	cloudsSecretNamespace = "kube-system"
+	cloudsSecret          = "azure-cloud-credentials"
+	cloudsSecretNamespace = "openshift-machine-api"
 )
 
 // Machines returns a list of machines for a machinepool.
@@ -37,7 +37,7 @@ func Machines(clusterID string, config *types.InstallConfig, pool *types.Machine
 	}
 	var machines []machineapi.Machine
 	for idx := int64(0); idx < total; idx++ {
-		provider, err := provider(platform, mpool, osImage, userDataSecret)
+		provider, err := provider(platform, mpool, osImage, userDataSecret, clusterID, role)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create provider")
 		}
@@ -69,7 +69,7 @@ func Machines(clusterID string, config *types.InstallConfig, pool *types.Machine
 	return machines, nil
 }
 
-func provider(platform *azure.Platform, mpool *azure.MachinePool, osImage string, userDataSecret string) (*azureprovider.AzureMachineProviderSpec, error) {
+func provider(platform *azure.Platform, mpool *azure.MachinePool, osImage string, userDataSecret string, clusterID string, role string) (*azureprovider.AzureMachineProviderSpec, error) {
 	return &azureprovider.AzureMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "azureprovider.k8s.io/v1alpha1",
@@ -84,11 +84,14 @@ func provider(platform *azure.Platform, mpool *azure.MachinePool, osImage string
 		},
 		OSDisk: azureprovider.OSDisk{
 			OSType:     "Linux",
-			DiskSizeGB: 64,
+			DiskSizeGB: mpool.OSDisk.DiskSizeGB,
 			ManagedDisk: azureprovider.ManagedDisk{
 				StorageAccountType: "Premium_LRS",
 			},
 		},
+		Subnet:          fmt.Sprintf("%s-%s-subnet", clusterID, role),
+		ManagedIdentity: fmt.Sprintf("%s-identity", clusterID),
+		Vnet:            fmt.Sprintf("%s-vnet", clusterID),
 	}, nil
 }
 

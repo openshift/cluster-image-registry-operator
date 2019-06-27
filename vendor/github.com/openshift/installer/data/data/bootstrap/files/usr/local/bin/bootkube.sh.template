@@ -110,7 +110,7 @@ then
 		/usr/bin/cluster-kube-apiserver-operator render \
 		--manifest-etcd-serving-ca=etcd-ca-bundle.crt \
 		--manifest-etcd-server-urls={{.EtcdCluster}} \
-		--manifest-image=${OPENSHIFT_HYPERSHIFT_IMAGE} \
+		--manifest-image=${OPENSHIFT_HYPERKUBE_IMAGE} \
 		--asset-input-dir=/assets/tls \
 		--asset-output-dir=/assets/kube-apiserver-bootstrap \
 		--config-output-file=/assets/kube-apiserver-bootstrap/config \
@@ -198,6 +198,7 @@ then
 			--machine-config-controller-image=${MACHINE_CONFIG_CONTROLLER_IMAGE} \
 			--machine-config-server-image=${MACHINE_CONFIG_SERVER_IMAGE} \
 			--machine-config-daemon-image=${MACHINE_CONFIG_DAEMON_IMAGE} \
+			--machine-config-operator-image=${MACHINE_CONFIG_OPERATOR_IMAGE} \
 			--machine-config-oscontent-image=${MACHINE_CONFIG_OSCONTENT} \
 			--infra-image=${MACHINE_CONFIG_INFRA_IMAGE} \
 			--cloud-config-file=/assets/manifests/cloud-provider-config.yaml

@@ -7,9 +7,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	clusterapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/azure"
-	clusterapi "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 // MachineSets returns a list of machinesets for a machinepool.
@@ -29,7 +29,7 @@ func MachineSets(clusterID string, config *types.InstallConfig, pool *types.Mach
 	}
 
 	var machinesets []*clusterapi.MachineSet
-	provider, err := provider(platform, mpool, osImage, userDataSecret)
+	provider, err := provider(platform, mpool, osImage, userDataSecret, clusterID, role)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create provider")
 	}

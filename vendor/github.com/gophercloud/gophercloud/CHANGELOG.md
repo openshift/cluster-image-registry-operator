@@ -1,4 +1,9 @@
-## 0.2.0 (Unreleased)
+## 0.3.0 (Unreleaesd)
+
+* Added `openstack/baremetal/apiversions.List` [GH-1577]
+* Added `openstack/baremetal/apiversions.Get` [GH-1577]
+
+## 0.2.0 (June 17, 2019)
 
 IMPROVEMENTS
 
@@ -21,10 +26,12 @@ IMPROVEMENTS
 * Added `networking/v2/extensions/qos/rules.ListMinimumBandwidthRules` [GH-1615](https://github.com/gophercloud/gophercloud/pull/1615)
 * Added `networking/v2/extensions/qos/rules.GetMinimumBandwidthRule` [GH-1615](https://github.com/gophercloud/gophercloud/pull/1615)
 * Added `networking/v2/extensions/qos/rules.CreateMinimumBandwidthRule` [GH-1615](https://github.com/gophercloud/gophercloud/pull/1615)
-* Added `Hostname` to `baremetalintrospection/v1/introspection.Data` [GH-1617](https://github.com/gophercloud/gophercloud/pull/1617)
+* Added `Hostname` to `baremetalintrospection/v1/introspection.Data` [GH-1627](https://github.com/gophercloud/gophercloud/pull/1627)
 * Added `networking/v2/extensions/qos/rules.UpdateMinimumBandwidthRule` [GH-1624](https://github.com/gophercloud/gophercloud/pull/1624)
 * Added `networking/v2/extensions/qos/rules.DeleteMinimumBandwidthRule` [GH-1624](https://github.com/gophercloud/gophercloud/pull/1624)
 * Added `networking/v2/extensions/qos/ruletypes.GetRuleType` [GH-1625](https://github.com/gophercloud/gophercloud/pull/1625)
+* Added `Extra` to `baremetalintrospection/v1/introspection.Data` [GH-1611](https://github.com/gophercloud/gophercloud/pull/1611)
+* Added `blockstorage/extensions/volumeactions.SetImageMetadata` [GH-1621](https://github.com/gophercloud/gophercloud/pull/1621)
 
 BUG FIXES
 

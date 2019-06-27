@@ -12,6 +12,7 @@ import (
 	"github.com/openshift/installer/pkg/ipnet"
 	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/types/aws"
+	"github.com/openshift/installer/pkg/types/gcp"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
 	"github.com/openshift/installer/pkg/types/openstack"
@@ -59,6 +60,13 @@ func validAWSPlatform() *aws.Platform {
 	}
 }
 
+func validGCPPlatform() *gcp.Platform {
+	return &gcp.Platform{
+		ProjectID: "myProject",
+		Region:    "us-east1",
+	}
+}
+
 func validLibvirtPlatform() *libvirt.Platform {
 	return &libvirt.Platform{
 		URI: "qemu+tcp://192.168.122.1/system",
@@ -77,6 +85,7 @@ func validVSpherePlatform() *vsphere.Platform {
 		DefaultDatastore: "test-datastore",
 	}
 }
+
 func TestValidateInstallConfig(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -127,11 +136,11 @@ func TestValidateInstallConfig(t *testing.T) {
 			name: "overly long cluster domain",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.ObjectMeta.Name = fmt.Sprintf("test-cluster%050d", 0)
-				c.BaseDomain = fmt.Sprintf("test-domain%050d.a%060d.b%060d.c%060d", 0, 0, 0, 0)
+				c.ObjectMeta.Name = fmt.Sprintf("test-cluster%042d", 0)
+				c.BaseDomain = fmt.Sprintf("test-domain%056d.a%060d.b%060d.c%060d", 0, 0, 0, 0)
 				return c
 			}(),
-			expectedError: `^baseDomain: Invalid value: "` + fmt.Sprintf("test-cluster%050d.test-domain%050d.a%060d.b%060d.c%060d", 0, 0, 0, 0, 0) + `": must be no more than 253 characters$`,
+			expectedError: `^baseDomain: Invalid value: "` + fmt.Sprintf("test-cluster%042d.test-domain%056d.a%060d.b%060d.c%060d", 0, 0, 0, 0, 0) + `": must be no more than 253 characters$`,
 		},
 		{
 			name: "missing networking",
@@ -352,7 +361,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform = types.Platform{}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: types\.Platform{((, )?\w+:\(\*\w+\.Platform\)\(nil\))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\)$`,
+			expectedError: `^platform: Invalid value: types\.Platform{((, )?\w+:\(\*\w+\.Platform\)\(nil\))+}: must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "multiple platforms",
@@ -383,7 +392,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\)$`,
+			expectedError: `^platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "invalid libvirt platform",
@@ -395,7 +404,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform.Libvirt.URI = ""
 				return c
 			}(),
-			expectedError: `^\[platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, none, openstack, vsphere\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
+			expectedError: `^\[platform: Invalid value: types\.Platform{((, )?(\w+:\(\*\w+\.Platform\)\(nil\)|Libvirt:\(\*libvirt\.Platform\)\(0x[0-9a-f]*\)))+}: must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
 		},
 		{
 			name: "valid none platform",
@@ -512,22 +521,14 @@ func TestValidateInstallConfig(t *testing.T) {
 			expectedError: `^\Q[NoProxy: Invalid value: ".bad-proxy.": must be a CIDR or domain, without wildcard characters and without leading or trailing dots ('.'), NoProxy: Invalid value: "172.bad.CIDR.0/16": must be a CIDR or domain, without wildcard characters and without leading or trailing dots ('.')]\E$`,
 		},
 		{
-			name: "invalid HTTP proxy, using HTTPS",
+			name: "valid GCP platform",
 			installConfig: func() *types.InstallConfig {
 				c := validInstallConfig()
-				c.Proxy.HTTPProxy = "https://user:password@127.0.0.1:8080"
+				c.Platform = types.Platform{
+					GCP: validGCPPlatform(),
+				}
 				return c
 			}(),
-			expectedError: `^\QHTTPProxy: Invalid value: "https://user:password@127.0.0.1:8080": must use http protocol\E$`,
-		},
-		{
-			name: "invalid HTTPS proxy, using HTTP",
-			installConfig: func() *types.InstallConfig {
-				c := validInstallConfig()
-				c.Proxy.HTTPSProxy = "http://user:password@127.0.0.1:8080"
-				return c
-			}(),
-			expectedError: `^\QHTTPSProxy: Invalid value: "http://user:password@127.0.0.1:8080": must use https protocol\E$`,
 		},
 	}
 	for _, tc := range cases {
