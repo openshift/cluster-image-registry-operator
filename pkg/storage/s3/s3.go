@@ -328,6 +328,31 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
+	// Block public access to the s3 bucket and its objects by default
+	if cr.Status.StorageManaged {
+		_, err := svc.PutPublicAccessBlock(&s3.PutPublicAccessBlockInput{
+			Bucket: aws.String(d.Config.Bucket),
+			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
+				BlockPublicAcls:       aws.Bool(true),
+				BlockPublicPolicy:     aws.Bool(true),
+				IgnorePublicAcls:      aws.Bool(true),
+				RestrictPublicBuckets: aws.Bool(true),
+			},
+		})
+
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, imageregistryv1.StoragePublicAccessBlocked, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
+			} else {
+				util.UpdateCondition(cr, imageregistryv1.StoragePublicAccessBlocked, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+			}
+		} else {
+			util.UpdateCondition(cr, imageregistryv1.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful", "Public access to the S3 bucket and its contents have been successfully blocked.")
+			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Spec.Storage.S3 = d.Config.DeepCopy()
+		}
+	}
+
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Status.StorageManaged {

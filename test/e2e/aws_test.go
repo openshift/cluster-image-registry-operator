@@ -133,6 +133,14 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
+	// Wait for the image registry resource to have an updated StoragePublicAccessBlocked condition
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryv1.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful")
+	if len(errs) != 0 {
+		for _, err := range errs {
+			t.Errorf("%#v", err)
+		}
+	}
+
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(string(accessKey), string(secretKey), ""),
@@ -143,11 +151,35 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	svc := s3.New(sess)
+
 	_, err = svc.HeadBucket(&s3.HeadBucketInput{
 		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
 	})
 	if err != nil {
 		t.Errorf("s3 bucket %s does not exist or is inaccessible: %#v", cr.Spec.Storage.S3.Bucket, err)
+	}
+
+	// Check that the S3 bucket has the correct public access settings
+	getPublicAccessBlockResult, err := svc.GetPublicAccessBlock(&s3.GetPublicAccessBlockInput{
+		Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+	})
+	if err != nil {
+		t.Errorf("unable to get public access block information for s3 bucket: %#v", err)
+	}
+
+	gp := getPublicAccessBlockResult.PublicAccessBlockConfiguration
+
+	if gp.BlockPublicAcls == nil || !*gp.BlockPublicAcls {
+		t.Errorf("PublicAccessBlock.BlockPublicAcls should have been true, but was %#v instead", *gp.BlockPublicAcls)
+	}
+	if gp.BlockPublicPolicy == nil || !*gp.BlockPublicPolicy {
+		t.Errorf("PublicAccessBlock.BlockPublicPolicy should have been true, but was %#v instead", *gp.BlockPublicPolicy)
+	}
+	if gp.IgnorePublicAcls == nil || !*gp.IgnorePublicAcls {
+		t.Errorf("PublicAccessBlock.IgnorePublicAcls should have been true, but was %#v instead", *gp.IgnorePublicAcls)
+	}
+	if gp.RestrictPublicBuckets == nil || !*gp.RestrictPublicBuckets {
+		t.Errorf("PublicAccessBlock.RestrictPublicBuckets should have been true, but was %#v instead", *gp.RestrictPublicBuckets)
 	}
 
 	// Check that the S3 bucket has the correct tags
