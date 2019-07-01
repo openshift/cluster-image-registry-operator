@@ -57,3 +57,11 @@ func GetClusterVersionConfig(kubeconfig *rest.Config) (*configv1.ClusterVersion,
 	}
 	return client.ConfigV1().ClusterVersions().Get("version", metav1.GetOptions{})
 }
+
+func GetInfrastructure(kubeconfig *rest.Config) (*configv1.Infrastructure, error) {
+	client, err := configv1client.NewForConfig(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	return client.ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
+}

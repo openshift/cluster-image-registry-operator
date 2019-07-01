@@ -69,3 +69,7 @@ required = [
 [[constraint]]
   branch = "master"
   name = "github.com/gophercloud/utils"
+
+[[constraint]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  version = "30.0.0"

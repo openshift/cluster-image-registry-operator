@@ -7,6 +7,7 @@ import (
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	yamlv2 "gopkg.in/yaml.v2"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -21,16 +22,11 @@ import (
 const (
 	installerConfigNamespace = "kube-system"
 	installerConfigName      = "cluster-config-v1"
+	azureCredentialsName     = "azure-credentials"
 	cloudCredentialsName     = "installer-cloud-credentials"
 )
 
 type StorageType string
-
-type Azure struct {
-	AccountName string
-	AccountKey  string
-	Container   string
-}
 
 type GCS struct {
 	Bucket      string
@@ -56,11 +52,24 @@ type Swift struct {
 	IdentityAPIVersion string
 }
 
+type Azure struct {
+	// IPI
+	SubscriptionID string
+	ClientID       string
+	ClientSecret   string
+	TenantID       string
+	ResourceGroup  string
+	Region         string
+
+	// UPI
+	AccountKey string
+}
+
 type Storage struct {
-	Azure Azure
 	GCS   GCS
 	S3    S3
 	Swift Swift
+	Azure Azure
 }
 
 type Config struct {
@@ -169,6 +178,13 @@ func GetGCSConfig(listers *regopclient.Listers) (*Config, error) {
 	return cfg, nil
 }
 
+func getValueFromSecret(sec *corev1.Secret, key string) (string, error) {
+	if v, ok := sec.Data[key]; ok {
+		return string(v), nil
+	}
+	return "", fmt.Errorf("secret %q does not contain required key %q", fmt.Sprintf("%s/%s", sec.Namespace, sec.Name), key)
+}
+
 // GetSwiftConfig reads credentials
 func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
@@ -216,18 +232,58 @@ func GetSwiftConfig(listers *regopclient.Listers) (*Config, error) {
 	} else if err != nil {
 		return nil, err
 	} else {
-		if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_USERNAME"]; ok {
-			cfg.Storage.Swift.Username = string(v)
-		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_USERNAME\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+		cfg.Storage.Swift.Username, err = getValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_USERNAME")
+		if err != nil {
+			return nil, err
 		}
-		if v, ok := sec.Data["REGISTRY_STORAGE_SWIFT_PASSWORD"]; ok {
-			cfg.Storage.Swift.Password = string(v)
-		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_SWIFT_PASSWORD\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
-
+		cfg.Storage.Swift.Password, err = getValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_PASSWORD")
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return cfg, nil
+}
+
+func getAzureConfigFromCloudSecret(creds *corev1.Secret) (*Azure, error) {
+	cfg := &Azure{}
+	cfg.SubscriptionID = string(creds.Data["azure_subscription_id"])
+	cfg.ClientID = string(creds.Data["azure_client_id"])
+	cfg.ClientSecret = string(creds.Data["azure_client_secret"])
+	cfg.TenantID = string(creds.Data["azure_tenant_id"])
+	cfg.ResourceGroup = string(creds.Data["azure_resourcegroup"])
+	cfg.Region = string(creds.Data["azure_region"])
+	return cfg, nil
+}
+
+func getAzureConfigFromUserSecret(sec *corev1.Secret) (*Azure, error) {
+	cfg := &Azure{}
+	var err error
+
+	cfg.AccountKey, err = getValueFromSecret(sec, "REGISTRY_STORAGE_AZURE_ACCOUNTKEY")
+	if err != nil {
+		return nil, err
+	}
+	if cfg.AccountKey == "" {
+		return nil, fmt.Errorf("the secret %s/%s has an empty value for REGISTRY_STORAGE_AZURE_ACCOUNTKEY; the secret should be removed so that the operator can use cluster-wide secrets or it should contain a valid storage account access key", sec.Namespace, sec.Name)
+	}
+
+	return cfg, nil
+}
+
+// GetAzureConfig reads configuration for the Azure cloud platform services.
+func GetAzureConfig(listers *regopclient.Listers) (*Azure, error) {
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, fmt.Errorf("unable to get user provided secrets: %s", err)
+		}
+
+		creds, err := listers.Secrets.Get(cloudCredentialsName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials: %s", err)
+		}
+		return getAzureConfigFromCloudSecret(creds)
+	}
+	return getAzureConfigFromUserSecret(sec)
 }

@@ -9,6 +9,7 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
@@ -63,6 +64,11 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 		drivers = append(drivers, drv)
 	}
 
+	if cfg.Azure != nil {
+		names = append(names, "Azure")
+		drivers = append(drivers, azure.NewDriver(cfg.Azure, kubeconfig, listers))
+	}
+
 	switch len(drivers) {
 	case 0:
 		return nil, ErrStorageNotConfigured
@@ -102,7 +108,7 @@ func getPlatformStorage(kubeconfig *rest.Config) (imageregistryv1.ImageRegistryC
 	case installConfig.Platform.AWS != nil:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	case installConfig.Platform.Azure != nil:
-		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
 	case installConfig.Platform.OpenStack != nil:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 	}
