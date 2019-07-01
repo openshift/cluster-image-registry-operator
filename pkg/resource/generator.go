@@ -94,7 +94,7 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, g.listers.Services, configClient, g.params))
 	mutators = append(mutators, newGeneratorNodeCADaemonSet(g.listers.DaemonSets, g.listers.Services, appsClient, g.params))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, coreClient, g.params, cr))
-	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, coreClient, appsClient, driver, g.params, cr))
+	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, coreClient, appsClient, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(routeClient, cr)...)
 
 	// This generator must be the last because he uses other generators.

@@ -18,6 +18,9 @@ const (
 	// ImageRegistryResourceName is the name of the image registry config instance
 	ImageRegistryResourceName = "cluster"
 
+	// ClusterProxyResourceName is the name of the cluster proxy config instance
+	ClusterProxyResourceName = "cluster"
+
 	// ImageRegistryCertificatesName is the name of the configmap that is managed by the
 	// registry operator and mounted into the registry pod, to provide additional
 	// CAs to be trusted during image pullthrough

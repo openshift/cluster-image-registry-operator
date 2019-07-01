@@ -26,4 +26,5 @@ type Listers struct {
 	ClusterOperators    configlisters.ClusterOperatorLister
 	RegistryConfigs     regoplisters.ConfigLister
 	InstallerSecrets    kcorelisters.SecretNamespaceLister
+	ProxyConfigs        configlisters.ProxyLister
 }

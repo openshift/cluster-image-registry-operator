@@ -1,13 +1,14 @@
 package e2e
 
 import (
-	operatorapi "github.com/openshift/api/operator/v1"
+	"testing"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"reflect"
-	"testing"
-	"time"
+
+	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -103,19 +104,8 @@ func TestGCSMinimal(t *testing.T) {
 		{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile", ValueFrom: nil},
 	}
 
-	for _, val := range gcsEnvVars {
-		found := false
-		for _, v := range registryDeployment.Spec.Template.Spec.Containers[0].Env {
-			if v.Name == val.Name {
-				found = true
-				if !reflect.DeepEqual(v, val) {
-					t.Errorf("environment variable contains incorrect data: expected %#v, got %#v", val, v)
-				}
-			}
-		}
-		if !found {
-			t.Errorf("unable to find environment variable: wanted %s", val.Name)
-		}
+	for _, err = range framework.CheckEnvVars(gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env) {
+		t.Errorf("%v", err)
 	}
 
 	// Get a fresh version of the image registry resource

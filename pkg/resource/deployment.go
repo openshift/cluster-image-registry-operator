@@ -11,6 +11,8 @@ import (
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -22,6 +24,7 @@ type generatorDeployment struct {
 	lister          appslisters.DeploymentNamespaceLister
 	configMapLister corelisters.ConfigMapNamespaceLister
 	secretLister    corelisters.SecretNamespaceLister
+	proxyLister     configlisters.ProxyLister
 	coreClient      coreset.CoreV1Interface
 	client          appsset.AppsV1Interface
 	driver          storage.Driver
@@ -29,11 +32,12 @@ type generatorDeployment struct {
 	cr              *imageregistryv1.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
+func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
 		lister:          lister,
 		configMapLister: configMapLister,
 		secretLister:    secretLister,
+		proxyLister:     proxyLister,
 		coreClient:      coreClient,
 		client:          client,
 		driver:          driver,
@@ -63,7 +67,7 @@ func (gd *generatorDeployment) GetName() string {
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {
-	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.driver, gd.params, gd.cr)
+	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.proxyLister, gd.driver, gd.params, gd.cr)
 	if err != nil {
 		return nil, err
 	}

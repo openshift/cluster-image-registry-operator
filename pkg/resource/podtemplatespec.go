@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -93,7 +94,7 @@ func storageConfigure(driver storage.Driver) (envs []corev1.EnvVar, volumes []co
 	return
 }
 
-func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals, cr *v1.Config) (corev1.PodTemplateSpec, *dependencies, error) {
+func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configlisters.ProxyLister, driver storage.Driver, params *parameters.Globals, cr *v1.Config) (corev1.PodTemplateSpec, *dependencies, error) {
 	env, volumes, mounts, err := storageConfigure(driver)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
@@ -110,6 +111,11 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 		if e.ValueFrom.SecretKeyRef != nil {
 			deps.AddSecret(e.ValueFrom.SecretKeyRef.Name)
 		}
+	}
+
+	clusterProxy, err := proxyLister.Get(v1.ClusterProxyResourceName)
+	if err != nil {
+		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("unable to get cluster proxy configuration: %v", err)
 	}
 
 	env = append(env,
@@ -131,14 +137,20 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, driver storage.Driv
 
 	if cr.Spec.Proxy.HTTP != "" {
 		env = append(env, corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP})
+	} else if clusterProxy.Status.HTTPProxy != "" {
+		env = append(env, corev1.EnvVar{Name: "HTTP_PROXY", Value: clusterProxy.Status.HTTPProxy})
 	}
 
 	if cr.Spec.Proxy.HTTPS != "" {
 		env = append(env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: cr.Spec.Proxy.HTTPS})
+	} else if clusterProxy.Status.HTTPSProxy != "" {
+		env = append(env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: clusterProxy.Status.HTTPSProxy})
 	}
 
 	if cr.Spec.Proxy.NoProxy != "" {
 		env = append(env, corev1.EnvVar{Name: "NO_PROXY", Value: cr.Spec.Proxy.NoProxy})
+	} else if clusterProxy.Status.NoProxy != "" {
+		env = append(env, corev1.EnvVar{Name: "NO_PROXY", Value: clusterProxy.Status.NoProxy})
 	}
 
 	if cr.Spec.Requests.Read.MaxRunning != 0 || cr.Spec.Requests.Read.MaxInQueue != 0 {

@@ -2,11 +2,8 @@ package e2e
 
 import (
 	"testing"
-	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -50,19 +47,8 @@ func TestRecreateDeployment(t *testing.T) {
 		t.Fatalf("unable to delete the deployment: %s", err)
 	}
 
-	t.Logf("waiting the operator to recreate the deployment...")
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
-		if err == nil {
-			return true, nil
-		}
-		t.Logf("get deployment: %s", err)
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	})
-	if err != nil {
+	t.Logf("waiting for the operator to recreate the deployment...")
+	if _, err := framework.WaitForRegistryDeployment(client); err != nil {
 		framework.DumpImageRegistryResource(t, client)
 		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
