@@ -64,7 +64,7 @@
   version = "v12.2.0"
 
 [[projects]]
-  digest = "1:40eb818aaeaf0cf565dea3459675f59ac1ee0188e14c6f2e55db8d7be67ff9fd"
+  digest = "1:7bc78990eb7b734e8b22d21ab5d28546bf335fe57dcf4950f82c495c529ac42e"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -104,8 +104,8 @@
     "service/sts",
   ]
   pruneopts = ""
-  revision = "892e2b1c287ab828befdfb4ada461a36ec21783e"
-  version = "v1.20.13"
+  revision = "06512ecac9db8f44189277d87f426e6dc53cc86b"
+  version = "v1.20.14"
 
 [[projects]]
   digest = "1:10139b9c841acd336ceff02e8a85e0c558dee738b2277bb24d61d9d3c90ef1f2"
@@ -328,11 +328,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2ac34fffce906dbbdab6cf9f1790f1dc401c436aaf29718bfcad63e5f3282a71"
+  digest = "1:a23cdbf2ead57c95107a52a53e380bfa07357f7665afa7a6dd46f0af99b12d2e"
   name = "github.com/mattn/go-ieproxy"
   packages = ["."]
   pruneopts = ""
-  revision = "91bb50d981495aef1c208d31be3d77d904384f20"
+  revision = "6dee0af9227d0863f1508ce7937af3396d6605c1"
 
 [[projects]]
   digest = "1:6dbb0eb72090871f2e58d1e37973fe3cb8c0f45f49459398d3fc740cb30e13bd"
@@ -360,7 +360,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a4931523622e5a6c89ff38a2b8faa938e5de11041c0f283fd791a2f28181aad0"
+  digest = "1:13f1c9ebbfcc6be322bc9939d47a4ba984b7fa2fabe921b4405c1d14c63c8979"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -368,7 +368,7 @@
     "route/v1",
   ]
   pruneopts = ""
-  revision = "44f2eba96faa042c0f0adccba439acceae12e549"
+  revision = "49f610c1a3a8461a9d0623ad35fa08d943b12c68"
 
 [[projects]]
   branch = "master"
@@ -397,7 +397,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:764ced412de12bcb6fbad480de8b3c4be0f9dc5949e3f70ef47f5d3add6b9ce9"
+  digest = "1:a60139567a651e5f7982129faf3e1f98e972415118ae0927335238d94c835a41"
   name = "github.com/openshift/installer"
   packages = [
     "pkg/ipnet",
@@ -411,11 +411,11 @@
     "pkg/types/vsphere",
   ]
   pruneopts = ""
-  revision = "63c63a0015f8f7cd894a93c0a6c0d6565ee8d05a"
+  revision = "734767e49923e114967e1bd764afa4abfedbe473"
 
 [[projects]]
   branch = "master"
-  digest = "1:5660d0216f6e3be26985d0040e2ea4e6b4dd857ed52d12a998f5ae27064410e2"
+  digest = "1:44905c15780fa16dad41256e34ee912b698303d1e2c251c746bfd78bfbbe1d81"
   name = "github.com/openshift/library-go"
   packages = [
     "cmd/crd-schema-gen",
@@ -423,7 +423,7 @@
     "pkg/operator/resource/resourceread",
   ]
   pruneopts = ""
-  revision = "16a370625b52c7958783b8f74de58317236da6b4"
+  revision = "f50acf57535978566801b0ef935b6142594ba6e2"
 
 [[projects]]
   digest = "1:a5484d4fa43127138ae6e7b2299a6a52ae006c7f803d98d717f60abf3e97192e"
@@ -598,7 +598,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3f760d6ee082a5cb999aaf8deeb6326b9d95d2f081c66beeef245a43f8a758f4"
+  digest = "1:e9acaf2025f9ae32cc2e214583a3404db30bfdeecb91587d1d83e65fb76b2d51"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -615,7 +615,7 @@
     "internal/semver",
   ]
   pruneopts = ""
-  revision = "38ae2c8f64122bd595b7f93f968a6686cd27bb5a"
+  revision = "a00916dd39a53f9d7c0617efa74ac2aaf6bc4716"
 
 [[projects]]
   digest = "1:2157b1343e063abb582727c6aa2f127fcaeb3871ef1852c974feb5d745203356"
@@ -646,7 +646,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:80177f66172504b67f0c8b46ae8be70c95b81297b9359dfbbef008b4f95ca2cb"
+  digest = "1:2ad4db7088b8cb174b051191bc2722722ad0f599db99d8eb5074358135f1580b"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/httpbody",
@@ -654,10 +654,10 @@
     "protobuf/field_mask",
   ]
   pruneopts = ""
-  revision = "eb59cef1c072c61ea4f7623910448d5e9c6a4455"
+  revision = "710ae3a149df3775bfc2e9efb7f4fb97b186b233"
 
 [[projects]]
-  digest = "1:6881653b963cd12dc1a9824aed5e122d0ff38e53e3ee07862f969a56ad2f2e9c"
+  digest = "1:3608095d1dc06a2ff2e6f0476c9cc9584dd8e4b64151fed41a3663b9033a8b63"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -689,13 +689,14 @@
     "resolver",
     "resolver/dns",
     "resolver/passthrough",
+    "serviceconfig",
     "stats",
     "status",
     "tap",
   ]
   pruneopts = ""
-  revision = "501c41df7f472c740d0674ff27122f3f48c80ce7"
-  version = "v1.21.1"
+  revision = "1d89a3c832915b2314551c1d2a506874d62e53f7"
+  version = "v1.22.0"
 
 [[projects]]
   digest = "1:75fb3fcfc73a8c723efde7777b40e8e8ff9babf30d8c56160d01beffea8a95a6"
@@ -827,7 +828,7 @@
 
 [[projects]]
   branch = "origin-4.2-kubernetes-1.14.0"
-  digest = "1:6289686fd2880fa06f92f660cb158dcd3d86a22a6069ed2a0e1e1b275b542a9c"
+  digest = "1:ebfb605eb481bcd1494b09896806b83b7d48672b75d7ead710cd4ae5c3b1bd4e"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -983,7 +984,7 @@
     "util/workqueue",
   ]
   pruneopts = ""
-  revision = "63fdf1d9468152856e26300fe2b793e8f2ff5f1a"
+  revision = "70952d66b5d131aa0142ceaebfe6d6da51178878"
   source = "https://github.com/openshift/kubernetes-client-go.git"
 
 [[projects]]
