@@ -84,6 +84,13 @@ func GetInfrastructure(listers *regopclient.Listers) (*configv1.Infrastructure, 
 		if installConfig.Platform.AWS != nil {
 			infra.Status.PlatformStatus.AWS = &configv1.AWSPlatformStatus{Region: installConfig.Platform.AWS.Region}
 		}
+
+		if installConfig.Platform.GCP != nil {
+			infra.Status.PlatformStatus.GCP = &configv1.GCPPlatformStatus{
+				Region:    installConfig.Platform.GCP.Region,
+				ProjectID: installConfig.Platform.GCP.ProjectID,
+			}
+		}
 	}
 
 	return infra, nil

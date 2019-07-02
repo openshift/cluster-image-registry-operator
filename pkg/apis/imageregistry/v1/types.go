@@ -61,6 +61,10 @@ const (
 	// that we created was tagged correctly
 	StorageTagged = "StorageTagged"
 
+	// StorageLabeled denotes whether or not the registry storage medium
+	// that we created was labeled correctly
+	StorageLabeled = "StorageLabeled"
+
 	// StorageEncrypted denotes whether or not the registry storage medium
 	// that we created has encryption enabled
 	StorageEncrypted = "StorageEncrypted"
@@ -203,7 +207,19 @@ type ImageRegistryConfigStorageS3 struct {
 }
 
 type ImageRegistryConfigStorageGCS struct {
+	// Bucket is the bucket name in which you want to store the registry's data
+	// Optional, will be generated if not provided
 	Bucket string `json:"bucket,omitempty"`
+	// Region is the GCS location in which your bucket exists
+	// Optional, will be set based on the installed GCS Region
+	Region string `json:"region,omitempty"`
+	// ProjectID is the Project ID of the GCP project
+	// that this bucket should be associated with
+	ProjectID string `json:"projectID,omitempty"`
+	// KeyID is the KMS key ID to use for encryption
+	// Optional, buckets are encrypted by default on GCP
+	// This allows for the use of a custom encryption key
+	KeyID string `json:"keyID"`
 }
 
 // ImageRegistryConfigStorageSwift holds the information to configure

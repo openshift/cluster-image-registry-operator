@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +54,8 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 
 	if cfg.GCS != nil {
 		names = append(names, "GCS")
-		drivers = append(drivers, gcs.NewDriver(cfg.GCS, listers))
+		ctx := context.Background()
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS, ctx, kubeconfig, listers))
 	}
 
 	if cfg.PVC != nil {
@@ -110,6 +112,8 @@ func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	case configapiv1.AzurePlatformType:
 		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
+	case configapiv1.GCPPlatformType:
+		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 	case configapiv1.OpenStackPlatformType:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 	}
