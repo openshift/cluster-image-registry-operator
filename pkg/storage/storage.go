@@ -6,15 +6,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 var (
@@ -82,7 +83,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	drv, err := newDriver(cfg, kubeconfig, listers)
 	if err == ErrStorageNotConfigured {
-		*cfg, err = getPlatformStorage(kubeconfig)
+		*cfg, err = getPlatformStorage(listers)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
@@ -93,23 +94,23 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 
 // getPlatformStorage returns the storage configuration that should be used
 // based on the cloudplatform we are running on, as determined from the
-// installer configuration.
-func getPlatformStorage(kubeconfig *rest.Config) (imageregistryv1.ImageRegistryConfigStorage, error) {
+// infrastructure configuration.
+func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
-	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
+	infra, err := util.GetInfrastructure(listers)
 	if err != nil {
-		return cfg, err
+		return imageregistryv1.ImageRegistryConfigStorage{}, err
 	}
 
-	switch {
-	case installConfig.Platform.Libvirt != nil:
+	switch infra.Status.PlatformStatus.Type {
+	case configapiv1.LibvirtPlatformType:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case installConfig.Platform.AWS != nil:
+	case configapiv1.AWSPlatformType:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	case installConfig.Platform.Azure != nil:
+	case configapiv1.AzurePlatformType:
 		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
-	case installConfig.Platform.OpenStack != nil:
+	case configapiv1.OpenStackPlatformType:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 	}
 

@@ -20,10 +20,13 @@ func (m MockSecretNamespaceLister) Get(name string) (*coreapi.Secret, error) {
 
 func (m MockSecretNamespaceLister) List(selector labels.Selector) ([]*coreapi.Secret, error) {
 	secretList, err := m.client.Secrets(m.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 	var list []*coreapi.Secret
 	for _, item := range secretList.Items {
 		list = append(list, &item)
 	}
-	return list, err
+	return list, nil
 
 }

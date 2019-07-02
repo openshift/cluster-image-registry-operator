@@ -452,6 +452,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			c.listers.InstallerSecrets = informer.Lister().Secrets(installerConfigNamespace)
 			return informer.Informer()
 		},
+		func() cache.SharedIndexInformer {
+			informer := configInformerFactory.Config().V1().Infrastructures()
+			c.listers.Infrastructures = informer.Lister()
+			return informer.Informer()
+		},
 	} {
 		informer := ctor()
 		informer.AddEventHandler(c.handler())

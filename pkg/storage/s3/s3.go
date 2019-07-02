@@ -16,13 +16,14 @@ import (
 	"golang.org/x/net/http/httpproxy"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/version"
 )
@@ -30,6 +31,13 @@ import (
 var (
 	s3Service *s3.S3
 )
+
+type S3 struct {
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	Region    string
+}
 
 type driver struct {
 	Config     *imageregistryv1.ImageRegistryConfigStorageS3
@@ -47,6 +55,57 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3, kubeconfig *rest
 	}
 }
 
+// GetConfig reads configuration for the S3 cloud platform services.
+func GetConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*S3, error) {
+	cfg := &S3{}
+
+	infra, err := util.GetInfrastructure(listers)
+	if err != nil {
+		return nil, err
+	}
+
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.AWSPlatformType {
+		cfg.Region = infra.Status.PlatformStatus.AWS.Region
+	}
+
+	// Look for a user defined secret to get the AWS credentials from first
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil && errors.IsNotFound(err) {
+		// Fall back to those provided by the credential minter if nothing is provided by the user
+		sec, err = listers.Secrets.Get(imageregistryv1.CloudCredentialsName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName), err)
+		}
+
+		if v, ok := sec.Data["aws_access_key_id"]; ok {
+			cfg.AccessKey = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+		}
+		if v, ok := sec.Data["aws_secret_access_key"]; ok {
+			cfg.SecretKey = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+		}
+	} else if err != nil {
+		return nil, err
+	} else {
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
+			cfg.AccessKey = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+		}
+		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
+			cfg.SecretKey = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+
+		}
+	}
+
+	return cfg, nil
+}
+
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
@@ -54,19 +113,19 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return s3Service, nil
 	}
 
-	cfg, err := clusterconfig.GetAWSConfig(d.KubeConfig, d.Listers)
+	cfg, err := GetConfig(d.KubeConfig, d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(d.Config.Region) == 0 {
-		d.Config.Region = cfg.Storage.S3.Region
+		d.Config.Region = cfg.Region
 	}
 
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
 	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
+		Credentials: credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
 		Region:      &d.Config.Region,
 		Endpoint:    &d.Config.RegionEndpoint,
 		HTTPClient: &http.Client{
@@ -174,14 +233,14 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 
 // Secrets returns a map of the storage access secrets.
 func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := clusterconfig.GetAWSConfig(d.KubeConfig, d.Listers)
+	cfg, err := GetConfig(d.KubeConfig, d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]string{
-		"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.Storage.S3.AccessKey,
-		"REGISTRY_STORAGE_S3_SECRETKEY": cfg.Storage.S3.SecretKey,
+		"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.AccessKey,
+		"REGISTRY_STORAGE_S3_SECRETKEY": cfg.SecretKey,
 	}, nil
 }
 
@@ -247,12 +306,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	ic, err := clusterconfig.GetInstallConfig(d.KubeConfig)
-	if err != nil {
-		return err
-	}
-
-	cv, err := util.GetClusterVersionConfig(d.KubeConfig)
+	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return err
 	}
@@ -287,10 +341,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	} else {
 		generatedName := false
+		// Retry up to 5000 times if we get a naming conflict
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(infra.Status.InfrastructureName, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 				generatedName = true
 			}
 
@@ -367,28 +422,25 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Status.StorageManaged {
-		if ic.Platform.AWS != nil {
-			var tagSet []*s3.Tag
-			tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
-			for k, v := range ic.Platform.AWS.UserTags {
-				tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
-			}
-
-			_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
-				Bucket: aws.String(d.Config.Bucket),
-				Tagging: &s3.Tagging{
-					TagSet: tagSet,
+		_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
+			Bucket: aws.String(d.Config.Bucket),
+			Tagging: &s3.Tagging{
+				TagSet: []*s3.Tag{
+					{
+						Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
+						Value: aws.String("owned"),
+					},
 				},
-			})
-			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
-				} else {
-					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
-				}
+			},
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
 			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "UserTags were successfully applied to the S3 bucket")
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 			}
+		} else {
+			util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "Tags were successfully applied to the S3 bucket")
 		}
 	}
 
