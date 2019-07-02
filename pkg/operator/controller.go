@@ -38,7 +38,6 @@ import (
 
 const (
 	openshiftConfigNamespace = "openshift-config"
-	installerConfigNamespace = "kube-system"
 	workqueueKey             = "changes"
 	defaultResyncDuration    = 10 * time.Minute
 )
@@ -371,7 +370,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
-	installerConfigInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(installerConfigNamespace))
 
 	var informers []cache.SharedIndexInformer
 	for _, ctor := range []func() cache.SharedIndexInformer{
@@ -445,11 +443,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			c.listers.RegistryConfigs = informer.Lister()
 			return informer.Informer()
 		},
-		func() cache.SharedIndexInformer {
-			informer := installerConfigInformerFactory.Core().V1().Secrets()
-			c.listers.InstallerSecrets = informer.Lister().Secrets(installerConfigNamespace)
-			return informer.Informer()
-		},
 	} {
 		informer := ctor()
 		informer.AddEventHandler(c.handler())
@@ -457,7 +450,6 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 
 	configInformerFactory.Start(stopCh)
-	installerConfigInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)

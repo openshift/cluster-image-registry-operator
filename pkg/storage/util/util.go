@@ -50,14 +50,6 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
-func GetClusterVersionConfig(kubeconfig *rest.Config) (*configv1.ClusterVersion, error) {
-	client, err := configv1client.NewForConfig(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	return client.ConfigV1().ClusterVersions().Get("version", metav1.GetOptions{})
-}
-
 func GetInfrastructure(kubeconfig *rest.Config) (*configv1.Infrastructure, error) {
 	client, err := configv1client.NewForConfig(kubeconfig)
 	if err != nil {

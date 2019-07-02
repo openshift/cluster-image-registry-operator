@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -41,15 +42,13 @@ func TestAWSDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
 	}
-	newMockLister, err := listers.NewMockLister(kcfg)
-	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
+	infra, err := util.GetInfrastructure(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
 
-	if installConfig.Platform.AWS == nil {
+	if infra.Status.PlatformStatus.Type != configapiv1.AWSPlatformType {
 		t.Skip("skipping on non-AWS platform")
 	}
 
@@ -61,6 +60,9 @@ func TestAWSDefaults(t *testing.T) {
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+
+	newMockLister, err := listers.NewMockLister(kcfg)
+	mockLister, err := newMockLister.GetListers()
 
 	cfg, err := clusterconfig.GetAWSConfig(kcfg, mockLister)
 	if err != nil {
@@ -190,17 +192,10 @@ func TestAWSDefaults(t *testing.T) {
 		t.Errorf("unable to get tagging information for s3 bucket: %#v", err)
 	}
 
-	cv, err := util.GetClusterVersionConfig(kcfg)
-	if err != nil {
-		t.Errorf("unable to get cluster version: %#v", err)
+	tagShouldExist := map[string]string{
+		"kubernetes.io/cluster/" + infra.Status.InfrastructureName: "owned",
 	}
 
-	tagShouldExist := map[string]string{
-		"openshiftClusterID": string(cv.Spec.ClusterID),
-	}
-	for k, v := range installConfig.Platform.AWS.UserTags {
-		tagShouldExist[k] = v
-	}
 	for tk, tv := range tagShouldExist {
 		found := false
 
@@ -345,12 +340,12 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 		t.Fatalf("unable to get kubeconfig: %s", err)
 	}
 
-	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
+	infra, err := util.GetInfrastructure(kubeconfig)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
 
-	if installConfig.Platform.AWS == nil {
+	if infra.Status.PlatformStatus.Type != configapiv1.AWSPlatformType {
 		t.Skip("skipping on non-AWS platform")
 	}
 
@@ -396,15 +391,13 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
 	}
-	newMockLister, err := listers.NewMockLister(kcfg)
-	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
+	infra, err := util.GetInfrastructure(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
 
-	if installConfig.Platform.AWS == nil {
+	if infra.Status.PlatformStatus.Type != configapiv1.AWSPlatformType {
 		t.Skip("skipping on non-AWS platform")
 	}
 
@@ -415,6 +408,9 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	newMockLister, err := listers.NewMockLister(kcfg)
+	mockLister, err := newMockLister.GetListers()
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
@@ -470,12 +466,12 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Fatalf("unable to get kubeconfig: %s", err)
 	}
 
-	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
+	infra, err := util.GetInfrastructure(kubeconfig)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
 
-	if installConfig.Platform.AWS == nil {
+	if infra.Status.PlatformStatus.Type != configapiv1.AWSPlatformType {
 		t.Skip("skipping on non-AWS platform")
 	}
 
@@ -653,15 +649,13 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
 	}
-	newMockLister, err := listers.NewMockLister(kcfg)
-	mockLister, err := newMockLister.GetListers()
 
-	installConfig, err := clusterconfig.GetInstallConfig(kcfg)
+	infra, err := util.GetInfrastructure(kcfg)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
 
-	if installConfig.Platform.AWS == nil {
+	if infra.Status.PlatformStatus.Type != configapiv1.AWSPlatformType {
 		t.Skip("skipping on non-AWS platform")
 	}
 
@@ -672,6 +666,9 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	newMockLister, err := listers.NewMockLister(kcfg)
+	mockLister, err := newMockLister.GetListers()
 
 	cr, err := client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {

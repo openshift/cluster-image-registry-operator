@@ -2,7 +2,6 @@ package clusterconfig
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	yamlv2 "gopkg.in/yaml.v2"
@@ -10,20 +9,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 
+	configapiv1 "github.com/openshift/api/config/v1"
+
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	installer "github.com/openshift/installer/pkg/types"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 const (
-	installerConfigNamespace = "kube-system"
-	installerConfigName      = "cluster-config-v1"
-	azureCredentialsName     = "azure-credentials"
-	cloudCredentialsName     = "installer-cloud-credentials"
+	azureCredentialsName = "azure-credentials"
+	cloudCredentialsName = "installer-cloud-credentials"
 )
 
 type StorageType string
@@ -85,35 +83,16 @@ func GetCoreClient(kubeconfig *rest.Config) (*coreset.CoreV1Client, error) {
 	return client, nil
 }
 
-func GetInstallConfig(kubeconfig *rest.Config) (*installer.InstallConfig, error) {
-	client, err := GetCoreClient(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	cm, err := client.ConfigMaps(installerConfigNamespace).Get(installerConfigName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("unable to read cluster install configuration: %v", err)
-	}
-
-	installConfig := &installer.InstallConfig{}
-	if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(cm.Data["install-config"]), 100).Decode(installConfig); err != nil {
-		return nil, fmt.Errorf("unable to decode cluster install configuration: %v", err)
-	}
-
-	return installConfig, nil
-}
-
 func GetAWSConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*Config, error) {
 	cfg := &Config{}
 
-	installConfig, err := GetInstallConfig(kubeconfig)
+	infra, err := util.GetInfrastructure(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
-	if installConfig.Platform.AWS != nil {
-		cfg.Storage.S3.Region = installConfig.Platform.AWS.Region
+	if infra.Status.PlatformStatus.Type == configapiv1.AWSPlatformType {
+		cfg.Storage.S3.Region = infra.Status.PlatformStatus.AWS.Region
 	}
 
 	client, err := GetCoreClient(kubeconfig)

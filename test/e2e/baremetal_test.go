@@ -4,53 +4,55 @@ import (
 	"fmt"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	configv1 "github.com/openshift/api/config/v1"
+	configapiv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
-)
-
-const (
-	installerConfigNamespace = "kube-system"
-	installerConfigName      = "cluster-config-v1"
 )
 
 func TestBaremetalDefaults(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
-	// We don't have CI for baremetal, so let's fake this environment.
-	clusterConfig, err := client.ConfigMaps(installerConfigNamespace).Get(installerConfigName, metav1.GetOptions{})
+	infrastructureConfig, err := client.Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = client.ConfigMaps(installerConfigNamespace).Delete(installerConfigName, nil)
-	if err != nil {
-		t.Fatal(err)
+
+	if infrastructureConfig.Status.PlatformStatus.Type != configapiv1.BareMetalPlatformType {
+		t.Skip("skipping on non-BareMetal platform")
 	}
-	defer func() {
-		err = client.ConfigMaps(installerConfigNamespace).Delete(installerConfigName, nil)
-		if err != nil && !errors.IsNotFound(err) {
-			panic(fmt.Errorf("unable to delete fake cluster config: %s", err))
-		}
-		clusterConfig.ResourceVersion = "" // should not be set on objects to be created
-		_, err = client.ConfigMaps(installerConfigNamespace).Create(clusterConfig)
-		if err != nil {
-			panic(fmt.Errorf("unable to restore cluster config: %s; %s=%v", err, installerConfigName, clusterConfig))
-		}
-	}()
-	_, err = client.ConfigMaps(installerConfigNamespace).Create(&corev1.ConfigMap{
+
+	_, err = client.Infrastructures().Update(&configapiv1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: installerConfigName,
+			Name:            infrastructureConfig.Name,
+			ResourceVersion: infrastructureConfig.ResourceVersion,
 		},
-		Data: map[string]string{
-			"install-config": `apiVersion: v1beta4`,
+		Status: configapiv1.InfrastructureStatus{
+			InfrastructureName: infrastructureConfig.Status.InfrastructureName,
+			PlatformStatus: &configapiv1.PlatformStatus{
+				Type: configapiv1.BareMetalPlatformType,
+			},
+			EtcdDiscoveryDomain:  infrastructureConfig.Status.EtcdDiscoveryDomain,
+			APIServerURL:         infrastructureConfig.Status.APIServerURL,
+			APIServerInternalURL: infrastructureConfig.Status.APIServerInternalURL,
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Reset infrastructures.config.openshift.io to it's original state at the end of the test
+	defer func() {
+		previousConfig, err := client.Infrastructures().Get("cluster", metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		infrastructureConfig.ResourceVersion = previousConfig.ResourceVersion
+		_, err = client.Infrastructures().Update(infrastructureConfig)
+		if err != nil {
+			panic(fmt.Errorf("unable to restore infrastructure cluster config: %s; %v", err, infrastructureConfig))
+		}
+	}()
 
 	// Start of the meaningful part
 	defer framework.MustRemoveImageRegistry(t, client)
@@ -67,13 +69,13 @@ func TestBaremetalDefaults(t *testing.T) {
 	clusterOperator := framework.MustEnsureClusterOperatorStatusIsSet(t, client)
 	for _, cond := range clusterOperator.Status.Conditions {
 		switch cond.Type {
-		case configv1.OperatorAvailable:
-			if cond.Status != configv1.ConditionFalse {
-				t.Errorf("expected clusteroperator to report Available=%s, got %s", configv1.ConditionFalse, cond.Status)
+		case configapiv1.OperatorAvailable:
+			if cond.Status != configapiv1.ConditionFalse {
+				t.Errorf("expected clusteroperator to report Available=%s, got %s", configapiv1.ConditionFalse, cond.Status)
 			}
-		case configv1.OperatorDegraded:
-			if cond.Status != configv1.ConditionTrue {
-				t.Errorf("expected clusteroperator to report Degraded=%s, got %s", configv1.ConditionTrue, cond.Status)
+		case configapiv1.OperatorDegraded:
+			if cond.Status != configapiv1.ConditionTrue {
+				t.Errorf("expected clusteroperator to report Degraded=%s, got %s", configapiv1.ConditionTrue, cond.Status)
 			}
 			if cond.Reason != "StorageNotConfigured" {
 				t.Errorf("expected clusteroprator degraded status reason to be %s, got %s", "StorageNotConfigured", cond.Reason)
