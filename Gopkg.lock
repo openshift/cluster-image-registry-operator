@@ -397,24 +397,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a60139567a651e5f7982129faf3e1f98e972415118ae0927335238d94c835a41"
-  name = "github.com/openshift/installer"
-  packages = [
-    "pkg/ipnet",
-    "pkg/types",
-    "pkg/types/aws",
-    "pkg/types/azure",
-    "pkg/types/gcp",
-    "pkg/types/libvirt",
-    "pkg/types/none",
-    "pkg/types/openstack",
-    "pkg/types/vsphere",
-  ]
-  pruneopts = ""
-  revision = "734767e49923e114967e1bd764afa4abfedbe473"
-
-[[projects]]
-  branch = "master"
   digest = "1:44905c15780fa16dad41256e34ee912b698303d1e2c251c746bfd78bfbbe1d81"
   name = "github.com/openshift/library-go"
   packages = [
@@ -1123,7 +1105,6 @@
     "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1",
     "github.com/openshift/client-go/route/informers/externalversions",
     "github.com/openshift/client-go/route/listers/route/v1",
-    "github.com/openshift/installer/pkg/types",
     "github.com/openshift/library-go/cmd/crd-schema-gen",
     "github.com/openshift/library-go/pkg/operator/resource/resourceread",
     "golang.org/x/net/http/httpproxy",
@@ -1146,7 +1127,6 @@
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/uuid",
     "k8s.io/apimachinery/pkg/util/wait",
-    "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/discovery/fake",
