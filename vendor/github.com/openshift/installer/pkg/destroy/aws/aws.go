@@ -22,6 +22,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	awssession "github.com/openshift/installer/pkg/asset/installconfig/aws"
+	"github.com/openshift/installer/pkg/destroy/providers"
+	"github.com/openshift/installer/pkg/types"
 	"github.com/openshift/installer/pkg/version"
 )
 
@@ -61,6 +64,27 @@ type ClusterUninstaller struct {
 	// new session will be created based on the usual credential
 	// configuration (AWS_PROFILE, AWS_ACCESS_KEY_ID, etc.).
 	Session *session.Session
+}
+
+// New returns an AWS destroyer from ClusterMetadata.
+func New(logger logrus.FieldLogger, metadata *types.ClusterMetadata) (providers.Destroyer, error) {
+	filters := make([]Filter, 0, len(metadata.ClusterPlatformMetadata.AWS.Identifier))
+	for _, filter := range metadata.ClusterPlatformMetadata.AWS.Identifier {
+		filters = append(filters, filter)
+	}
+
+	session, err := awssession.GetSession()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClusterUninstaller{
+		Filters:   filters,
+		Region:    metadata.ClusterPlatformMetadata.AWS.Region,
+		Logger:    logger,
+		ClusterID: metadata.InfraID,
+		Session:   session,
+	}, nil
 }
 
 func (o *ClusterUninstaller) validate() error {
@@ -1597,7 +1621,7 @@ func deleteS3(session *session.Session, arn arn.ARN, logger logrus.FieldLogger) 
 		Bucket: aws.String(arn.Resource),
 	})
 	err := s3manager.NewBatchDeleteWithClient(client).Delete(aws.BackgroundContext(), iter)
-	if err != nil {
+	if err != nil && !isBucketNotFound(err) {
 		return err
 	}
 	logger.Debug("Emptied")
@@ -1605,10 +1629,32 @@ func deleteS3(session *session.Session, arn arn.ARN, logger logrus.FieldLogger) 
 	_, err = client.DeleteBucket(&s3.DeleteBucketInput{
 		Bucket: aws.String(arn.Resource),
 	})
-	if err != nil {
+	if err != nil && !isBucketNotFound(err) {
 		return err
 	}
 
 	logger.Info("Deleted")
 	return nil
+}
+
+func isBucketNotFound(err interface{}) bool {
+	switch s3Err := err.(type) {
+	case awserr.Error:
+		if s3Err.Code() == "NoSuchBucket" {
+			return true
+		}
+		origErr := s3Err.OrigErr()
+		if origErr != nil {
+			return isBucketNotFound(origErr)
+		}
+	case s3manager.Error:
+		if s3Err.OrigErr != nil {
+			return isBucketNotFound(s3Err.OrigErr)
+		}
+	case s3manager.Errors:
+		if len(s3Err) == 1 {
+			return isBucketNotFound(s3Err[0])
+		}
+	}
+	return false
 }

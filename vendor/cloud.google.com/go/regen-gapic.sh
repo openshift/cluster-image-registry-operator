@@ -137,9 +137,12 @@ for dir in "${HASMANUAL[@]}"; do
 	find "$GOPATH/src/cloud.google.com/go/$dir" -name '*.go' -exec sed -i.backup -e 's/setGoogleClientInfo/SetGoogleClientInfo/g' '{}' '+'
 done
 
-# These have manual edits and should not be auto-generated blindly. See jskeet@
-# for details.
-git checkout grafeas
-git checkout containeranalysis/v1
+# These have manual edits and should not be auto-generated blindly.
+pushd $GOPATH/src/cloud.google.com/go
+  for d in "grafeas" "containeranalysis/apiv1"; do
+    git checkout $d
+    git clean -df $d
+  done
+popd
 
 find $GOPATH/src/cloud.google.com/go/ -name '*.backup' -delete

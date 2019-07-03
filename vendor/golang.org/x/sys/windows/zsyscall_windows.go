@@ -43,6 +43,7 @@ var (
 	modcrypt32  = NewLazySystemDLL("crypt32.dll")
 	moduser32   = NewLazySystemDLL("user32.dll")
 	modole32    = NewLazySystemDLL("ole32.dll")
+	modntdll    = NewLazySystemDLL("ntdll.dll")
 	modws2_32   = NewLazySystemDLL("ws2_32.dll")
 	moddnsapi   = NewLazySystemDLL("dnsapi.dll")
 	modiphlpapi = NewLazySystemDLL("iphlpapi.dll")
@@ -232,6 +233,7 @@ var (
 	procStringFromGUID2                    = modole32.NewProc("StringFromGUID2")
 	procCoCreateGuid                       = modole32.NewProc("CoCreateGuid")
 	procCoTaskMemFree                      = modole32.NewProc("CoTaskMemFree")
+	procRtlGetVersion                      = modntdll.NewProc("RtlGetVersion")
 	procWSAStartup                         = modws2_32.NewProc("WSAStartup")
 	procWSACleanup                         = modws2_32.NewProc("WSACleanup")
 	procWSAIoctl                           = modws2_32.NewProc("WSAIoctl")
@@ -1088,14 +1090,14 @@ func CreateProcess(appName *uint16, commandLine *uint16, procSecurity *SecurityA
 	return
 }
 
-func OpenProcess(da uint32, inheritHandle bool, pid uint32) (handle Handle, err error) {
+func OpenProcess(desiredAccess uint32, inheritHandle bool, processId uint32) (handle Handle, err error) {
 	var _p0 uint32
 	if inheritHandle {
 		_p0 = 1
 	} else {
 		_p0 = 0
 	}
-	r0, _, e1 := syscall.Syscall(procOpenProcess.Addr(), 3, uintptr(da), uintptr(_p0), uintptr(pid))
+	r0, _, e1 := syscall.Syscall(procOpenProcess.Addr(), 3, uintptr(desiredAccess), uintptr(_p0), uintptr(processId))
 	handle = Handle(r0)
 	if handle == 0 {
 		if e1 != 0 {
@@ -2234,14 +2236,14 @@ func GetProcessId(process Handle) (id uint32, err error) {
 	return
 }
 
-func OpenThread(da uint32, inheritHandle bool, tid uint32) (handle Handle, err error) {
+func OpenThread(desiredAccess uint32, inheritHandle bool, threadId uint32) (handle Handle, err error) {
 	var _p0 uint32
 	if inheritHandle {
 		_p0 = 1
 	} else {
 		_p0 = 0
 	}
-	r0, _, e1 := syscall.Syscall(procOpenThread.Addr(), 3, uintptr(da), uintptr(_p0), uintptr(tid))
+	r0, _, e1 := syscall.Syscall(procOpenThread.Addr(), 3, uintptr(desiredAccess), uintptr(_p0), uintptr(threadId))
 	handle = Handle(r0)
 	if handle == 0 {
 		if e1 != 0 {
@@ -2515,8 +2517,16 @@ func coCreateGuid(pguid *GUID) (ret error) {
 	return
 }
 
-func coTaskMemFree(address unsafe.Pointer) {
+func CoTaskMemFree(address unsafe.Pointer) {
 	syscall.Syscall(procCoTaskMemFree.Addr(), 1, uintptr(address), 0, 0)
+	return
+}
+
+func rtlGetVersion(info *OsVersionInfoEx) (ret error) {
+	r0, _, _ := syscall.Syscall(procRtlGetVersion.Addr(), 1, uintptr(unsafe.Pointer(info)), 0, 0)
+	if r0 != 0 {
+		ret = syscall.Errno(r0)
+	}
 	return
 }
 

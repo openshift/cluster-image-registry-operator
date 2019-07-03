@@ -5446,10 +5446,14 @@ type OrderShipment struct {
 	// - "lasership"
 	// - "mpx"
 	// - "uds"
+	// - "efw"
 	//
 	// Acceptable values for FR are:
 	// - "colissimo"
 	// - "chronopost"
+	// - "gls"
+	// - "dpd"
+	// - "bpost"
 	Carrier string `json:"carrier,omitempty"`
 
 	// CreationDate: Date on which the shipment has been created, in ISO
@@ -11133,6 +11137,9 @@ type TestOrderLineItemProduct struct {
 
 	// ContentLanguage: The two-letter ISO 639-1 language code for the item.
 	ContentLanguage string `json:"contentLanguage,omitempty"`
+
+	// Fees: Fees for the item. Optional.
+	Fees []*OrderLineItemProductFee `json:"fees,omitempty"`
 
 	// Gtin: Global Trade Item Number (GTIN) of the item. Optional.
 	Gtin string `json:"gtin,omitempty"`

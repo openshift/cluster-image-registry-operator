@@ -9,8 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/openshift/installer/pkg/destroy"
-	"github.com/openshift/installer/pkg/types"
+	"github.com/openshift/installer/pkg/destroy/providers"
 )
 
 // filterFunc allows filtering based on names.
@@ -45,6 +44,15 @@ type ClusterUninstaller struct {
 	LibvirtURI string
 	Filter     filterFunc
 	Logger     logrus.FieldLogger
+}
+
+// New returns libvirt Uninstaller from ClusterMetadata.
+func New(logger logrus.FieldLogger, metadata *types.ClusterMetadata) (providers.Destroyer, error) {
+	return &ClusterUninstaller{
+		LibvirtURI: metadata.ClusterPlatformMetadata.Libvirt.URI,
+		Filter:     ClusterIDPrefixFilter(metadata.InfraID),
+		Logger:     logger,
+	}, nil
 }
 
 // Run is the entrypoint to start the uninstall process.
@@ -209,13 +217,4 @@ func deleteNetwork(conn *libvirt.Connect, filter filterFunc, logger logrus.Field
 		logger.WithField("network", nName).Info("Deleted network")
 	}
 	return nil
-}
-
-// New returns libvirt Uninstaller from ClusterMetadata.
-func New(logger logrus.FieldLogger, metadata *types.ClusterMetadata) (destroy.Destroyer, error) {
-	return &ClusterUninstaller{
-		LibvirtURI: metadata.ClusterPlatformMetadata.Libvirt.URI,
-		Filter:     ClusterIDPrefixFilter(metadata.InfraID),
-		Logger:     logger,
-	}, nil
 }

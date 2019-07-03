@@ -306,7 +306,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:641224f7b8f1cea6916375f46c997c991902910af8860d4520642b7a69fe37a4"
+  digest = "1:fafce8bcd6b10bcf75556a9649010fbfed5772302c1bf24fbc347558ccfa9c63"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -320,6 +320,12 @@
     "openstack/identity/v2/tokens",
     "openstack/identity/v3/regions",
     "openstack/identity/v3/tokens",
+    "openstack/loadbalancer/v2/apiversions",
+    "openstack/loadbalancer/v2/l7policies",
+    "openstack/loadbalancer/v2/listeners",
+    "openstack/loadbalancer/v2/loadbalancers",
+    "openstack/loadbalancer/v2/monitors",
+    "openstack/loadbalancer/v2/pools",
     "openstack/networking/v2/extensions",
     "openstack/networking/v2/extensions/layer3/floatingips",
     "openstack/networking/v2/extensions/layer3/routers",
@@ -336,15 +342,15 @@
     "pagination",
   ]
   pruneopts = "NUT"
-  revision = "3a7818a07cfc862267a0b03635075a444c92dcda"
+  revision = "157432124aab520975efedb5e54b95287785578d"
 
 [[projects]]
   branch = "master"
-  digest = "1:33e4f758f5c56c37064d7f11c8014e81faa7bcf47295bbda5158f7101f0b1d55"
+  digest = "1:4a14c92687d36a3875744de509bae52334a00ba487eb285b8a57645ec46acc7e"
   name = "github.com/gophercloud/utils"
   packages = ["openstack/clientconfig"]
   pruneopts = "NUT"
-  revision = "3b35bcb43167f6d8080fa824c480f04b60311b51"
+  revision = "25f1b77b8c0367b43939dbb20f5dd12e3c9b0053"
 
 [[projects]]
   branch = "master"
@@ -493,18 +499,18 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:38df3f2dd17d211412c30f9fe9656e2a42f3e21d61cf39acf4f536eeef444e01"
+  digest = "1:e0497c97dc8e84143a1f2441358ac201270f6687d8e947b38fc1cea71ab0bee1"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
     "route/v1",
   ]
   pruneopts = "NUT"
-  revision = "10f647f62efca0c361334c29499f68ad1a37e266"
+  revision = "a77179bc5896d5391a200f8a4578f092f8828178"
 
 [[projects]]
   branch = "master"
-  digest = "1:bd5d973adae92f863286231aa348cbf7881a10d50fd4790c4f4b2a639f074e9e"
+  digest = "1:a3c12915aaf50c4a16a662609e8e7411e9061a653542e786731dfffc90028f84"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -515,23 +521,23 @@
     "route/clientset/versioned/typed/route/v1",
   ]
   pruneopts = "NUT"
-  revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
+  revision = "8892c0adc000741c33af70e05f4ede47725d0773"
 
 [[projects]]
   branch = "master"
-  digest = "1:476ab9e1d63eb879d1869f6876704646de0136a428ba7bba8f3804c1e6fb071b"
+  digest = "1:5449643b322144dad676e6c0efa0e554fc7b7552b5665468a48d8669b570ad1b"
   name = "github.com/openshift/cloud-credential-operator"
   packages = [
     "pkg/apis/cloudcredential/v1",
     "pkg/aws",
-    "pkg/controller/utils",
     "version",
   ]
   pruneopts = "NUT"
-  revision = "4b6d10a82cd4949ade8056e5fbbf29e0765a0f47"
+  revision = "c89dc7733001098f3b7de4bc58ce0f49db47009a"
 
 [[projects]]
-  digest = "1:03fe1745d2916b44cf208a1014a783ad9f1663ad16f03b939cd2e66e30bb3c74"
+  branch = "openshift-4.2-cluster-api-0.1.0"
+  digest = "1:e8a9dc53f9d4f267e55c67bb9f63fe5ac41dcfeca84a9ee339f7439d2d1c219f"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -540,17 +546,18 @@
     "pkg/apis/machine/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "cad0f8326cd26bd92fe2f0f90b5ca2e2cbc8a210"
+  revision = "046d74a3bd9143fb650cb894ece0f088a3b26de3"
 
 [[projects]]
-  digest = "1:7996646bfd4a19e15e2e3828fc8c2c3c5d751e906f18a2820ffba9d08a394e27"
+  branch = "master"
+  digest = "1:901bbe7525b02899e9762fa9a9474d2251de64cd05dceffeb3fddfee86edf8d1"
   name = "github.com/openshift/cluster-api-provider-libvirt"
   packages = [
     "pkg/apis",
     "pkg/apis/libvirtproviderconfig/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "2705e5265b62886d8df453b8d4a4601dc0c33084"
+  revision = "ecea5317a4ab6e24ef65ad4573d0a358e3585931"
 
 [[projects]]
   branch = "master"
@@ -1029,11 +1036,10 @@
   version = "kubernetes-1.12.2"
 
 [[projects]]
-  digest = "1:d4077b20d8ba3b64ff57af190a5aee42167d7cd6f3788ad0d67bdc7b427f4697"
+  digest = "1:08027a07c9a263deb5f51fcc801996e7d453b1ed1318c6c5eb7affd084bff3a9"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
-    "dynamic",
     "kubernetes",
     "kubernetes/scheme",
     "kubernetes/typed/admissionregistration/v1alpha1",
@@ -1074,7 +1080,6 @@
     "plugin/pkg/client/auth/exec",
     "rest",
     "rest/watch",
-    "restmapper",
     "tools/auth",
     "tools/cache",
     "tools/clientcmd",
@@ -1115,61 +1120,47 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b23a1b4063d7b3b60ad82fab0cb72b5048da29f880a3761b4e390cb659a0b11f"
-  name = "sigs.k8s.io/cluster-api"
-  packages = [
-    "pkg/apis/cluster/common",
-    "pkg/apis/cluster/v1alpha1",
-  ]
-  pruneopts = "NUT"
-  revision = "ef6f8fc12d32fc1646f231f6e39dbef59ad2e4dd"
-
-[[projects]]
-  digest = "1:3981a97e1e569cbbaaab702d2b44adfac402e923a2bb0984ef5fad93bcbf8c79"
+  digest = "1:8f4add5b7f90c1c3399316f70d600bc1a991f889945cd9e0dfa8f605962d0a1a"
   name = "sigs.k8s.io/cluster-api-provider-aws"
   packages = [
     "pkg/apis",
     "pkg/apis/awsproviderconfig/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "15fe4b4ea5636f8516c238490fc6a85d44161181"
+  revision = "cf06d47b6ceedfe48ecead44424245b86a423f4b"
   source = "https://github.com/openshift/cluster-api-provider-aws.git"
 
 [[projects]]
   branch = "master"
-  digest = "1:1ec43d1093555bc7a4f63f0cec39c215d1c5754b90bd9741d7ded6c2110fc465"
+  digest = "1:8029344993a62e49ed41f78ead4b3499d74cb2d4e1a1c0dc36a00d2107837884"
   name = "sigs.k8s.io/cluster-api-provider-azure"
   packages = [
     "pkg/apis",
     "pkg/apis/azureprovider/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "106e77fea15a9a0a39776b3edbc5666aa337ca70"
+  revision = "12d3c939200e9d0c288311ec8122686fce5638a9"
   source = "https://github.com/openshift/cluster-api-provider-azure.git"
 
 [[projects]]
   branch = "master"
-  digest = "1:6c6e0025ef7af7e27646d2ebd5107b50044d8a1caf80735847fbe43d4d3d8381"
+  digest = "1:218907e65c91aef95d8f29a1bab723bf810d2fdc20e5e13400a9295d2bfefb87"
   name = "sigs.k8s.io/cluster-api-provider-openstack"
   packages = [
     "pkg/apis",
     "pkg/apis/openstackproviderconfig/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "137fd3c3610e5fc616337f952b9b717a7f32f5e4"
+  revision = "bedbef13faf2f0539164a8a19d755e59a905367b"
   source = "https://github.com/openshift/cluster-api-provider-openstack.git"
 
 [[projects]]
-  digest = "1:9b89872389bed1e6647547b868c3f9fa813f8adf098ba0984bc672e4b78ae235"
+  branch = "release-0.2"
+  digest = "1:c4e8f6509ee8cec911985a812ed3f9cc024404acc45ac613fa103f735cf3222a"
   name = "sigs.k8s.io/controller-runtime"
-  packages = [
-    "pkg/client",
-    "pkg/client/apiutil",
-    "pkg/runtime/scheme",
-  ]
+  packages = ["pkg/scheme"]
   pruneopts = "NUT"
-  revision = "12d98582e72927b6cd0123e2b4e819f9341ce62c"
-  version = "v0.1.10"
+  revision = "f60c87ec713cb8da81257228530605457ebf7220"
 
 [[projects]]
   digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
@@ -1217,6 +1208,8 @@
     "github.com/gophercloud/gophercloud/openstack/compute/v2/flavors",
     "github.com/gophercloud/gophercloud/openstack/compute/v2/servers",
     "github.com/gophercloud/gophercloud/openstack/identity/v3/regions",
+    "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/apiversions",
+    "github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers",
@@ -1233,7 +1226,6 @@
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/route/clientset/versioned",
     "github.com/openshift/cloud-credential-operator/pkg/aws",
-    "github.com/openshift/cloud-credential-operator/pkg/controller/utils",
     "github.com/openshift/cluster-api-provider-libvirt/pkg/apis",
     "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1beta1",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
@@ -1282,7 +1274,6 @@
     "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1alpha1",
     "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis",
     "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis/openstackproviderconfig/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

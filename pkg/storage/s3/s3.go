@@ -2,6 +2,8 @@ package s3
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -11,13 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-
-	operatorapi "github.com/openshift/api/operator/v1"
+	"golang.org/x/net/http/httpproxy"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 
+	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
@@ -61,10 +63,19 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		d.Config.Region = cfg.Storage.S3.Region
 	}
 
+	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
+	// uses a cache which won't let us update the proxy env vars
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey, ""),
 		Region:      &d.Config.Region,
 		Endpoint:    &d.Config.RegionEndpoint,
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				Proxy: func(req *http.Request) (*url.URL, error) {
+					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+				},
+			},
+		},
 	})
 	if err != nil {
 		return nil, err
