@@ -247,12 +247,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	ic, err := clusterconfig.GetInstallConfig(d.KubeConfig)
-	if err != nil {
-		return err
-	}
-
-	cv, err := util.GetClusterVersionConfig(d.KubeConfig)
+	infra, err := util.GetInfrastructure(d.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -290,7 +285,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(cv.Spec.ClusterID), "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(infra.Status.InfrastructureName, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 				generatedName = true
 			}
 
@@ -367,28 +362,25 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Status.StorageManaged {
-		if ic.Platform.AWS != nil {
-			var tagSet []*s3.Tag
-			tagSet = append(tagSet, &s3.Tag{Key: aws.String("openshiftClusterID"), Value: aws.String(string(cv.Spec.ClusterID))})
-			for k, v := range ic.Platform.AWS.UserTags {
-				tagSet = append(tagSet, &s3.Tag{Key: aws.String(k), Value: aws.String(v)})
-			}
-
-			_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
-				Bucket: aws.String(d.Config.Bucket),
-				Tagging: &s3.Tagging{
-					TagSet: tagSet,
+		_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
+			Bucket: aws.String(d.Config.Bucket),
+			Tagging: &s3.Tagging{
+				TagSet: []*s3.Tag{
+					{
+						Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
+						Value: aws.String("owned"),
+					},
 				},
-			})
-			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
-				} else {
-					util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
-				}
+			},
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
 			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "UserTags were successfully applied to the S3 bucket")
+				util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 			}
+		} else {
+			util.UpdateCondition(cr, imageregistryv1.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "Tags were successfully applied to the S3 bucket")
 		}
 	}
 

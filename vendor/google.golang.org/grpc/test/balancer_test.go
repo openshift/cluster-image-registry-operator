@@ -24,19 +24,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
-	"google.golang.org/grpc/internal/balancerload/orca"
-	orcapb "google.golang.org/grpc/internal/balancerload/orca/orca_v1"
+	"google.golang.org/grpc/internal/balancerload"
+	"google.golang.org/grpc/internal/testutils"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/resolver"
 	testpb "google.golang.org/grpc/test/grpc_testing"
 	"google.golang.org/grpc/testdata"
-
-	_ "google.golang.org/grpc/internal/balancerload/orca"
 )
 
 const testBalancerName = "testbalancer"
@@ -165,14 +163,14 @@ func testDoneInfo(t *testing.T, e env) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	wantErr := detailedError
-	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !reflect.DeepEqual(err, wantErr) {
+	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !testutils.StatusErrEqual(err, wantErr) {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, %v", err, wantErr)
 	}
 	if _, err := tc.UnaryCall(ctx, &testpb.SimpleRequest{}); err != nil {
 		t.Fatalf("TestService.UnaryCall(%v, _, _, _) = _, %v; want _, <nil>", ctx, err)
 	}
 
-	if len(b.doneInfo) < 1 || !reflect.DeepEqual(b.doneInfo[0].Err, wantErr) {
+	if len(b.doneInfo) < 1 || !testutils.StatusErrEqual(b.doneInfo[0].Err, wantErr) {
 		t.Fatalf("b.doneInfo = %v; want b.doneInfo[0].Err = %v", b.doneInfo, wantErr)
 	}
 	if len(b.doneInfo) < 2 || !reflect.DeepEqual(b.doneInfo[1].Trailer, testTrailerMetadata) {
@@ -200,6 +198,22 @@ func testDoneInfo(t *testing.T, e env) {
 	}
 }
 
+const loadMDKey = "X-Endpoint-Load-Metrics-Bin"
+
+type testLoadParser struct{}
+
+func (*testLoadParser) Parse(md metadata.MD) interface{} {
+	vs := md.Get(loadMDKey)
+	if len(vs) == 0 {
+		return nil
+	}
+	return vs[0]
+}
+
+func init() {
+	balancerload.SetParser(&testLoadParser{})
+}
+
 func (s) TestDoneLoads(t *testing.T) {
 	for _, e := range listTestEnv() {
 		testDoneLoads(t, e)
@@ -210,17 +224,11 @@ func testDoneLoads(t *testing.T, e env) {
 	b := &testBalancer{}
 	balancer.Register(b)
 
-	testLoad := &orcapb.LoadReport{
-		CpuUtilization:           0.31,
-		MemUtilization:           0.41,
-		NicInUtilization:         0.59,
-		NicOutUtilization:        0.26,
-		RequestCostOrUtilization: nil,
-	}
+	const testLoad = "test-load-,-should-be-orca"
 
 	ss := &stubServer{
 		emptyCall: func(ctx context.Context, in *testpb.Empty) (*testpb.Empty, error) {
-			grpc.SetTrailer(ctx, orca.ToMetadata(testLoad))
+			grpc.SetTrailer(ctx, metadata.Pairs(loadMDKey, testLoad))
 			return &testpb.Empty{}, nil
 		},
 	}
@@ -247,8 +255,8 @@ func testDoneLoads(t *testing.T, e env) {
 	if len(b.doneInfo) < 1 {
 		t.Fatalf("b.doneInfo = %v, want length 1", b.doneInfo)
 	}
-	gotLoad, _ := b.doneInfo[0].ServerLoad.(*orcapb.LoadReport)
-	if !proto.Equal(gotLoad, testLoad) {
+	gotLoad, _ := b.doneInfo[0].ServerLoad.(string)
+	if gotLoad != testLoad {
 		t.Fatalf("b.doneInfo[0].ServerLoad = %v; want = %v", b.doneInfo[0].ServerLoad, testLoad)
 	}
 }

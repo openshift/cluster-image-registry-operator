@@ -55,6 +55,7 @@ func testLSP(t *testing.T, exporter packagestest.Exporter) {
 				protocol.SourceOrganizeImports: true,
 				protocol.QuickFix:              true,
 			},
+			hoverKind: source.SynopsisDocumentation,
 		},
 		data: data,
 	}
@@ -681,16 +682,25 @@ func (r *runner) SignatureHelp(t *testing.T, data tests.Signatures) {
 			Position: loc.Range.Start,
 		})
 		if err != nil {
-			t.Fatal(err)
+			// Only fail if we got an error we did not expect.
+			if expectedSignatures != nil {
+				t.Fatal(err)
+			}
+			continue
 		}
-
+		if expectedSignatures == nil {
+			if gotSignatures != nil {
+				t.Errorf("expected no signature, got %v", gotSignatures)
+			}
+			continue
+		}
 		if diff := diffSignatures(spn, expectedSignatures, gotSignatures); diff != "" {
 			t.Error(diff)
 		}
 	}
 }
 
-func diffSignatures(spn span.Span, want source.SignatureInformation, got *protocol.SignatureHelp) string {
+func diffSignatures(spn span.Span, want *source.SignatureInformation, got *protocol.SignatureHelp) string {
 	decorate := func(f string, args ...interface{}) string {
 		return fmt.Sprintf("Invalid signature at %s: %s", spn, fmt.Sprintf(f, args...))
 	}

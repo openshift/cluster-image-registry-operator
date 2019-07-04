@@ -52,16 +52,6 @@ func czCleanupWrapper(cleanup func() error, t *testing.T) {
 	}
 }
 
-func (te *test) startServers(ts testpb.TestServiceServer, num int) {
-	for i := 0; i < num; i++ {
-		te.startServer(ts)
-		te.srvs = append(te.srvs, te.srv.(*grpc.Server))
-		te.srvAddrs = append(te.srvAddrs, te.srvAddr)
-		te.srv = nil
-		te.srvAddr = ""
-	}
-}
-
 func verifyResultWithDelay(f func() (bool, error)) error {
 	var ok bool
 	var err error
@@ -240,7 +230,7 @@ func (s) TestCZNestedChannelRegistrationAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: `{"loadBalancingPolicy": "round_robin"}`})
+	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: parseCfg(`{"loadBalancingPolicy": "round_robin"}`)})
 
 	// wait for the shutdown of grpclb balancer
 	if err := verifyResultWithDelay(func() (bool, error) {
@@ -1425,7 +1415,7 @@ func (s) TestCZChannelTraceCreationDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: `{"loadBalancingPolicy": "round_robin"}`})
+	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: parseCfg(`{"loadBalancingPolicy": "round_robin"}`)})
 
 	// wait for the shutdown of grpclb balancer
 	if err := verifyResultWithDelay(func() (bool, error) {
@@ -1569,7 +1559,7 @@ func (s) TestCZChannelAddressResolutionChange(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: `{"loadBalancingPolicy": "round_robin"}`})
+	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: parseCfg(`{"loadBalancingPolicy": "round_robin"}`)})
 
 	if err := verifyResultWithDelay(func() (bool, error) {
 		cm := channelz.GetChannel(cid)
@@ -1586,7 +1576,7 @@ func (s) TestCZChannelAddressResolutionChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newSC := `{
+	newSC := parseCfg(`{
     "methodConfig": [
         {
             "name": [
@@ -1599,19 +1589,20 @@ func (s) TestCZChannelAddressResolutionChange(t *testing.T) {
             "timeout": ".001s"
         }
     ]
-}`
-
+}`)
 	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: newSC})
 
 	if err := verifyResultWithDelay(func() (bool, error) {
 		cm := channelz.GetChannel(cid)
 
+		var es []string
 		for i := len(cm.Trace.Events) - 1; i >= 0; i-- {
 			if strings.Contains(cm.Trace.Events[i].Desc, "service config updated") {
 				break
 			}
+			es = append(es, cm.Trace.Events[i].Desc)
 			if i == 0 {
-				return false, fmt.Errorf("events do not contain expected address resolution of new service config")
+				return false, fmt.Errorf("events do not contain expected address resolution of new service config\n Events:\n%v", strings.Join(es, "\n"))
 			}
 		}
 		return true, nil
@@ -1883,7 +1874,7 @@ func (s) TestCZTraceOverwriteChannelDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: `{"loadBalancingPolicy": "round_robin"}`})
+	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: "127.0.0.1:0"}}, ServiceConfig: parseCfg(`{"loadBalancingPolicy": "round_robin"}`)})
 
 	// wait for the shutdown of grpclb balancer
 	if err := verifyResultWithDelay(func() (bool, error) {
