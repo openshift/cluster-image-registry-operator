@@ -122,12 +122,14 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
-
 	// Retrieve the cluster proxy configuration and set it for the currently running
 	// image registry operator.
 	// TODO: There must be a better way to accomplish this that is not so "black box"
 	proxyConfig, err := c.listers.ProxyConfigs.Get(imageregistryv1.ClusterProxyResourceName)
-	if err != nil {
+	if errors.IsNotFound(err) {
+		proxyConfig = &configapiv1.Proxy{}
+	} else if err != nil {
+		// TODO: should we report Degraded?
 		return fmt.Errorf("unable to get cluster proxy configuration: %v", err)
 	}
 
