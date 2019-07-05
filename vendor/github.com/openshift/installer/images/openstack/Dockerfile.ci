@@ -1,0 +1,26 @@
+# This Dockerfile is used by CI to test using OpenShift Installer against an OpenStack cloud.
+# It builds an image containing the openshift-install command as well as the openstack cli.
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.10 AS builder
+WORKDIR /go/src/github.com/openshift/installer
+COPY . .
+RUN hack/build.sh
+
+FROM registry.svc.ci.openshift.org/origin/4.1:base
+COPY --from=builder /go/src/github.com/openshift/installer/bin/openshift-install /bin/openshift-install
+COPY --from=builder /go/src/github.com/openshift/installer/images/openstack/rdo-stein.repo /etc/yum.repos.d/rdo-stein.repo
+COPY --from=builder /go/src/github.com/openshift/installer/images/openstack/rdo-stein.gpg /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-Cloud
+COPY --from=registry.svc.ci.openshift.org/openshift/origin-v4.0:cli /usr/bin/oc /bin/oc
+
+RUN yum install --setopt=tsflags=nodocs -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm &&\
+    yum update -y && \
+    yum install --setopt=tsflags=nodocs -y \
+    python-openstackclient && \
+    yum clean all && rm -rf /var/cache/yum/*
+
+RUN mkdir /output && chown 1000:1000 /output
+USER 1000:1000
+ENV PATH /bin
+ENV HOME /output
+WORKDIR /output
+ENTRYPOINT ["/bin/openshift-install"]

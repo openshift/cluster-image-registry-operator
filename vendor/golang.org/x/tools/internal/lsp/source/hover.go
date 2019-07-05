@@ -10,6 +10,7 @@ import (
 	"go/ast"
 	"go/doc"
 	"go/format"
+	"go/token"
 	"go/types"
 	"strings"
 )
@@ -19,52 +20,17 @@ type documentation struct {
 	comment *ast.CommentGroup
 }
 
-type HoverKind int
-
-const (
-	NoDocumentation = HoverKind(iota)
-	SynopsisDocumentation
-	FullDocumentation
-
-	// TODO: Support a single-line hover mode for clients like Vim.
-	singleLine
-)
-
-func (i *IdentifierInfo) Hover(ctx context.Context, markdownSupported bool, hoverKind HoverKind) (string, error) {
+func (i *IdentifierInfo) Hover(ctx context.Context, markdownSupported, wantComments bool) (string, error) {
 	h, err := i.decl.hover(ctx)
 	if err != nil {
 		return "", err
 	}
+	c := h.comment
+	if !wantComments {
+		c = nil
+	}
 	var b strings.Builder
-	if comment := formatDocumentation(hoverKind, h.comment); comment != "" {
-		b.WriteString(comment)
-		b.WriteRune('\n')
-	}
-	if markdownSupported {
-		b.WriteString("```go\n")
-	}
-	switch x := h.source.(type) {
-	case ast.Node:
-		if err := format.Node(&b, i.File.FileSet(), x); err != nil {
-			return "", err
-		}
-	case types.Object:
-		b.WriteString(types.ObjectString(x, i.qf))
-	}
-	if markdownSupported {
-		b.WriteString("\n```")
-	}
-	return b.String(), nil
-}
-
-func formatDocumentation(hoverKind HoverKind, c *ast.CommentGroup) string {
-	switch hoverKind {
-	case SynopsisDocumentation:
-		return doc.Synopsis((c.Text()))
-	case FullDocumentation:
-		return c.Text()
-	}
-	return ""
+	return writeHover(h.source, i.File.FileSet(), &b, c, markdownSupported, i.qf)
 }
 
 func (d declaration) hover(ctx context.Context) (*documentation, error) {
@@ -158,4 +124,35 @@ func formatVar(node ast.Spec, obj types.Object) (*documentation, error) {
 	}
 	// If we weren't able to find documentation for the object.
 	return &documentation{obj, nil}, nil
+}
+
+// writeHover writes the hover for a given node and its documentation.
+func writeHover(x interface{}, fset *token.FileSet, b *strings.Builder, c *ast.CommentGroup, markdownSupported bool, qf types.Qualifier) (string, error) {
+	if c != nil {
+		// TODO(rstambler): Improve conversion from Go docs to markdown.
+		b.WriteString(formatDocumentation(c))
+		b.WriteRune('\n')
+	}
+	if markdownSupported {
+		b.WriteString("```go\n")
+	}
+	switch x := x.(type) {
+	case ast.Node:
+		if err := format.Node(b, fset, x); err != nil {
+			return "", err
+		}
+	case types.Object:
+		b.WriteString(types.ObjectString(x, qf))
+	}
+	if markdownSupported {
+		b.WriteString("\n```")
+	}
+	return b.String(), nil
+}
+
+func formatDocumentation(c *ast.CommentGroup) string {
+	if c == nil {
+		return ""
+	}
+	return doc.Synopsis(c.Text())
 }

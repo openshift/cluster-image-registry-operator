@@ -91,9 +91,6 @@ const (
 
 	// VSpherePlatformType represents VMWare vSphere infrastructure.
 	VSpherePlatformType PlatformType = "VSphere"
-
-	// OvirtPlatformType represents oVirt/RHV infrastructure.
-	OvirtPlatformType PlatformType = "oVirt"
 )
 
 // PlatformStatus holds the current status specific to the underlying infrastructure provider
@@ -105,7 +102,7 @@ type PlatformStatus struct {
 	// balancers, dynamic volume provisioning, machine creation and deletion, and
 	// other integrations are enabled. If None, no infrastructure automation is
 	// enabled. Allowed values are "AWS", "Azure", "BareMetal", "GCP", "Libvirt",
-	// "OpenStack", "VSphere", "oVirt", and "None". Individual components may not support
+	// "OpenStack", "VSphere", and "None". Individual components may not support
 	// all platforms, and must handle unrecognized platforms as None if they do
 	// not support that platform.
 	Type PlatformType `json:"type"`

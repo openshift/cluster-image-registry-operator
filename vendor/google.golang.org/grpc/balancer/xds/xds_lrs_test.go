@@ -1,3 +1,5 @@
+// +build go1.12
+
 /*
  *
  * Copyright 2019 gRPC authors.
@@ -95,7 +97,7 @@ func (s) TestXdsLoadReporting(t *testing.T) {
 		newEDSBalancer = originalNewEDSBalancer
 	}()
 
-	builder := balancer.Get(xdsName)
+	builder := balancer.Get("xds")
 	cc := newTestClientConn()
 	lb, ok := builder.Build(cc, balancer.BuildOptions{Target: resolver.Target{Endpoint: testServiceName}}).(*xdsBalancer)
 	if !ok {
@@ -112,11 +114,13 @@ func (s) TestXdsLoadReporting(t *testing.T) {
 		Nanos:   intervalNano,
 	}
 
-	cfg := &xdsConfig{
+	cfg := &testBalancerConfig{
 		BalancerName: addr,
-		ChildPolicy:  &loadBalancingConfig{Name: fakeBalancerA}, // Set this to skip cds.
+		ChildPolicy:  []lbPolicy{fakeBalancerA}, // Set this to skip cds.
 	}
-	lb.UpdateClientConnState(balancer.ClientConnState{BalancerConfig: cfg})
+	lb.UpdateResolverState(resolver.State{
+		ServiceConfig: constructServiceConfigFromXdsConfig(cfg),
+	})
 	td.sendResp(&response{resp: testEDSRespWithoutEndpoints})
 	var (
 		i     int
