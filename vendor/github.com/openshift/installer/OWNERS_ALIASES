@@ -1,0 +1,33 @@
+# See the OWNERS_ALIASES docs: https://git.k8s.io/community/contributors/guide/owners.md#OWNERS_ALIASES
+
+aliases:
+  installer-approvers:
+    - abhinavdahiya
+    - crawford
+    - smarterclayton
+    - staebler
+    - steveeJ
+    - wking
+  installer-reviewers:
+    - jcpowermac
+    - jhixson74
+    - jstuever
+    - mtnbikenc
+    - patrickdillon
+    - vrutkovs
+  libvirt-approvers:
+    - abhinavdahiya
+    - enxebre
+    - praveenkumar
+    - zeenix
+  libvirt-reviewers:
+  openstack-approvers:
+    - mandre
+    - tomassedovic
+    - hardys
+    - russellb
+    - trown
+  vsphere-approvers:
+    - abhinavdahiya
+    - dav1x
+    - staebler

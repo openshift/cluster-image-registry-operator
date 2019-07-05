@@ -55,6 +55,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"google.golang.org/grpc"
@@ -65,7 +66,6 @@ import (
 	"google.golang.org/grpc/benchmark/stats"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/internal/channelz"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -96,8 +96,6 @@ var (
 	cpuProfile          = flag.String("cpuProfile", "", "Enables CPU profiling output to the filename provided")
 	benchmarkResultFile = flag.String("resultFile", "", "Save the benchmark result into a binary file")
 	useBufconn          = flag.Bool("bufconn", false, "Use in-memory connection instead of system network I/O")
-	enableKeepalive     = flag.Bool("enable_keepalive", false, "Enable client keepalive. \n"+
-		"Keepalive.Time is set to 10s, Keepalive.Timeout is set to 1s, Keepalive.PermitWithoutStream is set to true.")
 )
 
 const (
@@ -122,8 +120,6 @@ const (
 	networkLongHaul  = "Longhaul"
 
 	numStatsBuckets = 10
-	warmupCallCount = 10
-	warmuptime      = time.Second
 )
 
 var (
@@ -143,8 +139,6 @@ var (
 		networkModeWAN:   latency.WAN,
 		networkLongHaul:  latency.Longhaul,
 	}
-	keepaliveTime    = 10 * time.Second // this is the minimum allowed
-	keepaliveTimeout = 1 * time.Second
 )
 
 // runModes indicates the workloads to run. This is initialized with a call to
@@ -175,86 +169,76 @@ func runModesFromWorkloads(workload string) runModes {
 	return r
 }
 
-type startFunc func(mode string, bf stats.Features)
-type stopFunc func(count uint64)
-type ucStopFunc func(req uint64, resp uint64)
-type rpcCallFunc func(pos int)
-type rpcSendFunc func(pos int)
-type rpcRecvFunc func(pos int)
-type rpcCleanupFunc func()
-
-func unaryBenchmark(start startFunc, stop stopFunc, bf stats.Features, s *stats.Stats) {
-	caller, cleanup := makeFuncUnary(bf)
+func unaryBenchmark(startTimer func(), stopTimer func(uint64), benchFeatures stats.Features, benchTime time.Duration, s *stats.Stats) uint64 {
+	caller, cleanup := makeFuncUnary(benchFeatures)
 	defer cleanup()
-	runBenchmark(caller, start, stop, bf, s, workloadsUnary)
+	return runBenchmark(caller, startTimer, stopTimer, benchFeatures, benchTime, s)
 }
 
-func streamBenchmark(start startFunc, stop stopFunc, bf stats.Features, s *stats.Stats) {
-	caller, cleanup := makeFuncStream(bf)
+func streamBenchmark(startTimer func(), stopTimer func(uint64), benchFeatures stats.Features, benchTime time.Duration, s *stats.Stats) uint64 {
+	caller, cleanup := makeFuncStream(benchFeatures)
 	defer cleanup()
-	runBenchmark(caller, start, stop, bf, s, workloadsStreaming)
+	return runBenchmark(caller, startTimer, stopTimer, benchFeatures, benchTime, s)
 }
 
-func unconstrainedStreamBenchmark(start startFunc, stop ucStopFunc, bf stats.Features, s *stats.Stats) {
-	var sender rpcSendFunc
-	var recver rpcRecvFunc
-	var cleanup rpcCleanupFunc
-	if bf.EnablePreloader {
-		sender, recver, cleanup = makeFuncUnconstrainedStreamPreloaded(bf)
+func unconstrainedStreamBenchmark(benchFeatures stats.Features, warmuptime, benchTime time.Duration) (uint64, uint64) {
+	var sender, recver func(int)
+	var cleanup func()
+	if benchFeatures.EnablePreloader {
+		sender, recver, cleanup = makeFuncUnconstrainedStreamPreloaded(benchFeatures)
 	} else {
-		sender, recver, cleanup = makeFuncUnconstrainedStream(bf)
+		sender, recver, cleanup = makeFuncUnconstrainedStream(benchFeatures)
 	}
 	defer cleanup()
 
-	var req, resp uint64
+	var (
+		wg            sync.WaitGroup
+		requestCount  uint64
+		responseCount uint64
+	)
+	wg.Add(2 * benchFeatures.MaxConcurrentCalls)
+
+	// Resets the counters once warmed up
 	go func() {
-		// Resets the counters once warmed up
 		<-time.NewTimer(warmuptime).C
-		atomic.StoreUint64(&req, 0)
-		atomic.StoreUint64(&resp, 0)
-		start(workloadsUnconstrained, bf)
+		atomic.StoreUint64(&requestCount, 0)
+		atomic.StoreUint64(&responseCount, 0)
 	}()
 
-	bmEnd := time.Now().Add(bf.BenchTime + warmuptime)
-	var wg sync.WaitGroup
-	wg.Add(2 * bf.MaxConcurrentCalls)
-	for i := 0; i < bf.MaxConcurrentCalls; i++ {
+	bmEnd := time.Now().Add(benchTime + warmuptime)
+	for i := 0; i < benchFeatures.MaxConcurrentCalls; i++ {
 		go func(pos int) {
-			defer wg.Done()
 			for {
 				t := time.Now()
 				if t.After(bmEnd) {
-					return
+					break
 				}
 				sender(pos)
-				atomic.AddUint64(&req, 1)
+				atomic.AddUint64(&requestCount, 1)
 			}
+			wg.Done()
 		}(i)
 		go func(pos int) {
-			defer wg.Done()
 			for {
 				t := time.Now()
 				if t.After(bmEnd) {
-					return
+					break
 				}
 				recver(pos)
-				atomic.AddUint64(&resp, 1)
+				atomic.AddUint64(&responseCount, 1)
 			}
+			wg.Done()
 		}(i)
 	}
 	wg.Wait()
-	stop(req, resp)
+	return requestCount, responseCount
 }
 
-// makeClient returns a gRPC client for the grpc.testing.BenchmarkService
-// service. The client is configured using the different options in the passed
-// 'bf'. Also returns a cleanup function to close the client and release
-// resources.
-func makeClient(bf stats.Features) (testpb.BenchmarkServiceClient, func()) {
-	nw := &latency.Network{Kbps: bf.Kbps, Latency: bf.Latency, MTU: bf.MTU}
+func makeClient(benchFeatures stats.Features) (testpb.BenchmarkServiceClient, func()) {
+	nw := &latency.Network{Kbps: benchFeatures.Kbps, Latency: benchFeatures.Latency, MTU: benchFeatures.Mtu}
 	opts := []grpc.DialOption{}
 	sopts := []grpc.ServerOption{}
-	if bf.ModeCompressor == compModeNop {
+	if benchFeatures.ModeCompressor == compModeNop {
 		sopts = append(sopts,
 			grpc.RPCCompressor(nopCompressor{}),
 			grpc.RPCDecompressor(nopDecompressor{}),
@@ -264,7 +248,7 @@ func makeClient(bf stats.Features) (testpb.BenchmarkServiceClient, func()) {
 			grpc.WithDecompressor(nopDecompressor{}),
 		)
 	}
-	if bf.ModeCompressor == compModeGzip {
+	if benchFeatures.ModeCompressor == compModeGzip {
 		sopts = append(sopts,
 			grpc.RPCCompressor(grpc.NewGZIPCompressor()),
 			grpc.RPCDecompressor(grpc.NewGZIPDecompressor()),
@@ -274,20 +258,11 @@ func makeClient(bf stats.Features) (testpb.BenchmarkServiceClient, func()) {
 			grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
 		)
 	}
-	if bf.EnableKeepalive {
-		opts = append(opts,
-			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                keepaliveTime,
-				Timeout:             keepaliveTimeout,
-				PermitWithoutStream: true,
-			}),
-		)
-	}
-	sopts = append(sopts, grpc.MaxConcurrentStreams(uint32(bf.MaxConcurrentCalls+1)))
+	sopts = append(sopts, grpc.MaxConcurrentStreams(uint32(benchFeatures.MaxConcurrentCalls+1)))
 	opts = append(opts, grpc.WithInsecure())
 
 	var lis net.Listener
-	if bf.UseBufConn {
+	if benchFeatures.UseBufConn {
 		bcLis := bufconn.Listen(256 * 1024)
 		lis = bcLis
 		opts = append(opts, grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
@@ -314,18 +289,18 @@ func makeClient(bf stats.Features) (testpb.BenchmarkServiceClient, func()) {
 	}
 }
 
-func makeFuncUnary(bf stats.Features) (rpcCallFunc, rpcCleanupFunc) {
-	tc, cleanup := makeClient(bf)
+func makeFuncUnary(benchFeatures stats.Features) (func(int), func()) {
+	tc, cleanup := makeClient(benchFeatures)
 	return func(int) {
-		unaryCaller(tc, bf.ReqSizeBytes, bf.RespSizeBytes)
+		unaryCaller(tc, benchFeatures.ReqSizeBytes, benchFeatures.RespSizeBytes)
 	}, cleanup
 }
 
-func makeFuncStream(bf stats.Features) (rpcCallFunc, rpcCleanupFunc) {
-	tc, cleanup := makeClient(bf)
+func makeFuncStream(benchFeatures stats.Features) (func(int), func()) {
+	tc, cleanup := makeClient(benchFeatures)
 
-	streams := make([]testpb.BenchmarkService_StreamingCallClient, bf.MaxConcurrentCalls)
-	for i := 0; i < bf.MaxConcurrentCalls; i++ {
+	streams := make([]testpb.BenchmarkService_StreamingCallClient, benchFeatures.MaxConcurrentCalls)
+	for i := 0; i < benchFeatures.MaxConcurrentCalls; i++ {
 		stream, err := tc.StreamingCall(context.Background())
 		if err != nil {
 			grpclog.Fatalf("%v.StreamingCall(_) = _, %v", tc, err)
@@ -334,12 +309,12 @@ func makeFuncStream(bf stats.Features) (rpcCallFunc, rpcCleanupFunc) {
 	}
 
 	return func(pos int) {
-		streamCaller(streams[pos], bf.ReqSizeBytes, bf.RespSizeBytes)
+		streamCaller(streams[pos], benchFeatures.ReqSizeBytes, benchFeatures.RespSizeBytes)
 	}, cleanup
 }
 
-func makeFuncUnconstrainedStreamPreloaded(bf stats.Features) (rpcSendFunc, rpcRecvFunc, rpcCleanupFunc) {
-	streams, req, cleanup := setupUnconstrainedStream(bf)
+func makeFuncUnconstrainedStreamPreloaded(benchFeatures stats.Features) (func(int), func(int), func()) {
+	streams, req, cleanup := setupUnconstrainedStream(benchFeatures)
 
 	preparedMsg := make([]*grpc.PreparedMsg, len(streams))
 	for i, stream := range streams {
@@ -357,8 +332,8 @@ func makeFuncUnconstrainedStreamPreloaded(bf stats.Features) (rpcSendFunc, rpcRe
 		}, cleanup
 }
 
-func makeFuncUnconstrainedStream(bf stats.Features) (rpcSendFunc, rpcRecvFunc, rpcCleanupFunc) {
-	streams, req, cleanup := setupUnconstrainedStream(bf)
+func makeFuncUnconstrainedStream(benchFeatures stats.Features) (func(int), func(int), func()) {
+	streams, req, cleanup := setupUnconstrainedStream(benchFeatures)
 
 	return func(pos int) {
 			streams[pos].Send(req)
@@ -367,11 +342,11 @@ func makeFuncUnconstrainedStream(bf stats.Features) (rpcSendFunc, rpcRecvFunc, r
 		}, cleanup
 }
 
-func setupUnconstrainedStream(bf stats.Features) ([]testpb.BenchmarkService_StreamingCallClient, *testpb.SimpleRequest, rpcCleanupFunc) {
-	tc, cleanup := makeClient(bf)
+func setupUnconstrainedStream(benchFeatures stats.Features) ([]testpb.BenchmarkService_StreamingCallClient, *testpb.SimpleRequest, func()) {
+	tc, cleanup := makeClient(benchFeatures)
 
-	streams := make([]testpb.BenchmarkService_StreamingCallClient, bf.MaxConcurrentCalls)
-	for i := 0; i < bf.MaxConcurrentCalls; i++ {
+	streams := make([]testpb.BenchmarkService_StreamingCallClient, benchFeatures.MaxConcurrentCalls)
+	for i := 0; i < benchFeatures.MaxConcurrentCalls; i++ {
 		stream, err := tc.UnconstrainedStreamingCall(context.Background())
 		if err != nil {
 			grpclog.Fatalf("%v.UnconstrainedStreamingCall(_) = _, %v", tc, err)
@@ -379,18 +354,16 @@ func setupUnconstrainedStream(bf stats.Features) ([]testpb.BenchmarkService_Stre
 		streams[i] = stream
 	}
 
-	pl := bm.NewPayload(testpb.PayloadType_COMPRESSABLE, bf.ReqSizeBytes)
+	pl := bm.NewPayload(testpb.PayloadType_COMPRESSABLE, benchFeatures.ReqSizeBytes)
 	req := &testpb.SimpleRequest{
 		ResponseType: pl.Type,
-		ResponseSize: int32(bf.RespSizeBytes),
+		ResponseSize: int32(benchFeatures.RespSizeBytes),
 		Payload:      pl,
 	}
 
 	return streams, req, cleanup
 }
 
-// Makes a UnaryCall gRPC request using the given BenchmarkServiceClient and
-// request and response sizes.
 func unaryCaller(client testpb.BenchmarkServiceClient, reqSize, respSize int) {
 	if err := bm.DoUnaryCall(client, reqSize, respSize); err != nil {
 		grpclog.Fatalf("DoUnaryCall failed: %v", err)
@@ -403,36 +376,41 @@ func streamCaller(stream testpb.BenchmarkService_StreamingCallClient, reqSize, r
 	}
 }
 
-func runBenchmark(caller rpcCallFunc, start startFunc, stop stopFunc, bf stats.Features, s *stats.Stats, mode string) {
+func runBenchmark(caller func(int), startTimer func(), stopTimer func(uint64), benchFeatures stats.Features, benchTime time.Duration, s *stats.Stats) uint64 {
 	// Warm up connection.
-	for i := 0; i < warmupCallCount; i++ {
+	for i := 0; i < 10; i++ {
 		caller(0)
 	}
-
 	// Run benchmark.
-	start(mode, bf)
-	var wg sync.WaitGroup
-	wg.Add(bf.MaxConcurrentCalls)
-	bmEnd := time.Now().Add(bf.BenchTime)
+	startTimer()
+	var (
+		mu sync.Mutex
+		wg sync.WaitGroup
+	)
+	wg.Add(benchFeatures.MaxConcurrentCalls)
+	bmEnd := time.Now().Add(benchTime)
 	var count uint64
-	for i := 0; i < bf.MaxConcurrentCalls; i++ {
+	for i := 0; i < benchFeatures.MaxConcurrentCalls; i++ {
 		go func(pos int) {
-			defer wg.Done()
 			for {
 				t := time.Now()
 				if t.After(bmEnd) {
-					return
+					break
 				}
 				start := time.Now()
 				caller(pos)
 				elapse := time.Since(start)
 				atomic.AddUint64(&count, 1)
-				s.AddDuration(elapse)
+				mu.Lock()
+				s.Add(elapse)
+				mu.Unlock()
 			}
+			wg.Done()
 		}(i)
 	}
 	wg.Wait()
-	stop(count)
+	stopTimer(count)
+	return count
 }
 
 // benchOpts represents all configurable options available while running this
@@ -446,7 +424,6 @@ type benchOpts struct {
 	networkMode         string
 	benchmarkResultFile string
 	useBufconn          bool
-	enableKeepalive     bool
 	features            *featureOpts
 }
 
@@ -455,17 +432,38 @@ type benchOpts struct {
 // features through command line flags. We generate all possible combinations
 // for the provided values and run the benchmarks for each combination.
 type featureOpts struct {
-	enableTrace        []bool
-	readLatencies      []time.Duration
-	readKbps           []int
-	readMTU            []int
-	maxConcurrentCalls []int
-	reqSizeBytes       []int
-	respSizeBytes      []int
-	compModes          []string
-	enableChannelz     []bool
-	enablePreloader    []bool
+	enableTrace        []bool          // Feature index 0
+	readLatencies      []time.Duration // Feature index 1
+	readKbps           []int           // Feature index 2
+	readMTU            []int           // Feature index 3
+	maxConcurrentCalls []int           // Feature index 4
+	reqSizeBytes       []int           // Feature index 5
+	respSizeBytes      []int           // Feature index 6
+	compModes          []string        // Feature index 7
+	enableChannelz     []bool          // Feature index 8
+	enablePreloader    []bool          // Feature index 9
 }
+
+// featureIndex is an enum for the different features that could be configured
+// by the user through command line flags.
+type featureIndex int
+
+const (
+	enableTraceIndex featureIndex = iota
+	readLatenciesIndex
+	readKbpsIndex
+	readMTUIndex
+	maxConcurrentCallsIndex
+	reqSizeBytesIndex
+	respSizeBytesIndex
+	compModesIndex
+	enableChannelzIndex
+	enablePreloaderIndex
+
+	// This is a place holder to indicate the total number of feature indices we
+	// have. Any new feature indices should be added above this.
+	maxFeatureIndex
+)
 
 // makeFeaturesNum returns a slice of ints of size 'maxFeatureIndex' where each
 // element of the slice (indexed by 'featuresIndex' enum) contains the number
@@ -474,31 +472,31 @@ type featureOpts struct {
 // enableTrace feature, while index 1 contains the number of value of
 // readLatencies feature and so on.
 func makeFeaturesNum(b *benchOpts) []int {
-	featuresNum := make([]int, stats.MaxFeatureIndex)
+	featuresNum := make([]int, maxFeatureIndex)
 	for i := 0; i < len(featuresNum); i++ {
-		switch stats.FeatureIndex(i) {
-		case stats.EnableTraceIndex:
+		switch featureIndex(i) {
+		case enableTraceIndex:
 			featuresNum[i] = len(b.features.enableTrace)
-		case stats.ReadLatenciesIndex:
+		case readLatenciesIndex:
 			featuresNum[i] = len(b.features.readLatencies)
-		case stats.ReadKbpsIndex:
+		case readKbpsIndex:
 			featuresNum[i] = len(b.features.readKbps)
-		case stats.ReadMTUIndex:
+		case readMTUIndex:
 			featuresNum[i] = len(b.features.readMTU)
-		case stats.MaxConcurrentCallsIndex:
+		case maxConcurrentCallsIndex:
 			featuresNum[i] = len(b.features.maxConcurrentCalls)
-		case stats.ReqSizeBytesIndex:
+		case reqSizeBytesIndex:
 			featuresNum[i] = len(b.features.reqSizeBytes)
-		case stats.RespSizeBytesIndex:
+		case respSizeBytesIndex:
 			featuresNum[i] = len(b.features.respSizeBytes)
-		case stats.CompModesIndex:
+		case compModesIndex:
 			featuresNum[i] = len(b.features.compModes)
-		case stats.EnableChannelzIndex:
+		case enableChannelzIndex:
 			featuresNum[i] = len(b.features.enableChannelz)
-		case stats.EnablePreloaderIndex:
+		case enablePreloaderIndex:
 			featuresNum[i] = len(b.features.enablePreloader)
 		default:
-			log.Fatalf("Unknown feature index %v in generateFeatures. maxFeatureIndex is %v", i, stats.MaxFeatureIndex)
+			log.Fatalf("Unknown feature index %v in generateFeatures. maxFeatureIndex is %v", i, maxFeatureIndex)
 		}
 	}
 	return featuresNum
@@ -539,28 +537,26 @@ func (b *benchOpts) generateFeatures(featuresNum []int) []stats.Features {
 	// all options.
 	var result []stats.Features
 	var curPos []int
-	initialPos := make([]int, stats.MaxFeatureIndex)
+	initialPos := make([]int, maxFeatureIndex)
 	for !reflect.DeepEqual(initialPos, curPos) {
 		if curPos == nil {
-			curPos = make([]int, stats.MaxFeatureIndex)
+			curPos = make([]int, maxFeatureIndex)
 		}
 		result = append(result, stats.Features{
 			// These features stay the same for each iteration.
-			NetworkMode:     b.networkMode,
-			UseBufConn:      b.useBufconn,
-			EnableKeepalive: b.enableKeepalive,
-			BenchTime:       b.benchTime,
+			NetworkMode: b.networkMode,
+			UseBufConn:  b.useBufconn,
 			// These features can potentially change for each iteration.
-			EnableTrace:        b.features.enableTrace[curPos[stats.EnableTraceIndex]],
-			Latency:            b.features.readLatencies[curPos[stats.ReadLatenciesIndex]],
-			Kbps:               b.features.readKbps[curPos[stats.ReadKbpsIndex]],
-			MTU:                b.features.readMTU[curPos[stats.ReadMTUIndex]],
-			MaxConcurrentCalls: b.features.maxConcurrentCalls[curPos[stats.MaxConcurrentCallsIndex]],
-			ReqSizeBytes:       b.features.reqSizeBytes[curPos[stats.ReqSizeBytesIndex]],
-			RespSizeBytes:      b.features.respSizeBytes[curPos[stats.RespSizeBytesIndex]],
-			ModeCompressor:     b.features.compModes[curPos[stats.CompModesIndex]],
-			EnableChannelz:     b.features.enableChannelz[curPos[stats.EnableChannelzIndex]],
-			EnablePreloader:    b.features.enablePreloader[curPos[stats.EnablePreloaderIndex]],
+			EnableTrace:        b.features.enableTrace[curPos[enableTraceIndex]],
+			Latency:            b.features.readLatencies[curPos[readLatenciesIndex]],
+			Kbps:               b.features.readKbps[curPos[readKbpsIndex]],
+			Mtu:                b.features.readMTU[curPos[readMTUIndex]],
+			MaxConcurrentCalls: b.features.maxConcurrentCalls[curPos[maxConcurrentCallsIndex]],
+			ReqSizeBytes:       b.features.reqSizeBytes[curPos[reqSizeBytesIndex]],
+			RespSizeBytes:      b.features.respSizeBytes[curPos[respSizeBytesIndex]],
+			ModeCompressor:     b.features.compModes[curPos[compModesIndex]],
+			EnableChannelz:     b.features.enableChannelz[curPos[enableChannelzIndex]],
+			EnablePreloader:    b.features.enablePreloader[curPos[enablePreloaderIndex]],
 		})
 		addOne(curPos, featuresNum)
 	}
@@ -601,7 +597,6 @@ func processFlags() *benchOpts {
 		networkMode:         *networkMode,
 		benchmarkResultFile: *benchmarkResultFile,
 		useBufconn:          *useBufconn,
-		enableKeepalive:     *enableKeepalive,
 		features: &featureOpts{
 			enableTrace:        setToggleMode(*traceMode),
 			readLatencies:      append([]time.Duration(nil), *readLatency...),
@@ -653,36 +648,76 @@ func setCompressorMode(val string) []string {
 	}
 }
 
+func printThroughput(requestCount uint64, requestSize int, responseCount uint64, responseSize int, benchTime time.Duration) {
+	requestThroughput := float64(requestCount) * float64(requestSize) * 8 / benchTime.Seconds()
+	responseThroughput := float64(responseCount) * float64(responseSize) * 8 / benchTime.Seconds()
+	fmt.Printf("Number of requests:  %v\tRequest throughput:  %v bit/s\n", requestCount, requestThroughput)
+	fmt.Printf("Number of responses: %v\tResponse throughput: %v bit/s\n", responseCount, responseThroughput)
+	fmt.Println()
+}
+
 func main() {
 	opts := processFlags()
 	before(opts)
-
 	s := stats.NewStats(numStatsBuckets)
+	s.SortLatency()
+	var memStats runtime.MemStats
+	var results testing.BenchmarkResult
+	var startAllocs, startBytes uint64
+	var startTime time.Time
+	var startTimer = func() {
+		runtime.ReadMemStats(&memStats)
+		startAllocs = memStats.Mallocs
+		startBytes = memStats.TotalAlloc
+		startTime = time.Now()
+	}
+	var stopTimer = func(count uint64) {
+		runtime.ReadMemStats(&memStats)
+		results = testing.BenchmarkResult{
+			N:         int(count),
+			T:         time.Since(startTime),
+			Bytes:     0,
+			MemAllocs: memStats.Mallocs - startAllocs,
+			MemBytes:  memStats.TotalAlloc - startBytes,
+		}
+	}
+
+	// Run benchmarks
+	resultSlice := []stats.BenchResults{}
 	featuresNum := makeFeaturesNum(opts)
-	sf := sharedFeatures(featuresNum)
-
-	var (
-		start  = func(mode string, bf stats.Features) { s.StartRun(mode, bf, sf) }
-		stop   = func(count uint64) { s.EndRun(count) }
-		ucStop = func(req uint64, resp uint64) { s.EndUnconstrainedRun(req, resp) }
-	)
-
-	for _, bf := range opts.generateFeatures(featuresNum) {
-		grpc.EnableTracing = bf.EnableTrace
-		if bf.EnableChannelz {
+	sharedPos := sharedFeatures(featuresNum)
+	for _, benchFeature := range opts.generateFeatures(featuresNum) {
+		grpc.EnableTracing = benchFeature.EnableTrace
+		if benchFeature.EnableChannelz {
 			channelz.TurnOn()
 		}
 		if opts.rModes.unary {
-			unaryBenchmark(start, stop, bf, s)
+			count := unaryBenchmark(startTimer, stopTimer, benchFeature, opts.benchTime, s)
+			s.SetBenchmarkResult("Unary", benchFeature, results.N,
+				results.AllocedBytesPerOp(), results.AllocsPerOp(), sharedPos)
+			fmt.Println(s.BenchString())
+			fmt.Println(s.String())
+			printThroughput(count, benchFeature.ReqSizeBytes, count, benchFeature.RespSizeBytes, opts.benchTime)
+			resultSlice = append(resultSlice, s.GetBenchmarkResults())
+			s.Clear()
 		}
 		if opts.rModes.streaming {
-			streamBenchmark(start, stop, bf, s)
+			count := streamBenchmark(startTimer, stopTimer, benchFeature, opts.benchTime, s)
+			s.SetBenchmarkResult("Stream", benchFeature, results.N,
+				results.AllocedBytesPerOp(), results.AllocsPerOp(), sharedPos)
+			fmt.Println(s.BenchString())
+			fmt.Println(s.String())
+			printThroughput(count, benchFeature.ReqSizeBytes, count, benchFeature.RespSizeBytes, opts.benchTime)
+			resultSlice = append(resultSlice, s.GetBenchmarkResults())
+			s.Clear()
 		}
 		if opts.rModes.unconstrained {
-			unconstrainedStreamBenchmark(start, ucStop, bf, s)
+			requestCount, responseCount := unconstrainedStreamBenchmark(benchFeature, time.Second, opts.benchTime)
+			fmt.Printf("Unconstrained Stream-%v\n", benchFeature)
+			printThroughput(requestCount, benchFeature.ReqSizeBytes, responseCount, benchFeature.RespSizeBytes, opts.benchTime)
 		}
 	}
-	after(opts, s.GetResults())
+	after(opts, resultSlice)
 }
 
 func before(opts *benchOpts) {

@@ -25,7 +25,7 @@ import (
 // We hardcode the expected number of test cases to ensure that all tests
 // are being executed. If a test is added, this number must be changed.
 const (
-	ExpectedCompletionsCount       = 144
+	ExpectedCompletionsCount       = 138
 	ExpectedCompletionSnippetCount = 15
 	ExpectedDiagnosticsCount       = 17
 	ExpectedFormatCount            = 5
@@ -34,9 +34,9 @@ const (
 	ExpectedTypeDefinitionsCount   = 2
 	ExpectedHighlightsCount        = 2
 	ExpectedReferencesCount        = 4
-	ExpectedRenamesCount           = 11
+	ExpectedRenamesCount           = 8
 	ExpectedSymbolsCount           = 1
-	ExpectedSignaturesCount        = 21
+	ExpectedSignaturesCount        = 20
 	ExpectedLinksCount             = 2
 )
 
@@ -61,7 +61,7 @@ type References map[span.Span][]span.Span
 type Renames map[span.Span]string
 type Symbols map[span.URI][]source.Symbol
 type SymbolsChildren map[string][]source.Symbol
-type Signatures map[span.Span]*source.SignatureInformation
+type Signatures map[span.Span]source.SignatureInformation
 type Links map[span.URI][]Link
 
 type Data struct {
@@ -505,13 +505,9 @@ func (data *Data) collectSymbols(name string, spn span.Span, kind string, parent
 }
 
 func (data *Data) collectSignatures(spn span.Span, signature string, activeParam int64) {
-	data.Signatures[spn] = &source.SignatureInformation{
+	data.Signatures[spn] = source.SignatureInformation{
 		Label:           signature,
 		ActiveParameter: int(activeParam),
-	}
-	// Hardcode special case to test the lack of a signature.
-	if signature == "" && activeParam == 0 {
-		data.Signatures[spn] = nil
 	}
 }
 

@@ -225,16 +225,14 @@ func (v *view) SetContent(ctx context.Context, uri span.URI, content []byte) err
 // invalidateContent invalidates the content of a Go file,
 // including any position and type information that depends on it.
 func (f *goFile) invalidateContent(ctx context.Context) {
-	// Mutex acquisition order here is important. It must match the order
-	// in loadParseTypecheck to avoid deadlocks.
+	f.handleMu.Lock()
+	defer f.handleMu.Unlock()
+
 	f.view.mcache.mu.Lock()
 	defer f.view.mcache.mu.Unlock()
 
 	f.view.pcache.mu.Lock()
 	defer f.view.pcache.mu.Unlock()
-
-	f.handleMu.Lock()
-	defer f.handleMu.Unlock()
 
 	f.invalidateAST(ctx)
 	f.handle = nil

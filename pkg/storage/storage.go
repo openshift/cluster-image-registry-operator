@@ -6,17 +6,15 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
-	configapiv1 "github.com/openshift/api/config/v1"
-
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 var (
@@ -95,23 +93,23 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 
 // getPlatformStorage returns the storage configuration that should be used
 // based on the cloudplatform we are running on, as determined from the
-// infrastructure configuration.
+// installer configuration.
 func getPlatformStorage(kubeconfig *rest.Config) (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
-	infra, err := util.GetInfrastructure(kubeconfig)
+	installConfig, err := clusterconfig.GetInstallConfig(kubeconfig)
 	if err != nil {
-		return imageregistryv1.ImageRegistryConfigStorage{}, err
+		return cfg, err
 	}
 
-	switch infra.Status.PlatformStatus.Type {
-	case configapiv1.LibvirtPlatformType:
+	switch {
+	case installConfig.Platform.Libvirt != nil:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case configapiv1.AWSPlatformType:
+	case installConfig.Platform.AWS != nil:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
-	case configapiv1.AzurePlatformType:
+	case installConfig.Platform.Azure != nil:
 		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
-	case configapiv1.OpenStackPlatformType:
+	case installConfig.Platform.OpenStack != nil:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 	}
 

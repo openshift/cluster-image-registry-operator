@@ -70,7 +70,6 @@ import (
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 	_ "google.golang.org/grpc/resolver/passthrough"
-	"google.golang.org/grpc/serviceconfig"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/tap"
@@ -471,74 +470,59 @@ func listTestEnv() (envs []env) {
 // func, modified as needed, and then started with its startServer method.
 // It should be cleaned up with the tearDown method.
 type test struct {
-	// The following are setup in newTest().
-	t      *testing.T
-	e      env
+	t *testing.T
+	e env
+
 	ctx    context.Context // valid for life of test, before tearDown
 	cancel context.CancelFunc
 
-	// The following knobs are for the server-side, and should be set after
-	// calling newTest() and before calling startServer().
-
-	// whether or not to expose the server's health via the default health
-	// service implementation.
-	enableHealthServer bool
-	// In almost all cases, one should set the 'enableHealthServer' flag above to
-	// expose the server's health using the default health service
-	// implementation. This should only be used when a non-default health service
-	// implementation is required.
-	healthServer            healthpb.HealthServer
+	// Configurable knobs, after newTest returns:
+	testServer              testpb.TestServiceServer // nil means none
+	healthServer            *health.Server           // nil means disabled
 	maxStream               uint32
 	tapHandle               tap.ServerInHandle
-	maxServerMsgSize        *int
-	maxServerReceiveMsgSize *int
-	maxServerSendMsgSize    *int
-	maxServerHeaderListSize *uint32
-	// Used to test the deprecated API WithCompressor and WithDecompressor.
-	serverCompression           bool
-	unknownHandler              grpc.StreamHandler
-	unaryServerInt              grpc.UnaryServerInterceptor
-	streamServerInt             grpc.StreamServerInterceptor
-	serverInitialWindowSize     int32
-	serverInitialConnWindowSize int32
-	customServerOptions         []grpc.ServerOption
-
-	// The following knobs are for the client-side, and should be set after
-	// calling newTest() and before calling clientConn().
-	maxClientMsgSize        *int
+	maxMsgSize              *int
 	maxClientReceiveMsgSize *int
 	maxClientSendMsgSize    *int
+	maxServerReceiveMsgSize *int
+	maxServerSendMsgSize    *int
 	maxClientHeaderListSize *uint32
+	maxServerHeaderListSize *uint32
 	userAgent               string
-	// Used to test the deprecated API WithCompressor and WithDecompressor.
+	// clientCompression and serverCompression are set to test the deprecated API
+	// WithCompressor and WithDecompressor.
 	clientCompression bool
-	// Used to test the new compressor registration API UseCompressor.
+	serverCompression bool
+	// clientUseCompression is set to test the new compressor registration API UseCompressor.
 	clientUseCompression bool
 	// clientNopCompression is set to create a compressor whose type is not supported.
 	clientNopCompression        bool
 	unaryClientInt              grpc.UnaryClientInterceptor
 	streamClientInt             grpc.StreamClientInterceptor
+	unaryServerInt              grpc.UnaryServerInterceptor
+	streamServerInt             grpc.StreamServerInterceptor
+	unknownHandler              grpc.StreamHandler
 	sc                          <-chan grpc.ServiceConfig
 	customCodec                 encoding.Codec
+	serverInitialWindowSize     int32
+	serverInitialConnWindowSize int32
 	clientInitialWindowSize     int32
 	clientInitialConnWindowSize int32
 	perRPCCreds                 credentials.PerRPCCredentials
 	customDialOptions           []grpc.DialOption
+	customServerOptions         []grpc.ServerOption
 	resolverScheme              string
 
 	// All test dialing is blocking by default. Set this to true if dial
 	// should be non-blocking.
 	nonBlockingDial bool
 
-	// These are are set once startServer is called. The common case is to have
-	// only one testServer.
+	// srv and srvAddr are set once startServer is called.
 	srv     stopper
-	hSrv    healthpb.HealthServer
 	srvAddr string
 
-	// These are are set once startServers is called.
-	srvs     []stopper
-	hSrvs    []healthpb.HealthServer
+	// srvs and srvAddrs are set once startServers is called.
+	srvs     []*grpc.Server
 	srvAddrs []string
 
 	cc          *grpc.ClientConn // nil until requested via clientConn
@@ -569,8 +553,10 @@ func (te *test) tearDown() {
 	if te.srv != nil {
 		te.srv.Stop()
 	}
-	for _, s := range te.srvs {
-		s.Stop()
+	if len(te.srvs) != 0 {
+		for _, s := range te.srvs {
+			s.Stop()
+		}
 	}
 }
 
@@ -588,10 +574,11 @@ func newTest(t *testing.T, e env) *test {
 }
 
 func (te *test) listenAndServe(ts testpb.TestServiceServer, listen func(network, address string) (net.Listener, error)) net.Listener {
+	te.testServer = ts
 	te.t.Logf("Running test in %s environment...", te.e.name)
 	sopts := []grpc.ServerOption{grpc.MaxConcurrentStreams(te.maxStream)}
-	if te.maxServerMsgSize != nil {
-		sopts = append(sopts, grpc.MaxMsgSize(*te.maxServerMsgSize))
+	if te.maxMsgSize != nil {
+		sopts = append(sopts, grpc.MaxMsgSize(*te.maxMsgSize))
 	}
 	if te.maxServerReceiveMsgSize != nil {
 		sopts = append(sopts, grpc.MaxRecvMsgSize(*te.maxServerReceiveMsgSize))
@@ -648,20 +635,13 @@ func (te *test) listenAndServe(ts testpb.TestServiceServer, listen func(network,
 	}
 	sopts = append(sopts, te.customServerOptions...)
 	s := grpc.NewServer(sopts...)
-	if ts != nil {
-		testpb.RegisterTestServiceServer(s, ts)
+	te.srv = s
+	if te.healthServer != nil {
+		healthgrpc.RegisterHealthServer(s, te.healthServer)
 	}
-
-	// Create a new default health server if enableHealthServer is set, or use
-	// the provided one.
-	hs := te.healthServer
-	if te.enableHealthServer {
-		hs = health.NewServer()
+	if te.testServer != nil {
+		testpb.RegisterTestServiceServer(s, te.testServer)
 	}
-	if hs != nil {
-		healthgrpc.RegisterHealthServer(s, hs)
-	}
-
 	addr := la
 	switch te.e.network {
 	case "unix":
@@ -673,8 +653,6 @@ func (te *test) listenAndServe(ts testpb.TestServiceServer, listen func(network,
 		addr = "localhost:" + port
 	}
 
-	te.srv = s
-	te.hSrv = hs
 	te.srvAddr = addr
 
 	if te.e.httpHandler {
@@ -683,18 +661,23 @@ func (te *test) listenAndServe(ts testpb.TestServiceServer, listen func(network,
 		}
 		cert, err := tls.LoadX509KeyPair(testdata.Path("server1.pem"), testdata.Path("server1.key"))
 		if err != nil {
-			te.t.Fatal("tls.LoadX509KeyPair(server1.pem, server1.key) failed: ", err)
+			te.t.Fatal("Error creating TLS certificate: ", err)
 		}
 		hs := &http.Server{
-			Handler:   s,
-			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+			Handler: s,
 		}
-		if err := http2.ConfigureServer(hs, &http2.Server{MaxConcurrentStreams: te.maxStream}); err != nil {
-			te.t.Fatal("http2.ConfigureServer(_, _) failed: ", err)
+		err = http2.ConfigureServer(hs, &http2.Server{
+			MaxConcurrentStreams: te.maxStream,
+		})
+		if err != nil {
+			te.t.Fatal("error starting http2 server: ", err)
 		}
-		te.srv = wrapHS{hs}
+		hs.TLSConfig.Certificates = []tls.Certificate{cert}
 		tlsListener := tls.NewListener(lis, hs.TLSConfig)
-		go hs.Serve(tlsListener)
+		whs := &wrapHS{Listener: tlsListener, s: hs, conns: make(map[net.Conn]bool)}
+		te.srv = whs
+		go hs.Serve(whs)
+
 		return lis
 	}
 
@@ -702,16 +685,66 @@ func (te *test) listenAndServe(ts testpb.TestServiceServer, listen func(network,
 	return lis
 }
 
+// TODO: delete wrapHS and wrapConn when Go1.6 and Go1.7 support are gone and
+// call s.Close and s.Shutdown instead.
 type wrapHS struct {
-	s *http.Server
+	sync.Mutex
+	net.Listener
+	s     *http.Server
+	conns map[net.Conn]bool
 }
 
-func (w wrapHS) GracefulStop() {
-	w.s.Shutdown(context.Background())
+func (w *wrapHS) Accept() (net.Conn, error) {
+	c, err := w.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	w.Lock()
+	if w.conns == nil {
+		w.Unlock()
+		c.Close()
+		return nil, errors.New("connection after listener closed")
+	}
+	w.conns[&wrapConn{Conn: c, hs: w}] = true
+	w.Unlock()
+	return c, nil
 }
 
-func (w wrapHS) Stop() {
-	w.s.Close()
+func (w *wrapHS) Stop() {
+	w.Listener.Close()
+	w.Lock()
+	conns := w.conns
+	w.conns = nil
+	w.Unlock()
+	for c := range conns {
+		c.Close()
+	}
+}
+
+// Poll for now..
+func (w *wrapHS) GracefulStop() {
+	w.Listener.Close()
+	for {
+		w.Lock()
+		l := len(w.conns)
+		w.Unlock()
+		if l == 0 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+type wrapConn struct {
+	net.Conn
+	hs *wrapHS
+}
+
+func (w *wrapConn) Close() error {
+	w.hs.Lock()
+	delete(w.hs.conns, w.Conn)
+	w.hs.Unlock()
+	return w.Conn.Close()
 }
 
 func (te *test) startServerWithConnControl(ts testpb.TestServiceServer) *listenerWrapper {
@@ -719,23 +752,10 @@ func (te *test) startServerWithConnControl(ts testpb.TestServiceServer) *listene
 	return l.(*listenerWrapper)
 }
 
-// startServer starts a gRPC server exposing the provided TestService
-// implementation. Callers should defer a call to te.tearDown to clean up
+// startServer starts a gRPC server listening. Callers should defer a
+// call to te.tearDown to clean up.
 func (te *test) startServer(ts testpb.TestServiceServer) {
 	te.listenAndServe(ts, net.Listen)
-}
-
-// startServers starts 'num' gRPC servers exposing the provided TestService.
-func (te *test) startServers(ts testpb.TestServiceServer, num int) {
-	for i := 0; i < num; i++ {
-		te.startServer(ts)
-		te.srvs = append(te.srvs, te.srv.(*grpc.Server))
-		te.hSrvs = append(te.hSrvs, te.hSrv)
-		te.srvAddrs = append(te.srvAddrs, te.srvAddr)
-		te.srv = nil
-		te.hSrv = nil
-		te.srvAddr = ""
-	}
 }
 
 type nopCompressor struct {
@@ -792,8 +812,8 @@ func (te *test) configDial(opts ...grpc.DialOption) ([]grpc.DialOption, string) 
 	if te.streamClientInt != nil {
 		opts = append(opts, grpc.WithStreamInterceptor(te.streamClientInt))
 	}
-	if te.maxClientMsgSize != nil {
-		opts = append(opts, grpc.WithMaxMsgSize(*te.maxClientMsgSize))
+	if te.maxMsgSize != nil {
+		opts = append(opts, grpc.WithMaxMsgSize(*te.maxMsgSize))
 	}
 	if te.maxClientReceiveMsgSize != nil {
 		opts = append(opts, grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(*te.maxClientReceiveMsgSize)))
@@ -1461,7 +1481,7 @@ func (s) TestGetMethodConfig(t *testing.T) {
 	addrs := []resolver.Address{{Addr: te.srvAddr}}
 	r.UpdateState(resolver.State{
 		Addresses: addrs,
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1482,7 +1502,7 @@ func (s) TestGetMethodConfig(t *testing.T) {
             "waitForReady": false
         }
     ]
-}`)})
+}`})
 
 	tc := testpb.NewTestServiceClient(cc)
 
@@ -1500,7 +1520,7 @@ func (s) TestGetMethodConfig(t *testing.T) {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, %s", err, codes.DeadlineExceeded)
 	}
 
-	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: parseCfg(`{
+	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1521,7 +1541,7 @@ func (s) TestGetMethodConfig(t *testing.T) {
             "waitForReady": false
         }
     ]
-}`)})
+}`})
 
 	// Make sure service config has been processed by grpc.
 	for {
@@ -1548,7 +1568,7 @@ func (s) TestServiceConfigWaitForReady(t *testing.T) {
 	addrs := []resolver.Address{{Addr: te.srvAddr}}
 	r.UpdateState(resolver.State{
 		Addresses: addrs,
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1565,7 +1585,7 @@ func (s) TestServiceConfigWaitForReady(t *testing.T) {
             "timeout": ".001s"
         }
     ]
-}`)})
+}`})
 
 	tc := testpb.NewTestServiceClient(cc)
 
@@ -1590,7 +1610,7 @@ func (s) TestServiceConfigWaitForReady(t *testing.T) {
 	// Case2:Client API set failfast to be false, and service config set wait_for_ready to be true, and the rpc will wait until deadline exceeds.
 	r.UpdateState(resolver.State{
 		Addresses: addrs,
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1607,7 +1627,7 @@ func (s) TestServiceConfigWaitForReady(t *testing.T) {
             "timeout": ".001s"
         }
     ]
-}`)})
+}`})
 
 	// Wait for the new service config to take effect.
 	for {
@@ -1637,7 +1657,7 @@ func (s) TestServiceConfigTimeout(t *testing.T) {
 	addrs := []resolver.Address{{Addr: te.srvAddr}}
 	r.UpdateState(resolver.State{
 		Addresses: addrs,
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1654,7 +1674,7 @@ func (s) TestServiceConfigTimeout(t *testing.T) {
             "timeout": "3600s"
         }
     ]
-}`)})
+}`})
 
 	tc := testpb.NewTestServiceClient(cc)
 
@@ -1684,7 +1704,7 @@ func (s) TestServiceConfigTimeout(t *testing.T) {
 	// Case2: Client API sets timeout to be 1hr and ServiceConfig sets timeout to be 1ns. Timeout should be 1ns (min of 1ns and 1hr) and the rpc will wait until deadline exceeds.
 	r.UpdateState(resolver.State{
 		Addresses: addrs,
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
     "methodConfig": [
         {
             "name": [
@@ -1701,7 +1721,7 @@ func (s) TestServiceConfigTimeout(t *testing.T) {
             "timeout": ".000000001s"
         }
     ]
-}`)})
+}`})
 
 	// Wait for the new service config to take effect.
 	for {
@@ -1747,7 +1767,7 @@ func (s) TestServiceConfigMaxMsgSize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sc := parseCfg(`{
+	scjs := `{
     "methodConfig": [
         {
             "name": [
@@ -1764,7 +1784,7 @@ func (s) TestServiceConfigMaxMsgSize(t *testing.T) {
             "maxResponseMessageBytes": 2048
         }
     ]
-}`)
+}`
 
 	// Case1: sc set maxReqSize to 2048 (send), maxRespSize to 2048 (recv).
 	te1 := testServiceConfigSetup(t, e)
@@ -1776,7 +1796,7 @@ func (s) TestServiceConfigMaxMsgSize(t *testing.T) {
 	cc1 := te1.clientConn()
 
 	addrs := []resolver.Address{{Addr: te1.srvAddr}}
-	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: sc})
+	r.UpdateState(resolver.State{Addresses: addrs, ServiceConfig: scjs})
 	tc := testpb.NewTestServiceClient(cc1)
 
 	req := &testpb.SimpleRequest{
@@ -1847,7 +1867,7 @@ func (s) TestServiceConfigMaxMsgSize(t *testing.T) {
 	te2.startServer(&testServer{security: e.security})
 	defer te2.tearDown()
 	cc2 := te2.clientConn()
-	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: te2.srvAddr}}, ServiceConfig: sc})
+	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: te2.srvAddr}}, ServiceConfig: scjs})
 	tc = testpb.NewTestServiceClient(cc2)
 
 	for {
@@ -1908,7 +1928,7 @@ func (s) TestServiceConfigMaxMsgSize(t *testing.T) {
 	defer te3.tearDown()
 
 	cc3 := te3.clientConn()
-	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: te3.srvAddr}}, ServiceConfig: sc})
+	r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: te3.srvAddr}}, ServiceConfig: scjs})
 	tc = testpb.NewTestServiceClient(cc3)
 
 	for {
@@ -2000,7 +2020,7 @@ func (s) TestStreamingRPCWithTimeoutInServiceConfigRecv(t *testing.T) {
 
 	r.UpdateState(resolver.State{
 		Addresses: []resolver.Address{{Addr: te.srvAddr}},
-		ServiceConfig: parseCfg(`{
+		ServiceConfig: `{
 	    "methodConfig": [
 	        {
 	            "name": [
@@ -2013,7 +2033,7 @@ func (s) TestStreamingRPCWithTimeoutInServiceConfigRecv(t *testing.T) {
 	            "timeout": "10s"
 	        }
 	    ]
-	}`)})
+	}`})
 	// Make sure service config has been processed by grpc.
 	for {
 		if cc.GetMethodConfig("/grpc.testing.TestService/FullDuplexCall").Timeout != nil {
@@ -2476,7 +2496,7 @@ func testHealthCheckOnFailure(t *testing.T, e env) {
 
 	cc := te.clientConn()
 	wantErr := status.Error(codes.DeadlineExceeded, "context deadline exceeded")
-	if _, err := healthCheck(0*time.Second, cc, "grpc.health.v1.Health"); !testutils.StatusErrEqual(err, wantErr) {
+	if _, err := healthCheck(0*time.Second, cc, "grpc.health.v1.Health"); !reflect.DeepEqual(err, wantErr) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, error code %s", err, codes.DeadlineExceeded)
 	}
 	awaitNewConnLogOutput()
@@ -2497,7 +2517,7 @@ func testHealthCheckOff(t *testing.T, e env) {
 	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	want := status.Error(codes.Unimplemented, "unknown service grpc.health.v1.Health")
-	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); !testutils.StatusErrEqual(err, want) {
+	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); !reflect.DeepEqual(err, want) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, %v", err, want)
 	}
 }
@@ -2771,7 +2791,7 @@ func testUnknownHandler(t *testing.T, e env, unknownHandler grpc.StreamHandler) 
 	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	want := status.Error(codes.Unauthenticated, "user unauthenticated")
-	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); !testutils.StatusErrEqual(err, want) {
+	if _, err := healthCheck(1*time.Second, te.clientConn(), ""); !reflect.DeepEqual(err, want) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, %v", err, want)
 	}
 }
@@ -2798,7 +2818,7 @@ func testHealthCheckServingStatus(t *testing.T, e env) {
 		t.Fatalf("Got the serving status %v, want SERVING", out.Status)
 	}
 	wantErr := status.Error(codes.NotFound, "unknown service")
-	if _, err := healthCheck(1*time.Second, cc, "grpc.health.v1.Health"); !testutils.StatusErrEqual(err, wantErr) {
+	if _, err := healthCheck(1*time.Second, cc, "grpc.health.v1.Health"); !reflect.DeepEqual(err, wantErr) {
 		t.Fatalf("Health/Check(_, _) = _, %v, want _, error code %s", err, codes.NotFound)
 	}
 	hs.SetServingStatus("grpc.health.v1.Health", healthpb.HealthCheckResponse_SERVING)
@@ -2866,7 +2886,7 @@ func testFailedEmptyUnary(t *testing.T, e env) {
 
 	ctx := metadata.NewOutgoingContext(context.Background(), testMetadata)
 	wantErr := detailedError
-	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !testutils.StatusErrEqual(err, wantErr) {
+	if _, err := tc.EmptyCall(ctx, &testpb.Empty{}); !reflect.DeepEqual(err, wantErr) {
 		t.Fatalf("TestService/EmptyCall(_, _) = _, %v, want _, %v", err, wantErr)
 	}
 }
@@ -2916,16 +2936,15 @@ func (s) TestExceedMsgLimit(t *testing.T) {
 
 func testExceedMsgLimit(t *testing.T, e env) {
 	te := newTest(t, e)
-	maxMsgSize := 1024
-	te.maxServerMsgSize, te.maxClientMsgSize = newInt(maxMsgSize), newInt(maxMsgSize)
+	te.maxMsgSize = newInt(1024)
 	te.startServer(&testServer{security: e.security})
 	defer te.tearDown()
 	tc := testpb.NewTestServiceClient(te.clientConn())
 
-	largeSize := int32(maxMsgSize + 1)
+	argSize := int32(*te.maxMsgSize + 1)
 	const smallSize = 1
 
-	largePayload, err := newPayload(testpb.PayloadType_COMPRESSABLE, largeSize)
+	payload, err := newPayload(testpb.PayloadType_COMPRESSABLE, argSize)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2934,23 +2953,23 @@ func testExceedMsgLimit(t *testing.T, e env) {
 		t.Fatal(err)
 	}
 
-	// Make sure the server cannot receive a unary RPC of largeSize.
+	// Test on server side for unary RPC.
 	req := &testpb.SimpleRequest{
 		ResponseType: testpb.PayloadType_COMPRESSABLE,
 		ResponseSize: smallSize,
-		Payload:      largePayload,
+		Payload:      payload,
 	}
 	if _, err := tc.UnaryCall(context.Background(), req); err == nil || status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("TestService/UnaryCall(_, _) = _, %v, want _, error code: %s", err, codes.ResourceExhausted)
 	}
-	// Make sure the client cannot receive a unary RPC of largeSize.
-	req.ResponseSize = largeSize
+	// Test on client side for unary RPC.
+	req.ResponseSize = int32(*te.maxMsgSize) + 1
 	req.Payload = smallPayload
 	if _, err := tc.UnaryCall(context.Background(), req); err == nil || status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("TestService/UnaryCall(_, _) = _, %v, want _, error code: %s", err, codes.ResourceExhausted)
 	}
 
-	// Make sure the server cannot receive a streaming RPC of largeSize.
+	// Test on server side for streaming RPC.
 	stream, err := tc.FullDuplexCall(te.ctx)
 	if err != nil {
 		t.Fatalf("%v.FullDuplexCall(_) = _, %v, want <nil>", tc, err)
@@ -2961,10 +2980,15 @@ func testExceedMsgLimit(t *testing.T, e env) {
 		},
 	}
 
+	spayload, err := newPayload(testpb.PayloadType_COMPRESSABLE, int32(*te.maxMsgSize+1))
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	sreq := &testpb.StreamingOutputCallRequest{
 		ResponseType:       testpb.PayloadType_COMPRESSABLE,
 		ResponseParameters: respParam,
-		Payload:            largePayload,
+		Payload:            spayload,
 	}
 	if err := stream.Send(sreq); err != nil {
 		t.Fatalf("%v.Send(%v) = %v, want <nil>", stream, sreq, err)
@@ -2978,7 +3002,7 @@ func testExceedMsgLimit(t *testing.T, e env) {
 	if err != nil {
 		t.Fatalf("%v.FullDuplexCall(_) = _, %v, want <nil>", tc, err)
 	}
-	respParam[0].Size = largeSize
+	respParam[0].Size = int32(*te.maxMsgSize) + 1
 	sreq.Payload = smallPayload
 	if err := stream.Send(sreq); err != nil {
 		t.Fatalf("%v.Send(%v) = %v, want <nil>", stream, sreq, err)
@@ -2986,6 +3010,7 @@ func testExceedMsgLimit(t *testing.T, e env) {
 	if _, err := stream.Recv(); err == nil || status.Code(err) != codes.ResourceExhausted {
 		t.Fatalf("%v.Recv() = _, %v, want _, error code: %s", stream, err, codes.ResourceExhausted)
 	}
+
 }
 
 func (s) TestPeerClientSide(t *testing.T) {
@@ -3143,43 +3168,6 @@ func testMetadataUnaryRPC(t *testing.T, e env) {
 	}
 	if !reflect.DeepEqual(trailer, testTrailerMetadata) {
 		t.Fatalf("Received trailer metadata %v, want %v", trailer, testTrailerMetadata)
-	}
-}
-
-func (s) TestMetadataOrderUnaryRPC(t *testing.T) {
-	for _, e := range listTestEnv() {
-		testMetadataOrderUnaryRPC(t, e)
-	}
-}
-
-func testMetadataOrderUnaryRPC(t *testing.T, e env) {
-	te := newTest(t, e)
-	te.startServer(&testServer{security: e.security})
-	defer te.tearDown()
-	tc := testpb.NewTestServiceClient(te.clientConn())
-
-	ctx := metadata.NewOutgoingContext(context.Background(), testMetadata)
-	ctx = metadata.AppendToOutgoingContext(ctx, "key1", "value2")
-	ctx = metadata.AppendToOutgoingContext(ctx, "key1", "value3")
-
-	// using Join to built expected metadata instead of FromOutgoingContext
-	newMetadata := metadata.Join(testMetadata, metadata.Pairs("key1", "value2", "key1", "value3"))
-
-	var header metadata.MD
-	if _, err := tc.UnaryCall(ctx, &testpb.SimpleRequest{}, grpc.Header(&header)); err != nil {
-		t.Fatal(err)
-	}
-
-	// Ignore optional response headers that Servers may set:
-	if header != nil {
-		delete(header, "trailer") // RFC 2616 says server SHOULD (but optional) declare trailers
-		delete(header, "date")    // the Date header is also optional
-		delete(header, "user-agent")
-		delete(header, "content-type")
-	}
-
-	if !reflect.DeepEqual(header, newMetadata) {
-		t.Fatalf("Received header metadata %v, want %v", header, newMetadata)
 	}
 }
 
@@ -3547,7 +3535,7 @@ func testMultipleSetHeaderStreamingRPCError(t *testing.T, e env) {
 	}
 }
 
-// TestMalformedHTTP2Metadata verfies the returned error when the client
+// TestMalformedHTTP2Metedata verfies the returned error when the client
 // sends an illegal metadata.
 func (s) TestMalformedHTTP2Metadata(t *testing.T) {
 	for _, e := range listTestEnv() {
@@ -5249,7 +5237,6 @@ type stubServer struct {
 	// A client connected to this service the test may use.  Created in Start().
 	client testpb.TestServiceClient
 	cc     *grpc.ClientConn
-	s      *grpc.Server
 
 	addr string // address of listener
 
@@ -5287,7 +5274,6 @@ func (ss *stubServer) Start(sopts []grpc.ServerOption, dopts ...grpc.DialOption)
 	testpb.RegisterTestServiceServer(s, ss)
 	go s.Serve(lis)
 	ss.cleanups = append(ss.cleanups, s.Stop)
-	ss.s = s
 
 	target := ss.r.Scheme() + ":///" + ss.addr
 
@@ -5309,7 +5295,7 @@ func (ss *stubServer) Start(sopts []grpc.ServerOption, dopts ...grpc.DialOption)
 }
 
 func (ss *stubServer) newServiceConfig(sc string) {
-	ss.r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: ss.addr}}, ServiceConfig: parseCfg(sc)})
+	ss.r.UpdateState(resolver.State{Addresses: []resolver.Address{{Addr: ss.addr}}, ServiceConfig: sc})
 }
 
 func (ss *stubServer) waitForReady(cc *grpc.ClientConn) error {
@@ -7177,11 +7163,6 @@ func (s) TestGoAwayThenClose(t *testing.T) {
 		t.Fatal("expected the stream to die, but got a successful Recv")
 	}
 
-	// Connection was dialed, so ac is either in connecting or ready. Because there's a race
-	// between ac state change and balancer state change, so cc could still be transient
-	// failure. This wait make sure cc is at least in connecting, and RPCs won't fail after
-	// this.
-	cc.WaitForStateChange(ctx, connectivity.TransientFailure)
 	// Do a bunch of RPCs, make sure it stays stable. These should go to connection 2.
 	for i := 0; i < 10; i++ {
 		if _, err := client.UnaryCall(ctx, &testpb.SimpleRequest{}); err != nil {
@@ -7233,7 +7214,7 @@ func (s) TestRPCWaitsForResolver(t *testing.T) {
 		time.Sleep(time.Second)
 		r.UpdateState(resolver.State{
 			Addresses: []resolver.Address{{Addr: te.srvAddr}},
-			ServiceConfig: parseCfg(`{
+			ServiceConfig: `{
 		    "methodConfig": [
 		        {
 		            "name": [
@@ -7245,7 +7226,7 @@ func (s) TestRPCWaitsForResolver(t *testing.T) {
                     "maxRequestMessageBytes": 0
 		        }
 		    ]
-		}`)})
+		}`})
 	}()
 	// We wait a second before providing a service config and resolving
 	// addresses.  So this will wait for that and then honor the
@@ -7453,7 +7434,6 @@ func (s *httpServer) start(t *testing.T, lis net.Listener) {
 }
 
 func doHTTPHeaderTest(t *testing.T, errCode codes.Code, headerFields ...[]string) {
-	t.Helper()
 	lis, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		t.Fatalf("Failed to listen. Err: %v", err)
@@ -7463,13 +7443,13 @@ func doHTTPHeaderTest(t *testing.T, errCode codes.Code, headerFields ...[]string
 		headerFields: headerFields,
 	}
 	server.start(t, lis)
-	cc, err := grpc.Dial(lis.Addr().String(), grpc.WithInsecure())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cc, err := grpc.DialContext(ctx, lis.Addr().String(), grpc.WithInsecure())
 	if err != nil {
 		t.Fatalf("failed to dial due to err: %v", err)
 	}
 	defer cc.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	client := testpb.NewTestServiceClient(cc)
 	stream, err := client.FullDuplexCall(ctx)
 	if err != nil {
@@ -7478,12 +7458,4 @@ func doHTTPHeaderTest(t *testing.T, errCode codes.Code, headerFields ...[]string
 	if _, err := stream.Recv(); err == nil || status.Code(err) != errCode {
 		t.Fatalf("stream.Recv() = _, %v, want error code: %v", err, errCode)
 	}
-}
-
-func parseCfg(s string) serviceconfig.Config {
-	c, err := serviceconfig.Parse(s)
-	if err != nil {
-		panic(fmt.Sprintf("Error parsing config %q: %v", s, err))
-	}
-	return c
 }
