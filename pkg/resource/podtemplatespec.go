@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -114,7 +116,10 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 
 	clusterProxy, err := proxyLister.Get(v1.ClusterProxyResourceName)
-	if err != nil {
+	if errors.IsNotFound(err) {
+		clusterProxy = &configapiv1.Proxy{}
+	} else if err != nil {
+		// TODO: should we report Degraded?
 		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("unable to get cluster proxy configuration: %v", err)
 	}
 
