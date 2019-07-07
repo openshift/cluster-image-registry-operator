@@ -131,7 +131,7 @@ func (c *Controller) sync() error {
 		proxyConfig = &configapiv1.Proxy{}
 	} else if err != nil {
 		// TODO: should we report Degraded?
-		return fmt.Errorf("unable to get cluster proxy configuration: %v", err)
+		glog.Warningf("unable to get cluster proxy configuration: %v", err)
 	}
 
 	if err := os.Setenv("NO_PROXY", proxyConfig.Status.NoProxy); err != nil {
