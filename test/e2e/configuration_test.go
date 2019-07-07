@@ -170,19 +170,19 @@ func TestRouteConfiguration(t *testing.T) {
 func TestOperatorProxyConfiguration(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
+	defer framework.MustInspectProxyConfig(t, client).RestoreOrDie(client)
 	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.ResetClusterProxyConfig(client)
 
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
 	// Patch the cluster proxy config with invalid proxy information
-	if err := framework.SetClusterProxyConfig(configapiv1.ProxySpec{
+	if err := framework.SetClusterProxyConfig(client, configapiv1.ProxySpec{
 		NoProxy:    "clusternoproxy.example.com",
 		HTTPProxy:  "clusterhttpproxy.example.com",
 		HTTPSProxy: "clusterhttpsproxy.example.com",
-	}, client); err != nil {
+	}); err != nil {
 		t.Errorf("unable to patch cluster proxy instance: %v", err)
 	}
 
@@ -196,7 +196,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	}
 
 	// Reset the cluster proxy configuration to remove the invalid proxy information
-	if err := framework.ResetClusterProxyConfig(client); err != nil {
+	if err := framework.SetClusterProxyConfig(client, configapiv1.ProxySpec{}); err != nil {
 		t.Errorf("%#v", err)
 	}
 
@@ -210,12 +210,49 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	}
 }
 
+func TestOperatorProxyConfigurationDefaults(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustInspectProxyConfig(t, client).RestoreOrDie(client)
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	if err := framework.DeleteClusterProxyConfig(client); err != nil {
+		t.Fatal(err)
+	}
+
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	// Wait for the image registry resource to have an updated StorageExists condition
+	// showing that the operator can no longer reach the storage providers api
+	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryapiv1.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
+	if len(errs) != 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
+
+	// Reset the cluster proxy configuration to remove the invalid proxy information
+	if err := framework.SetClusterProxyConfig(client, configapiv1.ProxySpec{}); err != nil {
+		t.Error(err)
+	}
+
+	// Wait for the image registry resource to have an updated StorageExists condition
+	// showing that operator can now reach the storage providers api
+	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryapiv1.StorageExists, operatorapiv1.ConditionTrue, "")
+	if len(errs) != 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
+}
+
 func TestOperandProxyConfiguration(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
+	defer framework.MustInspectProxyConfig(t, client).RestoreOrDie(client)
 	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.ResetClusterProxyConfig(client)
-	defer framework.ResetResourceProxyConfig(client)
 
 	resourceProxyConfig := imageregistryapiv1.ImageRegistryConfigProxy{
 		NoProxy: "resourcenoproxy.example.com",
@@ -263,6 +300,9 @@ func TestOperandProxyConfiguration(t *testing.T) {
 			Replicas: 1,
 		},
 	}
+	if err := framework.SetClusterProxyConfig(client, configapiv1.ProxySpec{}); err != nil {
+		t.Error(err)
+	}
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
@@ -281,7 +321,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	}
 
 	// Patch the cluster proxy config to set the proxy settings
-	if err := framework.SetClusterProxyConfig(clusterProxyConfig, client); err != nil {
+	if err := framework.SetClusterProxyConfig(client, clusterProxyConfig); err != nil {
 		t.Errorf("unable to patch cluster proxy instance: %v", err)
 	}
 
