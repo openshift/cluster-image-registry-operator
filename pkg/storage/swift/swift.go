@@ -10,15 +10,29 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
+	"github.com/gophercloud/utils/openstack/clientconfig"
+	yamlv2 "gopkg.in/yaml.v2"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
+
+type Swift struct {
+	AuthURL            string
+	Username           string
+	Password           string
+	Tenant             string
+	TenantID           string
+	Domain             string
+	DomainID           string
+	RegionName         string
+	IdentityAPIVersion string
+}
 
 type driver struct {
 	// Config is a struct where the basic configuration is stored
@@ -35,26 +49,86 @@ func replaceEmpty(a string, b string) string {
 	return a
 }
 
+// GetSwiftConfig reads credentials
+func GetConfig(listers *regopclient.Listers) (*Swift, error) {
+	cfg := &Swift{}
+
+	// Look for a user defined secret to get the Swift credentials
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil && errors.IsNotFound(err) {
+		// If no user defined credentials were provided, then try to find them in the secret,
+		// created by cloud-credential-operator.
+		sec, err = listers.Secrets.Get(imageregistryv1.CloudCredentialsName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName), err)
+		}
+
+		// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
+		if cloudsData, ok := sec.Data["clouds.yaml"]; ok {
+			var clouds clientconfig.Clouds
+			err = yamlv2.Unmarshal(cloudsData, &clouds)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal clouds credentials: %v", err)
+			}
+
+			if cloud, ok := clouds.Clouds["openstack"]; ok {
+				cfg.AuthURL = cloud.AuthInfo.AuthURL
+				cfg.Username = cloud.AuthInfo.Username
+				cfg.Password = cloud.AuthInfo.Password
+				cfg.Tenant = cloud.AuthInfo.ProjectName
+				cfg.TenantID = cloud.AuthInfo.ProjectID
+				cfg.Domain = cloud.AuthInfo.DomainName
+				cfg.DomainID = cloud.AuthInfo.DomainID
+				if cfg.Domain == "" {
+					cfg.Domain = cloud.AuthInfo.UserDomainName
+				}
+				if cfg.DomainID == "" {
+					cfg.DomainID = cloud.AuthInfo.UserDomainID
+				}
+				cfg.RegionName = cloud.RegionName
+				cfg.IdentityAPIVersion = cloud.IdentityAPIVersion
+			} else {
+				return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
+			}
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+		}
+	} else if err != nil {
+		return nil, err
+	} else {
+		cfg.Username, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_USERNAME")
+		if err != nil {
+			return nil, err
+		}
+		cfg.Password, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_PASSWORD")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return cfg, nil
+}
+
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
 func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.ServiceClient, error) {
-	cfg, err := clusterconfig.GetSwiftConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
-	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.Storage.Swift.AuthURL)
-	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Storage.Swift.Tenant)
-	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.Storage.Swift.TenantID)
-	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Storage.Swift.Domain)
-	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.Storage.Swift.DomainID)
-	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.Storage.Swift.RegionName)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.Storage.Swift.IdentityAPIVersion)
+	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
+	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Tenant)
+	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.TenantID)
+	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Domain)
+	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.DomainID)
+	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.RegionName)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
 	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
 
 	opts := &gophercloud.AuthOptions{
 		IdentityEndpoint: d.Config.AuthURL,
-		Username:         cfg.Storage.Swift.Username,
-		Password:         cfg.Storage.Swift.Password,
+		Username:         cfg.Username,
+		Password:         cfg.Password,
 		DomainID:         d.Config.DomainID,
 		DomainName:       d.Config.Domain,
 		TenantID:         d.Config.TenantID,
@@ -98,30 +172,30 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageSwift, listers *rego
 
 // Secrets returns a map of the storage access secrets
 func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := clusterconfig.GetSwiftConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]string{
-		"REGISTRY_STORAGE_SWIFT_USERNAME": cfg.Storage.Swift.Username,
-		"REGISTRY_STORAGE_SWIFT_PASSWORD": cfg.Storage.Swift.Password,
+		"REGISTRY_STORAGE_SWIFT_USERNAME": cfg.Username,
+		"REGISTRY_STORAGE_SWIFT_PASSWORD": cfg.Password,
 	}, nil
 }
 
 func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
-	cfg, err := clusterconfig.GetSwiftConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
-	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.Storage.Swift.AuthURL)
-	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Storage.Swift.Tenant)
-	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.Storage.Swift.TenantID)
-	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Storage.Swift.Domain)
-	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.Storage.Swift.DomainID)
-	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.Storage.Swift.RegionName)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.Storage.Swift.IdentityAPIVersion)
+	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
+	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Tenant)
+	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.TenantID)
+	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Domain)
+	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.DomainID)
+	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.RegionName)
+	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
 	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
 
 	err = d.ensureAuthURLHasAPIVersion()

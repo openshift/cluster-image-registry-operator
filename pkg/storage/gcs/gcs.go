@@ -1,6 +1,7 @@
 package gcs
 
 import (
+	"fmt"
 	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
@@ -8,9 +9,13 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/clusterconfig"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
+
+type GCS struct {
+	Bucket      string
+	KeyfileData string
+}
 
 type driver struct {
 	Config  *imageregistryv1.ImageRegistryConfigStorageGCS
@@ -24,14 +29,35 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS, listers *regopc
 	}
 }
 
+// GetConfig reads configuration for the GCS cloud platform services.
+func GetConfig(listers *regopclient.Listers) (*GCS, error) {
+	cfg := &GCS{}
+
+	// Look for a user defined secret to get the GCS credentials from
+	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	if err != nil {
+		return nil, err
+	} else {
+		// GCS credentials are stored in a file that can be downloaded from the
+		// GCP console
+		if v, ok := sec.Data["REGISTRY_STORAGE_GCS_KEYFILE"]; ok {
+			cfg.KeyfileData = string(v)
+		} else {
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+		}
+	}
+
+	return cfg, nil
+}
+
 func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := clusterconfig.GetGCSConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]string{
-		"REGISTRY_STORAGE_GCS_KEYFILE": cfg.Storage.GCS.KeyfileData,
+		"REGISTRY_STORAGE_GCS_KEYFILE": cfg.KeyfileData,
 	}, nil
 }
 

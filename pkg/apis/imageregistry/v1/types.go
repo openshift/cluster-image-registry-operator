@@ -21,6 +21,9 @@ const (
 	// ClusterProxyResourceName is the name of the cluster proxy config instance
 	ClusterProxyResourceName = "cluster"
 
+	// CloudCredentialsName is the name of the cloud credentials secret
+	CloudCredentialsName = "installer-cloud-credentials"
+
 	// ImageRegistryCertificatesName is the name of the configmap that is managed by the
 	// registry operator and mounted into the registry pod, to provide additional
 	// CAs to be trusted during image pullthrough
