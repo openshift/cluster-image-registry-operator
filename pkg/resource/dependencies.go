@@ -6,8 +6,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/klog"
 
-	"github.com/golang/glog"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
@@ -43,7 +43,7 @@ func (d dependencies) Checksum(configMapLister corelisters.ConfigMapNamespaceLis
 		cm, err := configMapLister.Get(name)
 		if errors.IsNotFound(err) {
 			// We may have optional dependencies.
-			glog.Infof("missing the deployment depencency: ConfigMap %s: %s", name, err)
+			klog.Infof("missing the deployment depencency: ConfigMap %s: %s", name, err)
 			continue
 		} else if err != nil {
 			return "", err
@@ -67,7 +67,7 @@ func (d dependencies) Checksum(configMapLister corelisters.ConfigMapNamespaceLis
 		sec, err := secretLister.Get(name)
 		if errors.IsNotFound(err) {
 			// We may have optional dependencies.
-			glog.Infof("missing the deployment dependency: Secret %s: %s", name, err)
+			klog.Infof("missing the deployment dependency: Secret %s: %s", name, err)
 			continue
 		} else if err != nil {
 			return "", err

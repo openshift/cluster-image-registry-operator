@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 )
 
 func printDiff(oldv, newv map[string]string, printer func(key, typ, oldv, newv string)) {
@@ -75,7 +75,7 @@ func pairs(prefix string, o interface{}) (res map[string]string) {
 			}
 		}
 	default:
-		glog.Errorf("unknown %T\n", t)
+		klog.Errorf("unknown %T\n", t)
 	}
 	return
 }

@@ -4,10 +4,9 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -34,7 +33,7 @@ func (c *Controller) Bootstrap() error {
 
 	// If no registry resource exists,
 	// let's create one with sane defaults
-	glog.Infof("generating registry custom resource")
+	klog.Infof("generating registry custom resource")
 
 	var secretBytes [randomSecretSize]byte
 	if _, err := rand.Read(secretBytes[:]); err != nil {
@@ -58,7 +57,7 @@ func (c *Controller) Bootstrap() error {
 	}
 
 	if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-		glog.Errorf("unable to apply cluster operator (bootstrap): %s", genErr)
+		klog.Errorf("unable to apply cluster operator (bootstrap): %s", genErr)
 	}
 
 	client, err := regopset.NewForConfig(c.kubeconfig)

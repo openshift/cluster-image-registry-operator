@@ -4,21 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
-	"k8s.io/apimachinery/pkg/util/wait"
-
-	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/wait"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -203,10 +201,10 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 
 				str, err := object.DumpString(n)
 				if err != nil {
-					glog.Errorf("unable to dump object: %s", err)
+					klog.Errorf("unable to dump object: %s", err)
 				}
 
-				glog.Infof("object %s created: %s", Name(gen), str)
+				klog.Infof("object %s created: %s", Name(gen), str)
 				return nil
 			}
 
@@ -220,9 +218,9 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 			if updated {
 				difference, err := object.DiffString(o, n)
 				if err != nil {
-					glog.Errorf("unable to calculate difference: %s", err)
+					klog.Errorf("unable to calculate difference: %s", err)
 				}
-				glog.Infof("object %s updated: %s", Name(gen), difference)
+				klog.Infof("object %s updated: %s", Name(gen), difference)
 			}
 			return nil
 		})
@@ -261,7 +259,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 			}
 			return fmt.Errorf("failed to delete object %s: %s", Name(gen), err)
 		}
-		glog.Infof("object %s deleted", Name(gen))
+		klog.Infof("object %s deleted", Name(gen))
 	}
 
 	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, g.listers)
@@ -310,10 +308,10 @@ func (g *Generator) ApplyClusterOperator(cr *imageregistryv1.Config) error {
 
 			str, err := object.DumpString(n)
 			if err != nil {
-				glog.Errorf("unable to dump object: %s", err)
+				klog.Errorf("unable to dump object: %s", err)
 			}
 
-			glog.Infof("object %s created: %s", Name(gen), str)
+			klog.Infof("object %s created: %s", Name(gen), str)
 			return nil
 		}
 
@@ -327,9 +325,9 @@ func (g *Generator) ApplyClusterOperator(cr *imageregistryv1.Config) error {
 		if updated {
 			difference, err := object.DiffString(o, n)
 			if err != nil {
-				glog.Errorf("unable to calculate difference: %s", err)
+				klog.Errorf("unable to calculate difference: %s", err)
 			}
-			glog.Infof("object %s updated: %s", Name(gen), difference)
+			klog.Infof("object %s updated: %s", Name(gen), difference)
 		}
 		return nil
 	})

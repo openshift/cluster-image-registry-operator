@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
@@ -38,7 +37,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		return nil
 	}
 
-	glog.Infof("finalizing %s", utilObjectInfo(o))
+	klog.Infof("finalizing %s", utilObjectInfo(o))
 
 	client, err := regopset.NewForConfig(c.kubeconfig)
 	if err != nil {

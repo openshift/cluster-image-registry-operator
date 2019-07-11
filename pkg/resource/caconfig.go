@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	"k8s.io/klog"
 
-	"github.com/golang/glog"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -78,7 +78,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	serviceCA, err := gcac.lister.Get(gcac.serviceCAName)
 	if errors.IsNotFound(err) {
-		glog.Infof("missing the service CA configmap: %s", err)
+		klog.Infof("missing the service CA configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
@@ -88,20 +88,20 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 				return cm, err
 			}
 			if len(internalHostnames) == 0 {
-				glog.Infof("unable to get the service name to add service-ca.crt")
+				klog.Infof("unable to get the service name to add service-ca.crt")
 			} else {
 				for _, internalHostname := range internalHostnames {
 					cm.Data[strings.Replace(internalHostname, ":", "..", -1)] = cert
 				}
 			}
 		} else {
-			glog.Infof("the service CA is not injected yet")
+			klog.Infof("the service CA is not injected yet")
 		}
 	}
 
 	imageConfig, err := gcac.imageConfigLister.Get(gcac.imageConfigName)
 	if errors.IsNotFound(err) {
-		glog.Infof("missing the image config: %s", err)
+		klog.Infof("missing the image config: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Name; caConfigName != "" {
