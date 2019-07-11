@@ -70,7 +70,7 @@ func provider(clusterID string, platform *gcp.Platform, mpool *gcp.MachinePool, 
 	az := mpool.Zones[azIdx]
 	return &gcpprovider.GCPMachineProviderSpec{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "gcpproviderconfig.openshift.io/v1beta1",
+			APIVersion: "gcpprovider.openshift.io/v1beta1",
 			Kind:       "GCPMachineProviderSpec",
 		},
 		UserDataSecret:    &corev1.LocalObjectReference{Name: userDataSecret},
@@ -86,7 +86,8 @@ func provider(clusterID string, platform *gcp.Platform, mpool *gcp.MachinePool, 
 			Subnetwork: fmt.Sprintf("%s-%s-subnet", clusterID, role),
 		}},
 		ServiceAccounts: []gcpprovider.GCPServiceAccount{{
-			Email: fmt.Sprintf("%s-%s@%s.iam.gserviceaccount.com", clusterID, role, platform.ProjectID),
+			Email:  fmt.Sprintf("%s-%s@%s.iam.gserviceaccount.com", clusterID, role[0:1], platform.ProjectID),
+			Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
 		}},
 		Tags:        []string{fmt.Sprintf("%s-%s", clusterID, role)},
 		MachineType: mpool.InstanceType,
