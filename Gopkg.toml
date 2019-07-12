@@ -8,7 +8,7 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/code-generator/cmd/deepcopy-gen",
   # required by hack/codegen/update-crd.sh
-  "github.com/openshift/library-go/cmd/crd-schema-gen",
+  "github.com/openshift/crd-schema-gen/cmd/crd-schema-gen",
 ]
 
 [[override]]
@@ -35,11 +35,6 @@ required = [
   name = "k8s.io/client-go"
   source = "https://github.com/openshift/kubernetes-client-go.git"
   branch = "origin-4.2-kubernetes-1.14.0"
-
-[[override]]
-  name = "sigs.k8s.io/controller-tools"
-  source = "https://github.com/openshift/kubernetes-sigs-controller-tools.git"
-  branch = "origin-4.1-kubernetes-1.13.4"
 
 [[override]]
   name = "github.com/openshift/client-go"
