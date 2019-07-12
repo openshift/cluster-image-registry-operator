@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/installer/pkg/rhcos"
 	"github.com/openshift/installer/pkg/types/aws"
 	"github.com/openshift/installer/pkg/types/azure"
+	"github.com/openshift/installer/pkg/types/baremetal"
 	"github.com/openshift/installer/pkg/types/gcp"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
@@ -58,6 +59,10 @@ func (i *Image) Generate(p asset.Parents) error {
 	defer cancel()
 	switch config.Platform.Name() {
 	case aws.Name:
+		if len(config.Platform.AWS.AMIID) > 0 {
+			osimage = config.Platform.AWS.AMIID
+			break
+		}
 		osimage, err = rhcos.AMI(ctx, config.Platform.AWS.Region)
 	case gcp.Name:
 	case libvirt.Name:
@@ -65,8 +70,9 @@ func (i *Image) Generate(p asset.Parents) error {
 	case openstack.Name:
 		osimage = "rhcos"
 	case azure.Name:
-		//TODO(serbrech): change to right image once available.
-		osimage = "/resourceGroups/rhcos_images/providers/Microsoft.Compute/images/rhcostestimage"
+		osimage = "https://rhcospipelineimages2.blob.core.windows.net/imagebucket/rhcos-420devel.8.20190719.0.vhd"
+	case baremetal.Name:
+		osimage, err = rhcos.QEMU(ctx)
 	case none.Name, vsphere.Name:
 	default:
 		return errors.New("invalid Platform")

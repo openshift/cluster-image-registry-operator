@@ -20,8 +20,12 @@ data "ignition_config" "redirect" {
   }
 }
 
+resource "google_compute_address" "bootstrap" {
+  name = "${var.cluster_id}-bootstrap-public-ip"
+}
+
 resource "google_compute_firewall" "bootstrap_ingress_ssh" {
-  name    = "${var.cluster_id}-bootstrap-ingress-ssh"
+  name    = "${var.cluster_id}-bootstrap-in-ssh"
   network = var.network
 
   allow {
@@ -36,7 +40,7 @@ resource "google_compute_firewall" "bootstrap_ingress_ssh" {
 resource "google_compute_instance" "bootstrap" {
   count = var.bootstrap_enabled ? 1 : 0
 
-  name         = "${var.cluster_id}-bootstrap"
+  name         = "${var.cluster_id}-b"
   machine_type = var.machine_type
   zone         = var.zone
 
@@ -52,6 +56,7 @@ resource "google_compute_instance" "bootstrap" {
     subnetwork = var.subnet
 
     access_config {
+      nat_ip = "${google_compute_address.bootstrap.address}"
     }
   }
 
@@ -62,24 +67,4 @@ resource "google_compute_instance" "bootstrap" {
   tags = ["${var.cluster_id}-master", "${var.cluster_id}-bootstrap"]
 
   labels = var.labels
-}
-
-resource "google_compute_instance_group" "bootstrap" {
-  count = var.bootstrap_enabled ? 1 : 0
-
-  name    = "${var.cluster_id}-bootstrap"
-  network = var.network
-  zone    = var.zone
-
-  named_port {
-    name = "ignition"
-    port = "22623"
-  }
-
-  named_port {
-    name = "https"
-    port = "6443"
-  }
-
-  instances = google_compute_instance.bootstrap.*.self_link
 }

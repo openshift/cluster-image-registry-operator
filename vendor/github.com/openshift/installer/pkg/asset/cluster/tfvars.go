@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
 
 	igntypes "github.com/coreos/ignition/config/v2_2/types"
 	gcpprovider "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
@@ -13,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	awsprovider "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1beta1"
-	azureprovider "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1alpha1"
+	azureprovider "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	openstackprovider "sigs.k8s.io/cluster-api-provider-openstack/pkg/apis/openstackproviderconfig/v1alpha1"
 
 	"github.com/openshift/installer/pkg/asset"
@@ -28,11 +27,13 @@ import (
 	"github.com/openshift/installer/pkg/tfvars"
 	awstfvars "github.com/openshift/installer/pkg/tfvars/aws"
 	azuretfvars "github.com/openshift/installer/pkg/tfvars/azure"
+	baremetaltfvars "github.com/openshift/installer/pkg/tfvars/baremetal"
 	gcptfvars "github.com/openshift/installer/pkg/tfvars/gcp"
 	libvirttfvars "github.com/openshift/installer/pkg/tfvars/libvirt"
 	openstacktfvars "github.com/openshift/installer/pkg/tfvars/openstack"
 	"github.com/openshift/installer/pkg/types/aws"
 	"github.com/openshift/installer/pkg/types/azure"
+	"github.com/openshift/installer/pkg/types/baremetal"
 	"github.com/openshift/installer/pkg/types/gcp"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
@@ -175,6 +176,7 @@ func (t *TerraformVariables) Generate(parents asset.Parents) error {
 		data, err := azuretfvars.TFVars(
 			auth,
 			installConfig.Config.Azure.BaseDomainResourceGroupName,
+			string(*rhcosImage),
 			masterConfigs,
 		)
 		if err != nil {
@@ -247,6 +249,24 @@ func (t *TerraformVariables) Generate(parents asset.Parents) error {
 			installConfig.Config.Platform.OpenStack.ExternalNetwork,
 			installConfig.Config.Platform.OpenStack.LbFloatingIP,
 			installConfig.Config.Platform.OpenStack.TrunkSupport,
+			installConfig.Config.Platform.OpenStack.OctaviaSupport,
+		)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get %s Terraform variables", platform)
+		}
+		t.FileList = append(t.FileList, &asset.File{
+			Filename: fmt.Sprintf(TfPlatformVarsFileName, platform),
+			Data:     data,
+		})
+	case baremetal.Name:
+		data, err = baremetaltfvars.TFVars(
+			installConfig.Config.Platform.BareMetal.LibvirtURI,
+			installConfig.Config.Platform.BareMetal.IronicURI,
+			string(*rhcosImage),
+			"baremetal",
+			"provisioning",
+			installConfig.Config.Platform.BareMetal.Hosts,
+			installConfig.Config.Platform.BareMetal.Image,
 		)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get %s Terraform variables", platform)
@@ -295,14 +315,9 @@ func injectInstallInfo(bootstrap []byte) (string, error) {
 		return "", errors.Wrap(err, "failed to unmarshal bootstrap Ignition config")
 	}
 
-	var invoker string
-	if env, ok := os.LookupEnv("OPENSHIFT_INSTALL_INVOKER"); ok {
+	invoker := "user"
+	if env := os.Getenv("OPENSHIFT_INSTALL_INVOKER"); env != "" {
 		invoker = env
-	} else if user, err := user.Current(); err == nil {
-		invoker = user.Username
-	} else {
-		logrus.Warnf("Unable to determine username: %v", err)
-		invoker = "<unknown>"
 	}
 
 	config.Storage.Files = append(config.Storage.Files, ignition.FileFromString("/opt/openshift/manifests/openshift-install.yml", "root", 0644, fmt.Sprintf(`---

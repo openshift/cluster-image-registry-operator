@@ -10,7 +10,9 @@ import (
 
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/internal/lsp/source"
-	"golang.org/x/tools/internal/lsp/xlog"
+	"golang.org/x/tools/internal/lsp/telemetry"
+	"golang.org/x/tools/internal/lsp/telemetry/log"
+	"golang.org/x/tools/internal/lsp/telemetry/tag"
 	"golang.org/x/tools/internal/span"
 )
 
@@ -20,7 +22,7 @@ func (v *view) loadParseTypecheck(ctx context.Context, f *goFile) ([]packages.Er
 
 	// If the AST for this file is trimmed, and we are explicitly type-checking it,
 	// don't ignore function bodies.
-	if f.astIsTrimmed() {
+	if f.wrongParseMode(ctx, source.ParseFull) {
 		v.pcache.mu.Lock()
 		f.invalidateAST(ctx)
 		v.pcache.mu.Unlock()
@@ -85,7 +87,7 @@ func (v *view) checkMetadata(ctx context.Context, f *goFile) (map[packageID]*met
 		return nil, nil, ctx.Err()
 	}
 
-	pkgs, err := packages.Load(v.Config(), fmt.Sprintf("file=%s", f.filename()))
+	pkgs, err := packages.Load(v.Config(ctx), fmt.Sprintf("file=%s", f.filename()))
 	if len(pkgs) == 0 {
 		if err == nil {
 			err = fmt.Errorf("go/packages.Load: no packages found for %s", f.filename())
@@ -101,9 +103,9 @@ func (v *view) checkMetadata(ctx context.Context, f *goFile) (map[packageID]*met
 	// Track missing imports as we look at the package's errors.
 	missingImports := make(map[packagePath]struct{})
 
-	xlog.Debugf(ctx, "packages.Load: found %v packages", len(pkgs))
+	log.Print(ctx, "go/packages.Load", tag.Of("packages", len(pkgs)))
 	for _, pkg := range pkgs {
-		xlog.Debugf(ctx, "packages.Load: package %s with files %v", pkg.PkgPath, pkg.CompiledGoFiles)
+		log.Print(ctx, "go/packages.Load", tag.Of("package", pkg.PkgPath), tag.Of("files", pkg.CompiledGoFiles))
 		// If the package comes back with errors from `go list`,
 		// don't bother type-checking it.
 		if len(pkg.Errors) > 0 {
@@ -228,12 +230,12 @@ func (v *view) link(ctx context.Context, pkgPath packagePath, pkg *packages.Pack
 	for _, filename := range m.files {
 		f, err := v.getFile(ctx, span.FileURI(filename))
 		if err != nil {
-			xlog.Errorf(ctx, "no file %s: %v", filename, err)
+			log.Error(ctx, "no file", err, telemetry.File.Of(filename))
 			continue
 		}
 		gof, ok := f.(*goFile)
 		if !ok {
-			xlog.Errorf(ctx, "not a Go file: %s", f.URI())
+			log.Error(ctx, "not a Go file", nil, telemetry.File.Of(filename))
 			continue
 		}
 		if gof.meta == nil {
@@ -258,7 +260,7 @@ func (v *view) link(ctx context.Context, pkgPath packagePath, pkg *packages.Pack
 		}
 		if _, ok := m.children[packageID(importPkg.ID)]; !ok {
 			if err := v.link(ctx, importPkgPath, importPkg, m, missingImports); err != nil {
-				xlog.Errorf(ctx, "error in dependency %s: %v", importPkgPath, err)
+				log.Error(ctx, "error in dependency", err, telemetry.Package.Of(importPkgPath))
 			}
 		}
 	}

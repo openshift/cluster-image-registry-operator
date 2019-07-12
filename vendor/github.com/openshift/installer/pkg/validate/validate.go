@@ -2,7 +2,9 @@
 package validate
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
@@ -21,6 +23,25 @@ var (
 	}()
 )
 
+// CABundle checks if the given string contains valid certificate(s) and returns an error if not.
+func CABundle(v string) error {
+	rest := []byte(v)
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			return fmt.Errorf("invalid block")
+		}
+		_, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return err
+		}
+		if len(rest) == 0 {
+			break
+		}
+	}
+	return nil
+}
 func validateSubdomain(v string) error {
 	validationMessages := validation.IsDNS1123Subdomain(v)
 	if len(validationMessages) == 0 {
@@ -131,4 +152,27 @@ func URIWithProtocol(uri string, protocol string) error {
 		return fmt.Errorf("must use %s protocol", protocol)
 	}
 	return nil
+}
+
+// IP validates if a string is a valid IP.
+func IP(ip string) error {
+	addr := net.ParseIP(ip)
+	if addr == nil {
+		return fmt.Errorf("'%s' is not a valid IP", ip)
+	}
+	return nil
+}
+
+// Interface validates if a string is a valid network interface
+func Interface(iface string) error {
+	if _, err := net.InterfaceByName(iface); err != nil {
+		return fmt.Errorf("%s is not a valid network interface: %s", iface, err)
+	}
+	return nil
+}
+
+// MAC validates that a value is a valid mac address
+func MAC(addr string) error {
+	_, err := net.ParseMAC(addr)
+	return err
 }

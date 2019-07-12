@@ -1,0 +1,114 @@
+hash: e468c3ba8c328fd59faa799dfbf8a76f8d8839cf378803fdc7871b0dec1bd5a9
+updated: 2019-07-01T10:37:40.084325835-04:00
+imports:
+- name: github.com/evanphx/json-patch
+  version: 5858425f75500d40c52783dce87d085a483ce135
+- name: github.com/gobuffalo/envy
+  version: 043cb4b8af871b49563291e32c66bb84378a60ac
+- name: github.com/gogo/protobuf
+  version: 342cbe0a04158f6dcb03ca0079991a51a4248c02
+  subpackages:
+  - proto
+  - sortkeys
+- name: github.com/google/gofuzz
+  version: f140a6486e521aad38f5917de355cbf147cc0496
+- name: github.com/joho/godotenv
+  version: 5c0e6c6ab1a0a9ef0a8822cba3a05d62f7dad941
+- name: github.com/json-iterator/go
+  version: 0ff49de124c6f76f8494e194af75bde0f1a49a29
+- name: github.com/markbates/inflect
+  version: d582c680dc4d29c2279628ae00e743005bfcd4fe
+- name: github.com/modern-go/concurrent
+  version: bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94
+- name: github.com/modern-go/reflect2
+  version: 94122c33edd36123c84d5368cfb2b69df93a0ec8
+- name: github.com/openshift/library-go
+  version: 16a370625b52c7958783b8f74de58317236da6b4
+- name: github.com/rogpeppe/go-internal
+  version: 6f68bf1e81f8552c7dbd47f3bc4371c2db0941a6
+  subpackages:
+  - modfile
+  - module
+  - semver
+- name: golang.org/x/net
+  version: 65e2d4e15006aab9813ff8769e768bbf4bb667a0
+  subpackages:
+  - http/httpguts
+  - http2
+  - http2/hpack
+  - idna
+- name: golang.org/x/text
+  version: e6919f6577db79269a6443b9dc46d18f2238fb5d
+  subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
+- name: golang.org/x/tools
+  version: fdf1049a943acdab3a1008d66838170551d1dedb
+  subpackages:
+  - go/gcexportdata
+  - go/internal/gcimporter
+  - go/internal/packagesdriver
+  - go/packages
+  - internal/fastwalk
+  - internal/gopathwalk
+  - internal/semver
+- name: gopkg.in/inf.v0
+  version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/yaml.v2
+  version: 51d6538a90f86fe93ac480b35f37b2be17fef232
+- name: k8s.io/apiextensions-apiserver
+  version: 2d36bfd0ff861d2a2cd103aee02d54611f8010eb
+  subpackages:
+  - pkg/apis/apiextensions
+  - pkg/apis/apiextensions/v1beta1
+- name: k8s.io/apimachinery
+  version: 7ae370969693753028c74c0c876eee17ddb1b15b
+  subpackages:
+  - pkg/api/resource
+  - pkg/apis/meta/v1
+  - pkg/apis/meta/v1/unstructured
+  - pkg/conversion
+  - pkg/conversion/queryparams
+  - pkg/fields
+  - pkg/labels
+  - pkg/runtime
+  - pkg/runtime/schema
+  - pkg/runtime/serializer
+  - pkg/runtime/serializer/json
+  - pkg/runtime/serializer/protobuf
+  - pkg/runtime/serializer/recognizer
+  - pkg/runtime/serializer/versioning
+  - pkg/selection
+  - pkg/types
+  - pkg/util/errors
+  - pkg/util/framer
+  - pkg/util/intstr
+  - pkg/util/json
+  - pkg/util/naming
+  - pkg/util/net
+  - pkg/util/runtime
+  - pkg/util/sets
+  - pkg/util/validation
+  - pkg/util/validation/field
+  - pkg/util/yaml
+  - pkg/watch
+  - third_party/forked/golang/reflect
+- name: k8s.io/klog
+  version: 89e63fd5117f8c20208186ef85f096703a280c20
+- name: k8s.io/utils
+  version: c2654d5206da6b7b6ace12841e8f359bb89b443c
+  subpackages:
+  - pointer
+- name: sigs.k8s.io/controller-tools
+  version: cf8f8c9f83af535f1721ef3c77c4e0b106035352
+  subpackages:
+  - pkg/crd
+  - pkg/crd/markers
+  - pkg/genall
+  - pkg/loader
+  - pkg/markers
+- name: sigs.k8s.io/yaml
+  version: fd68e9863619f6ec2fdd8625fe1f02e7c877e480
+testImports: []

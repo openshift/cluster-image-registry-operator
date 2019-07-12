@@ -12,8 +12,10 @@ import (
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	gcpmanifests "github.com/openshift/installer/pkg/asset/manifests/gcp"
 	"github.com/openshift/installer/pkg/types/aws"
 	"github.com/openshift/installer/pkg/types/azure"
+	"github.com/openshift/installer/pkg/types/baremetal"
 	"github.com/openshift/installer/pkg/types/gcp"
 	"github.com/openshift/installer/pkg/types/libvirt"
 	"github.com/openshift/installer/pkg/types/none"
@@ -22,8 +24,9 @@ import (
 )
 
 var (
-	infraCrdFilename = filepath.Join(manifestDir, "cluster-infrastructure-01-crd.yaml")
-	infraCfgFilename = filepath.Join(manifestDir, "cluster-infrastructure-02-config.yml")
+	infraCrdFilename           = filepath.Join(manifestDir, "cluster-infrastructure-01-crd.yaml")
+	infraCfgFilename           = filepath.Join(manifestDir, "cluster-infrastructure-02-config.yml")
+	cloudControllerUIDFilename = filepath.Join(manifestDir, "cloud-controller-uid-config.yml")
 )
 
 // Infrastructure generates the cluster-infrastructure-*.yml files.
@@ -45,6 +48,7 @@ func (*Infrastructure) Dependencies() []asset.Asset {
 		&installconfig.ClusterID{},
 		&installconfig.InstallConfig{},
 		&CloudProviderConfig{},
+		&AdditionalTrustBundleConfig{},
 	}
 }
 
@@ -53,7 +57,8 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 	clusterID := &installconfig.ClusterID{}
 	installConfig := &installconfig.InstallConfig{}
 	cloudproviderconfig := &CloudProviderConfig{}
-	dependencies.Get(clusterID, installConfig, cloudproviderconfig)
+	trustbundleconfig := &AdditionalTrustBundleConfig{}
+	dependencies.Get(clusterID, installConfig, cloudproviderconfig, trustbundleconfig)
 
 	config := &configv1.Infrastructure{
 		TypeMeta: metav1.TypeMeta{
@@ -84,12 +89,28 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		config.Status.PlatformStatus.Azure = &configv1.AzurePlatformStatus{
 			ResourceGroupName: fmt.Sprintf("%s-rg", clusterID.InfraID),
 		}
+	case baremetal.Name:
+		config.Status.PlatformStatus.Type = configv1.BareMetalPlatformType
+		config.Status.PlatformStatus.BareMetal = &configv1.BareMetalPlatformStatus{
+			APIServerInternalIP: installConfig.Config.Platform.BareMetal.APIVIP,
+			NodeDNSIP:           installConfig.Config.Platform.BareMetal.DNSVIP,
+			IngressIP:           installConfig.Config.Platform.BareMetal.IngressVIP,
+		}
 	case gcp.Name:
 		config.Status.PlatformStatus.Type = configv1.GCPPlatformType
 		config.Status.PlatformStatus.GCP = &configv1.GCPPlatformStatus{
 			ProjectID: installConfig.Config.Platform.GCP.ProjectID,
 			Region:    installConfig.Config.Platform.GCP.Region,
 		}
+		uidConfigMap := gcpmanifests.CloudControllerUID(clusterID.InfraID)
+		content, err := yaml.Marshal(uidConfigMap)
+		if err != nil {
+			return errors.Wrapf(err, "cannot marshal GCP cloud controller UID config map")
+		}
+		i.FileList = append(i.FileList, &asset.File{
+			Filename: cloudControllerUIDFilename,
+			Data:     content,
+		})
 	case libvirt.Name:
 		config.Status.PlatformStatus.Type = configv1.LibvirtPlatformType
 	case none.Name:
@@ -107,6 +128,10 @@ func (i *Infrastructure) Generate(dependencies asset.Parents) error {
 		// set the configmap reference.
 		config.Spec.CloudConfig = configv1.ConfigMapFileReference{Name: cloudproviderconfig.ConfigMap.Name, Key: cloudProviderConfigDataKey}
 		i.FileList = append(i.FileList, cloudproviderconfig.File)
+	}
+
+	if trustbundleconfig.ConfigMap != nil {
+		i.FileList = append(i.FileList, trustbundleconfig.Files()...)
 	}
 
 	configData, err := yaml.Marshal(config)

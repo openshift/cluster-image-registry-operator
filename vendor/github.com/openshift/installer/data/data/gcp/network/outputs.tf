@@ -1,9 +1,5 @@
 output "cluster_public_ip" {
-  value = google_compute_forwarding_rule.api_external.ip_address
-}
-
-output "cluster_private_ip" {
-  value = google_compute_forwarding_rule.api_internal.ip_address
+  value = google_compute_forwarding_rule.api.ip_address
 }
 
 output "network" {
@@ -16,8 +12,4 @@ output "worker_subnet" {
 
 output "master_subnet" {
   value = google_compute_subnetwork.master_subnet.self_link
-}
-
-output "zones" {
-  value = local.zones
 }

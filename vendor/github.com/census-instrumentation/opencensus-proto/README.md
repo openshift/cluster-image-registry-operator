@@ -5,6 +5,7 @@ OpenCensus Proto - Language Independent Interface Types For OpenCensus
 [![Maven Central][maven-image]][maven-url]
 [![Javadocs][javadoc-image]][javadoc-url]
 [![GoDoc][godoc-image]][godoc-url]
+[![PyPI][pypi-image]][pypi-url]
 
 Census provides a framework to define and collect stats against metrics and to
 break those stats down across user-defined dimensions.
@@ -34,13 +35,13 @@ For Maven add to `pom.xml`:
 <dependency>
   <groupId>io.opencensus</groupId>
   <artifactId>opencensus-proto</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
 For Gradle add to dependencies:
 ```gradle
-compile 'io.opencensus:opencensus-proto:0.1.0'
+compile 'io.opencensus:opencensus-proto:0.2.0'
 ```
 
 [travis-image]: https://travis-ci.org/census-instrumentation/opencensus-proto.svg?branch=master
@@ -53,6 +54,8 @@ compile 'io.opencensus:opencensus-proto:0.1.0'
 [javadoc-url]: https://www.javadoc.io/doc/io.opencensus/opencensus-proto
 [godoc-image]: https://godoc.org/github.com/census-instrumentation/opencensus-proto?status.svg
 [godoc-url]: https://godoc.org/github.com/census-instrumentation/opencensus-proto
+[pypi-image]: https://badge.fury.io/py/opencensus-proto.svg
+[pypi-url]: https://pypi.org/project/opencensus-proto/
 
 ### Add the dependencies to Bazel project
 
@@ -61,7 +64,7 @@ In WORKSPACE, add:
 git_repository(
     name = "io_opencensus_proto",
     strip_prefix = "src",
-    tag = "v0.1.0", # CURRENT_OPENCENSUS_PROTO_VERSION
+    tag = "v0.2.0", # CURRENT_OPENCENSUS_PROTO_VERSION
     remote = "https://github.com/census-instrumentation/opencensus-proto",
 )
 ```

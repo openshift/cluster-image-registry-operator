@@ -361,7 +361,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform = types.Platform{}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: "": must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\)$`,
+			expectedError: `^platform: Invalid value: "": must specify one of the platforms \(aws, azure, baremetal, gcp, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "multiple platforms",
@@ -392,7 +392,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				}
 				return c
 			}(),
-			expectedError: `^platform: Invalid value: "libvirt": must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\)$`,
+			expectedError: `^platform: Invalid value: "libvirt": must specify one of the platforms \(aws, azure, baremetal, gcp, none, openstack, vsphere\)$`,
 		},
 		{
 			name: "invalid libvirt platform",
@@ -404,7 +404,7 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Platform.Libvirt.URI = ""
 				return c
 			}(),
-			expectedError: `^\[platform: Invalid value: "libvirt": must specify one of the platforms \(aws, azure, gcp, none, openstack, vsphere\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
+			expectedError: `^\[platform: Invalid value: "libvirt": must specify one of the platforms \(aws, azure, baremetal, gcp, none, openstack, vsphere\), platform\.libvirt\.uri: Invalid value: "": invalid URI "" \(no scheme\)]$`,
 		},
 		{
 			name: "valid none platform",
@@ -530,6 +530,61 @@ func TestValidateInstallConfig(t *testing.T) {
 				return c
 			}(),
 		},
+		{
+			name: "release image source is not canonical",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ImageContentSources = []types.ImageContentSource{{
+					Source: "ocp/release-x.y",
+				}}
+				return c
+			}(),
+			expectedError: `^imageContentSources\[0\]\.source: Invalid value: "ocp/release-x\.y": failed to parse: repository name must be canonical$`,
+		},
+		{
+			name: "release image source's mirror is not canonical",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ImageContentSources = []types.ImageContentSource{{
+					Source:  "q.io/ocp/release-x.y",
+					Mirrors: []string{"ocp/openshift-x.y"},
+				}}
+				return c
+			}(),
+			expectedError: `^imageContentSources\[0\]\.mirrors\[0\]: Invalid value: "ocp/openshift-x\.y": failed to parse: repository name must be canonical$`,
+		},
+		{
+			name: "release image source is not repository but reference by digest",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ImageContentSources = []types.ImageContentSource{{
+					Source: "quay.io/ocp/release-x.y@sha256:397c867cc10bcc90cf05ae9b71dd3de6000535e27cb6c704d9f503879202582c",
+				}}
+				return c
+			}(),
+			expectedError: `^imageContentSources\[0\]\.source: Invalid value: "quay\.io/ocp/release-x\.y@sha256:397c867cc10bcc90cf05ae9b71dd3de6000535e27cb6c704d9f503879202582c": must be repository--not reference$`,
+		},
+		{
+			name: "release image source is not repository but reference by tag",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ImageContentSources = []types.ImageContentSource{{
+					Source: "quay.io/ocp/release-x.y:latest",
+				}}
+				return c
+			}(),
+			expectedError: `^imageContentSources\[0\]\.source: Invalid value: "quay\.io/ocp/release-x\.y:latest": must be repository--not reference$`,
+		},
+		{
+			name: "valid release image source",
+			installConfig: func() *types.InstallConfig {
+				c := validInstallConfig()
+				c.ImageContentSources = []types.ImageContentSource{{
+					Source: "quay.io/ocp/release-x.y",
+				}}
+				return c
+			}(),
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -542,6 +597,7 @@ func TestValidateInstallConfig(t *testing.T) {
 			fetcher.EXPECT().GetNetworkNames(gomock.Any()).Return([]string{"test-network"}, nil).AnyTimes()
 			fetcher.EXPECT().GetFlavorNames(gomock.Any()).Return([]string{"test-flavor"}, nil).AnyTimes()
 			fetcher.EXPECT().GetNetworkExtensionsAliases(gomock.Any()).Return([]string{"trunk"}, nil).AnyTimes()
+			fetcher.EXPECT().GetServiceCatalog(gomock.Any()).Return([]string{"octavia"}, nil).AnyTimes()
 
 			err := ValidateInstallConfig(tc.installConfig, fetcher).ToAggregate()
 			if tc.expectedError == "" {

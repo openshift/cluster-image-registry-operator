@@ -28,18 +28,6 @@ func Destroy(dir string) (err error) {
 	}
 
 	tfPlatformVarsFileName := fmt.Sprintf(cluster.TfPlatformVarsFileName, platform)
-	copyNames := []string{terraform.StateFileName, cluster.TfVarsFileName, tfPlatformVarsFileName}
-
-	if platform == libvirt.Name {
-		err = ioutil.WriteFile(filepath.Join(dir, "disable-bootstrap.tfvars.json"), []byte(`{
-  "bootstrap_dns": false
-}
-`), 0666)
-		if err != nil {
-			return err
-		}
-		copyNames = append(copyNames, "disable-bootstrap.tfvars.json")
-	}
 
 	tempDir, err := ioutil.TempDir("", "openshift-install-")
 	if err != nil {
@@ -48,7 +36,7 @@ func Destroy(dir string) (err error) {
 	defer os.RemoveAll(tempDir)
 
 	extraArgs := []string{}
-	for _, filename := range copyNames {
+	for _, filename := range []string{terraform.StateFileName, cluster.TfVarsFileName, tfPlatformVarsFileName} {
 		sourcePath := filepath.Join(dir, filename)
 		targetPath := filepath.Join(tempDir, filename)
 		err = copy(sourcePath, targetPath)
@@ -65,19 +53,14 @@ func Destroy(dir string) (err error) {
 
 	switch platform {
 	case gcp.Name:
-		// First remove the bootstrap node from the load balancers to avoid race condition.
-		_, err = terraform.Apply(tempDir, platform, append(extraArgs, "-var=gcp_bootstrap_lb=false")...)
-		if err != nil {
-			return errors.Wrap(err, "Terraform apply")
-		}
-
-		// Then destory the bootstrap instance and instance group so destroy runs cleanly.
+		// First remove the bootstrap from LB target and its instance so that bootstrap module is cleanly destroyed.
 		_, err = terraform.Apply(tempDir, platform, append(extraArgs, "-var=gcp_bootstrap_enabled=false")...)
 		if err != nil {
 			return errors.Wrap(err, "Terraform apply")
 		}
 	case libvirt.Name:
-		_, err = terraform.Apply(tempDir, platform, extraArgs...)
+		// First remove the bootstrap node from DNS
+		_, err = terraform.Apply(tempDir, platform, append(extraArgs, "-var=bootstrap_dns=false")...)
 		if err != nil {
 			return errors.Wrap(err, "Terraform apply")
 		}
