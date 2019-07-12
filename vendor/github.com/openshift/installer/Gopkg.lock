@@ -18,11 +18,12 @@
   version = "v0.4.11"
 
 [[projects]]
-  digest = "1:10262e67150b920c9eb818e235089b00040f848060c34606885476f731bbdb1a"
+  digest = "1:75225b8c0420907aea70960a80ff4497111e9a85ed575c595e8dbb949aaeb84d"
   name = "github.com/Azure/azure-sdk-for-go"
   packages = [
     "profiles/latest/dns/mgmt/dns",
     "profiles/latest/resources/mgmt/subscriptions",
+    "services/compute/mgmt/2018-10-01/compute",
     "services/dns/mgmt/2017-10-01/dns",
     "services/preview/dns/mgmt/2018-03-01-preview/dns",
     "services/resources/mgmt/2018-05-01/resources",
@@ -51,6 +52,14 @@
   pruneopts = "NUT"
   revision = "f29a2eccaa178b367df0405778cd85e0af7b4225"
   version = "v12.1.0"
+
+[[projects]]
+  digest = "1:5d72bbcc9c8667b11c3dc3cbe681c5a6f71e5096744c0bf7726ab5c6425d5dc4"
+  name = "github.com/BurntSushi/toml"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "3012a1dbe2e4bd1391d42b32f0577cb7bbc7f005"
+  version = "v0.3.1"
 
 [[projects]]
   branch = "go15"
@@ -154,6 +163,18 @@
   pruneopts = "NUT"
   revision = "a105b96453fe85139acc07b68de48f2cbdd71249"
   version = "v0.2.0"
+
+[[projects]]
+  digest = "1:613f0e16a97fc2dccc0d3c31b615eb3c8ecc57295b34949d47917ee1dde1476c"
+  name = "github.com/containers/image"
+  packages = [
+    "docker/reference",
+    "pkg/sysregistriesv2",
+    "types",
+  ]
+  pruneopts = "NUT"
+  revision = "abf32c4ea589cb8e96bdca5a478dba68f11980e5"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:0ef770954bca104ee99b3b6b7f9b240605ac03517d9f98cbc1893daa03f3c038"
@@ -507,15 +528,35 @@
   version = "1.0.1"
 
 [[projects]]
+  digest = "1:e0cc8395ea893c898ff5eb0850f4d9851c1f57c78c232304a026379a47a552d0"
+  name = "github.com/opencontainers/go-digest"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "279bed98673dd5bef374d3b6e4b09e2af76183bf"
+  version = "v1.0.0-rc1"
+
+[[projects]]
+  digest = "1:11db38d694c130c800d0aefb502fb02519e514dc53d9804ce51d1ad25ec27db6"
+  name = "github.com/opencontainers/image-spec"
+  packages = [
+    "specs-go",
+    "specs-go/v1",
+  ]
+  pruneopts = "NUT"
+  revision = "d60099175f88c47cd379c4738d158884749ed235"
+  version = "v1.0.1"
+
+[[projects]]
   branch = "master"
-  digest = "1:90bd9406d319b87bc39c13f6a03a424106c6cbd4e713d435d152bdc2218c41eb"
+  digest = "1:0f2c0ae6400f083cf80147722b54632465f92ad42f8c91ee2998a65a093d68d8"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
+    "operator/v1alpha1",
     "route/v1",
   ]
   pruneopts = "NUT"
-  revision = "44f2eba96faa042c0f0adccba439acceae12e549"
+  revision = "be0c8741e68cb83775eff74e833dee4fec3906f6"
 
 [[projects]]
   branch = "master"
@@ -1172,14 +1213,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8029344993a62e49ed41f78ead4b3499d74cb2d4e1a1c0dc36a00d2107837884"
+  digest = "1:c48a5a0e15e64c111f435e1db4aef7c48ceec1ca4f96f311c9eadcf525e36443"
   name = "sigs.k8s.io/cluster-api-provider-azure"
   packages = [
     "pkg/apis",
     "pkg/apis/azureprovider/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "12d3c939200e9d0c288311ec8122686fce5638a9"
+  revision = "b0bf44fb4ba34bc210571e9bc8961ee9fdf2aa4a"
   source = "https://github.com/openshift/cluster-api-provider-azure.git"
 
 [[projects]]
@@ -1216,6 +1257,7 @@
   input-imports = [
     "github.com/Azure/azure-sdk-for-go/profiles/latest/dns/mgmt/dns",
     "github.com/Azure/azure-sdk-for-go/profiles/latest/resources/mgmt/subscriptions",
+    "github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2018-10-01/compute",
     "github.com/Azure/azure-sdk-for-go/services/preview/dns/mgmt/2018-03-01-preview/dns",
     "github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-05-01/resources",
     "github.com/Azure/go-autorest/autorest",
@@ -1240,6 +1282,8 @@
     "github.com/aws/aws-sdk-go/service/route53",
     "github.com/aws/aws-sdk-go/service/s3",
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
+    "github.com/containers/image/docker/reference",
+    "github.com/containers/image/pkg/sysregistriesv2",
     "github.com/coreos/ignition/config/util",
     "github.com/coreos/ignition/config/v2_2/types",
     "github.com/ghodss/yaml",
@@ -1264,6 +1308,7 @@
     "github.com/gophercloud/utils/openstack/clientconfig",
     "github.com/libvirt/libvirt-go",
     "github.com/openshift/api/config/v1",
+    "github.com/openshift/api/operator/v1alpha1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/route/clientset/versioned",
     "github.com/openshift/cloud-credential-operator/pkg/aws",

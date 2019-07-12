@@ -1,0 +1,12 @@
+package: github.com/openshift/crd-schema-gen
+import:
+- package: github.com/evanphx/json-patch
+- package: github.com/openshift/library-go
+  version: master
+- package: gopkg.in/yaml.v2
+- package: k8s.io/apiextensions-apiserver
+- package: k8s.io/apimachinery
+- package: sigs.k8s.io/controller-tools
+  version: master
+- package: golang.org/x/tools/go/packages
+  version: master
