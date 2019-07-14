@@ -35,7 +35,7 @@ func (m *mockLister) GetListers() (*regopclient.Listers, error) {
 	}
 
 	m.listers.Secrets = MockSecretNamespaceLister{namespace: imageregistryv1.ImageRegistryOperatorNamespace, client: coreClient}
-	m.listers.InstallerSecrets = MockSecretNamespaceLister{namespace: installerConfigNamespace, client: coreClient}
+	m.listers.InstallerConfigMaps = MockConfigMapNamespaceLister{namespace: installerConfigNamespace, client: coreClient}
 	m.listers.Infrastructures = MockInfrastructureLister{client: *configClient}
 
 	return &m.listers, err
