@@ -38,7 +38,7 @@ import (
 
 const (
 	openshiftConfigNamespace = "openshift-config"
-	installerConfigNamespace = "kube-system"
+	kubeSystemNamespace      = "kube-system"
 	workqueueKey             = "changes"
 	defaultResyncDuration    = 10 * time.Minute
 )
@@ -371,9 +371,9 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
-	installerConfigInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(installerConfigNamespace))
 
 	var informers []cache.SharedIndexInformer
 	for _, ctor := range []func() cache.SharedIndexInformer{
@@ -448,8 +448,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := installerConfigInformerFactory.Core().V1().Secrets()
-			c.listers.InstallerSecrets = informer.Lister().Secrets(installerConfigNamespace)
+			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
@@ -464,12 +464,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 
 	configInformerFactory.Start(stopCh)
-	installerConfigInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
-	routeInformerFactory.Start(stopCh)
-	configInformerFactory.Start(stopCh)
+	kubeSystemKubeInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
+	routeInformerFactory.Start(stopCh)
 
 	glog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
