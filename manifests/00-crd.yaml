@@ -158,6 +158,22 @@ spec:
                     Storage
                   properties:
                     bucket:
+                      description: Bucket is the bucket name in which you want to
+                        store the registry's data Optional, will be generated if not
+                        provided
+                      type: string
+                    keyID:
+                      description: KeyID is the KMS key ID to use for encryption Optional,
+                        buckets are encrypted by default on GCP This allows for the
+                        use of a custom encryption key
+                      type: string
+                    projectID:
+                      description: ProjectID is the Project ID of the GCP project
+                        that this bucket should be associated with
+                      type: string
+                    region:
+                      description: Region is the GCS location in which your bucket
+                        exists Optional, will be set based on the installed GCS Region
                       type: string
                   type: object
                 pvc:
@@ -326,6 +342,22 @@ spec:
                     Storage
                   properties:
                     bucket:
+                      description: Bucket is the bucket name in which you want to
+                        store the registry's data Optional, will be generated if not
+                        provided
+                      type: string
+                    keyID:
+                      description: KeyID is the KMS key ID to use for encryption Optional,
+                        buckets are encrypted by default on GCP This allows for the
+                        use of a custom encryption key
+                      type: string
+                    projectID:
+                      description: ProjectID is the Project ID of the GCP project
+                        that this bucket should be associated with
+                      type: string
+                    region:
+                      description: Region is the GCS location in which your bucket
+                        exists Optional, will be set based on the installed GCS Region
                       type: string
                   type: object
                 pvc:

@@ -122,50 +122,23 @@ func ExampleCloudRedisClient_UpdateInstance() {
 	_ = resp
 }
 
-func ExampleCloudRedisClient_ImportInstance() {
+func ExampleCloudRedisClient_DeleteInstance() {
 	ctx := context.Background()
 	c, err := redis.NewCloudRedisClient(ctx)
 	if err != nil {
 		// TODO: Handle error.
 	}
 
-	req := &redispb.ImportInstanceRequest{
+	req := &redispb.DeleteInstanceRequest{
 		// TODO: Fill request struct fields.
 	}
-	op, err := c.ImportInstance(ctx, req)
+	op, err := c.DeleteInstance(ctx, req)
 	if err != nil {
 		// TODO: Handle error.
 	}
 
-	resp, err := op.Wait(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-	// TODO: Use resp.
-	_ = resp
-}
-
-func ExampleCloudRedisClient_ExportInstance() {
-	ctx := context.Background()
-	c, err := redis.NewCloudRedisClient(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	req := &redispb.ExportInstanceRequest{
-		// TODO: Fill request struct fields.
-	}
-	op, err := c.ExportInstance(ctx, req)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	resp, err := op.Wait(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-	// TODO: Use resp.
-	_ = resp
+	err = op.Wait(ctx)
+	// TODO: Handle error.
 }
 
 func ExampleCloudRedisClient_FailoverInstance() {
@@ -189,23 +162,4 @@ func ExampleCloudRedisClient_FailoverInstance() {
 	}
 	// TODO: Use resp.
 	_ = resp
-}
-
-func ExampleCloudRedisClient_DeleteInstance() {
-	ctx := context.Background()
-	c, err := redis.NewCloudRedisClient(ctx)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	req := &redispb.DeleteInstanceRequest{
-		// TODO: Fill request struct fields.
-	}
-	op, err := c.DeleteInstance(ctx, req)
-	if err != nil {
-		// TODO: Handle error.
-	}
-
-	err = op.Wait(ctx)
-	// TODO: Handle error.
 }

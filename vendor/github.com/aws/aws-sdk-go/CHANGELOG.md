@@ -1,3 +1,33 @@
+Release v1.20.16 (2019-07-08)
+===
+
+### Service Client Updates
+* `service/ce`: Updates service API and documentation
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+
+Release v1.20.15 (2019-07-03)
+===
+
+### Service Client Updates
+* `service/ec2`: Updates service API and documentation
+  * AssignPrivateIpAddresses response includes two new fields: AssignedPrivateIpAddresses, NetworkInterfaceId
+* `service/rds`: Updates service API and documentation
+  * This release supports Cross-Account Cloning for Amazon Aurora clusters.
+* `service/s3`: Updates service API, documentation, and examples
+  * Add S3 x-amz-server-side-encryption-context support.
+* `service/swf`: Updates service API and documentation
+  * This release adds APIs that allow adding and removing tags to a SWF domain, and viewing tags for a domain. It also enables adding tags when creating a domain.
+
+Release v1.20.14 (2019-07-02)
+===
+
+### Service Client Updates
+* `service/appstream`: Updates service API and documentation
+  * Adding ImageBuilderName in Fleet API and Documentation updates for AppStream.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/mediastore`: Updates service API, documentation, and paginators
+  * This release adds support for tagging, untagging, and listing tags for AWS Elemental MediaStore containers.
+
 Release v1.20.13 (2019-07-01)
 ===
 

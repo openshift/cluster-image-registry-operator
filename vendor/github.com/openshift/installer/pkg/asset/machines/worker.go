@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/ghodss/yaml"
+	gcpapi "github.com/openshift/cluster-api-provider-gcp/pkg/apis"
+	gcpprovider "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	libvirtapi "github.com/openshift/cluster-api-provider-libvirt/pkg/apis"
 	libvirtprovider "github.com/openshift/cluster-api-provider-libvirt/pkg/apis/libvirtproviderconfig/v1beta1"
 	machineapi "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
@@ -25,6 +27,7 @@ import (
 	"github.com/openshift/installer/pkg/asset/installconfig"
 	"github.com/openshift/installer/pkg/asset/machines/aws"
 	"github.com/openshift/installer/pkg/asset/machines/azure"
+	"github.com/openshift/installer/pkg/asset/machines/gcp"
 	"github.com/openshift/installer/pkg/asset/machines/libvirt"
 	"github.com/openshift/installer/pkg/asset/machines/machineconfig"
 	"github.com/openshift/installer/pkg/asset/machines/openstack"
@@ -34,6 +37,7 @@ import (
 	awsdefaults "github.com/openshift/installer/pkg/types/aws/defaults"
 	azuretypes "github.com/openshift/installer/pkg/types/azure"
 	azuredefaults "github.com/openshift/installer/pkg/types/azure/defaults"
+	gcptypes "github.com/openshift/installer/pkg/types/gcp"
 	libvirttypes "github.com/openshift/installer/pkg/types/libvirt"
 	nonetypes "github.com/openshift/installer/pkg/types/none"
 	openstacktypes "github.com/openshift/installer/pkg/types/openstack"
@@ -72,6 +76,12 @@ func defaultAzureMachinePoolPlatform() azuretypes.MachinePool {
 		OSDisk: azuretypes.OSDisk{
 			DiskSizeGB: 128,
 		},
+	}
+}
+
+func defaultGCPMachinePoolPlatform() gcptypes.MachinePool {
+	return gcptypes.MachinePool{
+		InstanceType: "n1-standard-4",
 	}
 }
 
@@ -149,6 +159,25 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 			}
 			pool.Platform.AWS = &mpool
 			sets, err := aws.MachineSets(clusterID.InfraID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
+			if err != nil {
+				return errors.Wrap(err, "failed to create worker machine objects")
+			}
+			for _, set := range sets {
+				machineSets = append(machineSets, set)
+			}
+		case gcptypes.Name:
+			mpool := defaultGCPMachinePoolPlatform()
+			mpool.Set(ic.Platform.GCP.DefaultMachinePlatform)
+			mpool.Set(pool.Platform.GCP)
+			if len(mpool.Zones) == 0 {
+				azs, err := gcp.AvailabilityZones(ic.Platform.GCP.ProjectID, ic.Platform.GCP.Region)
+				if err != nil {
+					return errors.Wrap(err, "failed to fetch availability zones")
+				}
+				mpool.Zones = azs
+			}
+			pool.Platform.GCP = &mpool
+			sets, err := gcp.MachineSets(clusterID.InfraID, ic, &pool, string(*rhcosImage), "worker", "worker-user-data")
 			if err != nil {
 				return errors.Wrap(err, "failed to create worker machine objects")
 			}
@@ -272,14 +301,16 @@ func (w *Worker) Load(f asset.FileFetcher) (found bool, err error) {
 func (w *Worker) MachineSets() ([]machineapi.MachineSet, error) {
 	scheme := runtime.NewScheme()
 	awsapi.AddToScheme(scheme)
+	azureapi.AddToScheme(scheme)
+	gcpapi.AddToScheme(scheme)
 	libvirtapi.AddToScheme(scheme)
 	openstackapi.AddToScheme(scheme)
-	azureapi.AddToScheme(scheme)
 	decoder := serializer.NewCodecFactory(scheme).UniversalDecoder(
 		awsprovider.SchemeGroupVersion,
+		azureprovider.SchemeGroupVersion,
+		gcpprovider.SchemeGroupVersion,
 		libvirtprovider.SchemeGroupVersion,
 		openstackprovider.SchemeGroupVersion,
-		azureprovider.SchemeGroupVersion,
 	)
 
 	machineSets := []machineapi.MachineSet{}

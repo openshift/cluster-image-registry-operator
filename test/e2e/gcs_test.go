@@ -8,10 +8,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
 var (
@@ -37,8 +40,24 @@ var (
 // provided as part of the Day 2 experience will be propagated to the
 // image-registry deployment
 func TestGCSMinimal(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	kcfg, err := regopclient.GetConfig()
+	if err != nil {
+		t.Fatalf("Error building kubeconfig: %s", err)
+	}
 
+	newMockLister, err := listers.NewMockLister(kcfg)
+	mockLister, err := newMockLister.GetListers()
+
+	infra, err := util.GetInfrastructure(mockLister)
+	if err != nil {
+		t.Fatalf("unable to get install configuration: %v", err)
+	}
+
+	if infra.Status.PlatformStatus.Type != configapiv1.GCPPlatformType {
+		t.Skip("skipping on non-GCP platform")
+	}
+
+	client := framework.MustNewClientset(t, nil)
 	defer framework.MustRemoveImageRegistry(t, client)
 
 	// Custom resource configuration to use GCS
@@ -62,7 +81,7 @@ func TestGCSMinimal(t *testing.T) {
 	}
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err := wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		if _, err := framework.CreateOrUpdateSecret(imageregistryv1.ImageRegistryPrivateConfigurationUser, imageregistryv1.ImageRegistryOperatorNamespace, fakeGCSCredsData); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil

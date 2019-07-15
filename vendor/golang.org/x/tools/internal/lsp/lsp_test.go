@@ -55,6 +55,7 @@ func testLSP(t *testing.T, exporter packagestest.Exporter) {
 				protocol.SourceOrganizeImports: true,
 				protocol.QuickFix:              true,
 			},
+			hoverKind: source.SynopsisDocumentation,
 		},
 		data: data,
 	}
@@ -509,6 +510,8 @@ func (r *runner) Reference(t *testing.T, data tests.References) {
 func (r *runner) Rename(t *testing.T, data tests.Renames) {
 	ctx := context.Background()
 	for spn, newText := range data {
+		tag := fmt.Sprintf("%s-rename", newText)
+
 		uri := spn.URI()
 		filename := uri.Filename()
 		sm, err := r.mapper(uri)
@@ -528,7 +531,12 @@ func (r *runner) Rename(t *testing.T, data tests.Renames) {
 			NewName:  newText,
 		})
 		if err != nil {
-			t.Error(err)
+			renamed := string(r.data.Golden(tag, filename, func() ([]byte, error) {
+				return []byte(err.Error()), nil
+			}))
+			if err.Error() != renamed {
+				t.Errorf("rename failed for %s, expected:\n%v\ngot:\n%v\n", newText, renamed, err)
+			}
 			continue
 		}
 
@@ -555,7 +563,6 @@ func (r *runner) Rename(t *testing.T, data tests.Renames) {
 
 		got := applyEdits(string(m.Content), sedits)
 
-		tag := fmt.Sprintf("%s-rename", newText)
 		gorenamed := string(r.data.Golden(tag, filename, func() ([]byte, error) {
 			return []byte(got), nil
 		}))
@@ -681,16 +688,25 @@ func (r *runner) SignatureHelp(t *testing.T, data tests.Signatures) {
 			Position: loc.Range.Start,
 		})
 		if err != nil {
-			t.Fatal(err)
+			// Only fail if we got an error we did not expect.
+			if expectedSignatures != nil {
+				t.Fatal(err)
+			}
+			continue
 		}
-
+		if expectedSignatures == nil {
+			if gotSignatures != nil {
+				t.Errorf("expected no signature, got %v", gotSignatures)
+			}
+			continue
+		}
 		if diff := diffSignatures(spn, expectedSignatures, gotSignatures); diff != "" {
 			t.Error(diff)
 		}
 	}
 }
 
-func diffSignatures(spn span.Span, want source.SignatureInformation, got *protocol.SignatureHelp) string {
+func diffSignatures(spn span.Span, want *source.SignatureInformation, got *protocol.SignatureHelp) string {
 	decorate := func(f string, args ...interface{}) string {
 		return fmt.Sprintf("Invalid signature at %s: %s", spn, fmt.Sprintf(f, args...))
 	}
@@ -797,10 +813,10 @@ func TestBytesOffset(t *testing.T) {
 		{text: `a𐐀b`, pos: protocol.Position{Line: 0, Character: 4}, want: 6},
 		{text: `a𐐀b`, pos: protocol.Position{Line: 0, Character: 5}, want: -1},
 		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 0, Character: 3}, want: 3},
-		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 0, Character: 4}, want: -1},
+		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 0, Character: 4}, want: 3},
 		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 1, Character: 0}, want: 4},
 		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 1, Character: 3}, want: 7},
-		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 1, Character: 4}, want: -1},
+		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 1, Character: 4}, want: 7},
 		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 2, Character: 0}, want: 8},
 		{text: "aaa\nbbb\n", pos: protocol.Position{Line: 2, Character: 1}, want: -1},
 		{text: "aaa\nbbb\n\n", pos: protocol.Position{Line: 2, Character: 0}, want: 8},

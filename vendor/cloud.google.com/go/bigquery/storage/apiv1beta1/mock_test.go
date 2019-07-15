@@ -219,10 +219,7 @@ func TestBigQueryStorageCreateReadSessionError(t *testing.T) {
 	_ = resp
 }
 func TestBigQueryStorageReadRows(t *testing.T) {
-	var rowCount int64 = 1340416618
-	var expectedResponse = &storagepb.ReadRowsResponse{
-		RowCount: rowCount,
-	}
+	var expectedResponse *storagepb.ReadRowsResponse = &storagepb.ReadRowsResponse{}
 
 	mockBigQueryStorage.err = nil
 	mockBigQueryStorage.reqs = nil
