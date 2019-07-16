@@ -1,19 +1,14 @@
-
 # Force dep to vendor the code generators, which aren't imported just used at dev time.
 # Picking a subpackage with Go code won't be necessary once https://github.com/golang/dep/pull/1545 is merged.
 required = [
+  # required by hack/codegen/update-generated.sh (vendor/k8s.io/code-generator/generate-groups.sh)
   "k8s.io/code-generator/cmd/defaulter-gen",
-  "k8s.io/code-generator/cmd/deepcopy-gen",
-  "k8s.io/code-generator/cmd/conversion-gen",
   "k8s.io/code-generator/cmd/client-gen",
   "k8s.io/code-generator/cmd/lister-gen",
   "k8s.io/code-generator/cmd/informer-gen",
-  "k8s.io/gengo/args",
+  "k8s.io/code-generator/cmd/deepcopy-gen",
+  # required by hack/codegen/update-crd.sh
   "github.com/openshift/library-go/cmd/crd-schema-gen",
-  "golang.org/x/net/http/httpproxy",
-  "cloud.google.com/go",
-  "github.com/aws/aws-sdk-go",
-  "github.com/googleapis/gax-go",
 ]
 
 [[override]]
