@@ -17,13 +17,14 @@ import (
 	"golang.org/x/tools/internal/imports"
 	"golang.org/x/tools/internal/lsp/diff"
 	"golang.org/x/tools/internal/lsp/telemetry/trace"
+	"golang.org/x/tools/internal/lsp/xlog"
 	"golang.org/x/tools/internal/span"
 )
 
 // Format formats a file with a given range.
 func Format(ctx context.Context, f GoFile, rng span.Range) ([]TextEdit, error) {
-	ctx, ts := trace.StartSpan(ctx, "source.Format")
-	defer ts.End()
+	ctx, done := trace.StartSpan(ctx, "source.Format")
+	defer done()
 	file := f.GetAST(ctx)
 	if file == nil {
 		return nil, fmt.Errorf("no AST for %s", f.URI())
@@ -53,8 +54,8 @@ func Format(ctx context.Context, f GoFile, rng span.Range) ([]TextEdit, error) {
 
 // Imports formats a file using the goimports tool.
 func Imports(ctx context.Context, view View, f GoFile, rng span.Range) ([]TextEdit, error) {
-	ctx, ts := trace.StartSpan(ctx, "source.Imports")
-	defer ts.End()
+	ctx, done := trace.StartSpan(ctx, "source.Imports")
+	defer done()
 	data, _, err := f.Handle(ctx).Read(ctx)
 	if err != nil {
 		return nil, err
@@ -106,7 +107,7 @@ func buildProcessEnv(ctx context.Context, view View) *imports.ProcessEnv {
 	env := &imports.ProcessEnv{
 		WorkingDir: cfg.Dir,
 		Logf: func(format string, v ...interface{}) {
-			view.Session().Logger().Infof(ctx, format, v...)
+			xlog.Infof(ctx, format, v...)
 		},
 	}
 	for _, kv := range cfg.Env {
@@ -133,11 +134,11 @@ func buildProcessEnv(ctx context.Context, view View) *imports.ProcessEnv {
 }
 
 func computeTextEdits(ctx context.Context, file File, formatted string) (edits []TextEdit) {
-	ctx, ts := trace.StartSpan(ctx, "source.computeTextEdits")
-	defer ts.End()
+	ctx, done := trace.StartSpan(ctx, "source.computeTextEdits")
+	defer done()
 	data, _, err := file.Handle(ctx).Read(ctx)
 	if err != nil {
-		file.View().Session().Logger().Errorf(ctx, "Cannot compute text edits: %v", err)
+		xlog.Errorf(ctx, "Cannot compute text edits: %v", err)
 		return nil
 	}
 	u := diff.SplitLines(string(data))

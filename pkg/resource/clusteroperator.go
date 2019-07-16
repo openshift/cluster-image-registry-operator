@@ -4,19 +4,18 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/golang/glog"
-
+	appsapi "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	appslisters "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/klog"
 
 	configapi "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	appsapi "k8s.io/api/apps/v1"
-	appslisters "k8s.io/client-go/listers/apps/v1"
 )
 
 var _ Mutator = &generatorClusterOperator{}
@@ -153,7 +152,7 @@ func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperato
 
 			newStatus, err := convertOperatorStatus(resourceCondition.Status)
 			if err != nil {
-				glog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
+				klog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
 				continue
 			}
 
@@ -181,7 +180,7 @@ func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperato
 		if !found {
 			conditionStatus, err := convertOperatorStatus(resourceCondition.Status)
 			if err != nil {
-				glog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
+				klog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
 				continue
 			}
 			conditions = append(conditions, configapi.ClusterOperatorStatusCondition{

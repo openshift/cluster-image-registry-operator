@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -29,18 +30,21 @@ func TestSource(t *testing.T) {
 type runner struct {
 	view source.View
 	data *tests.Data
+	ctx  context.Context
 }
 
 func testSource(t *testing.T, exporter packagestest.Exporter) {
+	ctx := tests.Context(t)
 	data := tests.Load(t, exporter, "../testdata")
 	defer data.Exported.Cleanup()
 
-	log := xlog.New(xlog.StdSink{})
+	ctx = xlog.With(ctx, xlog.StdSink{})
 	cache := cache.New()
-	session := cache.NewSession(log)
+	session := cache.NewSession(ctx)
 	r := &runner{
-		view: session.NewView("source_test", span.FileURI(data.Config.Dir)),
+		view: session.NewView(ctx, "source_test", span.FileURI(data.Config.Dir)),
 		data: data,
+		ctx:  ctx,
 	}
 	r.view.SetEnv(data.Config.Env)
 	for filename, content := range data.Config.Overlay {
@@ -51,11 +55,11 @@ func testSource(t *testing.T, exporter packagestest.Exporter) {
 
 func (r *runner) Diagnostics(t *testing.T, data tests.Diagnostics) {
 	for uri, want := range data {
-		f, err := r.view.GetFile(context.Background(), uri)
+		f, err := r.view.GetFile(r.ctx, uri)
 		if err != nil {
 			t.Fatal(err)
 		}
-		results, err := source.Diagnostics(context.Background(), r.view, f.(source.GoFile), nil)
+		results, err := source.Diagnostics(r.ctx, r.view, f.(source.GoFile), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,7 +135,7 @@ func summarizeDiagnostics(i int, want []source.Diagnostic, got []source.Diagnost
 }
 
 func (r *runner) Completion(t *testing.T, data tests.Completions, snippets tests.CompletionSnippets, items tests.CompletionItems) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for src, itemList := range data {
 		var want []source.CompletionItem
 		for _, pos := range itemList {
@@ -288,7 +292,7 @@ func summarizeCompletionItems(i int, want []source.CompletionItem, got []source.
 }
 
 func (r *runner) Format(t *testing.T, data tests.Formats) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for _, spn := range data {
 		uri := spn.URI()
 		filename := uri.Filename()
@@ -326,7 +330,7 @@ func (r *runner) Format(t *testing.T, data tests.Formats) {
 }
 
 func (r *runner) Import(t *testing.T, data tests.Imports) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for _, spn := range data {
 		uri := spn.URI()
 		filename := uri.Filename()
@@ -364,7 +368,7 @@ func (r *runner) Import(t *testing.T, data tests.Imports) {
 }
 
 func (r *runner) Definition(t *testing.T, data tests.Definitions) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for _, d := range data {
 		f, err := r.view.GetFile(ctx, d.Src.URI())
 		if err != nil {
@@ -406,7 +410,7 @@ func (r *runner) Definition(t *testing.T, data tests.Definitions) {
 }
 
 func (r *runner) Highlight(t *testing.T, data tests.Highlights) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for name, locations := range data {
 		src := locations[0]
 		f, err := r.view.GetFile(ctx, src.URI())
@@ -431,7 +435,7 @@ func (r *runner) Highlight(t *testing.T, data tests.Highlights) {
 }
 
 func (r *runner) Reference(t *testing.T, data tests.References) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for src, itemList := range data {
 		f, err := r.view.GetFile(ctx, src.URI())
 		if err != nil {
@@ -477,7 +481,7 @@ func (r *runner) Reference(t *testing.T, data tests.References) {
 }
 
 func (r *runner) Rename(t *testing.T, data tests.Renames) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for spn, newText := range data {
 		tag := fmt.Sprintf("%s-rename", newText)
 
@@ -488,11 +492,12 @@ func (r *runner) Rename(t *testing.T, data tests.Renames) {
 		tok := f.GetToken(ctx)
 		pos := tok.Pos(spn.Start().Offset())
 
-		ident, err := source.Identifier(context.Background(), r.view, f.(source.GoFile), pos)
+		ident, err := source.Identifier(r.ctx, r.view, f.(source.GoFile), pos)
 		if err != nil {
 			t.Error(err)
+			continue
 		}
-		changes, err := ident.Rename(context.Background(), newText)
+		changes, err := ident.Rename(r.ctx, newText)
 		if err != nil {
 			renamed := string(r.data.Golden(tag, spn.URI().Filename(), func() ([]byte, error) {
 				return []byte(err.Error()), nil
@@ -503,36 +508,46 @@ func (r *runner) Rename(t *testing.T, data tests.Renames) {
 			continue
 		}
 
-		if len(changes) != 1 { // Renames must only affect a single file in these tests.
-			t.Errorf("rename failed for %s, edited %d files, wanted 1 file", newText, len(changes))
-			continue
+		var res []string
+		for editSpn, edits := range changes {
+			f, err := r.view.GetFile(ctx, editSpn)
+			if err != nil {
+				t.Fatalf("failed for %v: %v", spn, err)
+			}
+
+			data, _, err := f.Handle(ctx).Read(ctx)
+			if err != nil {
+				t.Error(err)
+				continue
+			}
+			filename := filepath.Base(editSpn.Filename())
+			contents := applyEdits(string(data), edits)
+			res = append(res, fmt.Sprintf("%s:\n%s", filename, contents))
 		}
 
-		edits := changes[spn.URI()]
-		if edits == nil {
-			t.Errorf("rename failed for %s, did not edit %s", newText, spn.URI())
-			continue
-		}
-		data, _, err := f.Handle(ctx).Read(ctx)
-		if err != nil {
-			t.Error(err)
-			continue
+		// Sort on filename
+		sort.Strings(res)
+
+		var got string
+		for i, val := range res {
+			if i != 0 {
+				got += "\n"
+			}
+			got += val
 		}
 
-		got := applyEdits(string(data), edits)
-		gorenamed := string(r.data.Golden(tag, spn.URI().Filename(), func() ([]byte, error) {
+		renamed := string(r.data.Golden(tag, spn.URI().Filename(), func() ([]byte, error) {
 			return []byte(got), nil
 		}))
 
-		if gorenamed != got {
-			t.Errorf("rename failed for %s, expected:\n%v\ngot:\n%v", newText, gorenamed, got)
+		if renamed != got {
+			t.Errorf("rename failed for %s, expected:\n%v\ngot:\n%v", newText, renamed, got)
 		}
 	}
 }
 
 func applyEdits(contents string, edits []source.TextEdit) string {
 	res := contents
-	sortSourceTextEdits(edits)
 
 	// Apply the edits from the end of the file forward
 	// to preserve the offsets
@@ -546,17 +561,8 @@ func applyEdits(contents string, edits []source.TextEdit) string {
 	return res
 }
 
-func sortSourceTextEdits(d []source.TextEdit) {
-	sort.Slice(d, func(i int, j int) bool {
-		if r := span.Compare(d[i].Span, d[j].Span); r != 0 {
-			return r < 0
-		}
-		return d[i].NewText < d[j].NewText
-	})
-}
-
 func (r *runner) Symbol(t *testing.T, data tests.Symbols) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for uri, expectedSymbols := range data {
 		f, err := r.view.GetFile(ctx, uri)
 		if err != nil {
@@ -620,7 +626,7 @@ func summarizeSymbols(i int, want []source.Symbol, got []source.Symbol, reason s
 }
 
 func (r *runner) SignatureHelp(t *testing.T, data tests.Signatures) {
-	ctx := context.Background()
+	ctx := r.ctx
 	for spn, expectedSignature := range data {
 		f, err := r.view.GetFile(ctx, spn.URI())
 		if err != nil {

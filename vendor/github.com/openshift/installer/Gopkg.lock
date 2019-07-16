@@ -314,7 +314,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fafce8bcd6b10bcf75556a9649010fbfed5772302c1bf24fbc347558ccfa9c63"
+  digest = "1:c75010dd8aa8622064eb44b7639e0b80b2aaf031c6462219fc94391c3fb6a303"
   name = "github.com/gophercloud/gophercloud"
   packages = [
     ".",
@@ -339,6 +339,7 @@
     "openstack/networking/v2/extensions/layer3/routers",
     "openstack/networking/v2/extensions/security/groups",
     "openstack/networking/v2/extensions/security/rules",
+    "openstack/networking/v2/extensions/subnetpools",
     "openstack/networking/v2/extensions/trunks",
     "openstack/networking/v2/networks",
     "openstack/networking/v2/ports",
@@ -855,7 +856,7 @@
   revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
-  digest = "1:1fd52c8a0547e5f3867ad1d026efce60b28415bded399e604c61cf585b04be67"
+  digest = "1:4ac1037b7246e5234951872bb5db8a02d23663192ffdec8d82bc09cce1adf296"
   name = "google.golang.org/api"
   packages = [
     "compute/v1",
@@ -864,8 +865,10 @@
     "googleapi",
     "googleapi/internal/uritemplates",
     "googleapi/transport",
+    "iam/v1",
     "internal",
     "option",
+    "storage/v1",
     "support/bundler",
     "transport/http",
     "transport/http/internal/propagation",
@@ -1251,6 +1254,7 @@
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups",
+    "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/subnetpools",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunks",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/networks",
     "github.com/gophercloud/gophercloud/openstack/networking/v2/ports",
@@ -1287,7 +1291,10 @@
     "golang.org/x/sys/unix",
     "google.golang.org/api/compute/v1",
     "google.golang.org/api/dns/v1",
+    "google.golang.org/api/googleapi",
+    "google.golang.org/api/iam/v1",
     "google.golang.org/api/option",
+    "google.golang.org/api/storage/v1",
     "gopkg.in/AlecAivazis/survey.v1",
     "gopkg.in/ini.v1",
     "k8s.io/api/core/v1",

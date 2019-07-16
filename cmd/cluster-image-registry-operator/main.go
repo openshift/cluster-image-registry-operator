@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
@@ -17,14 +17,19 @@ import (
 )
 
 func printVersion() {
-	glog.Infof("Cluster Image Registry Operator Version: %s", version.Version)
-	glog.Infof("Go Version: %s", runtime.Version())
-	glog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
+	klog.Infof("Cluster Image Registry Operator Version: %s", version.Version)
+	klog.Infof("Go Version: %s", runtime.Version())
+	klog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
 func main() {
-	flag.Parse()
-	flag.Lookup("logtostderr").Value.Set("true")
+	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(klogFlags)
+
+	logstderr := klogFlags.Lookup("logtostderr")
+	if logstderr != nil {
+		logstderr.Value.Set("true")
+	}
 
 	printVersion()
 
@@ -32,7 +37,7 @@ func main() {
 
 	cfg, err := regopclient.GetConfig()
 	if err != nil {
-		glog.Fatalf("Error building kubeconfig: %s", err)
+		klog.Fatalf("Error building kubeconfig: %s", err)
 	}
 
 	// set up signals so we handle the first shutdown signal gracefully
@@ -40,11 +45,11 @@ func main() {
 
 	controller, err := operator.NewController(cfg)
 	if err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	err = controller.Run(stopCh)
 	if err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 }

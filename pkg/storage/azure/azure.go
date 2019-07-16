@@ -14,12 +14,12 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/Azure/go-autorest/autorest/to"
-	"github.com/golang/glog"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
@@ -140,7 +140,7 @@ func generateAccountName(infrastructureName string) string {
 }
 
 func createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
-	glog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
+	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
 
 	ctx := context.TODO()
 
@@ -188,7 +188,7 @@ func createStorageAccount(storageAccountsClient storage.AccountsClient, resource
 		return fmt.Errorf("failed to create storage account: %s", err)
 	}
 
-	glog.Infof("azure storage account %s has been created", accountName)
+	klog.Infof("azure storage account %s has been created", accountName)
 
 	return nil
 }
@@ -450,7 +450,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				err = createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region)
 				if err != nil {
 					if _, ok := err.(*errNameNotAvailable); ok {
-						glog.Warningf("unable to create storage account: %s", err)
+						klog.Warningf("unable to create storage account: %s", err)
 						lastErr = err
 						continue
 					}

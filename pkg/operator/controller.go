@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/golang/glog"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +15,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
@@ -62,7 +61,7 @@ func (e permanentError) Error() string {
 func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	namespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
-		glog.Fatalf("failed to get watch namespace: %s", err)
+		klog.Fatalf("failed to get watch namespace: %s", err)
 	}
 
 	p := parameters.Globals{}
@@ -160,7 +159,7 @@ func (c *Controller) sync() error {
 		err = c.finalizeResources(cr)
 
 		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			glog.Errorf("unable to apply cluster operator: %s", genErr)
+			klog.Errorf("unable to apply cluster operator: %s", genErr)
 		}
 
 		return err
@@ -177,7 +176,7 @@ func (c *Controller) sync() error {
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
-		glog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
+		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
 	deploy, err := c.listers.Deployments.Get(imageregistryv1.ImageRegistryName)
@@ -196,12 +195,12 @@ func (c *Controller) sync() error {
 	if metadataChanged || specChanged {
 		difference, err := object.DiffString(prevCR, cr)
 		if err != nil {
-			glog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
+			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
 		}
-		glog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
+		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
 
 		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			glog.Errorf("unable to apply cluster operator: %s", genErr)
+			klog.Errorf("unable to apply cluster operator: %s", genErr)
 		}
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
@@ -212,7 +211,7 @@ func (c *Controller) sync() error {
 		updatedCR, err := client.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
+				klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
 			}
 			return err
 		}
@@ -227,12 +226,12 @@ func (c *Controller) sync() error {
 	if statusChanged {
 		difference, err := object.DiffString(prevCR, cr)
 		if err != nil {
-			glog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
+			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
 		}
-		glog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
+		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
 
 		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			glog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
+			klog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
 		}
 
 		client, err := regopset.NewForConfig(c.kubeconfig)
@@ -243,7 +242,7 @@ func (c *Controller) sync() error {
 		_, err = client.ImageregistryV1().Configs().UpdateStatus(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
-				glog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
+				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
 			}
 			return err
 		}
@@ -263,22 +262,22 @@ func (c *Controller) eventProcessor() {
 			return
 		}
 
-		glog.V(1).Infof("get event from workqueue")
+		klog.V(1).Infof("get event from workqueue")
 		func() {
 			defer c.workqueue.Done(obj)
 
 			if _, ok := obj.(string); !ok {
 				c.workqueue.Forget(obj)
-				glog.Errorf("expected string in workqueue but got %#v", obj)
+				klog.Errorf("expected string in workqueue but got %#v", obj)
 				return
 			}
 
 			if err := c.sync(); err != nil {
 				c.workqueue.AddRateLimited(workqueueKey)
-				glog.Errorf("unable to sync: %s, requeuing", err)
+				klog.Errorf("unable to sync: %s, requeuing", err)
 			} else {
 				c.workqueue.Forget(obj)
-				glog.Infof("event from workqueue successfully processed")
+				klog.Infof("event from workqueue successfully processed")
 			}
 		}()
 	}
@@ -292,18 +291,18 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
+			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
 			newAccessor, err := kmeta.Accessor(n)
 			if err != nil {
-				glog.Errorf("unable to get accessor for new object: %s", err)
+				klog.Errorf("unable to get accessor for new object: %s", err)
 				return
 			}
 			oldAccessor, err := kmeta.Accessor(o)
 			if err != nil {
-				glog.Errorf("unable to get accessor for old object: %s", err)
+				klog.Errorf("unable to get accessor for old object: %s", err)
 				return
 			}
 			if newAccessor.GetResourceVersion() == oldAccessor.GetResourceVersion() {
@@ -316,7 +315,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
+			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -324,22 +323,22 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if !ok {
 				tombstone, ok := o.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					glog.Errorf("error decoding object, invalid type")
+					klog.Errorf("error decoding object, invalid type")
 					return
 				}
 				object, ok = tombstone.Obj.(metaapi.Object)
 				if !ok {
-					glog.Errorf("error decoding object tombstone, invalid type")
+					klog.Errorf("error decoding object tombstone, invalid type")
 					return
 				}
-				glog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
+				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
 				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}
-			glog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
+			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
 	}
@@ -470,7 +469,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 
-	glog.Info("waiting for informer caches to sync")
+	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
 		if ok := cache.WaitForCacheSync(stopCh, informer.HasSynced); !ok {
 			return fmt.Errorf("failed to wait for caches to sync")
@@ -479,9 +478,9 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
-	glog.Info("started events processor")
+	klog.Info("started events processor")
 	<-stopCh
-	glog.Info("shutting down events processor")
+	klog.Info("shutting down events processor")
 
 	return nil
 }

@@ -15,6 +15,7 @@ import (
 	"golang.org/x/tools/internal/lsp/debug"
 	"golang.org/x/tools/internal/lsp/protocol"
 	"golang.org/x/tools/internal/lsp/source"
+	"golang.org/x/tools/internal/lsp/xlog"
 	"golang.org/x/tools/internal/span"
 )
 
@@ -64,7 +65,6 @@ func (s *Server) initialize(ctx context.Context, params *protocol.InitializePara
 			return nil, err
 		}
 	}
-
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
 			CodeActionProvider: true,
@@ -155,7 +155,7 @@ func (s *Server) initialized(ctx context.Context, params *protocol.InitializedPa
 	}
 	buf := &bytes.Buffer{}
 	debug.PrintVersionInfo(buf, true, debug.PlainText)
-	s.session.Logger().Infof(ctx, "%s", buf)
+	xlog.Infof(ctx, "%s", buf)
 	return nil
 }
 
@@ -192,6 +192,10 @@ func (s *Server) processConfig(ctx context.Context, view source.View, config int
 		}
 		view.SetBuildFlags(flags)
 	}
+	// Check if the user wants documentation in completion items.
+	if wantCompletionDocumentation, ok := c["wantCompletionDocumentation"].(bool); ok {
+		s.wantCompletionDocumentation = wantCompletionDocumentation
+	}
 	// Check if placeholders are enabled.
 	if usePlaceholders, ok := c["usePlaceholders"].(bool); ok {
 		s.usePlaceholders = usePlaceholders
@@ -206,7 +210,7 @@ func (s *Server) processConfig(ctx context.Context, view source.View, config int
 		case "FullDocumentation":
 			s.hoverKind = source.FullDocumentation
 		default:
-			view.Session().Logger().Errorf(ctx, "unsupported hover kind %s", hoverKind)
+			xlog.Errorf(ctx, "unsupported hover kind %s", hoverKind)
 			// The default value is already be set to synopsis.
 		}
 	}

@@ -3,13 +3,12 @@ package framework
 import (
 	"fmt"
 
-	"github.com/golang/glog"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
@@ -35,7 +34,7 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 				return err
 			}
 
-			glog.Warningf("secret %q not found: %s, creating", fmt.Sprintf("%s/%s", namespace, name), err)
+			klog.Warningf("secret %q not found: %s, creating", fmt.Sprintf("%s/%s", namespace, name), err)
 
 			cur = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
