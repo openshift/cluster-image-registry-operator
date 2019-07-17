@@ -198,13 +198,15 @@ func getServiceHostnames(serviceLister kcorelisters.ServiceNamespaceLister, serv
 	if err != nil {
 		return nil, err
 	}
-
-	port := ""
-	if svc.Spec.Ports[0].Port != 443 {
-		port = fmt.Sprintf(":%d", svc.Spec.Ports[0].Port)
+	hostnames := []string{}
+	for _, svcPort := range svc.Spec.Ports {
+		port := ""
+		if svcPort.Port != 443 {
+			port = fmt.Sprintf(":%d", svcPort.Port)
+		}
+		hostnames = append(hostnames,
+			fmt.Sprintf("%s.%s.svc%s", svc.Name, svc.Namespace, port),
+			fmt.Sprintf("%s.%s.svc.cluster.local%s", svc.Name, svc.Namespace, port))
 	}
-	return []string{
-		fmt.Sprintf("%s.%s.svc%s", svc.Name, svc.Namespace, port),
-		fmt.Sprintf("%s.%s.svc.cluster.local%s", svc.Name, svc.Namespace, port),
-	}, nil
+	return hostnames, nil
 }

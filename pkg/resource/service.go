@@ -23,7 +23,8 @@ type generatorService struct {
 	name       string
 	namespace  string
 	labels     map[string]string
-	port       int
+	ports      []int
+	targetPort int
 	secretName string
 }
 
@@ -34,7 +35,8 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		name:       params.Service.Name,
 		namespace:  params.Deployment.Namespace,
 		labels:     params.Deployment.Labels,
-		port:       params.Container.Port,
+		ports:      params.Service.Ports,
+		targetPort: params.Container.Port,
 		secretName: imageregistryv1.ImageRegistryName + "-tls",
 	}
 }
@@ -68,15 +70,16 @@ func (gs *generatorService) expected() *corev1.Service {
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: gs.labels,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       fmt.Sprintf("%d-tcp", gs.port),
-					Port:       int32(gs.port),
-					Protocol:   "TCP",
-					TargetPort: intstr.FromInt(gs.port),
-				},
-			},
 		},
+	}
+
+	for _, port := range gs.ports {
+		svc.Spec.Ports = append(svc.Spec.Ports, corev1.ServicePort{
+			Name:       fmt.Sprintf("%d-tcp", port),
+			Port:       int32(port),
+			Protocol:   "TCP",
+			TargetPort: intstr.FromInt(gs.targetPort),
+		})
 	}
 
 	svc.ObjectMeta.Annotations = map[string]string{

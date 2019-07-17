@@ -271,7 +271,7 @@ func ensureInternalRegistryHostnameIsSet(logger Logger, client *Clientset) error
 		} else if err != nil {
 			return false, err
 		}
-		if cfg == nil || cfg.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc:5000" {
+		if cfg == nil || cfg.Status.InternalRegistryHostname != "image-registry.openshift-image-registry.svc" {
 			return false, nil
 		}
 		return true, nil

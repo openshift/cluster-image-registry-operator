@@ -25,7 +25,8 @@ type Globals struct {
 		TimeoutSeconds int
 	}
 	Service struct {
-		Name string
+		Name  string
+		Ports []int
 	}
 	ImageConfig struct {
 		Name string
