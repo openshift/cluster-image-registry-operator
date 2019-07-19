@@ -71,7 +71,23 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 				return nil, fmt.Errorf("failed to unmarshal clouds credentials: %v", err)
 			}
 
-			if cloud, ok := clouds.Clouds["openstack"]; ok {
+			var cloudName string
+			cloudInfra, err := listers.Infrastructures.Get("cluster")
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return nil, fmt.Errorf("failed to get cluster infrastructure info: %v", err)
+				}
+			}
+			if cloudInfra != nil &&
+				cloudInfra.Status.PlatformStatus != nil &&
+				cloudInfra.Status.PlatformStatus.OpenStack != nil {
+				cloudName = cloudInfra.Status.PlatformStatus.OpenStack.CloudName
+			}
+			if len(cloudName) == 0 {
+				cloudName = "openstack"
+			}
+
+			if cloud, ok := clouds.Clouds[cloudName]; ok {
 				cfg.AuthURL = cloud.AuthInfo.AuthURL
 				cfg.Username = cloud.AuthInfo.Username
 				cfg.Password = cloud.AuthInfo.Password

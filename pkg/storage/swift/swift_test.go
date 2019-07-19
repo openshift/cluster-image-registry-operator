@@ -11,8 +11,11 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
@@ -144,6 +147,25 @@ func handleAuthentication(t *testing.T, endpointType string) {
 	})
 }
 
+func fakeInfrastructureLister(cloudName string) configlisters.InfrastructureLister {
+	fakeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	fakeIndexer.Add(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			Platform: configv1.OpenStackPlatformType,
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.OpenStackPlatformType,
+				OpenStack: &configv1.OpenStackPlatformStatus{
+					CloudName: cloudName,
+				},
+			},
+		},
+	})
+	return configlisters.NewInfrastructureLister(fakeIndexer)
+}
+
 func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
@@ -168,7 +190,8 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockUPISecretNamespaceLister{},
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -208,7 +231,8 @@ func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockUPISecretNamespaceLister{},
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -263,7 +287,8 @@ func TestSwiftStorageExistsNativeSecret(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockUPISecretNamespaceLister{},
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -291,7 +316,8 @@ func TestSwiftSecrets(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockUPISecretNamespaceLister{},
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -304,14 +330,17 @@ func TestSwiftSecrets(t *testing.T) {
 	config = imageregistryv1.ImageRegistryConfigStorageSwift{
 		Container: container,
 	}
+	// Support any cloud name provided by platform status
+	customCloud := "myCloud"
 	d = driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockIPISecretNamespaceLister{},
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(customCloud),
 		},
 		Config: &config,
 	}
 	fakeCloudsYAMLData := []byte(`clouds:
-  ` + cloudName + `:
+  ` + customCloud + `:
     auth:
       auth_url: "http://localhost:5000/v3"
       project_name: ` + tenant + `
@@ -365,7 +394,8 @@ func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockIPISecretNamespaceLister{},
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -416,7 +446,8 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockIPISecretNamespaceLister{},
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -482,7 +513,8 @@ func TestSwiftStorageExistsCloudConfig(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockIPISecretNamespaceLister{},
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -521,7 +553,8 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockIPISecretNamespaceLister{},
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
@@ -654,7 +687,8 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.Listers{
-			Secrets: MockUPISecretNamespaceLister{},
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
 		},
 		Config: &config,
 	}
