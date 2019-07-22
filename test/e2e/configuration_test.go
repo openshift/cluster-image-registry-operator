@@ -1,6 +1,13 @@
 package e2e
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
 	"reflect"
 	"strings"
 	"testing"
@@ -15,6 +22,7 @@ import (
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 
 	imageregistryapiv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -164,6 +172,103 @@ func TestRouteConfiguration(t *testing.T) {
 	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
 	framework.MustEnsureDefaultExternalRouteExists(t, client)
 	framework.EnsureExternalRoutesExist(t, client, []string{hostname})
+}
+
+func generateCertificate(hostname string) ([]byte, []byte, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate private key: %s", err)
+	}
+
+	notBefore := time.Now()
+	notAfter := notBefore.Add(24 * time.Hour)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate serial number: %s", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Example Ltd"},
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              []string{hostname},
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create certificate: %s", err)
+	}
+
+	cert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	key := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	return cert, key, nil
+}
+
+func TestSecureRouteConfiguration(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	hostname := "test.example.com"
+	cert, key, err := generateCertificate(hostname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	routeName := "testroute"
+	tlsSecretName := "testroute-tls"
+	tlsSecretData := map[string]string{
+		"tls.crt": string(cert),
+		"tls.key": string(key),
+	}
+
+	if _, err := util.CreateOrUpdateSecret(tlsSecretName, imageregistryapiv1.ImageRegistryOperatorNamespace, tlsSecretData); err != nil {
+		t.Fatalf("unable to create secret: %s", err)
+	}
+
+	framework.MustDeployImageRegistry(t, client, &imageregistryapiv1.Config{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: imageregistryapiv1.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+			Replicas: 1,
+			Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
+				{
+					Name:       routeName,
+					Hostname:   hostname,
+					SecretName: tlsSecretName,
+				},
+			},
+		},
+	})
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
+
+	route, err := client.Routes(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unable to get route: %s", err)
+	}
+	if route.Spec.TLS == nil {
+		t.Fatal("route.Spec.TLS is nil, want a configuration")
+	}
+	if route.Spec.TLS.Certificate != string(cert) {
+		t.Errorf("route tls certificate: got %q, want %q", route.Spec.TLS.Certificate, string(cert))
+	}
+	if route.Spec.TLS.Key != string(key) {
+		t.Errorf("route tls key: got %q, want %q", route.Spec.TLS.Key, string(key))
+	}
 }
 
 func TestVersionReporting(t *testing.T) {
