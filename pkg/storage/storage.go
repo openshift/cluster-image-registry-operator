@@ -82,6 +82,58 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
 }
 
+// TODO: this function can be removed with two changes:
+// 1. create a newDriver when you have StorageType
+// 2. storage drivers shouldn't get the configuration as a parameter, but should use the cr argument.
+func NewDriverFromStatus(cfg *imageregistryv1.ImageRegistryStorageStatus, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
+	var names []string
+	var drivers []Driver
+
+	if cfg.EmptyDir != nil {
+		names = append(names, "EmptyDir")
+		drivers = append(drivers, emptydir.NewDriver(cfg.EmptyDir, listers))
+	}
+
+	if cfg.S3 != nil {
+		names = append(names, "S3")
+		drivers = append(drivers, s3.NewDriver(cfg.S3, kubeconfig, listers))
+	}
+
+	if cfg.Swift != nil {
+		names = append(names, "Swift")
+		drivers = append(drivers, swift.NewDriver(cfg.Swift, listers))
+	}
+
+	if cfg.GCS != nil {
+		names = append(names, "GCS")
+		ctx := context.Background()
+		drivers = append(drivers, gcs.NewDriver(cfg.GCS, ctx, kubeconfig, listers))
+	}
+
+	if cfg.PVC != nil {
+		drv, err := pvc.NewDriver(cfg.PVC, kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+		names = append(names, "PVC")
+		drivers = append(drivers, drv)
+	}
+
+	if cfg.Azure != nil {
+		names = append(names, "Azure")
+		drivers = append(drivers, azure.NewDriver(&cfg.Azure.ImageRegistryConfigStorageAzure, kubeconfig, listers))
+	}
+
+	switch len(drivers) {
+	case 0:
+		return nil, ErrStorageNotConfigured
+	case 1:
+		return drivers[0], nil
+	}
+
+	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
+}
+
 func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	drv, err := newDriver(cfg, kubeconfig, listers)
 	if err == ErrStorageNotConfigured {

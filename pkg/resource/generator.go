@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func NewGenerator(kubeconfig *rest.Config, listers *client.Listers, params *parameters.Globals) *Generator {
@@ -177,6 +178,8 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 	err := g.syncStorage(cr)
 	if err == storage.ErrStorageNotConfigured {
 		return err
+	} else if _, ok := err.(*util.ConfigurationError); ok {
+		return err
 	} else if err != nil {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
@@ -262,7 +265,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 		klog.Infof("object %s deleted", Name(gen))
 	}
 
-	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, g.listers)
+	driver, err := storage.NewDriverFromStatus(&cr.Status.Storage, g.kubeconfig, g.listers)
 	if err != nil {
 		return err
 	}

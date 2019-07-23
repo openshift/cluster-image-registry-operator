@@ -157,7 +157,7 @@ type ImageRegistryStatus struct {
 	StorageManaged bool `json:"storageManaged"`
 
 	// Storage indicates the current applied storage configuration of the registry
-	Storage ImageRegistryConfigStorage `json:"storage"`
+	Storage ImageRegistryStorageStatus `json:"storage"`
 }
 
 type ImageRegistryConfigProxy struct {
@@ -243,8 +243,26 @@ type ImageRegistryConfigStoragePVC struct {
 // ImageRegistryConfigStorageAzure holds the information to configure
 // the registry to use Azure Blob Storage for backend storage.
 type ImageRegistryConfigStorageAzure struct {
-	AccountName string `json:"accountName"`
-	Container   string `json:"container"`
+	// AccountName is the name of the Azure Storage Account. It must be
+	// between 3 and 24 characters in length and may contain numbers and
+	// lowercase letters only.
+	// More info: https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview#naming-storage-accounts
+	// +optional
+	AccountName string `json:"accountName,omitempty"`
+	// Container is the name of the storage container in which you want to
+	// store the registry's data.
+	// +optional
+	Container string `json:"container,omitempty"`
+}
+
+// ImageRegistryStorageStatusAzure holds the information about Azure Blob
+// Storage as backend storage.
+type ImageRegistryStorageStatusAzure struct {
+	ImageRegistryConfigStorageAzure `json:",inline"`
+
+	// ContainerManaged indicates whether the operator has created the
+	// container and manages it.
+	ContainerManaged bool `json:"containerManaged"`
 }
 
 // ImageRegistryConfigStorage describes how the storage should be configured
@@ -267,6 +285,31 @@ type ImageRegistryConfigStorage struct {
 	PVC *ImageRegistryConfigStoragePVC `json:"pvc,omitempty"`
 	// Azure represents configuration that uses Azure Blob Storage.
 	Azure *ImageRegistryConfigStorageAzure `json:"azure,omitempty"`
+}
+
+// ImageRegistryStorageStatus describes the storage that is configured for the
+// image registry.
+type ImageRegistryStorageStatus struct {
+	// EmptyDir represents ephemeral storage on the pod's host node.
+	// This configuration is EXPERIMENTAL and is subject to change without notice.
+	// +optional
+	EmptyDir *ImageRegistryConfigStorageEmptyDir `json:"emptyDir,omitempty"`
+	// S3 represents configuration that uses Amazon Simple Storage Service.
+	// +optional
+	S3 *ImageRegistryConfigStorageS3 `json:"s3,omitempty"`
+	// GCS represents configuration that uses Google Cloud Storage
+	// +optional
+	GCS *ImageRegistryConfigStorageGCS `json:"gcs,omitempty"`
+	// Swift represents configuration that uses OpenStack Object Storage.
+	// This configuration is EXPERIMENTAL and is subject to change without notice.
+	// +optional
+	Swift *ImageRegistryConfigStorageSwift `json:"swift,omitempty"`
+	// PVC represents configuration that uses a PersistentVolumeClaim.
+	// +optional
+	PVC *ImageRegistryConfigStoragePVC `json:"pvc,omitempty"`
+	// Azure represents information about Azure Blob Storage.
+	// +optional
+	Azure *ImageRegistryStorageStatusAzure `json:"azure,omitempty"`
 }
 
 type ImageRegistryConfigRequests struct {

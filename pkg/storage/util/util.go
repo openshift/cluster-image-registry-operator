@@ -15,6 +15,20 @@ import (
 	installer "github.com/openshift/installer/pkg/types"
 )
 
+type ConfigurationError struct {
+	Err error
+}
+
+func (e *ConfigurationError) Error() string {
+	return e.Err.Error()
+}
+
+func NewConfigurationError(format string, a ...interface{}) error {
+	return &ConfigurationError{
+		Err: fmt.Errorf(format, a...),
+	}
+}
+
 // UpdateCondition will update or add the provided condition.
 func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string) {
 	found := false

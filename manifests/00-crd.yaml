@@ -141,8 +141,13 @@ spec:
                     Storage.
                   properties:
                     accountName:
+                      description: 'AccountName is the name of the Azure Storage Account.
+                        It must be between 3 and 24 characters in length and may contain
+                        numbers and lowercase letters only. More info: https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview#naming-storage-accounts'
                       type: string
                     container:
+                      description: Container is the name of the storage container
+                        in which you want to store the registry's data.
                       type: string
                   type: object
                 emptyDir:
@@ -321,20 +326,25 @@ spec:
                 of the registry
               properties:
                 azure:
-                  description: Azure represents configuration that uses Azure Blob
-                    Storage.
+                  description: Azure represents information about Azure Blob Storage.
                   properties:
                     accountName:
+                      description: 'AccountName is the name of the Azure Storage Account.
+                        It must be between 3 and 24 characters in length and may contain
+                        numbers and lowercase letters only. More info: https://docs.microsoft.com/en-us/azure/storage/common/storage-account-overview#naming-storage-accounts'
                       type: string
                     container:
+                      description: Container is the name of the storage container
+                        in which you want to store the registry's data.
                       type: string
+                    containerManaged:
+                      description: ContainerManaged indicates whether the operator
+                        has created the container and manages it.
+                      type: boolean
                   type: object
                 emptyDir:
                   description: EmptyDir represents ephemeral storage on the pod's
-                    host node. This storage cannot be used with more than 1 replica
-                    and is not suitable for production use. When the pod is removed
-                    from a node for any reason, the data in the emptyDir is deleted
-                    forever. This configuration is EXPERIMENTAL and is subject to
+                    host node. This configuration is EXPERIMENTAL and is subject to
                     change without notice.
                   type: object
                 gcs:

@@ -244,7 +244,7 @@ func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 			},
 		},
 		Status: imageregistryv1.ImageRegistryStatus{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
+			Storage: imageregistryv1.ImageRegistryStorageStatus{
 				Swift: &config,
 			},
 			StorageManaged: true,
@@ -459,7 +459,7 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 			},
 		},
 		Status: imageregistryv1.ImageRegistryStatus{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
+			Storage: imageregistryv1.ImageRegistryStorageStatus{
 				Swift: &config,
 			},
 			StorageManaged: true,
