@@ -223,10 +223,6 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: d.Config.Container},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID},
 		corev1.EnvVar{
 			Name: "REGISTRY_STORAGE_SWIFT_USERNAME",
 			ValueFrom: &corev1.EnvVarSource{
@@ -249,9 +245,23 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 				},
 			},
 		},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: d.Config.AuthVersion},
 	)
+	if d.Config.Domain != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
+	}
+	if d.Config.DomainID != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID})
+	}
+	if d.Config.Tenant != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant})
+	}
+	if d.Config.TenantID != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID})
+	}
+	if d.Config.RegionName != "" {
+		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName})
+	}
 
 	return
 }
