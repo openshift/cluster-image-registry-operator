@@ -81,6 +81,22 @@
   version = "v0.3.1"
 
 [[projects]]
+  digest = "1:c0952fb3cf9506cff577b4edf4458889570dcbd2902a7b90a1fd96bfbb97ccd8"
+  name = "github.com/PuerkitoBio/purell"
+  packages = ["."]
+  pruneopts = ""
+  revision = "44968752391892e1b0d0b821ee79e9a85fa13049"
+  version = "v1.1.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:331a419049c2be691e5ba1d24342fc77c7e767a80c666a18fd8a9f7b82419c1c"
+  name = "github.com/PuerkitoBio/urlesc"
+  packages = ["."]
+  pruneopts = ""
+  revision = "de5bf2ad457846296e2031421a34e2568e304e35"
+
+[[projects]]
   digest = "1:06a3d6c930263524e16e4c0b4b6cf461f83ffcb468864a18f537ce19a44e5de4"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -286,6 +302,14 @@
   packages = ["openstack/clientconfig"]
   pruneopts = ""
   revision = "25f1b77b8c0367b43939dbb20f5dd12e3c9b0053"
+
+[[projects]]
+  digest = "1:8d08c01e00944c239925f20ebc212c197209f0317302195cff12e364789e56dc"
+  name = "github.com/goware/urlx"
+  packages = ["."]
+  pruneopts = ""
+  revision = "8ce059c8488383d3d5d917e99b51e5487b012698"
+  version = "v0.3.1"
 
 [[projects]]
   digest = "1:bd97c012fb859c7f350d6c7ba6418a797f15451ccb93defd2602d768fd8321a7"
@@ -640,6 +664,7 @@
     "unicode/cldr",
     "unicode/norm",
     "unicode/rangetable",
+    "width",
   ]
   pruneopts = ""
   revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
@@ -1227,6 +1252,7 @@
     "github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers",
     "github.com/gophercloud/gophercloud/testhelper",
     "github.com/gophercloud/utils/openstack/clientconfig",
+    "github.com/goware/urlx",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/api/operator/v1",
     "github.com/openshift/api/route/v1",

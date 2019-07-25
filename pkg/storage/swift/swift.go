@@ -3,7 +3,6 @@ package swift
 import (
 	"fmt"
 	"math/rand"
-	"net/url"
 	"reflect"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/goware/urlx"
 	yamlv2 "gopkg.in/yaml.v2"
 
 	corev1 "k8s.io/api/core/v1"
@@ -267,10 +267,14 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 }
 
 func (d *driver) ensureAuthURLHasAPIVersion() error {
-	authURL := d.Config.AuthURL
+	authURL, err := urlx.NormalizeString(d.Config.AuthURL)
+	if err != nil {
+		return err
+	}
+
 	authVersion := d.Config.AuthVersion
 
-	parsedURL, err := url.Parse(authURL)
+	parsedURL, err := urlx.Parse(authURL)
 	if err != nil {
 		return err
 	}
@@ -279,6 +283,7 @@ func (d *driver) ensureAuthURLHasAPIVersion() error {
 
 	// check if authUrl contains API version
 	if strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") || strings.HasPrefix(path, "/v3") {
+		d.Config.AuthURL = authURL
 		return nil
 	}
 

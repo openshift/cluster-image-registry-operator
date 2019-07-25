@@ -606,6 +606,38 @@ func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
 	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
 
 	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/./././",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/./././v3//",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "http://v1v2v3.com:5000/v3/", d.Config.AuthURL)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:     "http://v1v2v3.com:5000/./././v/3//",
+		AuthVersion: "3",
+	}
+	d = driver{
+		Config: &config,
+	}
+	err = d.ensureAuthURLHasAPIVersion()
+	th.AssertEquals(t, true, err != nil)
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
 		AuthURL:     "http://v1v2v3.com:5000/v3/",
 		AuthVersion: "3",
 	}
