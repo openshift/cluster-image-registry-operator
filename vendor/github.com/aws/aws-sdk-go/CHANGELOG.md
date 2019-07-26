@@ -1,3 +1,96 @@
+Release v1.21.5 (2019-07-25)
+===
+
+### Service Client Updates
+* `service/ecr`: Updates service API and documentation
+  * This release adds support for immutable image tags.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/mediaconvert`: Updates service API and documentation
+  * AWS Elemental MediaConvert has added several features including support for: audio normalization using ITU BS.1770-3, 1770-4 algorithms, extension of job progress indicators, input cropping rectangle & output position rectangle filters per input, and dual SCC caption mapping to additional codecs and containers.
+* `service/medialive`: Updates service API and documentation
+  * AWS Elemental MediaLive is adding Input Clipping, Immediate Mode Input Switching, and Dynamic Inputs.
+
+Release v1.21.4 (2019-07-24)
+===
+
+### Service Client Updates
+* `service/ec2`: Updates service API and documentation
+  * This release introduces support for split tunnel with AWS Client VPN, and also adds support for opt-in Regions in DescribeRegions API. In addition, customers can now also tag Launch Templates on creation.
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/glue`: Updates service API and documentation
+  * This release provides GlueVersion option for Job APIs and WorkerType option for DevEndpoint APIs. Job APIs enable users to pick specific GlueVersion for a specific job and pin the job to a specific runtime environment. DevEndpoint APIs enable users to pick different WorkerType for memory intensive workload.
+* `service/pinpoint`: Updates service API and documentation
+  * This release adds support for programmatic access to many of the same campaign metrics that are displayed on the Amazon Pinpoint console. You can now use the Amazon Pinpoint API to monitor and assess performance data for campaigns, and integrate metrics data with other reporting tools. We update the metrics data continuously, resulting in a data latency timeframe that is limited to approximately two hours.
+* `service/sts`: Updates service API and documentation
+  * New STS GetAccessKeyInfo API operation that returns the account identifier for the specified access key ID.
+
+Release v1.21.3 (2019-07-23)
+===
+
+### Service Client Updates
+* `service/secretsmanager`: Updates service API and documentation
+  * This release increases the maximum allowed size of SecretString or SecretBinary from 7KB to 10KB in the CreateSecret, UpdateSecret, PutSecretValue and GetSecretValue APIs. This release also increases the maximum allowed size of ResourcePolicy from 4KB to 20KB in the GetResourcePolicy and PutResourcePolicy APIs.
+* `service/ssm`: Updates service API and documentation
+  * You can now use Maintenance Windows to select a resource group as the target. By selecting a resource group as the target of a Maintenance Window, customers can perform routine tasks across different resources such as Amazon Elastic Compute Cloud (AmazonEC2) instances, Amazon Elastic Block Store (Amazon EBS) volumes, and Amazon Simple Storage Service(Amazon S3) buckets within the same recurring time window.
+
+Release v1.21.2 (2019-07-22)
+===
+
+### Service Client Updates
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/mq`: Updates service API and documentation
+  * Adds support for AWS Key Management Service (KMS) to offer server-side encryption. You can now select your own customer managed CMK, or use an AWS managed CMK in your KMS  account.
+* `service/shield`: Updates service API and documentation
+  * Adding new VectorType (HTTP_Reflection) and related top contributor types to describe WordPress Pingback DDoS attacks.
+
+### SDK Enhancements
+* Fixup SDK source formating, test error checking, and simplify type conervsions
+  * [#2703](https://github.com/aws/aws-sdk-go/pull/2703), [#2704](https://github.com/aws/aws-sdk-go/pull/2704), [#2705](https://github.com/aws/aws-sdk-go/pull/2705), [#2706](https://github.com/aws/aws-sdk-go/pull/2706), [#2707](https://github.com/aws/aws-sdk-go/pull/2707), [#2708](https://github.com/aws/aws-sdk-go/pull/2708)
+
+### SDK Bugs
+* `aws/request`: Fix SDK error checking when seeking readers ([#2696](https://github.com/aws/aws-sdk-go/pull/2696))
+  * Fixes the SDK handling of seeking a reader to ensure errors are not lost, and are bubbled up.
+  * In several places the SDK ignored Seek errors when attempting to determine a reader's length, or rewinding the reader for retry attempts.
+  * Related to [#2525](https://github.com/aws/aws-sdk-go/issues/2525)
+Release v1.21.1 (2019-07-19)
+===
+
+### Service Client Updates
+* `aws/endpoints`: Updated Regions and Endpoints metadata.
+* `service/iotevents`: Updates service API and documentation
+* `service/sqs`: Updates service documentation
+  * This release updates the information about the availability of FIFO queues and includes miscellaneous fixes.
+
+Release v1.21.0 (2019-07-18)
+===
+
+### Service Client Updates
+* `service/codedeploy`: Updates service documentation
+  * Documentation updates for codedeploy
+* `service/comprehend`: Updates service API and documentation
+* `service/ecs`: Updates service API and documentation
+  * This release of Amazon Elastic Container Service (Amazon ECS) introduces support for cluster settings. Cluster settings specify whether CloudWatch Container Insights is enabled or disabled for the cluster.
+* `service/elasticache`: Updates service documentation
+  * Updates for Elasticache
+
+### SDK Features
+* `aws/session`: Add support for assuming role via Web Identity Token ([#2667](https://github.com/aws/aws-sdk-go/pull/2667))
+  * Adds support for assuming an role via the Web Identity Token. Allows for OIDC token files to be used by specifying the token path through the AWS_WEB_IDENTITY_TOKEN_FILE, and AWS_ROLE_ARN environment variables.
+
+### SDK Bugs
+* `aws/session`: Fix SDK AWS_PROFILE and static environment credential behavior ()
+  * Fixes the SDK's behavior when determining the source of credentials to load. Previously the SDK would ignore the AWS_PROFILE environment, if static environment credentials were also specified.
+  * If both AWS_PROFILE and static environment credentials are defined, the SDK will load any credentials from the shared config/credentials file for the AWS_PROFILE first. Only if there are no credentials defined in the shared config/credentials file will the SDK use the static environment credentials instead.
+Release v1.20.21 (2019-07-17)
+===
+
+### Service Client Updates
+* `service/autoscaling`: Updates service documentation
+  * Documentation updates for autoscaling
+* `service/config`: Updates service API
+* `service/dms`: Updates service API and documentation
+  * S3 endpoint settings update: 1) Option to append operation column to full-load files. 2) Option to add a commit timestamp column to full-load and cdc files. Updated DescribeAccountAttributes to include UniqueAccountIdentifier.
+
 Release v1.20.20 (2019-07-12)
 ===
 

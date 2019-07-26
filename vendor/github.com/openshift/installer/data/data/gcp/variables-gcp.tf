@@ -26,13 +26,7 @@ EOF
 
 variable "gcp_bootstrap_enabled" {
   type = bool
-  description = "Setting this to false allows the bootstrap instance and instance_group to be destroyed."
-  default = true
-}
-
-variable "gcp_bootstrap_lb" {
-  type = bool
-  description = "Setting this to false allows the bootstrap resources to be removed from the cluster load balancers."
+  description = "Setting this to false allows the bootstrap resources to be disabled."
   default = true
 }
 
@@ -64,4 +58,9 @@ variable "gcp_master_root_volume_size" {
 variable "gcp_public_dns_zone_name" {
   type = string
   description = "The name of the public DNS zone to use for this cluster"
+}
+
+variable "gcp_master_availability_zones" {
+  type = list(string)
+  description = "The availability zones in which to create the masters. The length of this list must match master_count."
 }

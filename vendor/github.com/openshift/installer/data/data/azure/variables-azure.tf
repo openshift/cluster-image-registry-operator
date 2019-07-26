@@ -46,9 +46,9 @@ type        = string
 description = "The resource group that contains the dns zone used as base domain for the cluster."
 }
 
-variable "azure_image_id" {
+variable "azure_image_url" {
 type        = string
-description = "The resource id of the vm image used for all node."
+description = "The URL of the vm image used for all nodes."
 }
 
 variable "azure_subscription_id" {
@@ -69,4 +69,10 @@ variable "azure_client_secret" {
 variable "azure_tenant_id" {
   type        = string
   description = "The tenant ID that should be used to interact with Azure API"
+}
+
+
+variable "azure_master_availability_zones" {
+  type        = list(string)
+  description = "The availability zones in which to create the masters. The length of this list must match master_count."
 }

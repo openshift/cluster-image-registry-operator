@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	dockerref "github.com/containers/image/docker/reference"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -14,6 +16,8 @@ import (
 	awsvalidation "github.com/openshift/installer/pkg/types/aws/validation"
 	"github.com/openshift/installer/pkg/types/azure"
 	azurevalidation "github.com/openshift/installer/pkg/types/azure/validation"
+	"github.com/openshift/installer/pkg/types/baremetal"
+	baremetalvalidation "github.com/openshift/installer/pkg/types/baremetal/validation"
 	"github.com/openshift/installer/pkg/types/gcp"
 	gcpvalidation "github.com/openshift/installer/pkg/types/gcp/validation"
 	"github.com/openshift/installer/pkg/types/libvirt"
@@ -52,6 +56,11 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 			allErrs = append(allErrs, field.Invalid(field.NewPath("sshKey"), c.SSHKey, err.Error()))
 		}
 	}
+	if c.AdditionalTrustBundle != "" {
+		if err := validate.CABundle(c.AdditionalTrustBundle); err != nil {
+			allErrs = append(allErrs, field.Invalid(field.NewPath("additionalTrustBundle"), c.AdditionalTrustBundle, err.Error()))
+		}
+	}
 	nameErr := validate.ClusterName(c.ObjectMeta.Name)
 	if nameErr != nil {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("metadata", "name"), c.ObjectMeta.Name, nameErr.Error()))
@@ -84,6 +93,7 @@ func ValidateInstallConfig(c *types.InstallConfig, openStackValidValuesFetcher o
 	if c.Proxy != nil {
 		allErrs = append(allErrs, validateProxy(c.Proxy, field.NewPath("proxy"))...)
 	}
+	allErrs = append(allErrs, validateImageContentSources(c.ImageContentSources, field.NewPath("imageContentSources"))...)
 	return allErrs
 }
 
@@ -236,6 +246,11 @@ func validatePlatform(platform *types.Platform, fldPath *field.Path, openStackVa
 	if platform.VSphere != nil {
 		validate(vsphere.Name, platform.VSphere, func(f *field.Path) field.ErrorList { return vspherevalidation.ValidatePlatform(platform.VSphere, f) })
 	}
+	if platform.BareMetal != nil {
+		validate(baremetal.Name, platform.BareMetal, func(f *field.Path) field.ErrorList {
+			return baremetalvalidation.ValidatePlatform(platform.BareMetal, f)
+		})
+	}
 	return allErrs
 }
 
@@ -267,4 +282,33 @@ func validateProxy(p *types.Proxy, fldPath *field.Path) field.ErrorList {
 	}
 
 	return allErrs
+}
+
+func validateImageContentSources(groups []types.ImageContentSource, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	for gidx, group := range groups {
+		groupf := fldPath.Index(gidx)
+		if err := validateNamedRepository(group.Source); err != nil {
+			allErrs = append(allErrs, field.Invalid(groupf.Child("source"), group.Source, err.Error()))
+		}
+
+		for midx, mirror := range group.Mirrors {
+			if err := validateNamedRepository(mirror); err != nil {
+				allErrs = append(allErrs, field.Invalid(groupf.Child("mirrors").Index(midx), mirror, err.Error()))
+				continue
+			}
+		}
+	}
+	return allErrs
+}
+
+func validateNamedRepository(r string) error {
+	ref, err := dockerref.ParseNamed(r)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse")
+	}
+	if !dockerref.IsNameOnly(ref) {
+		return errors.New("must be repository--not reference")
+	}
+	return nil
 }

@@ -68,7 +68,7 @@ func getCredentials(ctx context.Context) (*googleoauth.Credentials, error) {
 	}
 
 	filePath := defaultAuthFilePath
-	logrus.Info("Saving the credentials to %q", filePath)
+	logrus.Infof("Saving the credentials to %q", filePath)
 	if err := os.MkdirAll(filepath.Dir(filePath), 0700); err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (f *contentLoader) String() string {
 type cliLoader struct{}
 
 func (c *cliLoader) Load(ctx context.Context) (*googleoauth.Credentials, error) {
-	return googleoauth.FindDefaultCredentials(ctx)
+	return googleoauth.FindDefaultCredentials(ctx, compute.CloudPlatformScope)
 }
 
 func (c *cliLoader) String() string {
