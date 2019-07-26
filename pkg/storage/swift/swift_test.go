@@ -43,6 +43,10 @@ var (
 	fakeCloudsYAML map[string][]byte
 )
 
+type MockSecretNamespaceLister interface {
+	Get(string) (*corev1.Secret, error)
+	List(selector labels.Selector) ([]*corev1.Secret, error)
+}
 type MockUPISecretNamespaceLister struct{}
 
 func (m MockUPISecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
@@ -166,6 +170,42 @@ func fakeInfrastructureLister(cloudName string) configlisters.InfrastructureList
 	return configlisters.NewInfrastructureLister(fakeIndexer)
 }
 
+func mockConfig(includeStatus bool, endpoint string, secretLister MockSecretNamespaceLister) (driver, imageregistryv1.Config) {
+	config := imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:   endpoint,
+		Container: container,
+		Domain:    domain,
+		Tenant:    tenant,
+	}
+
+	d := driver{
+		Listers: &regopclient.Listers{
+			Secrets:         secretLister,
+			Infrastructures: fakeInfrastructureLister(cloudName),
+		},
+		Config: &config,
+	}
+
+	ic := imageregistryv1.Config{
+		Spec: imageregistryv1.ImageRegistrySpec{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				Swift: &config,
+			},
+		},
+	}
+
+	if includeStatus {
+		ic.Status = imageregistryv1.ImageRegistryStatus{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				Swift: &config,
+			},
+			StorageManaged: true,
+		}
+	}
+
+	return d, ic
+}
+
 func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
@@ -182,27 +222,7 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:   th.Endpoint() + "v3",
-		Container: container,
-		Domain:    domain,
-		Tenant:    tenant,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockUPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-	}
+	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
 	d.CreateStorage(&installConfig)
 
@@ -223,33 +243,7 @@ func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:   th.Endpoint() + "v3",
-		Container: container,
-		Domain:    domain,
-		Tenant:    tenant,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockUPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-		Status: imageregistryv1.ImageRegistryStatus{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-			StorageManaged: true,
-		},
-	}
+	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
 	d.RemoveStorage(&installConfig)
 
@@ -279,27 +273,7 @@ func TestSwiftStorageExistsNativeSecret(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:   th.Endpoint() + "v3",
-		Container: container,
-		Domain:    domain,
-		Tenant:    tenant,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockUPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-	}
+	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
 	res, err := d.StorageExists(&installConfig)
 
@@ -389,24 +363,7 @@ func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		Container: container,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockIPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-	}
+	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
 
 	d.CreateStorage(&installConfig)
 
@@ -441,30 +398,7 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		Container: container,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockIPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-		Status: imageregistryv1.ImageRegistryStatus{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-			StorageManaged: true,
-		},
-	}
+	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
 
 	d.RemoveStorage(&installConfig)
 
@@ -508,24 +442,7 @@ func TestSwiftStorageExistsCloudConfig(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		Container: container,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockIPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-	}
+	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
 
 	res, err := d.StorageExists(&installConfig)
 
@@ -548,16 +465,7 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 		cloudSecretKey: fakeCloudsYAMLData,
 	}
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		Container: container,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockIPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
+	d, _ := mockConfig(false, "http://localhost:5000/v3", MockIPISecretNamespaceLister{})
 
 	res, err := d.ConfigEnv()
 
@@ -583,112 +491,68 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 }
 
 func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/v3",
-		AuthVersion: "3",
+	configListShouldPass := []imageregistryv1.ImageRegistryConfigStorageSwift{
+		{
+			AuthURL:     "http://v1v2v3.com:5000/v3",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/./././",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/./././v3//",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/v3/",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000",
+			AuthVersion: "2",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/v2.0",
+			AuthVersion: "3",
+		},
 	}
-	d := driver{
-		Config: &config,
-	}
-	err := d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
 
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/",
-		AuthVersion: "3",
+	for _, config := range configListShouldPass {
+		d := driver{
+			Config: &config,
+		}
+		err := d.ensureAuthURLHasAPIVersion()
+		th.AssertNoErr(t, err)
+		th.AssertEquals(t, config.AuthURL, d.Config.AuthURL)
 	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
 
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/./././",
-		AuthVersion: "3",
+	configListShouldFail := []imageregistryv1.ImageRegistryConfigStorageSwift{
+		{
+			AuthURL:     "http://v1v2v3.com:5000/./././v/3//",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "INVALID_URL",
+			AuthVersion: "3",
+		},
+		{
+			AuthURL:     "http://v1v2v3.com:5000/abracadabra",
+			AuthVersion: "3",
+		},
 	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v3", d.Config.AuthURL)
 
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/./././v3//",
-		AuthVersion: "3",
+	for _, config := range configListShouldFail {
+		d := driver{
+			Config: &config,
+		}
+		err := d.ensureAuthURLHasAPIVersion()
+		th.AssertEquals(t, true, err != nil)
 	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v3/", d.Config.AuthURL)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/./././v/3//",
-		AuthVersion: "3",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertEquals(t, true, err != nil)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/v3/",
-		AuthVersion: "3",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v3/", d.Config.AuthURL)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000",
-		AuthVersion: "2",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v2", d.Config.AuthURL)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/v2.0",
-		AuthVersion: "3",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, "http://v1v2v3.com:5000/v2.0", d.Config.AuthURL)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "INVALID_URL",
-		AuthVersion: "3",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertEquals(t, true, err != nil)
-
-	config = imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:     "http://v1v2v3.com:5000/abracadabra",
-		AuthVersion: "3",
-	}
-	d = driver{
-		Config: &config,
-	}
-	err = d.ensureAuthURLHasAPIVersion()
-	th.AssertEquals(t, true, err != nil)
 }
 
 func TestSwiftEndpointTypeObjectStore(t *testing.T) {
@@ -707,27 +571,7 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	config := imageregistryv1.ImageRegistryConfigStorageSwift{
-		AuthURL:   th.Endpoint() + "v3",
-		Container: container,
-		Domain:    domain,
-		Tenant:    tenant,
-	}
-	d := driver{
-		Listers: &regopclient.Listers{
-			Secrets:         MockUPISecretNamespaceLister{},
-			Infrastructures: fakeInfrastructureLister(cloudName),
-		},
-		Config: &config,
-	}
-
-	installConfig := imageregistryv1.Config{
-		Spec: imageregistryv1.ImageRegistrySpec{
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				Swift: &config,
-			},
-		},
-	}
+	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
 	d.CreateStorage(&installConfig)
 
@@ -738,8 +582,5 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 }
 
 func TestSwiftGenerateContainerName(t *testing.T) {
-	name1 := generateContainerName("image_registry_")
-	name2 := generateContainerName("image_registry_")
-
-	th.AssertEquals(t, false, name1 == name2)
+	th.AssertEquals(t, false, generateContainerName("image_registry_") == generateContainerName("image_registry_"))
 }

@@ -289,7 +289,7 @@ func (d *driver) ensureAuthURLHasAPIVersion() error {
 
 	// check that path is empty
 	if !(path == "/" || path == "") {
-		return fmt.Errorf("Incorrect Auth URL")
+		return fmt.Errorf("Incorrect Auth URL: %s", path)
 	}
 
 	// append trailing / to the url
