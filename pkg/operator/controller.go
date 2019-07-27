@@ -12,6 +12,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
+	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -19,8 +22,10 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
+	configsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
+	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	configapiv1 "github.com/openshift/api/config/v1"
@@ -81,12 +86,14 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.ServiceCA.Name = "serviceca"
 
 	listers := &regopclient.Listers{}
+	clients := &regopclient.Clients{}
 	c := &Controller{
 		kubeconfig: kubeconfig,
 		params:     p,
-		generator:  resource.NewGenerator(kubeconfig, listers, &p),
+		generator:  resource.NewGenerator(kubeconfig, clients, listers, &p),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:    listers,
+		clients:    clients,
 	}
 
 	// Initial event to bootstrap CR if it doesn't exist.
@@ -101,6 +108,7 @@ type Controller struct {
 	generator  *resource.Generator
 	workqueue  workqueue.RateLimitingInterface
 	listers    *regopclient.Listers
+	clients    *regopclient.Clients
 }
 
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
@@ -203,12 +211,7 @@ func (c *Controller) sync() error {
 			klog.Errorf("unable to apply cluster operator: %s", genErr)
 		}
 
-		client, err := regopset.NewForConfig(c.kubeconfig)
-		if err != nil {
-			return err
-		}
-
-		updatedCR, err := client.ImageregistryV1().Configs().Update(cr)
+		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
@@ -234,12 +237,7 @@ func (c *Controller) sync() error {
 			klog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
 		}
 
-		client, err := regopset.NewForConfig(c.kubeconfig)
-		if err != nil {
-			return err
-		}
-
-		_, err = client.ImageregistryV1().Configs().UpdateStatus(cr)
+		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
@@ -347,7 +345,39 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
-	kubeClient, err := kubeset.NewForConfig(c.kubeconfig)
+	var err error
+
+	c.clients.Core, err = coreset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.Apps, err = appsset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.RBAC, err = rbacset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.Kube, err = kubeset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.Route, err = routesetv1.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.Config, err = configsetv1.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
+	c.clients.RegOp, err = regopset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
 	}
@@ -362,16 +392,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	regopClient, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
-	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
-	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
-	regopInformerFactory := regopinformers.NewSharedInformerFactory(regopClient, defaultResyncDuration)
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
+	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
+	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
 
 	var informers []cache.SharedIndexInformer
