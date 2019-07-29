@@ -37,7 +37,7 @@ type driver struct {
 	Listers    *regopclient.Listers
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageGCS, ctx context.Context, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
 	return &driver{
 		Context:    ctx,
 		Config:     c,
