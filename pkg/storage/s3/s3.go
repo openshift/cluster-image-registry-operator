@@ -28,10 +28,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
-var (
-	s3Service *s3.S3
-)
-
 type S3 struct {
 	AccessKey string
 	SecretKey string
@@ -109,10 +105,6 @@ func GetConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*S3, erro
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
-	if s3Service != nil {
-		return s3Service, nil
-	}
-
 	cfg, err := GetConfig(d.KubeConfig, d.Listers)
 	if err != nil {
 		return nil, err
@@ -144,9 +136,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		Fn:   request.MakeAddToUserAgentHandler("openshift.io cluster-image-registry-operator", version.Version),
 	})
 
-	s3Service := s3.New(sess)
-
-	return s3Service, nil
+	return s3.New(sess), nil
 
 }
 
