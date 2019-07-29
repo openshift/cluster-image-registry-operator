@@ -94,10 +94,10 @@ func GetConfig(listers *regopclient.Listers) (*GCS, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName), err)
 		}
-		if v, ok := sec.Data["serviceaccount.json"]; ok {
+		if v, ok := sec.Data["service_account.json"]; ok {
 			gcsConfig.KeyfileData = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"serviceaccount.json\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"service_account.json\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
 		}
 	} else if err != nil {
 		return nil, err
