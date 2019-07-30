@@ -56,6 +56,9 @@ spec:
               value: "cluster-image-registry-operator"
             - name: IMAGE
               value: docker.io/openshift/origin-docker-registry:latest
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/ca-trust/extracted/pem/
         - name: cluster-image-registry-operator-watch
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           command:
@@ -81,3 +84,14 @@ spec:
               fieldRef:
                 apiVersion: v1
                 fieldPath: metadata.namespace
+          volumeMounts:
+            - name: trusted-ca
+              mountPath: /etc/pki/ca-trust/extracted/pem/
+      volumes:
+        - name: trusted-ca
+          configMap:
+            name: trusted-ca
+            optional: true
+            items:
+            - key: ca-bundle.crt
+              path: tls-ca-bundle.pem
