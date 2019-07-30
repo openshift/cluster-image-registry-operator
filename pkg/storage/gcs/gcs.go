@@ -59,7 +59,7 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		d.Config.ProjectID = cfg.ProjectID
 	}
 
-	credentials, err := goauth2.CredentialsFromJSON(d.Context, []byte(cfg.KeyfileData))
+	credentials, err := goauth2.CredentialsFromJSON(d.Context, []byte(cfg.KeyfileData), gstorage.ScopeFullControl)
 	if err != nil {
 		return nil, err
 	}
