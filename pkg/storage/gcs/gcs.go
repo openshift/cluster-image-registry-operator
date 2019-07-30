@@ -242,7 +242,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(infra.Status.InfrastructureName, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", infra.Status.InfrastructureName, imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 			}
 			bucketAttrs := gstorage.BucketAttrs{Location: d.Config.Region}
 			bucket = gclient.Bucket(d.Config.Bucket)
@@ -273,22 +273,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// TODO: Wait until the bucket exists
-
-	// Label the bucket
-	if cr.Status.StorageManaged {
-		bucketAttributesToUpdate := gstorage.BucketAttrsToUpdate{}
-		bucketAttributesToUpdate.SetLabel("kubernetes.io/cluster/"+infra.Status.InfrastructureName, "owned")
-		_, err := bucket.Update(d.Context, bucketAttributesToUpdate)
-		if err != nil {
-			if gerr, ok := err.(*gapi.Error); ok {
-				util.UpdateCondition(cr, imageregistryv1.StorageLabeled, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
-			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageLabeled, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
-			}
-		} else {
-			util.UpdateCondition(cr, imageregistryv1.StorageLabeled, operatorapi.ConditionTrue, "Labeling Successful", "Labels were successfully applied to the GCS bucket")
-		}
-	}
 
 	// Set KMS Key ID for encryption on the bucket (if specified)
 	// Data is encrypted by default on GCS: https://cloud.google.com/storage/docs/encryption/
