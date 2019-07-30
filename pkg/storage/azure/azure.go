@@ -447,14 +447,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			var lastErr error
 			for i := 0; i < maxAttempts; i++ {
 				accountName := generateAccountName(infra.Status.InfrastructureName)
-				err = createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region)
-				if err != nil {
-					if _, ok := err.(*errNameNotAvailable); ok {
-						klog.Warningf("unable to create storage account: %s", err)
-						lastErr = err
-						continue
+				if err := createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
+					if e, ok := err.(azblob.StorageError); ok {
+						switch e.ServiceCode() {
+						case azblob.ServiceCodeContainerAlreadyExists:
+							klog.Warningf("unable to create storage container: %s", err)
+							lastErr = err
+						default:
+							return err
+						}
+					} else {
+						return err
 					}
-					return err
 				}
 				d.Config.AccountName = accountName
 				cr.Status.StorageManaged = true
