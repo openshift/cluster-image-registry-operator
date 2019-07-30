@@ -1,8 +1,0 @@
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  annotations:
-    service.alpha.openshift.io/inject-cabundle: "true"
-  name: serviceca
-  namespace: openshift-image-registry
