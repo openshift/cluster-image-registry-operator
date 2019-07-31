@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -37,6 +38,7 @@ type S3 struct {
 }
 
 type driver struct {
+	Context    context.Context
 	Config     *imageregistryv1.ImageRegistryConfigStorageS3
 	KubeConfig *rest.Config
 	Listers    *regopclient.Listers
@@ -44,8 +46,9 @@ type driver struct {
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageS3, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
 	return &driver{
+		Context:    ctx,
 		Config:     c,
 		KubeConfig: kubeconfig,
 		Listers:    listers,
@@ -268,7 +271,7 @@ func (d *driver) bucketExists(bucketName string) error {
 		return err
 	}
 
-	_, err = svc.HeadBucket(&s3.HeadBucketInput{
+	_, err = svc.HeadBucketWithContext(d.Context, &s3.HeadBucketInput{
 		Bucket: aws.String(bucketName),
 	})
 
@@ -362,7 +365,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				generatedName = true
 			}
 
-			_, err := svc.CreateBucket(&s3.CreateBucketInput{
+			_, err := svc.CreateBucketWithContext(d.Context, &s3.CreateBucketInput{
 				Bucket: aws.String(d.Config.Bucket),
 			})
 			if err != nil {
@@ -397,7 +400,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Wait until the bucket exists
-	if err := svc.WaitUntilBucketExists(&s3.HeadBucketInput{
+	if err := svc.WaitUntilBucketExistsWithContext(d.Context, &s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}); err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
@@ -409,7 +412,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Block public access to the s3 bucket and its objects by default
 	if cr.Status.StorageManaged {
-		_, err := svc.PutPublicAccessBlock(&s3.PutPublicAccessBlockInput{
+		_, err := svc.PutPublicAccessBlockWithContext(d.Context, &s3.PutPublicAccessBlockInput{
 			Bucket: aws.String(d.Config.Bucket),
 			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
 				BlockPublicAcls:       aws.Bool(true),
@@ -435,7 +438,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Status.StorageManaged {
-		_, err := svc.PutBucketTagging(&s3.PutBucketTaggingInput{
+		_, err := svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
 			Tagging: &s3.Tagging{
 				TagSet: []*s3.Tag{
@@ -475,7 +478,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			encryptionType = s3.ServerSideEncryptionAes256
 		}
 
-		_, err = svc.PutBucketEncryption(&s3.PutBucketEncryptionInput{
+		_, err = svc.PutBucketEncryptionWithContext(d.Context, &s3.PutBucketEncryptionInput{
 			Bucket: aws.String(d.Config.Bucket),
 			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
 				Rules: []*s3.ServerSideEncryptionRule{
@@ -505,7 +508,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Enable default incomplete multipart upload cleanup after one (1) day
 	if cr.Status.StorageManaged {
-		_, err = svc.PutBucketLifecycleConfiguration(&s3.PutBucketLifecycleConfigurationInput{
+		_, err = svc.PutBucketLifecycleConfigurationWithContext(d.Context, &s3.PutBucketLifecycleConfigurationInput{
 			Bucket: aws.String(d.Config.Bucket),
 			LifecycleConfiguration: &s3.BucketLifecycleConfiguration{
 				Rules: []*s3.LifecycleRule{
@@ -552,12 +555,12 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		Bucket: aws.String(d.Config.Bucket),
 	})
 
-	err = s3manager.NewBatchDeleteWithClient(svc).Delete(aws.BackgroundContext(), iter)
+	err = s3manager.NewBatchDeleteWithClient(svc).Delete(d.Context, iter)
 	if err != nil && !isBucketNotFound(err) {
 		return false, err
 	}
 
-	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
+	_, err = svc.DeleteBucketWithContext(d.Context, &s3.DeleteBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	})
 
@@ -574,7 +577,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	}
 
 	// Wait until the bucket does not exist
-	if err := svc.WaitUntilBucketNotExists(&s3.HeadBucketInput{
+	if err := svc.WaitUntilBucketNotExistsWithContext(d.Context, &s3.HeadBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	}); err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
