@@ -16,6 +16,14 @@ func startOperator(client *Clientset) error {
 	return nil
 }
 
+func DumpOperatorDeployment(logger Logger, client *Clientset) {
+	deployment, err := client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		logger.Logf("failed to get the operator deployment %v", err)
+	}
+	DumpYAML(logger, "the operator deployment", deployment)
+}
+
 func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, operatorDeploymentNamespace string) error {
 	var err error
 	var realErr error
