@@ -55,7 +55,7 @@ spec:
               value: docker.io/openshift/origin-docker-registry:latest
           volumeMounts:
             - name: proxyca
-              mountPath: /etc/pki/ca-trust/source/
+              mountPath: /etc/pki/ca-trust/extracted/pem/
       volumes:
         - name: proxyca
           configMap:
