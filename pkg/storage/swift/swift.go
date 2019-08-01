@@ -49,7 +49,7 @@ func replaceEmpty(a string, b string) string {
 	return a
 }
 
-// GetSwiftConfig reads credentials
+// GetConfig reads credentials
 func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 	cfg := &Swift{}
 
@@ -328,12 +328,12 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return false
 }
 
-func generateContainerName(prefix string) string {
-	bytes := make([]byte, 16)
-	for i := 0; i < 16; i++ {
+func generateContainerName(clusterID string) string {
+	bytes := make([]byte, 8)
+	for i := 0; i < 8; i++ {
 		bytes[i] = byte(65 + rand.Intn(25)) // A=65 and Z=65+25
 	}
-	return prefix + string(bytes)
+	return clusterID + "-image-registry-" + string(bytes)
 }
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
@@ -343,14 +343,27 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	// Generate new container name if it wasn't provided.
-	// The name has a prefix "image_registry_", which is complemented by 16 capital latin letters
-	// Example of a generated name: image_registry_FHEIBGDDGBLWPXFR
-	if cr.Spec.Storage.Swift.Container == "" {
-		cr.Spec.Storage.Swift.Container = generateContainerName("image_registry_")
+	infra, err := util.GetInfrastructure(d.Listers)
+	if err != nil {
+		return fmt.Errorf("failed to get cluster infrastructure info: %v", err)
 	}
 
-	_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, containers.CreateOpts{}).Extract()
+	// Generate new container name if it wasn't provided.
+	// The name has cluster ID as a prefix plus "image-registry" suffix, which is complemented
+	// by 8 capital latin letters
+	// Example of a generated name: user-298xw-image-registry-FHEIBGDD
+	if cr.Spec.Storage.Swift.Container == "" {
+		cr.Spec.Storage.Swift.Container = generateContainerName(infra.Status.InfrastructureName)
+	}
+
+	createOps := containers.CreateOpts{
+		Metadata: map[string]string{
+			"Openshiftclusterid": infra.Status.InfrastructureName,
+			"Name":               cr.Spec.Storage.Swift.Container,
+		},
+	}
+
+	_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
 	if err != nil {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
 		cr.Status.StorageManaged = false
