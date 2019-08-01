@@ -3,7 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   annotations:
-    config.openshift.io/inject-proxy-cabundle: "true"
+    config.openshift.io/inject-trusted-cabundle: "true"
     release.openshift.io/create-only: "true"
-  name: proxyca
+  name: trusted-ca
   namespace: openshift-image-registry
