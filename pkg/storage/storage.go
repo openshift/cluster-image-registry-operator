@@ -55,7 +55,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.GCS != nil {
 		names = append(names, "GCS")
 		ctx := context.Background()
-		drivers = append(drivers, gcs.NewDriver(cfg.GCS, ctx, kubeconfig, listers))
+		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, kubeconfig, listers))
 	}
 
 	if cfg.PVC != nil {
@@ -69,7 +69,8 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 
 	if cfg.Azure != nil {
 		names = append(names, "Azure")
-		drivers = append(drivers, azure.NewDriver(cfg.Azure, kubeconfig, listers))
+		ctx := context.Background()
+		drivers = append(drivers, azure.NewDriver(ctx, cfg.Azure, kubeconfig, listers))
 	}
 
 	switch len(drivers) {

@@ -139,13 +139,11 @@ func generateAccountName(infrastructureName string) string {
 	return strings.ToLower(prefix)
 }
 
-func createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
+func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
 	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
 
-	ctx := context.TODO()
-
 	result, err := storageAccountsClient.CheckNameAvailability(
-		ctx,
+		d.Context,
 		storage.AccountCheckNameAvailabilityParameters{
 			Name: to.StringPtr(accountName),
 			Type: to.StringPtr("Microsoft.Storage/storageAccounts"),
@@ -161,7 +159,7 @@ func createStorageAccount(storageAccountsClient storage.AccountsClient, resource
 	}
 
 	future, err := storageAccountsClient.Create(
-		ctx,
+		d.Context,
 		resourceGroupName,
 		accountName,
 		storage.AccountCreateParameters{
@@ -178,7 +176,7 @@ func createStorageAccount(storageAccountsClient storage.AccountsClient, resource
 	}
 
 	// TODO: this may take up to 10 minutes
-	err = future.WaitForCompletionRef(ctx, storageAccountsClient.Client)
+	err = future.WaitForCompletionRef(d.Context, storageAccountsClient.Client)
 	if err != nil {
 		return fmt.Errorf("failed to finish creating storage account: %s", err)
 	}
@@ -193,10 +191,8 @@ func createStorageAccount(storageAccountsClient storage.AccountsClient, resource
 	return nil
 }
 
-func getAccountPrimaryKey(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName string) (string, error) {
-	ctx := context.TODO()
-
-	keysResponse, err := storageAccountsClient.ListKeys(ctx, resourceGroupName, accountName)
+func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName string) (string, error) {
+	keysResponse, err := storageAccountsClient.ListKeys(d.Context, resourceGroupName, accountName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("failed to get keys for the storage account %s: %s", accountName, err)
 		if e, ok := err.(autorest.DetailedError); ok {
@@ -229,39 +225,37 @@ func getStorageContainer(accountName, key, containerName string) (azblob.Contain
 	return service.NewContainerURL(containerName), nil
 }
 
-func createStorageContainer(accountName, key, containerName string) error {
-	ctx := context.TODO()
-
+func (d *driver) createStorageContainer(accountName, key, containerName string) error {
 	container, err := getStorageContainer(accountName, key, containerName)
 	if err != nil {
 		return err
 	}
 
-	_, err = container.Create(ctx, azblob.Metadata{}, azblob.PublicAccessNone)
+	_, err = container.Create(d.Context, azblob.Metadata{}, azblob.PublicAccessNone)
 	return err
 }
 
-func deleteStorageContainer(accountName, key, containerName string) error {
-	ctx := context.TODO()
-
+func (d *driver) deleteStorageContainer(accountName, key, containerName string) error {
 	container, err := getStorageContainer(accountName, key, containerName)
 	if err != nil {
 		return err
 	}
 
-	_, err = container.Delete(ctx, azblob.ContainerAccessConditions{})
+	_, err = container.Delete(d.Context, azblob.ContainerAccessConditions{})
 	return err
 }
 
 type driver struct {
+	Context    context.Context
 	Config     *imageregistryv1.ImageRegistryConfigStorageAzure
 	KubeConfig *rest.Config
 	Listers    *regopclient.Listers
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageAzure, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAzure, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
 	return &driver{
+		Context:    ctx,
 		Config:     c,
 		KubeConfig: kubeconfig,
 		Listers:    listers,
@@ -321,7 +315,7 @@ func (d *driver) Secrets() (map[string]string, error) {
 			return nil, err
 		}
 
-		key, err = getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		key, err = d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 		if err != nil {
 			return nil, err
 		}
@@ -354,7 +348,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		}
 
 		// TODO: get key from the generated secret?
-		key, err = getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		key, err = d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 		if err != nil {
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
 			return false, err
@@ -377,10 +371,9 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		Telemetry: azblob.TelemetryOptions{Value: parameters.UserAgent},
 	})
 
-	ctx := context.TODO()
 	service := azblob.NewServiceURL(*u, p)
 	container := service.NewContainerURL(d.Config.Container)
-	_, err = container.GetProperties(ctx, azblob.LeaseAccessConditions{})
+	_, err = container.GetProperties(d.Context, azblob.LeaseAccessConditions{})
 	if e, ok := err.(azblob.StorageError); ok {
 		if e.ServiceCode() == azblob.ServiceCodeContainerNotFound {
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, "Container does not exist")
@@ -447,7 +440,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			var lastErr error
 			for i := 0; i < maxAttempts; i++ {
 				accountName := generateAccountName(infra.Status.InfrastructureName)
-				if err := createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
+				if err := d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
 					if e, ok := err.(azblob.StorageError); ok {
 						switch e.ServiceCode() {
 						case azblob.ServiceCodeContainerAlreadyExists:
@@ -472,7 +465,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 		} else {
 			// TODO: do we need to create a storage account if we are provided with its name?
-			err = createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region)
+			err = d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region)
 			if err != nil {
 				if _, ok := err.(*errNameNotAvailable); !ok {
 					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", err))
@@ -487,7 +480,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		if d.Config.Container == "" {
-			key, err := getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+			key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 			if err != nil {
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary key: %s", err))
 				return err
@@ -495,7 +488,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 			containerName := "image-registry"
 
-			err = createStorageContainer(d.Config.AccountName, key, containerName)
+			err = d.createStorageContainer(d.Config.AccountName, key, containerName)
 			if err != nil {
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage container: %s", err))
 				return fmt.Errorf("unable to create storage container: %s", err)
@@ -536,7 +529,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	}
 
 	if d.Config.Container != "" {
-		key, err := getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 		if _, ok := err.(*errDoesNotExist); ok {
 			d.Config.AccountName = ""
 			cr.Spec.Storage.Azure.AccountName = "" // TODO
@@ -549,7 +542,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 			return false, err
 		}
 
-		err = deleteStorageContainer(d.Config.AccountName, key, d.Config.Container)
+		err = d.deleteStorageContainer(d.Config.AccountName, key, d.Config.Container)
 		if err != nil {
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
 			return false, err // TODO: is it retryable?
@@ -561,8 +554,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
 	}
 
-	ctx := context.TODO()
-	_, err = storageAccountsClient.Delete(ctx, cfg.ResourceGroup, d.Config.AccountName)
+	_, err = storageAccountsClient.Delete(d.Context, cfg.ResourceGroup, d.Config.AccountName)
 	if err != nil {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage account: %s", err))
 		return false, err
