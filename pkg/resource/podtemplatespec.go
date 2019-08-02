@@ -15,7 +15,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -216,7 +216,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
 	)
 
-	// Certificates
+	// Registry certificate authorities - mount as high-priority trust source anchors
 	vol = corev1.Volume{
 		Name: "registry-certificates",
 		VolumeSource: corev1.VolumeSource{
@@ -229,7 +229,39 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
-	deps.AddConfigMap(vol.VolumeSource.ConfigMap.LocalObjectReference.Name)
+	deps.AddConfigMap(v1.ImageRegistryCertificatesName)
+
+	// Cluster trusted certificate authorities - mount to /usr/share/pki/ca-trust-source/ to add
+	// CAs as low-priority trust sources. Registry runs update-ca-trust extract on startup, which
+	// merges the registry CAs with the cluster's trusted CAs into a single CA bundle.
+	//
+	// See man update-ca-trust for more information.
+	optional := true
+	vol = corev1.Volume{
+		Name: "trusted-ca",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: params.TrustedCA.Name,
+				},
+				// Trust bundle is in PEM format - needs to be mounted to /anchors so that
+				// update-ca-trust extract knows that these CAs should always be trusted.
+				// This also ensures that no other low-priority trust is present in the container.
+				//
+				// See man update-ca-trust for more information.
+				Items: []corev1.KeyToPath{
+					{
+						Key:  "ca-bundle.crt",
+						Path: "anchors/ca-bundle.crt",
+					},
+				},
+				Optional: &optional,
+			},
+		},
+	}
+	volumes = append(volumes, vol)
+	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/usr/share/pki/ca-trust-source"})
+	deps.AddConfigMap(params.TrustedCA.Name)
 
 	image := os.Getenv("IMAGE")
 
