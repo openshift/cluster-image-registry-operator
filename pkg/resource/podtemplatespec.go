@@ -15,7 +15,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -216,7 +216,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
 	)
 
-	// Certificates
+	// Registry certificate authorities - mount as high-priority trust source anchors
 	vol = corev1.Volume{
 		Name: "registry-certificates",
 		VolumeSource: corev1.VolumeSource{
@@ -229,7 +229,24 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
-	deps.AddConfigMap(vol.VolumeSource.ConfigMap.LocalObjectReference.Name)
+	deps.AddConfigMap(v1.ImageRegistryCertificatesName)
+
+	// Cluster trusted certificate authorities - mount to /usr/share/pki/ca-trust-source
+	// Registry runs update-ca-trust extract on startup, which merges the registry CAs with the cluster's trusted CAs
+	// into a single CA bundle.
+	vol = corev1.Volume{
+		Name: "trusted-ca",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: params.TrustedCA.Name,
+				},
+			},
+		},
+	}
+	volumes = append(volumes, vol)
+	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/usr/share/pki/ca-trust-source"})
+	deps.AddConfigMap(params.TrustedCA.Name)
 
 	image := os.Getenv("IMAGE")
 
