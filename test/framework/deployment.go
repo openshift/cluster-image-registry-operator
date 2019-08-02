@@ -45,3 +45,38 @@ func WaitForNewRegistryDeployment(client *Clientset, currentGeneration int64) (*
 
 	return deployment, err
 }
+
+func WaitForRegistryOperatorDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
+	var deployment *kappsapiv1.Deployment
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+		if err == nil {
+			return true, nil
+		}
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	})
+
+	return deployment, err
+}
+
+func WaitForNewRegistryOperatorDeployment(client *Clientset, currentGeneration int64) (*kappsapiv1.Deployment, error) {
+	var deployment *kappsapiv1.Deployment
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+		if err == nil {
+			return true, nil
+		}
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		if deployment.Status.ObservedGeneration == currentGeneration {
+			return false, nil
+		}
+		return false, err
+	})
+
+	return deployment, err
+}

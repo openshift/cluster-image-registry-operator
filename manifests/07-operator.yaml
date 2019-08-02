@@ -4,6 +4,8 @@ kind: Deployment
 metadata:
   name: cluster-image-registry-operator
   namespace: openshift-image-registry
+  annotations:
+    config.openshift.io/inject-proxy: operator 
 spec:
   replicas: 1
   selector:

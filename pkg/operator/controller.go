@@ -2,7 +2,6 @@ package operator
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"time"
 
@@ -130,29 +129,6 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
-	// Retrieve the cluster proxy configuration and set it for the currently running
-	// image registry operator.
-	// TODO: There must be a better way to accomplish this that is not so "black box"
-	proxyConfig, err := c.listers.ProxyConfigs.Get(imageregistryv1.ClusterProxyResourceName)
-	if errors.IsNotFound(err) {
-		proxyConfig = &configapiv1.Proxy{}
-	} else if err != nil {
-		// TODO: should we report Degraded?
-		return fmt.Errorf("unable to get cluster proxy configuration: %v", err)
-	}
-
-	if err := os.Setenv("NO_PROXY", proxyConfig.Status.NoProxy); err != nil {
-		return fmt.Errorf("unable to set NO_PROXY env var: %v", err)
-	}
-
-	if err := os.Setenv("HTTP_PROXY", proxyConfig.Status.HTTPProxy); err != nil {
-		return fmt.Errorf("unable to set HTTP_PROXY env var: %v", err)
-	}
-
-	if err := os.Setenv("HTTPS_PROXY", proxyConfig.Status.HTTPSProxy); err != nil {
-		return fmt.Errorf("unable to set HTTPS_PROXY env var: %v", err)
-	}
-
 	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {

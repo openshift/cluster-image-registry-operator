@@ -184,27 +184,56 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
-	// Patch the cluster proxy config with invalid proxy information
-	if err := framework.SetClusterProxyConfig(configapiv1.ProxySpec{
-		NoProxy:    "clusternoproxy.example.com",
-		HTTPProxy:  "clusterhttpproxy.example.com",
-		HTTPSProxy: "clusterhttpsproxy.example.com",
-	}, client); err != nil {
-		t.Errorf("unable to patch cluster proxy instance: %v", err)
+	// Wait for the registry operator to be deployed
+	deployment, err := framework.WaitForRegistryOperatorDeployment(client)
+	if err != nil {
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
+		t.Fatal(err)
+	}
+
+	// Get the service network to set as NO_PROXY so that the
+	// operator will come up once it is re-deployed
+	network, err := client.Networks().Get("cluster", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unable to get network configuration: %v", err)
+	}
+
+	// Set the proxy env vars
+	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http.example.org"},{"name":"HTTPS_PROXY","value":"https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ",")))); err != nil {
+		t.Fatalf("failed to patch operator env vars: %v", err)
+	}
+	defer func() {
+		if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+			t.Fatalf("failed to patch operator env vars: %v", err)
+		}
+	}()
+
+	// Wait for the registry operator to be re-deployed
+	// after the proxy information is injected into the deployment
+	_, err = framework.WaitForNewRegistryOperatorDeployment(client, deployment.Status.ObservedGeneration)
+	if err != nil {
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
+		framework.DumpOperatorDeployment(t, client)
+		t.Fatal(err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
 	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryapiv1.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
 	if len(errs) != 0 {
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
+		framework.DumpOperatorDeployment(t, client)
+
 		for _, err := range errs {
 			t.Errorf("%#v", err)
 		}
 	}
 
-	// Reset the cluster proxy configuration to remove the invalid proxy information
-	if err := framework.ResetClusterProxyConfig(client); err != nil {
-		t.Errorf("%#v", err)
+	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
