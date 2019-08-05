@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -76,6 +78,28 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 	return s3Service, nil
 
+}
+
+func isBucketNotFound(err interface{}) bool {
+	switch s3Err := err.(type) {
+	case awserr.Error:
+		if s3Err.Code() == "NoSuchBucket" {
+			return true
+		}
+		origErr := s3Err.OrigErr()
+		if origErr != nil {
+			return isBucketNotFound(origErr)
+		}
+	case s3manager.Error:
+		if s3Err.OrigErr != nil {
+			return isBucketNotFound(s3Err.OrigErr)
+		}
+	case s3manager.Errors:
+		if len(s3Err) == 1 {
+			return isBucketNotFound(s3Err[0])
+		}
+	}
+	return false
 }
 
 // ConfigEnv configures the environment variables that will be
@@ -443,6 +467,16 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
+	iter := s3manager.NewDeleteListIterator(svc, &s3.ListObjectsInput{
+		Bucket: aws.String(d.Config.Bucket),
+	})
+
+	err = s3manager.NewBatchDeleteWithClient(svc).Delete(context.Background(), iter)
+	if err != nil && !isBucketNotFound(err) {
+		return false, err
+	}
+
 	_, err = svc.DeleteBucket(&s3.DeleteBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	})
