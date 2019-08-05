@@ -3,15 +3,18 @@ package main
 import (
 	"flag"
 	"math/rand"
+	"os"
 	"runtime"
 	"time"
 
+	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
+	"github.com/openshift/library-go/pkg/operator/watchdog"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
@@ -23,6 +26,21 @@ func printVersion() {
 }
 
 func main() {
+	cmd := &cobra.Command{
+		Use:   "cluster-image-registry-operator",
+		Short: "OpenShift cluster image registry operator",
+		Run:   runOperator,
+	}
+	cmd.AddCommand(watchdog.NewFileWatcherWatchdog())
+	if err := cmd.Execute(); err != nil {
+		klog.Errorf("%v", err)
+		os.Exit(1)
+	}
+}
+
+// runOperator starts image registry operator and is our default command when
+// no other parameter is provided on the command line.
+func runOperator(cmd *cobra.Command, args []string) {
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 
