@@ -361,7 +361,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		for i := 0; i < 5000; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(infra.Status.InfrastructureName, "-", "", -1), strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", infra.Status.InfrastructureName, imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
 				generatedName = true
 			}
 
