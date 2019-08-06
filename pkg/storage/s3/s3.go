@@ -446,6 +446,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 						Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
 						Value: aws.String("owned"),
 					},
+					{
+						Key:   aws.String("Name"),
+						Value: aws.String(infra.Status.InfrastructureName + "-image-registry"),
+					},
 				},
 			},
 		})
