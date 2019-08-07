@@ -158,7 +158,8 @@ func fakeInfrastructureLister(cloudName string) configlisters.InfrastructureList
 			Name: "cluster",
 		},
 		Status: configv1.InfrastructureStatus{
-			Platform: configv1.OpenStackPlatformType,
+			InfrastructureName: "user-j45xj",
+			Platform:           configv1.OpenStackPlatformType,
 			PlatformStatus: &configv1.PlatformStatus{
 				Type: configv1.OpenStackPlatformType,
 				OpenStack: &configv1.OpenStackPlatformStatus{
