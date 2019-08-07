@@ -18,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
@@ -62,15 +63,6 @@ type Azure struct {
 
 	// UPI
 	AccountKey string
-}
-
-type errNameNotAvailable struct {
-	AccountName string
-	Message     string
-}
-
-func (e *errNameNotAvailable) Error() string {
-	return fmt.Sprintf("storage account name %s is not available: %s", e.AccountName, e.Message)
 }
 
 type errDoesNotExist struct {
@@ -139,24 +131,17 @@ func generateAccountName(infrastructureName string) string {
 	return strings.ToLower(prefix)
 }
 
-func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
-	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
-
-	result, err := storageAccountsClient.CheckNameAvailability(
+func (d *driver) accountExists(storageAccountsClient storage.AccountsClient, accountName string) (storage.CheckNameAvailabilityResult, error) {
+	return storageAccountsClient.CheckNameAvailability(
 		d.Context,
 		storage.AccountCheckNameAvailabilityParameters{
 			Name: to.StringPtr(accountName),
 			Type: to.StringPtr("Microsoft.Storage/storageAccounts"),
 		})
-	if err != nil {
-		return fmt.Errorf("storage account check-name-availability failed: %s", err)
-	}
-	if *result.NameAvailable != true {
-		return &errNameNotAvailable{
-			AccountName: accountName,
-			Message:     *result.Message,
-		}
-	}
+}
+
+func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
+	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
 
 	future, err := storageAccountsClient.Create(
 		d.Context,
@@ -404,7 +389,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return err
 	}
-
+	infra, err := util.GetInfrastructure(d.Listers)
+	if err != nil {
+		return err
+	}
 	key := cfg.AccountKey
 	if key != "" {
 		// UPI
@@ -430,34 +418,24 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		if d.Config.AccountName == "" {
-			infra, err := util.GetInfrastructure(d.Listers)
-			if err != nil {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonConfigError, fmt.Sprintf("Unable to get infrastructure resource: %s", err))
-				return err
-			}
-
 			const maxAttempts = 10
 			var lastErr error
 			for i := 0; i < maxAttempts; i++ {
 				accountName := generateAccountName(infra.Status.InfrastructureName)
-				if err := d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
-					if e, ok := err.(azblob.StorageError); ok {
-						switch e.ServiceCode() {
-						case azblob.ServiceCodeContainerAlreadyExists:
-							klog.Warningf("unable to create storage container: %s", err)
-							lastErr = err
-						default:
-							return err
-						}
-					} else {
+				result, err := d.accountExists(storageAccountsClient, accountName)
+				if err != nil {
+					return err
+				}
+				if *result.NameAvailable {
+					if err := d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
 						return err
 					}
+					d.Config.AccountName = accountName
+					cr.Status.StorageManaged = true
+					cr.Status.Storage.Azure = d.Config.DeepCopy()
+					cr.Spec.Storage.Azure = d.Config.DeepCopy()
+					break
 				}
-				d.Config.AccountName = accountName
-				cr.Status.StorageManaged = true
-				cr.Status.Storage.Azure = d.Config.DeepCopy()
-				cr.Spec.Storage.Azure = d.Config.DeepCopy()
-				break
 			}
 			if d.Config.AccountName == "" {
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", lastErr))
@@ -465,18 +443,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 		} else {
 			// TODO: do we need to create a storage account if we are provided with its name?
-			err = d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region)
+			result, err := d.accountExists(storageAccountsClient, d.Config.AccountName)
 			if err != nil {
-				if _, ok := err.(*errNameNotAvailable); !ok {
+				return err
+			}
+			if *result.NameAvailable {
+				if err = d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region); err != nil {
 					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", err))
 					return err
 				}
-
-				// TODO: if the storage account already exists, do we need to check that we can use it?
-
-				// The storage condition will be updated later.
+				cr.Status.StorageManaged = true
+				cr.Status.Storage.Azure = d.Config.DeepCopy()
 			}
-			cr.Status.Storage.Azure = d.Config.DeepCopy()
 		}
 
 		if d.Config.Container == "" {
@@ -486,23 +464,38 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				return err
 			}
 
-			containerName := "image-registry"
+			for i := 0; i < 5000; i++ {
+				// If the bucket name is blank, let's generate one
+				if len(d.Config.Container) == 0 {
+					// Container name must be between 3 and 63 characters long
+					d.Config.Container = fmt.Sprintf("%s-%s-%s", infra.Status.InfrastructureName, imageregistryv1.ImageRegistryName, strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				}
 
-			err = d.createStorageContainer(d.Config.AccountName, key, containerName)
-			if err != nil {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage container: %s", err))
-				return fmt.Errorf("unable to create storage container: %s", err)
+				err = d.createStorageContainer(d.Config.AccountName, key, d.Config.Container)
+				if err != nil {
+					if e, ok := err.(azblob.StorageError); ok {
+						switch e.ServiceCode() {
+						case azblob.ServiceCodeContainerAlreadyExists:
+							d.Config.Container = ""
+							continue
+						default:
+							return err
+						}
+					} else {
+						util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, string(e.ServiceCode()), fmt.Sprintf("Unable to create storage container: %s", err))
+
+						return err
+					}
+				}
+				cr.Status.StorageManaged = true
+				cr.Status.Storage.Azure = d.Config.DeepCopy()
+				cr.Spec.Storage.Azure = d.Config.DeepCopy()
+				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
+
+				break
 			}
-
-			d.Config.Container = containerName
-			cr.Status.StorageManaged = true
-			cr.Status.Storage.Azure = d.Config.DeepCopy()
-			cr.Spec.Storage.Azure = d.Config.DeepCopy()
 		}
-
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
 	}
-
 	return nil
 }
 
