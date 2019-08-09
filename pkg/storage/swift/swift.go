@@ -367,7 +367,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		if err != nil {
 			// If the error is not ErrResourceNotFound
 			// return the error
-			if _, ok := err.(*gophercloud.ErrResourceNotFound); !ok {
+			if _, ok := err.(gophercloud.ErrDefault404); !ok {
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Unable to check if container exists", fmt.Sprintf("Error occurred checking if container exists: %v", err))
 				return err
 			}
