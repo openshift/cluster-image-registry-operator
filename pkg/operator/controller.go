@@ -62,6 +62,10 @@ func (e permanentError) Error() string {
 	return e.Err.Error()
 }
 
+// NewController returns a controller for openshift image registry objects.
+//
+// This controller keeps track of resources needed in order to have openshift
+// internal registry working.
 func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	namespace, err := regopclient.GetWatchNamespace()
 	if err != nil {
@@ -101,6 +105,7 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	return c, nil
 }
 
+// Controller keeps track of openshift image registry components.
 type Controller struct {
 	kubeconfig *restclient.Config
 	params     parameters.Globals
@@ -318,6 +323,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	}
 }
 
+// Run starts the Controller.
 func (c *Controller) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
