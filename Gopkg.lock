@@ -1463,7 +1463,6 @@
     "github.com/openshift/installer/pkg/types",
     "github.com/openshift/library-go/pkg/operator/resource/resourceread",
     "github.com/openshift/library-go/pkg/operator/watchdog",
-    "github.com/spf13/cobra",
     "golang.org/x/net/http/httpproxy",
     "golang.org/x/oauth2/google",
     "google.golang.org/api/googleapi",
