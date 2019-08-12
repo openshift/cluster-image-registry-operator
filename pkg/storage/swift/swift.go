@@ -2,7 +2,6 @@ package swift
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 	"strings"
 
@@ -302,6 +301,16 @@ func (d *driver) ensureAuthURLHasAPIVersion() error {
 	return nil
 }
 
+func (d *driver) containerExists(client *gophercloud.ServiceClient, containerName string) error {
+	if len(containerName) == 0 {
+		return nil
+	}
+	_, err := containers.Get(client, containerName, containers.GetOpts{}).Extract()
+
+	return err
+
+}
+
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	client, err := d.getSwiftClient(cr)
 	if err != nil {
@@ -309,9 +318,13 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		return false, err
 	}
 
-	_, err = containers.Get(client, cr.Spec.Storage.Swift.Container, containers.GetOpts{}).Extract()
+	err = d.containerExists(client, cr.Spec.Storage.Swift.Container)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Storage does not exist", err.Error())
+		if serr, ok := err.(*gophercloud.ErrResourceNotFound); ok {
+			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Storage does not exist", serr.Error())
+			return false, nil
+		}
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown error occurred", err.Error())
 		return false, err
 	}
 
@@ -328,14 +341,6 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return false
 }
 
-func generateContainerName(clusterID string) string {
-	bytes := make([]byte, 8)
-	for i := 0; i < 8; i++ {
-		bytes[i] = byte(65 + rand.Intn(25)) // A=65 and Z=65+25
-	}
-	return clusterID + "-image-registry-" + string(bytes)
-}
-
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	client, err := d.getSwiftClient(cr)
 	if err != nil {
@@ -348,33 +353,62 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return fmt.Errorf("failed to get cluster infrastructure info: %v", err)
 	}
 
-	// Generate new container name if it wasn't provided.
-	// The name has cluster ID as a prefix plus "image-registry" suffix, which is complemented
-	// by 8 capital latin letters
-	// Example of a generated name: user-298xw-image-registry-FHEIBGDD
-	if cr.Spec.Storage.Swift.Container == "" {
-		cr.Spec.Storage.Swift.Container = generateContainerName(infra.Status.InfrastructureName)
+	generatedName := false
+	const numRetries = 5000
+	for i := 0; i < numRetries; i++ {
+		if len(cr.Spec.Storage.Swift.Container) == 0 {
+			if cr.Spec.Storage.Swift.Container, err = util.GenerateStorageName(d.Listers, ""); err != nil {
+				return err
+			}
+			generatedName = true
+		}
+
+		err = d.containerExists(client, cr.Spec.Storage.Swift.Container)
+		if err != nil {
+			// If the error is not ErrResourceNotFound
+			// return the error
+			if _, ok := err.(gophercloud.ErrDefault404); !ok {
+				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Unable to check if container exists", fmt.Sprintf("Error occurred checking if container exists: %v", err))
+				return err
+			}
+			// If the error is ErrResourceNotFound
+			// fall through to the container creation
+		}
+		// If we were supplied a container name and it exists
+		// we can skip the create
+		if !generatedName && err == nil {
+			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
+			break
+		}
+		// If we generated a container name and it exists
+		// let's try again
+		if generatedName && err == nil {
+			cr.Spec.Storage.Swift.Container = ""
+			continue
+		}
+
+		createOps := containers.CreateOpts{
+			Metadata: map[string]string{
+				"Openshiftclusterid": infra.Status.InfrastructureName,
+				"Name":               cr.Spec.Storage.Swift.Container,
+			},
+		}
+
+		_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
+		if err != nil {
+			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
+			cr.Status.StorageManaged = false
+			return err
+		}
+
+		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
+
+		cr.Status.StorageManaged = true
+		cr.Status.Storage.Swift = d.Config.DeepCopy()
+		cr.Spec.Storage.Swift = d.Config.DeepCopy()
+
+		break
 	}
-
-	createOps := containers.CreateOpts{
-		Metadata: map[string]string{
-			"Openshiftclusterid": infra.Status.InfrastructureName,
-			"Name":               cr.Spec.Storage.Swift.Container,
-		},
-	}
-
-	_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
-	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
-		cr.Status.StorageManaged = false
-		return err
-	}
-
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
-
-	cr.Status.StorageManaged = true
-	cr.Status.Storage.Swift = d.Config.DeepCopy()
-	cr.Spec.Storage.Swift = d.Config.DeepCopy()
 
 	return nil
 }

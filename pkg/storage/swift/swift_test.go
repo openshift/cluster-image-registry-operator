@@ -212,15 +212,27 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	defer th.TeardownHTTP()
 	handleAuthentication(t, "container")
 
-	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
-		th.TestMethod(t, r, "PUT")
-		th.TestHeader(t, r, "Accept", "application/json")
+	numRequests := 0
 
-		w.Header().Set("Content-Length", "0")
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-		w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
-		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
-		w.WriteHeader(http.StatusNoContent)
+	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		// The first request should be a head request
+		// to check if container with name exists
+		if numRequests == 0 {
+			th.TestMethod(t, r, "HEAD")
+			th.TestHeader(t, r, "Accept", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			numRequests++
+		} else {
+			// Second request should be the actual create
+			th.TestMethod(t, r, "PUT")
+			th.TestHeader(t, r, "Accept", "application/json")
+
+			w.Header().Set("Content-Length", "0")
+			w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+			w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
+			w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
+			w.WriteHeader(http.StatusNoContent)
+		}
 	})
 
 	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
@@ -353,15 +365,24 @@ func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 		cloudSecretKey: fakeCloudsYAMLData,
 	}
 
-	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
-		th.TestMethod(t, r, "PUT")
-		th.TestHeader(t, r, "Accept", "application/json")
+	numRequests := 0
 
-		w.Header().Set("Content-Length", "0")
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
-		w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
-		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
-		w.WriteHeader(http.StatusNoContent)
+	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		if numRequests == 0 {
+			th.TestMethod(t, r, "HEAD")
+			th.TestHeader(t, r, "Accept", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			numRequests++
+		} else {
+			th.TestMethod(t, r, "PUT")
+			th.TestHeader(t, r, "Accept", "application/json")
+
+			w.Header().Set("Content-Length", "0")
+			w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+			w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
+			w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
+			w.WriteHeader(http.StatusNoContent)
+		}
 	})
 
 	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
@@ -562,26 +583,25 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 	handleAuthentication(t, "object-store")
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
-		th.TestMethod(t, r, "PUT")
+		th.TestMethod(t, r, "HEAD")
 		th.TestHeader(t, r, "Accept", "application/json")
-
-		w.Header().Set("Content-Length", "0")
-		w.Header().Set("Content-Type", "text/html; charset=UTF-8")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
-		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0058b4ba37")
+		w.Header().Set("X-Container-Bytes-Used", "100")
+		w.Header().Set("X-Container-Object-Count", "4")
+		w.Header().Set("X-Container-Read", "test")
+		w.Header().Set("X-Container-Write", "test2,user4")
+		w.Header().Set("X-Timestamp", "1471298837.95721")
+		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0057b4ba37")
+		w.Header().Set("X-Storage-Policy", "test_policy")
 		w.WriteHeader(http.StatusNoContent)
 	})
 
 	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
-	d.CreateStorage(&installConfig)
+	res, err := d.StorageExists(&installConfig)
 
-	th.AssertEquals(t, true, installConfig.Status.StorageManaged)
-	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
-	th.AssertEquals(t, operatorapi.ConditionTrue, installConfig.Status.Conditions[0].Status)
-	th.AssertEquals(t, container, installConfig.Status.Storage.Swift.Container)
-}
-
-func TestSwiftGenerateContainerName(t *testing.T) {
-	th.AssertEquals(t, false, generateContainerName("image_registry_") == generateContainerName("image_registry_"))
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, true, res)
 }

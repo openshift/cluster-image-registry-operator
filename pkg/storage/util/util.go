@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -103,4 +104,53 @@ func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
 		return string(v), nil
 	}
 	return "", fmt.Errorf("secret %q does not contain required key %q", fmt.Sprintf("%s/%s", sec.Namespace, sec.Name), key)
+}
+
+// GenerateStorageName generates a unique name for the storage
+// medium that the registry will use
+func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string) (string, error) {
+
+	// Get the infrastructure name
+	infra, err := GetInfrastructure(listers)
+	if err != nil {
+		return "", err
+	}
+
+	// A slice to store the parts of our name
+	var parts []string
+
+	// Put the infrastructure name first
+	parts = append(parts, infra.Status.InfrastructureName)
+
+	// Image Registry Name second
+	parts = append(parts, imageregistryv1.ImageRegistryName)
+
+	// Additional information provided to the function third
+	for _, i := range additionalInfo {
+		if len(i) != 0 {
+			parts = append(parts, i)
+		}
+	}
+
+	// Join the slice together with dashes
+	name := strings.Join(parts, "-")
+
+	// Check the length and pad or truncate as needed
+	switch {
+	case len(name) < 62:
+		padding := 62 - len(name) - 1
+		bytes := make([]byte, padding)
+		for i := 0; i < padding; i++ {
+			bytes[i] = byte(97 + rand.Intn(25)) // a=97 and z=97+25
+		}
+		name = fmt.Sprintf("%s-%s", name, string(bytes))
+	case len(name) > 62:
+		name = name[0:62]
+		if strings.HasSuffix(name, "-") {
+			name = name[0:61] + string(byte(97+rand.Intn(25)))
+		}
+	}
+
+	return name, nil
+
 }

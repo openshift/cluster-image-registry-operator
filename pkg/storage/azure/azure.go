@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
@@ -463,12 +462,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary key: %s", err))
 				return err
 			}
-
-			for i := 0; i < 5000; i++ {
+			const numRetries = 5000
+			for i := 0; i < numRetries; i++ {
 				// If the bucket name is blank, let's generate one
 				if len(d.Config.Container) == 0 {
 					// Container name must be between 3 and 63 characters long
-					d.Config.Container = fmt.Sprintf("%s-%s-%s", infra.Status.InfrastructureName, imageregistryv1.ImageRegistryName, strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+					if d.Config.Container, err = util.GenerateStorageName(d.Listers, ""); err != nil {
+						return err
+					}
 				}
 
 				err = d.createStorageContainer(d.Config.AccountName, key, d.Config.Container)

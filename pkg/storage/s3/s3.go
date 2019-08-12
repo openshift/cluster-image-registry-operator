@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -19,7 +18,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/rest"
 
 	configapiv1 "github.com/openshift/api/config/v1"
@@ -358,10 +356,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	} else {
 		generatedName := false
 		// Retry up to 5000 times if we get a naming conflict
-		for i := 0; i < 5000; i++ {
+		const numRetries = 5000
+		for i := 0; i < numRetries; i++ {
 			// If the bucket name is blank, let's generate one
 			if len(d.Config.Bucket) == 0 {
-				d.Config.Bucket = fmt.Sprintf("%s-%s-%s-%s", infra.Status.InfrastructureName, imageregistryv1.ImageRegistryName, d.Config.Region, strings.Replace(string(uuid.NewUUID()), "-", "", -1))[0:62]
+				if d.Config.Bucket, err = util.GenerateStorageName(d.Listers, d.Config.Region); err != nil {
+					return err
+				}
 				generatedName = true
 			}
 
@@ -441,6 +442,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		_, err := svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
 			Tagging: &s3.Tagging{
+
 				TagSet: []*s3.Tag{
 					{
 						Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
