@@ -235,6 +235,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
+		bucket = gclient.Bucket(d.Config.Bucket)
 		cr.Status.Storage.GCS = d.Config.DeepCopy()
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
 
