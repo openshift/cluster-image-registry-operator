@@ -10,11 +10,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type PodLog []string
+type ContainerLog []string
 
-func (log PodLog) Contains(re *regexp.Regexp) bool {
+func (log ContainerLog) Contains(re *regexp.Regexp) bool {
 	for _, line := range log {
 		if re.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
+type PodLog map[string]ContainerLog
+
+func (log PodLog) Contains(re *regexp.Regexp) bool {
+	for _, containerLog := range log {
+		if containerLog.Contains(re) {
 			return true
 		}
 	}
@@ -47,22 +58,28 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 
 	podLogs := make(PodSetLogs)
 	for _, pod := range podList.Items {
-		var podLog PodLog
-		log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{}).Stream()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
-		}
-		r := bufio.NewReader(log)
-		for {
-			line, readErr := r.ReadString('\n')
-			if len(line) > 0 || readErr == nil {
-				podLog = append(podLog, line)
+		podLog := make(PodLog)
+		for _, container := range pod.Spec.Containers {
+			var containerLog ContainerLog
+			log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+				Container: container.Name,
+			}).Stream()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
 			}
-			if readErr == io.EOF {
-				break
-			} else if readErr != nil {
-				return nil, fmt.Errorf("failed to read log for pod %s: %s", pod.Name, readErr)
+			r := bufio.NewReader(log)
+			for {
+				line, readErr := r.ReadString('\n')
+				if len(line) > 0 || readErr == nil {
+					containerLog = append(containerLog, line)
+				}
+				if readErr == io.EOF {
+					break
+				} else if readErr != nil {
+					return nil, fmt.Errorf("failed to read log for pod %s: %s", pod.Name, readErr)
+				}
 			}
+			podLog[container.Name] = containerLog
 		}
 		podLogs[pod.Name] = podLog
 	}

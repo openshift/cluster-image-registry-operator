@@ -17,6 +17,7 @@ spec:
         name: cluster-image-registry-operator
     spec:
       serviceAccountName: cluster-image-registry-operator
+      shareProcessNamespace: true
       priorityClassName: system-cluster-critical
       nodeSelector:
         node-role.kubernetes.io/master: ""
@@ -55,3 +56,28 @@ spec:
               value: "cluster-image-registry-operator"
             - name: IMAGE
               value: docker.io/openshift/origin-docker-registry:latest
+        - name: cluster-image-registry-operator-watch
+          image: docker.io/openshift/origin-cluster-image-registry-operator:latest
+          command:
+          - cluster-image-registry-operator-watch
+          - file-watcher-watchdog
+          args:
+          - --namespace=$(POD_NAMESPACE)
+          - --process-name=cluster-image-registry-operator
+          - --termination-grace-period=30s
+          - --files=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 10m
+          env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: metadata.namespace
