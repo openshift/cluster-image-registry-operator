@@ -535,11 +535,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
 
 			break
-
-			if len(d.Config.Container) == 0 {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, "CreateStorageFailed", "Unable to generate a unique container name")
-				return fmt.Errorf("unable to generate a unique azure container name")
-			}
 		}
 	}
 	return nil
@@ -605,4 +600,10 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountDeleted, "Storage account has been deleted")
 
 	return false, nil
+}
+
+// ID return the underlying storage identificator, on this case the Azure
+// container name.
+func (d *driver) ID() string {
+	return d.Config.Container
 }

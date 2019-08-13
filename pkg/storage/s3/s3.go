@@ -619,3 +619,8 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 
 	return false, nil
 }
+
+// ID return the underlying storage identificator, on this case the bucket name.
+func (d *driver) ID() string {
+	return d.Config.Bucket
+}

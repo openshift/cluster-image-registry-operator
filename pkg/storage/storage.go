@@ -48,6 +48,7 @@ type Driver interface {
 	StorageExists(*imageregistryv1.Config) (bool, error)
 	RemoveStorage(*imageregistryv1.Config) (bool, error)
 	StorageChanged(*imageregistryv1.Config) bool
+	ID() string
 }
 
 func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {

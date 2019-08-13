@@ -209,3 +209,8 @@ func pvcIsCreatedByOperator(claim *corev1.PersistentVolumeClaim) (exist bool) {
 	_, exist = claim.Annotations[pvcOwnerAnnotation]
 	return
 }
+
+// ID return the underlying storage identificator, on this case the claim name.
+func (d *driver) ID() string {
+	return d.Config.Claim
+}
