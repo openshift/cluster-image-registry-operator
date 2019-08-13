@@ -322,3 +322,63 @@ func TestVersionReporting(t *testing.T) {
 		t.Fatalf("failed to observe updated version reported in clusteroperator status: %v", err)
 	}
 }
+
+func TestRequests(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	cr := &imageregistryapiv1.Config{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
+			Kind:       "Config",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: imageregistryapiv1.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+			Requests: imageregistryapiv1.ImageRegistryConfigRequests{
+				Read: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
+					MaxRunning: 1,
+					MaxInQueue: 2,
+					MaxWaitInQueue: metav1.Duration{
+						Duration: 3 * time.Second,
+					},
+				},
+				Write: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
+					MaxRunning: 4,
+					MaxInQueue: 5,
+					MaxWaitInQueue: metav1.Duration{
+						Duration: 6 * time.Hour,
+					},
+				},
+			},
+			Replicas: 1,
+		},
+	}
+
+	framework.MustDeployImageRegistry(t, client, cr)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+
+	deploy, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(imageregistryapiv1.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedEnvVars := []corev1.EnvVar{
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXRUNNING", Value: "1", ValueFrom: nil},
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXINQUEUE", Value: "2", ValueFrom: nil},
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_READ_MAXWAITINQUEUE", Value: "3s", ValueFrom: nil},
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXRUNNING", Value: "4", ValueFrom: nil},
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXINQUEUE", Value: "5", ValueFrom: nil},
+		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXWAITINQUEUE", Value: "6h0m0s", ValueFrom: nil},
+	}
+
+	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env) {
+		t.Errorf("%v", err)
+	}
+}
