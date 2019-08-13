@@ -11,6 +11,7 @@ import (
 	"k8s.io/klog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
@@ -18,6 +19,8 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
+
+const metricsPort = 60000
 
 func printVersion() {
 	klog.Infof("Cluster Image Registry Operator Version: %s", version.Version)
@@ -66,6 +69,7 @@ func runOperator(cmd *cobra.Command, args []string) {
 		klog.Fatal(err)
 	}
 
+	go metrics.RunServer(metricsPort, stopCh)
 	err = controller.Run(stopCh)
 	if err != nil {
 		klog.Fatal(err)

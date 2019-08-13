@@ -2,6 +2,7 @@ package resource
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -14,6 +15,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -99,8 +101,12 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	}
 
 	if runCreate {
+		reconf := g.storageReconfigured(cr, g.kubeconfig, g.listers)
 		if err := driver.CreateStorage(cr); err != nil {
 			return err
+		}
+		if reconf {
+			metrics.StorageReconfigured()
 		}
 	}
 
@@ -118,6 +124,29 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	}
 
 	return nil
+}
+
+// storageReconfigured returns true if we are, based on the provided config,
+// starting to use a different underlying storage location.
+func (g *Generator) storageReconfigured(
+	regCfg *imageregistryv1.Config,
+	restCfg *rest.Config,
+	listers *client.Listers,
+) bool {
+	prev, err := storage.NewDriver(&regCfg.Status.Storage, restCfg, listers)
+	if err != nil {
+		return false
+	}
+	cur, err := storage.NewDriver(&regCfg.Spec.Storage, restCfg, listers)
+	if err != nil {
+		return false
+	}
+
+	if reflect.TypeOf(prev) != reflect.TypeOf(cur) {
+		return true
+	}
+
+	return prev.ID() != cur.ID()
 }
 
 func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
