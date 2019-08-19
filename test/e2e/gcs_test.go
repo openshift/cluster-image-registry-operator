@@ -123,7 +123,7 @@ func TestGCSMinimal(t *testing.T) {
 		{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile", ValueFrom: nil},
 	}
 
-	for _, err = range framework.CheckEnvVars(gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env) {
+	for _, err = range framework.CheckEnvVars(gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, false) {
 		t.Errorf("%v", err)
 	}
 

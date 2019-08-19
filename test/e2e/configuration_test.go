@@ -200,7 +200,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	}
 
 	// Set the proxy env vars
-	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http.example.org"},{"name":"HTTPS_PROXY","value":"https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ",")))); err != nil {
+	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http://http.example.org"},{"name":"HTTPS_PROXY","value":"https://https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ",")))); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 	defer func() {
@@ -255,14 +255,14 @@ func TestOperandProxyConfiguration(t *testing.T) {
 
 	resourceProxyConfig := imageregistryapiv1.ImageRegistryConfigProxy{
 		NoProxy: "resourcenoproxy.example.com",
-		HTTP:    "resourcehttpproxy.example.com",
-		HTTPS:   "resourcehttpsproxy.example.com",
+		HTTP:    "http://resourcehttpproxy.example.com",
+		HTTPS:   "https://resourcehttpsproxy.example.com",
 	}
 
 	clusterProxyConfig := configapiv1.ProxySpec{
 		NoProxy:    "clusternoproxy.example.com",
-		HTTPProxy:  "clusterhttpproxy.example.com",
-		HTTPSProxy: "clusterhttpsproxy.example.com",
+		HTTPProxy:  "http://clusterhttpproxy.example.com",
+		HTTPSProxy: "https://clusterhttpsproxy.example.com",
 	}
 
 	proxyEnvVars := map[string][]corev1.EnvVar{
@@ -312,7 +312,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	}
 
 	// Check that the default deployment does not contain any proxy settings
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["emptyVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env) {
+	for _, err = range framework.CheckEnvVars(proxyEnvVars["emptyVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
 		t.Errorf("%v", err)
 	}
 
@@ -330,8 +330,11 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	}
 
 	// Check that the new deployment contains the cluster proxy settings
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["clusterVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env) {
+	for _, err = range framework.CheckEnvVars(proxyEnvVars["clusterVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
 		t.Errorf("%v", err)
+		framework.DumpClusterProxyResource(t, client)
+		framework.DumpImageRegistryDeployment(t, client)
+		framework.DumpOperatorDeployment(t, client)
 	}
 
 	// Patch the image registry resource to contain the proxy settings
@@ -348,7 +351,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	}
 
 	// Check that the new deployment contains the resource proxy settings (overriding the cluster proxy config)
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["resourceVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env) {
+	for _, err = range framework.CheckEnvVars(proxyEnvVars["resourceVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
 		t.Errorf("%v", err)
 	}
 }
@@ -557,7 +560,7 @@ func TestRequests(t *testing.T) {
 		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXWAITINQUEUE", Value: "6h0m0s", ValueFrom: nil},
 	}
 
-	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env) {
+	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false) {
 		t.Errorf("%v", err)
 	}
 }
