@@ -63,8 +63,8 @@ spec:
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           command:
           - cluster-image-registry-operator-watch
-          - file-watcher-watchdog
           args:
+          - file-watcher-watchdog
           - --namespace=$(POD_NAMESPACE)
           - --process-name=cluster-image-registry-operator
           - --termination-grace-period=30s
@@ -84,9 +84,6 @@ spec:
               fieldRef:
                 apiVersion: v1
                 fieldPath: metadata.namespace
-          volumeMounts:
-            - name: trusted-ca
-              mountPath: /etc/pki/ca-trust/extracted/pem/
       volumes:
         - name: trusted-ca
           configMap:
