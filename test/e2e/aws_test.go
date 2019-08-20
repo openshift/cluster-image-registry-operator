@@ -55,12 +55,15 @@ func TestAWSDefaults(t *testing.T) {
 
 	client := framework.MustNewClientset(t, nil)
 
+	// TODO: Move these checks to a conformance test run on all providers
 	defer framework.MustRemoveImageRegistry(t, client)
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+	framework.MustEnsureServiceCAConfigMap(t, client)
+	framework.MustEnsureNodeCADaemonSetIsAvailable(t, client)
 
 	cfg, err := clusterconfig.GetAWSConfig(mockLister)
 	if err != nil {
