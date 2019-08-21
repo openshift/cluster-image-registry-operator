@@ -88,8 +88,13 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Reason:  "",
 	}
 	if deploy == nil {
-		operatorAvailable.Message = "The deployment does not exist"
-		operatorAvailable.Reason = "DeploymentNotFound"
+		if e, ok := applyError.(permanentError); ok {
+			operatorAvailable.Message = applyError.Error()
+			operatorAvailable.Reason = e.Reason
+		} else {
+			operatorAvailable.Message = "The deployment does not exist"
+			operatorAvailable.Reason = "DeploymentNotFound"
+		}
 	} else if deploy.DeletionTimestamp != nil {
 		operatorAvailable.Message = "The deployment is being deleted"
 		operatorAvailable.Reason = "DeploymentDeleted"
