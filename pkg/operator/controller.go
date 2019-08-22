@@ -2,12 +2,14 @@ package operator
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
@@ -44,6 +46,7 @@ const (
 	kubeSystemNamespace      = "kube-system"
 	workqueueKey             = "changes"
 	defaultResyncDuration    = 10 * time.Minute
+	defaultDegradedTimeout   = 1 * time.Hour
 )
 
 type permanentError struct {
@@ -91,13 +94,27 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
+
+	var degradedTimeout time.Duration
+	timeout, ok := os.LookupEnv("OPERATOR_DEGRADED_TIMEOUT")
+	if ok {
+		degradedTimeout, err = time.ParseDuration(timeout)
+		if err != nil {
+			klog.V(4).Infof("Could not parse degraded timeout %s, defaulting to 1h", timeout)
+			degradedTimeout = defaultDegradedTimeout
+		}
+	} else {
+		degradedTimeout = defaultDegradedTimeout
+	}
+
 	c := &Controller{
-		kubeconfig: kubeconfig,
-		params:     p,
-		generator:  resource.NewGenerator(kubeconfig, clients, listers, &p),
-		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
-		listers:    listers,
-		clients:    clients,
+		kubeconfig:      kubeconfig,
+		params:          p,
+		generator:       resource.NewGenerator(kubeconfig, clients, listers, &p),
+		workqueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
+		listers:         listers,
+		clients:         clients,
+		degradedTimeout: degradedTimeout,
 	}
 
 	// Initial event to bootstrap CR if it doesn't exist.
@@ -108,12 +125,13 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 
 // Controller keeps track of openshift image registry components.
 type Controller struct {
-	kubeconfig *restclient.Config
-	params     parameters.Globals
-	generator  *resource.Generator
-	workqueue  workqueue.RateLimitingInterface
-	listers    *regopclient.Listers
-	clients    *regopclient.Clients
+	kubeconfig      *restclient.Config
+	params          parameters.Globals
+	generator       *resource.Generator
+	workqueue       workqueue.RateLimitingInterface
+	listers         *regopclient.Listers
+	clients         *regopclient.Clients
+	degradedTimeout time.Duration
 }
 
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
@@ -135,6 +153,7 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
+	// For a new cluster, bootstrap
 	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -157,12 +176,20 @@ func (c *Controller) sync() error {
 
 	var applyError error
 	removed := false
+	hasTrustedCa := c.hasTrustedCA()
 	switch cr.Spec.ManagementState {
 	case operatorapi.Removed:
 		applyError = c.RemoveResources(cr)
 		removed = true
 	case operatorapi.Managed:
-		applyError = c.createOrUpdateResources(cr)
+		// If we do not have a trusted CA bundle, then creating or updating resources will have a high probability of failure.
+		// For 4.2 we do not attempt this in order to prevent upgrades from being blocked/timing out.
+		// syncStatus has logic to report the operator degraded after a resonable timeout period.
+		if hasTrustedCa {
+			applyError = c.createOrUpdateResources(cr)
+		}
+		// Set a special status so that changes to the CA bundle register as a status transition.
+		c.setTrustedCAStatus(cr, hasTrustedCa)
 	case operatorapi.Unmanaged:
 		// ignore
 	default:
@@ -178,54 +205,16 @@ func (c *Controller) sync() error {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
-	c.syncStatus(cr, deploy, applyError, removed)
+	c.updateCoreStatusConditions(cr, deploy, applyError, removed, hasTrustedCa)
 
-	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
-	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
-	if metadataChanged || specChanged {
-		difference, err := object.DiffString(prevCR, cr)
-		if err != nil {
-			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
-		}
-		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
-
-		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			klog.Errorf("unable to apply cluster operator: %s", genErr)
-		}
-
-		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(cr)
-		if err != nil {
-			if !errors.IsConflict(err) {
-				klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
-			}
-			return err
-		}
-
-		// If we updated the Status field too, we'll make one more call and we
-		// want it to succeed.
-		cr.ResourceVersion = updatedCR.ResourceVersion
+	err = c.syncOperatorResource(cr, prevCR)
+	if err != nil {
+		return err
 	}
 
-	cr.Status.ObservedGeneration = cr.Generation
-	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
-	if statusChanged {
-		difference, err := object.DiffString(prevCR, cr)
-		if err != nil {
-			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
-		}
-		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
-
-		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			klog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
-		}
-
-		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(cr)
-		if err != nil {
-			if !errors.IsConflict(err) {
-				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
-			}
-			return err
-		}
+	err = c.syncOperatorStatus(cr, prevCR)
+	if err != nil {
+		return err
 	}
 
 	if _, ok := applyError.(permanentError); !ok {
@@ -491,4 +480,91 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	klog.Info("shutting down events processor")
 
 	return nil
+}
+
+// hasTrustedCA indicates if the operator has a default trusted CA bundle
+// for TLS requests.
+func (c *Controller) hasTrustedCA() bool {
+	if _, err := os.Stat("/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
+// syncOperatorResource synchronizes the reported spec of the image registry operator.
+func (c *Controller) syncOperatorResource(cr *imageregistryv1.Config, prevCR *imageregistryv1.Config) error {
+	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
+	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
+	if !metadataChanged && !specChanged {
+		return nil
+	}
+
+	difference, err := object.DiffString(prevCR, cr)
+	if err != nil {
+		klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
+	}
+	klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
+
+	if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+		klog.Errorf("unable to apply cluster operator: %s", genErr)
+	}
+
+	updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(cr)
+	if err != nil {
+		if !errors.IsConflict(err) {
+			klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
+		}
+		return err
+	}
+
+	// If we updated the Status field too, we'll make one more call and we
+	// want it to succeed.
+	cr.ResourceVersion = updatedCR.ResourceVersion
+	return nil
+}
+
+// syncOperatorStatus updates the status of the image registry operator and it's related ClusterOperator.
+func (c *Controller) syncOperatorStatus(cr *imageregistryv1.Config, prevCR *imageregistryv1.Config) error {
+	cr.Status.ObservedGeneration = cr.Generation
+	statusChanged := !reflect.DeepEqual(prevCR.Status, cr.Status)
+	if statusChanged {
+		difference, err := object.DiffString(prevCR, cr)
+		if err != nil {
+			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
+		}
+		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
+
+		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
+			klog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
+		}
+
+		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(cr)
+		if err != nil {
+			if !errors.IsConflict(err) {
+				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// degradedTimeoutExceeded indicates if the time since the last status transition of the provided condition type
+// has exceeded the degraded timeout interval.
+// This is useful if a degradable condition is expected to be temporary.
+func (c *Controller) degradedTimeoutExceeded(cr *imageregistryv1.Config, condType string) bool {
+	if cr == nil {
+		return false
+	}
+	lastTransition := metav1.NewTime(time.Time{})
+	for _, cond := range cr.Status.Conditions {
+		if cond.Type == condType {
+			lastTransition = cond.LastTransitionTime
+			break
+		}
+	}
+	if lastTransition.IsZero() {
+		return false
+	}
+	return metav1.Now().Sub(lastTransition.Time) > c.degradedTimeout
 }

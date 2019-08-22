@@ -564,3 +564,85 @@ func TestRequests(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 }
+
+func TestTrustedCABundle(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	// Patch the operator so that it times out and reports itself degraded
+	t.Log("Updating registry operator to report itself degraded after 5m")
+	framework.MustSetOperatorDegradedTimeout(t, client, 5*time.Minute)
+	defer framework.MustClearOperatorDegradedTimeout(t, client)
+	t.Log("Waiting 1m for updated operator to report ready and sync")
+	time.Sleep(1 * time.Minute)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	// Remove the bundle injection and wipe out any existing trust
+	trustCM, err := client.ConfigMaps(imageregistryapiv1.ImageRegistryOperatorNamespace).Get("trusted-ca", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get the trusted-ca ConfigMap: %v", err)
+	}
+	prevTrustCM := trustCM.DeepCopy()
+	defer restoreTrustedCA(t, client, prevTrustCM)
+
+	// Wipe out the trust bundle - this should trigger a restart of the operator container
+	delete(trustCM.Labels, "config.openshift.io/inject-trusted-cabundle")
+	trustCM.Data = map[string]string{}
+	_, err = client.ConfigMaps(imageregistryapiv1.ImageRegistryOperatorNamespace).Update(trustCM)
+	if err != nil {
+		t.Fatalf("failed to clear trusted-ca bundle: %v", err)
+	}
+	t.Logf("Removed trusted CA data from ConfigMap %s/%s", imageregistryapiv1.ImageRegistryOperatorNamespace, "trusted-ca")
+
+	// The file watcher can take a non-trivial amount of time to restart the operator container
+	// 2 minutes should be sufficient time for the container to restart and report status.
+	sleepDuration := 2 * time.Minute
+	t.Logf("Waiting %s for registry operator to roll out", sleepDuration)
+	time.Sleep(sleepDuration)
+	// At 2 minutes operator should report itself as available with the reason NoTrustedCA
+	framework.CheckClusterOperatorCondition(t, client, configapiv1.OperatorAvailable, configapiv1.ConditionTrue, "NoTrustedCA")
+	framework.CheckClusterOperatorCondition(t, client, configapiv1.OperatorProgressing, configapiv1.ConditionFalse, "NoTrustedCA")
+	framework.CheckClusterOperatorCondition(t, client, configapiv1.OperatorDegraded, configapiv1.ConditionFalse, "NoTrustedCA")
+
+	if t.Failed() {
+		framework.DumpOperatorLogs(t, client)
+		framework.DumpOperatorDeployment(t, client)
+	}
+
+	// At 5+ minutes the operator should report itself as degraded
+	t.Logf("Waiting %s for registry operator to report itself degraded", 5*time.Minute)
+	time.Sleep(5 * time.Minute)
+	framework.CheckClusterOperatorCondition(t, client, configapiv1.OperatorAvailable, configapiv1.ConditionFalse, "NoTrustedCA")
+	framework.CheckClusterOperatorCondition(t, client, configapiv1.OperatorDegraded, configapiv1.ConditionTrue, "NoTrustedCA")
+
+	if t.Failed() {
+		framework.DumpOperatorLogs(t, client)
+		framework.DumpOperatorDeployment(t, client)
+	}
+
+	// Restore the trust bundle, operator should report itself available.
+	// This also ensures that the file watcher is watching the correct process.
+	restoreTrustedCA(t, client, prevTrustCM)
+	t.Logf("Waiting %s for registry operator to report itself available", sleepDuration)
+	time.Sleep(sleepDuration)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+}
+
+func restoreTrustedCA(t *testing.T, client *framework.Clientset, prevTrustCM *corev1.ConfigMap) {
+	t.Log("restoring trusted CA bundle to its previous state")
+	trustCM, err := client.ConfigMaps(imageregistryapiv1.ImageRegistryOperatorNamespace).Get("trusted-ca", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get trusted-ca bunde: %v", err)
+		return
+	}
+	trustCM.Labels = prevTrustCM.Labels
+	trustCM.Data = prevTrustCM.Data
+	_, err = client.ConfigMaps(imageregistryapiv1.ImageRegistryOperatorNamespace).Update(trustCM)
+	if err != nil {
+		t.Fatalf("failed to restore trusted-ca bundle: %v", err)
+	}
+}

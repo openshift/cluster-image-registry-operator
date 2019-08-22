@@ -44,6 +44,12 @@ func DisableCVOForOperator(logger Logger, client *Clientset) error {
 		Name:      OperatorDeploymentName,
 		Unmanaged: true,
 	})
+	cv.Spec.Overrides, changed = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
+		Group:     "",
+		Kind:      "ConfigMap",
+		Namespace: OperatorDeploymentNamespace,
+		Name:      "trusted-ca",
+	})
 	// Disable the kube and openshift apiserver operators so the kube+openshift apiservers don't get
 	// restarted while we're running our tests.
 	cv.Spec.Overrides, changed = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{

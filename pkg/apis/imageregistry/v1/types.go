@@ -77,6 +77,10 @@ const (
 	// medium is configured to automatically cleanup incomplete uploads
 	StorageIncompleteUploadCleanupEnabled = "StorageIncompleteUploadCleanupEnabled"
 
+	// HasTrustedCA denotes if the CA trust bundle for the registry and registry operator
+	// has been injected.
+	HasTrustedCA = "HasTrustedCA"
+
 	// VersionAnnotation reflects the version of the registry that this deployment
 	// is running.
 	VersionAnnotation = "release.openshift.io/version"

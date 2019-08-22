@@ -369,6 +369,26 @@ func MustEnsureClusterOperatorStatusIsNormal(t *testing.T, client *Clientset) {
 	}
 }
 
+func CheckClusterOperatorCondition(t *testing.T, client *Clientset, condType configapiv1.ClusterStatusConditionType, status configapiv1.ConditionStatus, reason string) {
+	clusterOperator := MustEnsureClusterOperatorStatusIsSet(t, client)
+	found := false
+	for _, cond := range clusterOperator.Status.Conditions {
+		if cond.Type == condType {
+			found = true
+			if cond.Status != status {
+				t.Errorf("Expected clusteroperator %s=%s, got %s", cond.Type, status, cond.Status)
+			}
+			if cond.Reason != reason {
+				t.Errorf("Expected clusteroperator %s reason=%s, got %s", cond.Type, reason, cond.Reason)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Could not find clusteroperator condition %s", condType)
+	}
+}
+
 func MustEnsureOperatorIsNotHotLooping(t *testing.T, client *Clientset) {
 	// Allow the operator a few seconds to stabilize
 	time.Sleep(15 * time.Second)

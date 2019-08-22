@@ -3,6 +3,8 @@ package operator
 import (
 	"fmt"
 
+	"k8s.io/klog"
+
 	appsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -81,12 +83,20 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
-func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
+// updateCoreStatusConditions updates the core operator conditions based on the state of the deployment and parameters passed in.
+// The following conditions are set:
+//   1. Available
+//   2. Progressing
+//   3. Degraded
+//   4. Removed
+// Conditions other than the four listed above should be set prior to calling updateCoreStatusConditions.
+func (c *Controller) updateCoreStatusConditions(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool, hasTrustedCa bool) {
 	operatorAvailable := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,
 		Message: "",
 		Reason:  "",
 	}
+	degradedTimeoutReached := c.degradedTimeoutExceeded(cr, imageregistryv1.HasTrustedCA)
 	if deploy == nil {
 		if e, ok := applyError.(permanentError); ok {
 			operatorAvailable.Message = applyError.Error()
@@ -98,6 +108,19 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	} else if deploy.DeletionTimestamp != nil {
 		operatorAvailable.Message = "The deployment is being deleted"
 		operatorAvailable.Reason = "DeploymentDeleted"
+	} else if !hasTrustedCa {
+		// 4.2 - on upgrade, the trusted CA bundle may not be present, and the networking operator may
+		// take a long time to inject the CA bundle.
+		// In this situation the operator should initially report itself at level, but report degraded after a reasonable timeout.
+		// Later, when the trusted CA bundle is present, we proceed as usual and upgrade the operands.
+		operatorAvailable.Message = fmt.Sprintf("Trusted CA bundle is not present after waiting %s.", c.degradedTimeout)
+		operatorAvailable.Reason = "NoTrustedCA"
+		if !degradedTimeoutReached {
+			operatorAvailable.Message = "TrustedCA bundle is not present."
+			operatorAvailable.Status = operatorapiv1.ConditionTrue
+		} else {
+			klog.Error(operatorAvailable.Message)
+		}
 	} else if !isDeploymentStatusAvailable(deploy) {
 		operatorAvailable.Message = "The deployment does not have available replicas"
 		operatorAvailable.Reason = "NoReplicasAvailable"
@@ -143,6 +166,10 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	} else if deploy.DeletionTimestamp != nil {
 		operatorProgressing.Message = "The deployment is being deleted"
 		operatorProgressing.Reason = "FinalizingDeployment"
+	} else if !hasTrustedCa {
+		operatorProgressing.Status = operatorapiv1.ConditionFalse
+		operatorProgressing.Message = "Trusted CA bundle is not present."
+		operatorProgressing.Reason = "NoTrustedCA"
 	} else if !isDeploymentStatusComplete(deploy) {
 		operatorProgressing.Message = "The deployment has not completed"
 		operatorProgressing.Reason = "DeploymentNotCompleted"
@@ -163,6 +190,17 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorDegraded.Status = operatorapiv1.ConditionTrue
 		operatorDegraded.Message = applyError.Error()
 		operatorDegraded.Reason = e.Reason
+	} else if !hasTrustedCa {
+		// 4.2 - on upgrade, the trusted CA bundle may not be present, and the networking operator may
+		// take a long time to inject the CA bundle.
+		// In this situation the operator should initially report itself at level, but report degraded after a reasonable timeout.
+		// Later, when the trusted CA bundle is present, we proceed as usual and upgrade the operands.
+		operatorDegraded.Message = "Trusted CA bundle is not present."
+		operatorDegraded.Reason = "NoTrustedCA"
+		if degradedTimeoutReached {
+			operatorDegraded.Status = operatorapiv1.ConditionTrue
+			operatorDegraded.Message = fmt.Sprintf("Trusted CA bundle is not present after waiting %s.", c.degradedTimeout)
+		}
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
@@ -178,4 +216,19 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	}
 
 	updateCondition(cr, imageregistryv1.OperatorStatusTypeRemoved, operatorRemoved)
+}
+
+// setTrustedCAStatus reports if the trusted CA bundle has been injected into the registry and registry operator.
+func (c *Controller) setTrustedCAStatus(cr *imageregistryv1.Config, hasTrustedCA bool) {
+	operatorHasTrust := operatorapiv1.OperatorCondition{
+		Status:  operatorapiv1.ConditionFalse,
+		Reason:  "NoTrustedCA",
+		Message: "Trusted CA bundle is not present.",
+	}
+	if hasTrustedCA {
+		operatorHasTrust.Status = operatorapiv1.ConditionTrue
+		operatorHasTrust.Reason = "Available"
+		operatorHasTrust.Message = "Trusted CA bundle is present."
+	}
+	updateCondition(cr, imageregistryv1.HasTrustedCA, operatorHasTrust)
 }
