@@ -36,4 +36,7 @@ type Globals struct {
 	ServiceCA struct {
 		Name string
 	}
+	TrustedCA struct {
+		Name string
+	}
 }
