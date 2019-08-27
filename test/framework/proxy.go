@@ -3,6 +3,7 @@ package framework
 import (
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
@@ -26,39 +27,22 @@ func ResetResourceProxyConfig(client *Clientset) error {
 
 // SetClusterProxyConfig patches the cluster proxy resource to contain the provided proxy configuration
 func SetClusterProxyConfig(proxyConfig openshiftapiv1.ProxySpec, client *Clientset) error {
-	proxy, err := client.Proxies().Patch(imageregistryapiv1.ClusterProxyResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"httpProxy": "%s", "httpsProxy": "%s", "noProxy": "%s"}}`, proxyConfig.HTTPProxy, proxyConfig.HTTPSProxy, proxyConfig.NoProxy)))
-	if err != nil {
-		return err
-	}
-
-	// We can remove this once the proxy settings are properly
-	// checked and the Status is updated
-	proxy.Status.HTTPProxy = proxyConfig.HTTPProxy
-	proxy.Status.HTTPSProxy = proxyConfig.HTTPSProxy
-	proxy.Status.NoProxy = proxyConfig.NoProxy
-	if _, err = client.Proxies().UpdateStatus(proxy); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := client.Proxies().Patch(imageregistryapiv1.ClusterProxyResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"httpProxy": "%s", "httpsProxy": "%s", "noProxy": "%s"}}`, proxyConfig.HTTPProxy, proxyConfig.HTTPSProxy, proxyConfig.NoProxy)))
+	return err
 }
 
-// SetClusterProxyConfig patches the cluster proxy resource to contain an empty proxy configuration
+// ResetClusterProxyConfig patches the cluster proxy resource to contain an empty proxy configuration
 func ResetClusterProxyConfig(client *Clientset) error {
-	proxy, err := client.Proxies().Patch(imageregistryapiv1.ClusterProxyResourceName, types.MergePatchType, []byte(`{"spec": {"httpProxy": "", "httpsProxy": "", "noProxy": ""}}`))
+	_, err := client.Proxies().Patch(imageregistryapiv1.ClusterProxyResourceName, types.MergePatchType, []byte(`{"spec": {"httpProxy": "", "httpsProxy": "", "noProxy": ""}}`))
+	return err
+}
+
+// DumpClusterProxyResource prints out the cluster proxy configuration
+func DumpClusterProxyResource(logger Logger, client *Clientset) {
+	cr, err := client.Proxies().Get(imageregistryapiv1.ClusterProxyResourceName, metav1.GetOptions{})
 	if err != nil {
-		return err
+		logger.Logf("unable to dump the cluster proxy resource: %s", err)
+		return
 	}
-
-	// We can remove this once the proxy settings are properly
-	// checked and the Status is updated
-	proxy.Status.HTTPProxy = ""
-	proxy.Status.HTTPSProxy = ""
-	proxy.Status.NoProxy = ""
-	if _, err = client.Proxies().UpdateStatus(proxy); err != nil {
-		return err
-	}
-
-	return nil
-
+	DumpYAML(logger, "the cluster proxy resource", cr)
 }

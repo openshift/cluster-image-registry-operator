@@ -202,6 +202,15 @@ func DumpImageRegistryResource(logger Logger, client *Clientset) {
 	DumpYAML(logger, "the image registry resource", cr)
 }
 
+func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
+	d, err := client.Deployments(OperatorDeploymentNamespace).Get(imageregistryapiv1.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		logger.Logf("unable to dump the image registry deployment: %s", err)
+		return
+	}
+	DumpYAML(logger, "the image registry deployment", d)
+}
+
 func ensureImageRegistryIsProcessed(logger Logger, client *Clientset) (*imageregistryapiv1.Config, error) {
 	var cr *imageregistryapiv1.Config
 	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
