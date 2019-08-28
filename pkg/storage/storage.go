@@ -110,6 +110,15 @@ func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	switch infra.Status.PlatformStatus.Type {
 	case configapiv1.LibvirtPlatformType:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+	case configapiv1.BareMetalPlatformType:
+		// There is no specific known storage type available for a "baremetal"
+		// platform deployment at install time, so we default to EmptyDir to
+		// allow the installation to complete cleanly.  This must be
+		// re-configured to use a PVC post-install once a storage platform has
+		// been configured.  Note that the only supported use of the
+		// "baremetal" platform does include rook/ceph based storage, so
+		// EmptyDir will never be used in a production cluster.
+		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	case configapiv1.AWSPlatformType:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	case configapiv1.AzurePlatformType:
