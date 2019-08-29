@@ -39,8 +39,6 @@ spec:
           ports:
           - containerPort: 60000
             name: metrics
-          command:
-          - cluster-image-registry-operator
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -58,7 +56,7 @@ spec:
               value: docker.io/openshift/origin-docker-registry:latest
           volumeMounts:
             - name: trusted-ca
-              mountPath: /etc/pki/ca-trust/extracted/pem/
+              mountPath: /var/run/configmaps/trusted-ca/
         - name: cluster-image-registry-operator-watch
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           command:
@@ -68,7 +66,7 @@ spec:
           - --namespace=$(POD_NAMESPACE)
           - --process-name=cluster-image-registry-operator
           - --termination-grace-period=30s
-          - --files=/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem
+          - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
           imagePullPolicy: IfNotPresent
           resources:
             requests:
