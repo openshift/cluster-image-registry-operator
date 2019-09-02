@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -14,6 +15,11 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	installer "github.com/openshift/installer/pkg/types"
+)
+
+var (
+	// multiDashes is a regexp matching multiple dashes in a sequence.
+	multiDashes = regexp.MustCompile(`-{2,}`)
 )
 
 // UpdateCondition will update or add the provided condition.
@@ -109,7 +115,6 @@ func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
 // GenerateStorageName generates a unique name for the storage
 // medium that the registry will use
 func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string) (string, error) {
-
 	// Get the infrastructure name
 	infra, err := GetInfrastructure(listers)
 	if err != nil {
@@ -132,8 +137,10 @@ func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string)
 		}
 	}
 
-	// Join the slice together with dashes
-	name := strings.Join(parts, "-")
+	// Join the slice together with dashes, removing any occurence of
+	// multiple dashes in a row as some cloud providers consider this
+	// invalid.
+	name := multiDashes.ReplaceAllString(strings.Join(parts, "-"), "-")
 
 	// Check the length and pad or truncate as needed
 	switch {

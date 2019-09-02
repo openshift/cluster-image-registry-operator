@@ -14,12 +14,8 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
-var (
-	infrastructureName = "jsmith-xhv4"
-	prefix             = fmt.Sprintf("%s-%s", infrastructureName, imageregistryv1.ImageRegistryName)
-)
-
 type MockInfrastructureLister struct {
+	infraName string
 }
 
 func (m MockInfrastructureLister) Get(name string) (*configv1.Infrastructure, error) {
@@ -28,7 +24,7 @@ func (m MockInfrastructureLister) Get(name string) (*configv1.Infrastructure, er
 			Name: "cluster",
 		},
 		Status: configv1.InfrastructureStatus{
-			InfrastructureName: infrastructureName,
+			InfrastructureName: m.infraName,
 			PlatformStatus:     &configv1.PlatformStatus{},
 		},
 	}, nil
@@ -40,47 +36,84 @@ func (m MockInfrastructureLister) List(selector labels.Selector) ([]*configv1.In
 }
 
 func TestGenerateStorageName(t *testing.T) {
-	l := regopclient.Listers{Infrastructures: MockInfrastructureLister{}}
-	tests := [][]string{
-		// test with nil
-		nil,
-		// test with no additionals
-		{},
-		// test with two empty strings
-		{"", ""},
-		// test one additional
-		{"test1"},
-		// test two additionals
-		{"test1", "test2"},
-		// test really long additionals
-		{"abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwxyz"},
-	}
-
 	multiDash := regexp.MustCompile(`-{2,}`)
 	replaceMultiDash := regexp.MustCompile(`-{1,}`)
-	for _, test := range tests {
-		n, err := GenerateStorageName(&l, test...)
-		if err != nil {
-			t.Errorf("%v", err)
-		}
-		wantedPrefix := replaceMultiDash.ReplaceAllString(fmt.Sprintf("%s-%s", prefix, strings.Join(test, "-")), "-")
-		if len(wantedPrefix) > 62 {
-			wantedPrefix = wantedPrefix[0:62]
-		}
+	for _, tt := range []struct {
+		name           string
+		infraName      string
+		additionalInfo []string
+	}{
+		{
+			name:           "nil additional info",
+			infraName:      "valid-infra-name",
+			additionalInfo: nil,
+		},
+		{
+			name:           "empty slice of additional info",
+			infraName:      "valid-infra-name",
+			additionalInfo: []string{},
+		},
+		{
+			name:           "slice of empty strings",
+			infraName:      "valid-infra-name",
+			additionalInfo: []string{"", ""},
+		},
+		{
+			name:           "one additional",
+			infraName:      "valid-infra-name",
+			additionalInfo: []string{"test1"},
+		},
+		{
+			name:           "two additionals",
+			infraName:      "valid-infra-name",
+			additionalInfo: []string{"test1", "test2"},
+		},
+		{
+			name:           "really long additionals",
+			infraName:      "valid-infra-name",
+			additionalInfo: []string{"abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwxyz"},
+		},
+		{
+			name:           "double dashes infra name",
+			infraName:      "invalid-infra--name",
+			additionalInfo: []string{"test1", "test2"},
+		},
+		{
+			name:           "invalid infra name",
+			infraName:      "invalid-infra-name---",
+			additionalInfo: []string{"test1", "test2"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			l := regopclient.Listers{Infrastructures: MockInfrastructureLister{
+				infraName: tt.infraName,
+			}}
 
-		// Name should have the wanted prefix
-		if !strings.HasPrefix(n, wantedPrefix) {
-			t.Errorf("name should have the prefix %s, but was %s instead", wantedPrefix, n)
-		}
+			n, err := GenerateStorageName(&l, tt.additionalInfo...)
+			if err != nil {
+				t.Errorf("%v", err)
+			}
 
-		// Name should be exactly 62 characters long
-		if len(n) != 62 {
-			t.Errorf("name should be exactly 62 characters long, but was %d instead: %s", len(n), n)
-		}
+			rawPrefix := fmt.Sprintf("%s-%s", tt.infraName, imageregistryv1.ImageRegistryName)
+			wantedPrefix := replaceMultiDash.ReplaceAllString(rawPrefix, "-")
+			if len(wantedPrefix) > 62 {
+				wantedPrefix = wantedPrefix[0:62]
+			}
 
-		// Name should not have multiple dashes together
-		if multiDash.MatchString(n) {
-			t.Errorf("name should not include a double dash: %s", n)
-		}
+			// Name should have the wanted prefix
+			if !strings.HasPrefix(n, wantedPrefix) {
+				t.Errorf("name should have the prefix %s, but was %s instead", wantedPrefix, n)
+			}
+
+			// Name should be exactly 62 characters long
+			if len(n) != 62 {
+				t.Errorf("name should be exactly 62 characters long, but was %d instead: %s", len(n), n)
+			}
+
+			// Name should not have multiple dashes together
+			if multiDash.MatchString(n) {
+				t.Errorf("name should not include a double dash: %s", n)
+			}
+		})
 	}
 }
