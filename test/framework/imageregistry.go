@@ -2,6 +2,7 @@ package framework
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -366,6 +367,19 @@ func MustEnsureClusterOperatorStatusIsNormal(t *testing.T, client *Clientset) {
 				t.Errorf("Expected clusteroperator Degraded=%s, got %s", configapiv1.ConditionFalse, cond.Status)
 			}
 		}
+	}
+
+	namespaceFound := false
+	for _, obj := range clusterOperator.Status.RelatedObjects {
+		if strings.ToLower(obj.Resource) == "namespaces" {
+			namespaceFound = true
+			if obj.Name != imageregistryapiv1.ImageRegistryOperatorNamespace {
+				t.Errorf("expected related namespaces resource to have name %q, got %q", imageregistryapiv1.ImageRegistryOperatorNamespace, obj.Name)
+			}
+		}
+	}
+	if !namespaceFound {
+		t.Error("could not find related object namespaces")
 	}
 }
 
