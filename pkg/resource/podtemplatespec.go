@@ -140,6 +140,10 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		env = append(env, corev1.EnvVar{Name: "REGISTRY_STORAGE_MAINTENANCE_READONLY", Value: "{enabled: true}"})
 	}
 
+	if cr.Spec.DisableRedirect {
+		env = append(env, corev1.EnvVar{Name: "REGISTRY_STORAGE_REDIRECT_DISABLE", Value: "true"})
+	}
+
 	if cr.Spec.Proxy.HTTP != "" {
 		env = append(env, corev1.EnvVar{Name: "HTTP_PROXY", Value: cr.Spec.Proxy.HTTP})
 	} else if clusterProxy.Status.HTTPProxy != "" {
