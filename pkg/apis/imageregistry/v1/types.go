@@ -125,6 +125,10 @@ type ImageRegistrySpec struct {
 	// to push new images or delete existing ones.
 	// +optional
 	ReadOnly bool `json:"readOnly"`
+	// DisableRedirect controls whether to route all data through the Registry,
+	// rather than redirecting to the backend.
+	// +optional
+	DisableRedirect bool `json:"disableRedirect"`
 	// Requests controls how many parallel requests a given registry instance
 	// will handle before queuing additional requests.
 	// +optional

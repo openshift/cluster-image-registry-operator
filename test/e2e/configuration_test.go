@@ -564,3 +564,43 @@ func TestRequests(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 }
+
+func TestDisableRedirect(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	cr := &imageregistryapiv1.Config{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
+			Kind:       "Config",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: imageregistryapiv1.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+			DisableRedirect: true,
+			Replicas:        1,
+		},
+	}
+
+	framework.MustDeployImageRegistry(t, client, cr)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+
+	deploy, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(imageregistryapiv1.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedEnvVars := []corev1.EnvVar{
+		{Name: "REGISTRY_STORAGE_REDIRECT_DISABLE", Value: "true", ValueFrom: nil},
+	}
+
+	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false) {
+		t.Errorf("%v", err)
+	}
+}
