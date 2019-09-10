@@ -283,7 +283,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 			if err != nil {
 				if gerr, ok := err.(*gapi.Error); ok {
-					util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
+					util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "InvalidStorageConfiguration", gerr.Error())
+					return err
 				} else {
 					util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 				}
