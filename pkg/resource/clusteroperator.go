@@ -244,6 +244,13 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 func (gco *generatorClusterOperator) syncRelatedObjects(op *configapi.ClusterOperator) (modified bool) {
 	var relatedObjects []configapi.ObjectReference
 
+	// Add the main configuration resource
+	relatedObjects = append(relatedObjects, configapi.ObjectReference{
+		Group:    "imageregistry.operator.openshift.io",
+		Resource: "configs",
+		Name:     "cluster",
+	})
+
 	// Always sync the openshift-image-registry namespace
 	relatedObjects = append(relatedObjects, configapi.ObjectReference{
 		Resource: "namespaces",
