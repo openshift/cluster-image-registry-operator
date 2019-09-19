@@ -52,6 +52,7 @@ spec:
         - "/bin/sh"
         - "-c"
         - |
+          trap 'jobs -p | xargs -r kill; echo shutting down node-ca; exit 0' TERM
           while [ true ];
           do
             for f in $(ls /tmp/serviceca); do
@@ -74,7 +75,7 @@ spec:
                     rm -rf /etc/docker/certs.d/$d
                 fi
             done
-            sleep 60
+            sleep 60 & wait ${!}
           done
         volumeMounts:
         - name: serviceca
