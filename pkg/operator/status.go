@@ -87,9 +87,22 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Message: "",
 		Reason:  "",
 	}
-	if deploy == nil {
-		operatorAvailable.Message = "The deployment does not exist"
-		operatorAvailable.Reason = "DeploymentNotFound"
+	if cr.Spec.ManagementState == operatorapiv1.Unmanaged {
+		operatorAvailable.Status = operatorapiv1.ConditionTrue
+		operatorAvailable.Message = "The registry configuration is set to unmanaged mode"
+		operatorAvailable.Reason = "Unmanaged"
+	} else if deploy == nil {
+		if e, ok := applyError.(permanentError); ok {
+			operatorAvailable.Message = applyError.Error()
+			operatorAvailable.Reason = e.Reason
+		} else if removed {
+			operatorAvailable.Status = operatorapiv1.ConditionTrue
+			operatorAvailable.Message = "The registry is removed"
+			operatorAvailable.Reason = "Removed"
+		} else {
+			operatorAvailable.Message = "The deployment does not exist"
+			operatorAvailable.Reason = "DeploymentNotFound"
+		}
 	} else if deploy.DeletionTimestamp != nil {
 		operatorAvailable.Message = "The deployment is being deleted"
 		operatorAvailable.Reason = "DeploymentDeleted"
@@ -154,7 +167,10 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Message: "",
 		Reason:  "",
 	}
-	if e, ok := applyError.(permanentError); ok {
+	if cr.Spec.ManagementState == operatorapiv1.Unmanaged {
+		operatorDegraded.Message = "The registry configuration is set to unmanaged mode"
+		operatorDegraded.Reason = "Unmanaged"
+	} else if e, ok := applyError.(permanentError); ok {
 		operatorDegraded.Status = operatorapiv1.ConditionTrue
 		operatorDegraded.Message = applyError.Error()
 		operatorDegraded.Reason = e.Reason
@@ -170,6 +186,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	if removed {
 		operatorRemoved.Status = operatorapiv1.ConditionTrue
 		operatorRemoved.Message = "The registry is removed"
+		operatorRemoved.Reason = "Removed"
 	}
 
 	updateCondition(cr, imageregistryv1.OperatorStatusTypeRemoved, operatorRemoved)
