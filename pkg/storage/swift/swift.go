@@ -3,6 +3,7 @@ package swift
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
@@ -89,7 +90,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 			if cloud, ok := clouds.Clouds[cloudName]; ok {
 				cfg.AuthURL = cloud.AuthInfo.AuthURL
 				cfg.Username = cloud.AuthInfo.Username
-				cfg.Password = cloud.AuthInfo.Password
+				cfg.Password = strconv.Quote(cloud.AuthInfo.Password)
 				cfg.Tenant = cloud.AuthInfo.ProjectName
 				cfg.TenantID = cloud.AuthInfo.ProjectID
 				cfg.Domain = cloud.AuthInfo.DomainName
