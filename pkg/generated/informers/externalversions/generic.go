@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	prunerv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/pruner/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -39,6 +40,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=imageregistry.operator.openshift.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("configs"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Imageregistry().V1().Configs().Informer()}, nil
+
+		// Group=pruner.imageregistry.operator.openshift.io, Version=v1
+	case prunerv1.SchemeGroupVersion.WithResource("configs"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Pruner().V1().Configs().Informer()}, nil
 
 	}
 

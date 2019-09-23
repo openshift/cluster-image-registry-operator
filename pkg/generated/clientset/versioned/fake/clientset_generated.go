@@ -6,6 +6,8 @@ import (
 	clientset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	fakeimageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1/fake"
+	prunerv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/pruner/v1"
+	fakeprunerv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/pruner/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -63,4 +65,9 @@ var _ clientset.Interface = &Clientset{}
 // ImageregistryV1 retrieves the ImageregistryV1Client
 func (c *Clientset) ImageregistryV1() imageregistryv1.ImageregistryV1Interface {
 	return &fakeimageregistryv1.FakeImageregistryV1{Fake: &c.Fake}
+}
+
+// PrunerV1 retrieves the PrunerV1Client
+func (c *Clientset) PrunerV1() prunerv1.PrunerV1Interface {
+	return &fakeprunerv1.FakePrunerV1{Fake: &c.Fake}
 }

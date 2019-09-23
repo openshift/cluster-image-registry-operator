@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
+	prunerv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/pruner/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -14,6 +15,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ImageregistryV1() imageregistryv1.ImageregistryV1Interface
+	PrunerV1() prunerv1.PrunerV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -21,11 +23,17 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	imageregistryV1 *imageregistryv1.ImageregistryV1Client
+	prunerV1        *prunerv1.PrunerV1Client
 }
 
 // ImageregistryV1 retrieves the ImageregistryV1Client
 func (c *Clientset) ImageregistryV1() imageregistryv1.ImageregistryV1Interface {
 	return c.imageregistryV1
+}
+
+// PrunerV1 retrieves the PrunerV1Client
+func (c *Clientset) PrunerV1() prunerv1.PrunerV1Interface {
+	return c.prunerV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -53,6 +61,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.prunerV1, err = prunerv1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -66,6 +78,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.imageregistryV1 = imageregistryv1.NewForConfigOrDie(c)
+	cs.prunerV1 = prunerv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -75,6 +88,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.imageregistryV1 = imageregistryv1.New(c)
+	cs.prunerV1 = prunerv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

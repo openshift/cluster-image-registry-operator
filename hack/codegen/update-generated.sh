@@ -12,5 +12,5 @@ bash vendor/k8s.io/code-generator/generate-groups.sh \
 deepcopy,client,lister,informer \
 github.com/openshift/cluster-image-registry-operator/pkg/generated \
 github.com/openshift/cluster-image-registry-operator/pkg/apis \
-imageregistry:v1 \
+"imageregistry:v1 pruner:v1" \
 --go-header-file "./hack/codegen/boilerplate.go.txt"

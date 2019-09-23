@@ -10,6 +10,7 @@ import (
 	versioned "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	imageregistry "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions/imageregistry"
 	internalinterfaces "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions/internalinterfaces"
+	pruner "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions/pruner"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -157,8 +158,13 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Imageregistry() imageregistry.Interface
+	Pruner() pruner.Interface
 }
 
 func (f *sharedInformerFactory) Imageregistry() imageregistry.Interface {
 	return imageregistry.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Pruner() pruner.Interface {
+	return pruner.New(f, f.namespace, f.tweakListOptions)
 }

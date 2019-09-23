@@ -43,8 +43,6 @@ require (
 	github.com/json-iterator/go v1.1.8 // indirect
 	github.com/mailru/easyjson v0.7.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/onsi/ginkgo v1.10.1 // indirect
-	github.com/onsi/gomega v1.7.0 // indirect
 	github.com/openshift/api v3.9.1-0.20191031084152-11eee842dafd+incompatible
 	github.com/openshift/client-go v0.0.0-20191022152013-2823239d2298
 	github.com/openshift/crd-schema-gen v1.0.0
@@ -54,6 +52,7 @@ require (
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/prometheus/common v0.4.1
 	github.com/prometheus/procfs v0.0.5 // indirect
+	github.com/securego/gosec v0.0.0-20191104154532-b4c76d4234af // indirect
 	github.com/soheilhy/cmux v0.1.4 // indirect
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -66,13 +65,13 @@ require (
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sys v0.0.0-20191029155521-f43be2a4598c // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	golang.org/x/tools v0.0.0-20191031144223-d9fd88a569ec // indirect
+	golang.org/x/tools v0.0.0-20191104213129-fda23558a172 // indirect
 	gonum.org/v1/gonum v0.6.0 // indirect
 	google.golang.org/api v0.7.0
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20191028173616-919d9bdd9fe6 // indirect
 	google.golang.org/grpc v1.24.0 // indirect
-	gopkg.in/yaml.v2 v2.2.4
+	gopkg.in/yaml.v2 v2.2.5
 	k8s.io/api v0.0.0-20191016110408-35e52d86657a
 	k8s.io/apiextensions-apiserver v0.0.0-20191016113550-5357c4baaf65 // indirect
 	k8s.io/apimachinery v0.0.0-20191004115801-a2eda9f80ab8

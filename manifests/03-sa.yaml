@@ -1,6 +1,13 @@
----
+kind: List
 apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cluster-image-registry-operator
-  namespace: openshift-image-registry
+items:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: pruner
+    namespace: openshift-image-registry--
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: cluster-image-registry-operator
+    namespace: openshift-image-registry

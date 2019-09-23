@@ -3,6 +3,7 @@ package client
 import (
 	kubeset "k8s.io/client-go/kubernetes"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 
@@ -19,4 +20,5 @@ type Clients struct {
 	Core   *coreset.CoreV1Client
 	Apps   *appsset.AppsV1Client
 	RBAC   *rbacset.RbacV1Client
+	Batch  *batchset.BatchV1beta1Client
 }

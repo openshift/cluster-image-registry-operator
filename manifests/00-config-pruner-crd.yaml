@@ -1,0 +1,361 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: configs.pruner.imageregistry.operator.openshift.io
+spec:
+  group: pruner.imageregistry.operator.openshift.io
+  scope: Cluster
+  version: v1
+  names:
+    kind: Config
+    listKind: ConfigList
+    plural: configs
+    singular: config
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: Config is the configuration object for an image registry pruner
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            affinity:
+              description: Affinity is a group of node affinity scheduling rules.
+              properties:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  description: The scheduler will prefer to schedule pods to nodes
+                    that satisfy the affinity expressions specified by this field,
+                    but it may choose a node that violates one or more of the expressions.
+                    The node that is most preferred is the one with the greatest sum
+                    of weights, i.e. for each node that meets all of the scheduling
+                    requirements (resource request, requiredDuringScheduling affinity
+                    expressions, etc.), compute a sum by iterating through the elements
+                    of this field and adding "weight" to the sum if the node matches
+                    the corresponding matchExpressions; the node(s) with the highest
+                    sum are the most preferred.
+                  items:
+                    description: An empty preferred scheduling term matches all objects
+                      with implicit weight 0 (i.e. it's a no-op). A null preferred
+                      scheduling term matches no objects (i.e. is also a no-op).
+                    properties:
+                      preference:
+                        description: A node selector term, associated with the corresponding
+                          weight.
+                        properties:
+                          matchExpressions:
+                            description: A list of node selector requirements by node's
+                              labels.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchFields:
+                            description: A list of node selector requirements by node's
+                              fields.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                        type: object
+                      weight:
+                        description: Weight associated with matching the corresponding
+                          nodeSelectorTerm, in the range 1-100.
+                        format: int32
+                        type: integer
+                    required:
+                    - preference
+                    - weight
+                    type: object
+                  type: array
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  description: If the affinity requirements specified by this field
+                    are not met at scheduling time, the pod will not be scheduled
+                    onto the node. If the affinity requirements specified by this
+                    field cease to be met at some point during pod execution (e.g.
+                    due to an update), the system may or may not try to eventually
+                    evict the pod from its node.
+                  properties:
+                    nodeSelectorTerms:
+                      description: Required. A list of node selector terms. The terms
+                        are ORed.
+                      items:
+                        description: A null or empty node selector term matches no
+                          objects. The requirements of them are ANDed. The TopologySelectorTerm
+                          type implements a subset of the NodeSelectorTerm.
+                        properties:
+                          matchExpressions:
+                            description: A list of node selector requirements by node's
+                              labels.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                          matchFields:
+                            description: A list of node selector requirements by node's
+                              fields.
+                            items:
+                              description: A node selector requirement is a selector
+                                that contains values, a key, and an operator that
+                                relates the key and values.
+                              properties:
+                                key:
+                                  description: The label key that the selector applies
+                                    to.
+                                  type: string
+                                operator:
+                                  description: Represents a key's relationship to
+                                    a set of values. Valid operators are In, NotIn,
+                                    Exists, DoesNotExist. Gt, and Lt.
+                                  type: string
+                                values:
+                                  description: An array of string values. If the operator
+                                    is In or NotIn, the values array must be non-empty.
+                                    If the operator is Exists or DoesNotExist, the
+                                    values array must be empty. If the operator is
+                                    Gt or Lt, the values array must have a single
+                                    element, which will be interpreted as an integer.
+                                    This array is replaced during a strategic merge
+                                    patch.
+                                  items:
+                                    type: string
+                                  type: array
+                              required:
+                              - key
+                              - operator
+                              type: object
+                            type: array
+                        type: object
+                      type: array
+                  required:
+                  - nodeSelectorTerms
+                  type: object
+              type: object
+            history:
+              description: History specifies how many successful and failed finished
+                jobs to retain
+              properties:
+                failedJobsHistoryLimit:
+                  description: FailedJobsHistoryLimit specifies how many failed finished
+                    jobs to retain Defaults to 3 if not set
+                  format: int32
+                  type: integer
+                successfulJobsHistoryLimit:
+                  description: SuccessfulJobsHistoryLimit specifies how many successful
+                    finished jobs to retain Defaults to 3 if not set
+                  format: int32
+                  type: integer
+              type: object
+            keepTagRevisions:
+              description: KeepTagRevisions specifies how many tag revisions to keep
+                Defaults to 5
+              type: integer
+            keepYoungerThan:
+              description: KeepYoungerThan specifies how old an image needs to be
+                for it to be pruned Defaults to 96h (96 hours)
+              type: string
+            nodeSelector:
+              additionalProperties:
+                type: string
+              description: NodeSelector defines the node selection constraints for
+                the registry pod.
+              type: object
+            resources:
+              description: Resources defines the resource requests+limits for the
+                registry pod.
+              properties:
+                limits:
+                  additionalProperties:
+                    type: string
+                  description: 'Limits describes the maximum amount of compute resources
+                    allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                  type: object
+                requests:
+                  additionalProperties:
+                    type: string
+                  description: 'Requests describes the minimum amount of compute resources
+                    required. If Requests is omitted for a container, it defaults
+                    to Limits if that is explicitly specified, otherwise to an implementation-defined
+                    value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                  type: object
+              type: object
+            schedule:
+              description: 'Schedule specifies when to execute the job Uses standard
+                cronjob syntax: https://wikipedia.org/wiki/Cron Defaults to 0 0 *
+                * *'
+              type: string
+            startingDeadlineSeconds:
+              description: StartingDeadlineSeconds specifies how long of a grace period
+                in seconds to give the job to start if it misses it's scheduled time
+                Defaults to 0
+              format: int64
+              type: integer
+            suspend:
+              description: Suspend specifies wether or not to suspend subsequent executions
+                of this cronjob Defaults to false
+              type: boolean
+            tolerations:
+              description: Tolerations defines the tolerations for the registry pod.
+              items:
+                description: The pod this Toleration is attached to tolerates any
+                  taint that matches the triple <key,value,effect> using the matching
+                  operator <operator>.
+                properties:
+                  effect:
+                    description: Effect indicates the taint effect to match. Empty
+                      means match all taint effects. When specified, allowed values
+                      are NoSchedule, PreferNoSchedule and NoExecute.
+                    type: string
+                  key:
+                    description: Key is the taint key that the toleration applies
+                      to. Empty means match all taint keys. If the key is empty, operator
+                      must be Exists; this combination means to match all values and
+                      all keys.
+                    type: string
+                  operator:
+                    description: Operator represents a key's relationship to the value.
+                      Valid operators are Exists and Equal. Defaults to Equal. Exists
+                      is equivalent to wildcard for value, so that a pod can tolerate
+                      all taints of a particular category.
+                    type: string
+                  tolerationSeconds:
+                    description: TolerationSeconds represents the period of time the
+                      toleration (which must be of effect NoExecute, otherwise this
+                      field is ignored) tolerates the taint. By default, it is not
+                      set, which means tolerate the taint forever (do not evict).
+                      Zero and negative values will be treated as 0 (evict immediately)
+                      by the system.
+                    format: int64
+                    type: integer
+                  value:
+                    description: Value is the taint value the toleration matches to.
+                      If the operator is Exists, the value should be empty, otherwise
+                      just a regular string.
+                    type: string
+                type: object
+              type: array
+          required:
+          - suspend
+          type: object
+        status:
+          properties:
+            conditions:
+              description: Conditions is a list of conditions and their status
+              items:
+                description: OperatorCondition is just the standard condition fields.
+                properties:
+                  lastTransitionTime:
+                    format: date-time
+                    type: string
+                  message:
+                    type: string
+                  reason:
+                    type: string
+                  status:
+                    type: string
+                  type:
+                    type: string
+                type: object
+              type: array
+            observedGeneration:
+              description: ObservedGeneration is the last generation change you've
+                dealt with
+              format: int64
+              type: integer
+          type: object
+      required:
+      - metadata
+      - spec
+      type: object
