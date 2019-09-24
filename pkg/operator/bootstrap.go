@@ -13,12 +13,16 @@ import (
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 // randomSecretSize is the number of random bytes to generate
 // for the http secret
 const randomSecretSize = 64
 
+// Bootstrap registers this operator with OpenShift by creating an appropriate
+// ClusterOperator custom resource. This function also creates the initial
+// configuration for the Image Registry.
 func (c *Controller) Bootstrap() error {
 	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
 	if err != nil && !errors.IsNotFound(err) {
@@ -40,6 +44,22 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
 	}
 
+	platformStorage, err := storage.GetPlatformStorage(c.listers)
+	if err != nil {
+		return err
+	}
+
+	noStorage := imageregistryv1.ImageRegistryConfigStorage{}
+
+	// We bootstrap as "Removed" if the platform is known and does not
+	// provide persistent storage out of the box. If the platform is
+	// unknown we will bootstrap as Managed but using EmptyDir storage
+	// engine(ephemeral).
+	mgmtState := operatorapi.Managed
+	if platformStorage == noStorage {
+		mgmtState = operatorapi.Removed
+	}
+
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       imageregistryv1.ImageRegistryResourceName,
@@ -47,7 +67,7 @@ func (c *Controller) Bootstrap() error {
 			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
+			ManagementState: mgmtState,
 			LogLevel:        2,
 			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
 			Replicas:        1,

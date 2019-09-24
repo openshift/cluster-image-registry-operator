@@ -105,7 +105,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	drv, err := newDriver(cfg, kubeconfig, listers)
 	if err == ErrStorageNotConfigured {
-		*cfg, err = getPlatformStorage(listers)
+		*cfg, err = GetPlatformStorage(listers)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
@@ -114,10 +114,20 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	return drv, err
 }
 
-// getPlatformStorage returns the storage configuration that should be used
+// GetPlatformStorage returns the storage configuration that should be used
 // based on the cloudplatform we are running on, as determined from the
 // infrastructure configuration.
-func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, error) {
+//
+// Following rules apply:
+// - If it is a known platform for which we have a backend implementation (e.g.
+//   AWS) we return a storage configuration that uses that implementation.
+// - If it is a known platform and it doesn't provide any backend implementation,
+//   we return an empty storage configuration.
+// - If it is a unknown platform we return a storage configuration with EmptyDir.
+//   This is useful as it easily allows other teams to experiment with OpenShift
+//   in new platforms, if it is LibVirt platform we also return EmptyDir for
+//   historical reasons.
+func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
 	infra, err := util.GetInfrastructure(listers)
@@ -126,17 +136,17 @@ func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	}
 
 	switch infra.Status.PlatformStatus.Type {
-	case configapiv1.LibvirtPlatformType:
-		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
-	case configapiv1.BareMetalPlatformType:
-		// There is no specific known storage type available for a "baremetal"
-		// platform deployment at install time, so we default to EmptyDir to
-		// allow the installation to complete cleanly.  This must be
-		// re-configured to use a PVC post-install once a storage platform has
-		// been configured.  Note that the only supported use of the
-		// "baremetal" platform does include rook/ceph based storage, so
-		// EmptyDir will never be used in a production cluster.
-		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+
+	// These are the platforms we don't configure any backend for, on these
+	// we should bootstrap the image registry as "Removed".
+	case configapiv1.BareMetalPlatformType,
+		configapiv1.OvirtPlatformType,
+		configapiv1.VSpherePlatformType,
+		configapiv1.NonePlatformType:
+		break
+
+	// These are the supported platforms. We do have backend implementation
+	// for them.
 	case configapiv1.AWSPlatformType:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 	case configapiv1.AzurePlatformType:
@@ -145,6 +155,13 @@ func getPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 	case configapiv1.OpenStackPlatformType:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
+
+	// Unknown platforms or LibVirt: we configure image registry using
+	// EmptyDir storage.
+	case configapiv1.LibvirtPlatformType:
+		fallthrough
+	default:
+		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
 	}
 
 	return cfg, nil

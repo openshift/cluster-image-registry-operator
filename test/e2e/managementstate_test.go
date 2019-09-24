@@ -131,3 +131,56 @@ func TestManagementStateRemoved(t *testing.T) {
 		t.Fatalf("deployment is expected to be removed, got %v %v", d, err)
 	}
 }
+
+func TestRemovedToManagedTransition(t *testing.T) {
+	var cr *imageregistryv1.Config
+	var err error
+
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	t.Log("creating config with ManagementState set to Removed")
+	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: imageregistryv1.ImageRegistryResourceName,
+		},
+		Spec: imageregistryv1.ImageRegistrySpec{
+			ManagementState: operatorapi.Removed,
+			Replicas:        1,
+		},
+	})
+
+	t.Log("make sure operator is reporting itself as Removed")
+	err = wait.Poll(
+		time.Second,
+		framework.AsyncOperationTimeout,
+		func() (stop bool, err error) {
+			cr, err = client.Configs().Get(
+				imageregistryv1.ImageRegistryResourceName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
+
+			conds := framework.GetImageRegistryConditions(cr)
+			return conds.Removed.IsTrue(), nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("updating ManagementState to Managed with no storage config")
+	cr.Spec.ManagementState = operatorapi.Managed
+	cr.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{}
+	if _, err = client.Configs().Update(cr); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("making sure image registry is up and running")
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+}

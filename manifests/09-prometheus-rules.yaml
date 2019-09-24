@@ -17,3 +17,14 @@ spec:
         message: |
           Image Registry Storage configuration has changed in the last 30
           minutes. This change may have caused data loss.
+    - alert: ImageRegistryRemoved
+      expr: cluster_operator_conditions{name="image-registry",condition="Available",reason="Removed"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        message: |
+          Image Registry has been removed. ImageStreamTags, BuildConfigs and
+          DeploymentConfigs which reference ImageStreamTags may not work as
+          expected. Please configure storage and update the config to Managed
+          state by editing configs.imageregistry.operator.openshift.io.
