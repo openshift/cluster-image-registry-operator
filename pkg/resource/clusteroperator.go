@@ -28,13 +28,19 @@ type generatorClusterOperator struct {
 	configClient configset.ConfigV1Interface
 }
 
-func newGeneratorClusterOperator(deployLister appslisters.DeploymentNamespaceLister, configLister configlisters.ClusterOperatorLister, configClient configset.ConfigV1Interface, cr *imageregistryv1.Config, mutators []Mutator) *generatorClusterOperator {
+func newGeneratorClusterOperator(
+	deployLister appslisters.DeploymentNamespaceLister,
+	configLister configlisters.ClusterOperatorLister,
+	configClient configset.ConfigV1Interface,
+	cr *imageregistryv1.Config,
+	mutators []Mutator,
+) *generatorClusterOperator {
 	return &generatorClusterOperator{
-		mutators:     mutators,
-		cr:           cr,
 		deployLister: deployLister,
 		configLister: configLister,
 		configClient: configClient,
+		cr:           cr,
+		mutators:     mutators,
 	}
 }
 

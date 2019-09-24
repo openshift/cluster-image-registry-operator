@@ -26,7 +26,7 @@ test-unit: verify
 .PHONY: test-unit
 
 test-e2e:
-	./hack/test-go.sh -count 1 -timeout 30m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
+	./hack/test-go.sh -count 1 -timeout 2h -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
 verify: verify-crd verify-fmt verify-sec
