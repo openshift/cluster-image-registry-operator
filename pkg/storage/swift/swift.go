@@ -404,7 +404,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
 
 		cr.Status.StorageManaged = true
-		cr.Status.Storage.Swift = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			Swift: d.Config.DeepCopy(),
+		}
 		cr.Spec.Storage.Swift = d.Config.DeepCopy()
 
 		break
@@ -433,7 +435,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	d.Config.Container = ""
 
 	if !reflect.DeepEqual(cr.Status.Storage.Swift, d.Config) {
-		cr.Status.Storage.Swift = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			Swift: d.Config.DeepCopy(),
+		}
 	}
 
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Swift Container Deleted", "The swift container has been removed.")

@@ -350,7 +350,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
-		cr.Status.Storage.S3 = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			S3: d.Config.DeepCopy(),
+		}
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "User supplied S3 bucket exists and is accessible")
 
 	} else {
@@ -386,7 +388,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				}
 			}
 			cr.Status.StorageManaged = true
-			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				S3: d.Config.DeepCopy(),
+			}
 			cr.Spec.Storage.S3 = d.Config.DeepCopy()
 
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created")
@@ -431,7 +435,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 		} else {
 			util.UpdateCondition(cr, imageregistryv1.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful", "Public access to the S3 bucket and its contents have been successfully blocked.")
-			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				S3: d.Config.DeepCopy(),
+			}
 			cr.Spec.Storage.S3 = d.Config.DeepCopy()
 		}
 	}
@@ -503,12 +509,16 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		} else {
 			util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", fmt.Sprintf("Default %s encryption was successfully enabled on the S3 bucket", encryptionType))
 			d.Config.Encrypt = true
-			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				S3: d.Config.DeepCopy(),
+			}
 			cr.Spec.Storage.S3 = d.Config.DeepCopy()
 		}
 	} else {
 		if !reflect.DeepEqual(cr.Status.Storage.S3, d.Config) {
-			cr.Status.Storage.S3 = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				S3: d.Config.DeepCopy(),
+			}
 		}
 	}
 
@@ -600,7 +610,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	d.Config.Bucket = ""
 
 	if !reflect.DeepEqual(cr.Status.Storage.S3, d.Config) {
-		cr.Status.Storage.S3 = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			S3: d.Config.DeepCopy(),
+		}
 	}
 
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "S3 Bucket Deleted", "The S3 bucket has been removed.")
