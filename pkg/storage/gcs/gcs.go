@@ -229,7 +229,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		bucket = gclient.Bucket(d.Config.Bucket)
-		cr.Status.Storage.GCS = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			GCS: d.Config.DeepCopy(),
+		}
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
 
 	} else {
@@ -255,7 +257,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				}
 			}
 			cr.Status.StorageManaged = true
-			cr.Status.Storage.GCS = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				GCS: d.Config.DeepCopy(),
+			}
 			cr.Spec.Storage.GCS = d.Config.DeepCopy()
 
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
@@ -290,13 +294,17 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				}
 			} else {
 				util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
-				cr.Status.Storage.GCS = d.Config.DeepCopy()
+				cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+					GCS: d.Config.DeepCopy(),
+				}
 				cr.Spec.Storage.GCS = d.Config.DeepCopy()
 			}
 		}
 	} else {
 		if !reflect.DeepEqual(cr.Status.Storage.GCS, d.Config) {
-			cr.Status.Storage.GCS = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				GCS: d.Config.DeepCopy(),
+			}
 		}
 	}
 
@@ -324,7 +332,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	d.Config.Bucket = ""
 
 	if !reflect.DeepEqual(cr.Status.Storage.GCS, d.Config) {
-		cr.Status.Storage.GCS = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			GCS: d.Config.DeepCopy(),
+		}
 	}
 
 	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "GCS Bucket Deleted", "The GCS bucket has been removed.")

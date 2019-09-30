@@ -419,7 +419,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		cr.Status.StorageManaged = false
-		cr.Status.Storage.Azure = d.Config.DeepCopy()
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			Azure: d.Config.DeepCopy(),
+		}
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonUserManaged, "Storage is managed by the user")
 	} else {
 		// IPI
@@ -444,7 +446,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					}
 					d.Config.AccountName = accountName
 					cr.Status.StorageManaged = true
-					cr.Status.Storage.Azure = d.Config.DeepCopy()
+					cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+						Azure: d.Config.DeepCopy(),
+					}
 					cr.Spec.Storage.Azure = d.Config.DeepCopy()
 					break
 				}
@@ -465,7 +469,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					return err
 				}
 				cr.Status.StorageManaged = true
-				cr.Status.Storage.Azure = d.Config.DeepCopy()
+				cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+					Azure: d.Config.DeepCopy(),
+				}
 			}
 		}
 
@@ -477,7 +483,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		if len(d.Config.Container) != 0 && containerExists {
-			cr.Status.Storage.Azure = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				Azure: d.Config.DeepCopy(),
+			}
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Azure container exists")
 			return nil
 		}
@@ -520,7 +528,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				}
 			}
 			cr.Status.StorageManaged = true
-			cr.Status.Storage.Azure = d.Config.DeepCopy()
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				Azure: d.Config.DeepCopy(),
+			}
 			cr.Spec.Storage.Azure = d.Config.DeepCopy()
 			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
 
