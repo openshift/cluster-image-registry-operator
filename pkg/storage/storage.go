@@ -23,6 +23,23 @@ var (
 	ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
 )
 
+// MultiStoragesError is returned when we have multiple storage engines
+// configured and we can't determin which one the user wants to use.
+type MultiStoragesError struct {
+	names []string
+}
+
+// Error return MultiStoragesError as string.
+func (m *MultiStoragesError) Error() string {
+	if m == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf(
+		"exactly one storage type should be configured at the same time, got %d: %v",
+		len(m.names), m.names,
+	)
+}
+
 type Driver interface {
 	ConfigEnv() ([]corev1.EnvVar, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
@@ -81,7 +98,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 		return drivers[0], nil
 	}
 
-	return nil, fmt.Errorf("exactly one storage type should be configured at the same time, got %d: %v", len(drivers), names)
+	return nil, &MultiStoragesError{names}
 }
 
 func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
