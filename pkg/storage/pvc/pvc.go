@@ -184,7 +184,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	cr.Status.StorageManaged = storageManaged
-	cr.Status.Storage.PVC = d.Config.DeepCopy()
+	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+		PVC: d.Config.DeepCopy(),
+	}
 	cr.Spec.Storage.PVC = d.Config.DeepCopy()
 
 	return nil
