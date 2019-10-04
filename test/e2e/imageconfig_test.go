@@ -94,3 +94,54 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		framework.DumpYAML(t, imageRegistryCAConfigMapName, certs)
 	}
 }
+
+func TestSwapStorage(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	framework.MustDeployImageRegistry(t, client, nil)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+
+	config, err := client.Configs().Get(
+		imageregistryv1.ImageRegistryResourceName,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		t.Fatal("unable to get image registry config")
+	}
+
+	// as our tests run over IPI this should never be the case.
+	if config.Status.Storage.EmptyDir != nil {
+		t.Fatal("already using EmptyDir, unable to test")
+	}
+
+	config.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{
+		EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
+	}
+
+	if _, err = client.Configs().Update(config); err != nil {
+		t.Fatal("unable to update image registry config")
+	}
+
+	// give some room for the operator to act.
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+
+	if config, err = client.Configs().Get(
+		imageregistryv1.ImageRegistryResourceName,
+		metav1.GetOptions{},
+	); err != nil {
+		t.Fatal("unable to get image registry config")
+	}
+
+	if config.Status.Storage.EmptyDir == nil {
+		t.Fatal("emptyDir storage not set")
+	}
+
+	expected := imageregistryv1.ImageRegistryConfigStorage{
+		EmptyDir: config.Status.Storage.EmptyDir,
+	}
+	if config.Status.Storage != expected {
+		t.Errorf("multi storage config found: %+v", config.Status.Storage)
+	}
+}
