@@ -448,3 +448,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
 }
+
+// ID return the underlying storage identificator, on this case the Swift
+// container name.
+func (d *driver) ID() string {
+	return d.Config.Container
+}

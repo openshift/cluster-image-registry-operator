@@ -84,3 +84,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	return false, nil
 }
+
+// ID return the underlying storage identificator, on this case as we don't
+// have any id we always return an empty string.
+func (d *driver) ID() string {
+	return ""
+}
