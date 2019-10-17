@@ -9,28 +9,10 @@ spec:
   groups:
   - name: ImageRegistryOperator
     rules:
-    - alert: ImageRegistryMissingStorageConfiguration
-      expr: increase(image_registry_operator_status_degraded_total{reason="StorageNotConfigured"}[5m]) > 0
-      for: 48h
-      labels:
-        severity: warning
-      annotations:
-        message: |
-          Image Registry is missing a backend storage configuration. This alert
-          will auto resolve once Image Registry is provided with a valid
-          backend configuration.
-    - alert: ImageRegistryDegraded
-      expr: increase(image_registry_operator_status_degraded_total{reason!="StorageNotConfigured"}[5m]) > 0
-      for: 5m
-      labels:
-        severity: critical
-      annotations:
-        message: |
-          Image Registry could not be deployed and is in Degraded status.
     - alert: ImageRegistryStorageReconfigured
       expr: increase(image_registry_operator_storage_reconfigured_total[30m]) > 0
       labels:
-        severity: info
+        severity: warning
       annotations:
         message: |
           Image Registry Storage configuration has changed in the last 30
