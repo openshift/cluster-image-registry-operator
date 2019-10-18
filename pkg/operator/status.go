@@ -8,7 +8,6 @@ import (
 
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
 
 func updateCondition(cr *imageregistryv1.Config, condtype string, condstate operatorapiv1.OperatorCondition) {
@@ -45,19 +44,6 @@ func updateCondition(cr *imageregistryv1.Config, condtype string, condstate oper
 	}
 
 	cr.Status.Conditions = conditions
-	updateDegradedMetric(condtype, condstate)
-}
-
-// updateDegradedMetric updates prometheus metric that indicates if we are
-// operating in Degraded mode.
-func updateDegradedMetric(condtype string, condstate operatorapiv1.OperatorCondition) {
-	if condtype != operatorapiv1.OperatorStatusTypeDegraded {
-		return
-	}
-	if condstate.Status == operatorapiv1.ConditionFalse {
-		return
-	}
-	metrics.Degraded(condstate.Reason)
 }
 
 func isDeploymentStatusAvailable(deploy *appsapi.Deployment) bool {

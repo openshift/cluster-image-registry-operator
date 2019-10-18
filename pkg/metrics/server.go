@@ -54,14 +54,6 @@ func RunServer(port int, stopCh <-chan struct{}) {
 	}
 }
 
-// Degraded increases the degraded counter for provided reason.
-func Degraded(reason string) {
-	if reason == "" {
-		return
-	}
-	degraded.WithLabelValues(reason).Inc()
-}
-
 // StorageReconfigured keeps track of the number of times the operator got its
 // underlying storage reconfigured.
 func StorageReconfigured() {
