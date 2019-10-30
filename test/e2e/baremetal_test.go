@@ -23,30 +23,19 @@ func TestBaremetalDefaults(t *testing.T) {
 
 	// Start of the meaningful part
 	defer framework.MustRemoveImageRegistry(t, client)
+
 	framework.MustDeployImageRegistry(t, client, nil)
 	cr := framework.MustEnsureImageRegistryIsProcessed(t, client)
-	conds := framework.GetImageRegistryConditions(cr)
-	if !conds.Degraded.IsTrue() {
-		t.Errorf("the operator is expected to be degraded, got: %s", conds)
-	}
-	if want := "StorageNotConfigured"; conds.Degraded.Reason() != want {
-		t.Errorf("degraded reason: got %q, want %q", conds.Degraded.Reason(), want)
-	}
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
-	clusterOperator := framework.MustEnsureClusterOperatorStatusIsSet(t, client)
-	for _, cond := range clusterOperator.Status.Conditions {
-		switch cond.Type {
-		case configapiv1.OperatorAvailable:
-			if cond.Status != configapiv1.ConditionFalse {
-				t.Errorf("expected clusteroperator to report Available=%s, got %s", configapiv1.ConditionFalse, cond.Status)
-			}
-		case configapiv1.OperatorDegraded:
-			if cond.Status != configapiv1.ConditionTrue {
-				t.Errorf("expected clusteroperator to report Degraded=%s, got %s", configapiv1.ConditionTrue, cond.Status)
-			}
-			if cond.Reason != "StorageNotConfigured" {
-				t.Errorf("expected clusteroprator degraded status reason to be %s, got %s", "StorageNotConfigured", cond.Reason)
-			}
-		}
+	conds := framework.GetImageRegistryConditions(cr)
+	if conds.Available.Reason() != "Removed" {
+		t.Errorf("exp Available reason: Removed, got %s", conds.Available.Reason())
+	}
+	if conds.Degraded.Reason() != "Removed" {
+		t.Errorf("exp Degraded reason: Removed, got %s", conds.Degraded.Reason())
+	}
+	if conds.Progressing.Reason() != "Removed" {
+		t.Errorf("exp Progressing reason: Removed, got %s", conds.Progressing.Reason())
 	}
 }

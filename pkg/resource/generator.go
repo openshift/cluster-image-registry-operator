@@ -296,7 +296,13 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 }
 
 func (g *Generator) ApplyClusterOperator(cr *imageregistryv1.Config) error {
-	gen := newGeneratorClusterOperator(g.listers.Deployments, g.listers.ClusterOperators, g.clients.Config, cr, nil)
+	gen := newGeneratorClusterOperator(
+		g.listers.Deployments,
+		g.listers.ClusterOperators,
+		g.clients.Config,
+		cr,
+		nil,
+	)
 
 	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		o, err := gen.Get()
