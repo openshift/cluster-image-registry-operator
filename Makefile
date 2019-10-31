@@ -45,6 +45,24 @@ verify-sec:
 	gosec -severity medium -confidence medium -exclude G304 -quiet ./...
 .PHONY: verify-sec
 
+update-deps:
+	go get -d -u \
+		k8s.io/apiextensions-apiserver@kubernetes-1.16.2 \
+		k8s.io/api@kubernetes-1.16.2 \
+		k8s.io/apimachinery@kubernetes-1.16.2 \
+		k8s.io/apiserver@kubernetes-1.16.2 \
+		k8s.io/client-go@kubernetes-1.16.2 \
+		k8s.io/code-generator@kubernetes-1.16.2 \
+		sigs.k8s.io/structured-merge-diff@v0.0.0-20190817042607-6149e4549fca \
+		github.com/prometheus/client_golang@v0.9.2 \
+		github.com/openshift/api@release-4.3 \
+		github.com/openshift/client-go@release-4.3 \
+		github.com/openshift/library-go@release-4.3
+	go get -u=patch ./cmd/... ./pkg/... ./test/...
+	go mod tidy
+	go mod vendor
+.PHONY: update-deps
+
 clean:
 	rm -rf tmp
 .PHONY: clean

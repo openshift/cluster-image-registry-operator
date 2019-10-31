@@ -69,8 +69,6 @@ require (
 	k8s.io/api v0.0.0-20190409021203-6e4e0e4f393b
 	k8s.io/apimachinery v0.0.0-20190731142807-035e418f1ad9
 	k8s.io/apiserver v0.0.0-20190313205120-8b27c41bdbb1 // indirect
-	k8s.io/client-go v0.0.0-00010101000000-000000000000
-	k8s.io/code-generator v0.0.0-00010101000000-000000000000
 	k8s.io/component-base v0.0.0-20190731143620-8d609ba1a28a // indirect
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
 	k8s.io/klog v0.3.3
@@ -79,13 +77,3 @@ require (
 	sigs.k8s.io/controller-tools v0.2.1 // indirect
 	sigs.k8s.io/structured-merge-diff v0.0.0-20190302045857-e85c7b244fd2 // indirect
 )
-
-replace k8s.io/api => github.com/openshift/kubernetes-api v0.0.0-20190709164144-5b6d4ec96213
-
-replace k8s.io/apiextensions-apiserver => github.com/openshift/kubernetes-apiextensions-apiserver v0.0.0-20190625023712-ee330a2a5c6d
-
-replace k8s.io/apimachinery => github.com/openshift/kubernetes-apimachinery v0.0.0-20190321181449-eab709b58ad6
-
-replace k8s.io/client-go => github.com/openshift/kubernetes-client-go v11.0.1-0.20190701222832-70952d66b5d1+incompatible
-
-replace k8s.io/code-generator => github.com/openshift/kubernetes-code-generator v0.0.0-20171023130718-f40157d9638d
