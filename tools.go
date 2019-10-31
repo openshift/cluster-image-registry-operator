@@ -7,6 +7,7 @@ package tools
 
 import (
 	// required by hack/codegen/update-generated.sh
+	_ "k8s.io/code-generator"
 	_ "k8s.io/code-generator/cmd/client-gen"
 	_ "k8s.io/code-generator/cmd/deepcopy-gen"
 	_ "k8s.io/code-generator/cmd/defaulter-gen"
