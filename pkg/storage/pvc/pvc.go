@@ -57,8 +57,15 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 }
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
+	claim, err := d.Client.PersistentVolumeClaims(d.Namespace).Get(
+		d.Config.Claim, metav1.GetOptions{},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	vol := corev1.Volume{
-		Name: "registry-storage",
+		Name: fmt.Sprintf("registry-storage-%s", claim.ResourceVersion),
 		VolumeSource: corev1.VolumeSource{
 			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 				ClaimName: d.Config.Claim,
