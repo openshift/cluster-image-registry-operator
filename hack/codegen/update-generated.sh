@@ -8,7 +8,7 @@ set -o pipefail
 # up with files that should have been removed
 rm -rf pkg/generated
 
-vendor/k8s.io/code-generator/generate-groups.sh \
+bash vendor/k8s.io/code-generator/generate-groups.sh \
 deepcopy,client,lister,informer \
 github.com/openshift/cluster-image-registry-operator/pkg/generated \
 github.com/openshift/cluster-image-registry-operator/pkg/apis \
