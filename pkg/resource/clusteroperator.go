@@ -2,6 +2,7 @@ package resource
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	"github.com/golang/glog"
@@ -212,33 +213,49 @@ func isDeploymentStatusAvailableAndUpdated(deploy *appsapi.Deployment) bool {
 		deploy.Status.UpdatedReplicas == deploy.Status.Replicas
 }
 
-func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator) (modified bool, err error) {
-	deploy, err := gco.deployLister.Get(imageregistryv1.ImageRegistryName)
-	if err != nil {
-		if kerrors.IsNotFound(err) {
-			err = nil
-		}
-		return
+// syncVersions updates reported version.
+//
+// If in "Managed" state we use the version stored as a annotation on registry'
+// Deployment, if not we use RELEASE_VERSION environment variable.
+func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator) (bool, error) {
+	if gco.cr == nil {
+		return false, fmt.Errorf("invalid nil configuration provided")
 	}
 
-	deploymentVersion := deploy.Annotations[imageregistryv1.VersionAnnotation]
-	if len(deploymentVersion) == 0 || !isDeploymentStatusAvailableAndUpdated(deploy) {
-		return
+	version := os.Getenv("RELEASE_VERSION")
+	if gco.cr.Spec.ManagementState == operatorapi.Managed {
+		deploy, err := gco.deployLister.Get(imageregistryv1.ImageRegistryName)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+
+		if !isDeploymentStatusAvailableAndUpdated(deploy) {
+			return false, nil
+		}
+
+		version = deploy.Annotations[imageregistryv1.VersionAnnotation]
+	}
+
+	if len(version) == 0 {
+		return false, nil
 	}
 
 	newVersions := []configapi.OperandVersion{
 		{
 			Name:    "operator",
-			Version: deploymentVersion,
+			Version: version,
 		},
 	}
 
-	if !reflect.DeepEqual(op.Status.Versions, newVersions) {
-		op.Status.Versions = newVersions
-		modified = true
+	if reflect.DeepEqual(op.Status.Versions, newVersions) {
+		return false, nil
 	}
 
-	return
+	op.Status.Versions = newVersions
+	return true, nil
 }
 
 func (gco *generatorClusterOperator) syncRelatedObjects(op *configapi.ClusterOperator) (modified bool) {
