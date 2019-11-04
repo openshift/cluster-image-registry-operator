@@ -2,6 +2,7 @@ package resource
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 
 	appsapi "k8s.io/api/apps/v1"
@@ -68,10 +69,22 @@ func (gco *generatorClusterOperator) Get() (runtime.Object, error) {
 	return gco.configLister.Get(gco.GetName())
 }
 
+// Create creates an instance of a ClusterOperator custom resource.
+//
+// Version is inherit from the environment and overwritten by the version
+// specified on the image registry Deployment annotation.
 func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
 	co := &configapi.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: gco.GetName(),
+		},
+		Status: configapi.ClusterOperatorStatus{
+			Versions: []configapi.OperandVersion{
+				{
+					Name:    "operator",
+					Version: os.Getenv("RELEASE_VERSION"),
+				},
+			},
 		},
 	}
 
