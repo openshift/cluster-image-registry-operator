@@ -282,6 +282,9 @@ type ImageRegistryConfigStorageAzure struct {
 	// +optional
 	AccountName string `json:"accountName"`
 	// +optional
+	// +kubebuilder:validation:Pattern=`^[0-9a-z]+(-[0-9a-z]+)*$`
+	// +kubebuilder:validation:MinLength=3
+	// +kubebuilder:validation:MaxLength=63
 	Container string `json:"container"`
 }
 
