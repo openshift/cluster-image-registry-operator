@@ -6,20 +6,20 @@ import (
 	"reflect"
 	"strconv"
 
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 
 	gstorage "cloud.google.com/go/storage"
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	goauth2 "golang.org/x/oauth2/google"
 	gapi "google.golang.org/api/googleapi"
 	goption "google.golang.org/api/option"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/rest"
 )
 
 type GCS struct {
@@ -85,17 +85,17 @@ func GetConfig(listers *regopclient.Listers) (*GCS, error) {
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		// Fall back to those provided by the credential minter if nothing is provided by the user
-		sec, err = listers.Secrets.Get(imageregistryv1.CloudCredentialsName)
+		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName), err)
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
 		}
 		if v, ok := sec.Data["service_account.json"]; ok {
 			gcsConfig.KeyfileData = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"service_account.json\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"service_account.json\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
 		}
 	} else if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func GetConfig(listers *regopclient.Listers) (*GCS, error) {
 		if v, ok := sec.Data["REGISTRY_STORAGE_GCS_KEYFILE"]; ok {
 			gcsConfig.KeyfileData = string(v)
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_GCS_KEYFILE\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
 		}
 	}
 
@@ -137,7 +137,7 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 		Name: "registry-storage-keyfile",
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
-				SecretName: imageregistryv1.ImageRegistryPrivateConfiguration,
+				SecretName: defaults.ImageRegistryPrivateConfiguration,
 				Items: []corev1.KeyToPath{
 					{
 						Key:  "REGISTRY_STORAGE_GCS_KEYFILE",
@@ -175,21 +175,21 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 	err := d.bucketExists(d.Config.Bucket)
 	if err != nil && err == gstorage.ErrBucketNotExist {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Bucket does not exist", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Bucket does not exist", err.Error())
 		return false, nil
 	} else if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
 		return false, err
 	}
 
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "")
 
 	return true, nil
 }
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.GCS, cr.Spec.Storage.GCS) {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "GCS Configuration Changed", "GCS storage is in an unknown state")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "GCS Configuration Changed", "GCS storage is in an unknown state")
 		return true
 	}
 
@@ -213,13 +213,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				switch err {
 				case gstorage.ErrBucketNotExist:
 					// If the bucket doesn't exist that's ok, we'll try to create it
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
 				default:
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
 					return err
 				}
 			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
 				return err
 			}
 		} else {
@@ -232,7 +232,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			GCS: d.Config.DeepCopy(),
 		}
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
 
 	} else {
 		const numRetries = 5000
@@ -249,10 +249,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs)
 			if err != nil {
 				if gerr, ok := err.(*gapi.Error); ok {
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
 					return err
 				} else {
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 					return err
 				}
 			}
@@ -262,13 +262,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 			cr.Spec.Storage.GCS = d.Config.DeepCopy()
 
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
 
 			break
 		}
 
 		if len(d.Config.Bucket) == 0 {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "")
 			return fmt.Errorf("unable to generate a unique GCS bucket name")
 		}
 	}
@@ -287,13 +287,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 			if err != nil {
 				if gerr, ok := err.(*gapi.Error); ok {
-					util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "InvalidStorageConfiguration", gerr.Error())
+					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "InvalidStorageConfiguration", gerr.Error())
 					return err
 				} else {
-					util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
 				}
 			} else {
-				util.UpdateCondition(cr, imageregistryv1.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
+				util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
 				cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 					GCS: d.Config.DeepCopy(),
 				}
@@ -321,7 +321,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	}
 
 	if err = gclient.Bucket(d.Config.Bucket).Delete(d.Context); err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "", err.Error())
 		return false, err
 	}
 
@@ -337,7 +337,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		}
 	}
 
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "GCS Bucket Deleted", "The GCS bucket has been removed.")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "GCS Bucket Deleted", "The GCS bucket has been removed.")
 
 	return true, nil
 }

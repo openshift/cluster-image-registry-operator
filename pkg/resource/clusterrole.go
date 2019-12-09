@@ -7,7 +7,7 @@ import (
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 )
 
 var _ Mutator = &generatorClusterRole{}

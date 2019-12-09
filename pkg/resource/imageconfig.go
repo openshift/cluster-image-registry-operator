@@ -6,19 +6,18 @@ import (
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
-	kcorelisters "k8s.io/client-go/listers/core/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 
 	configapi "github.com/openshift/api/config/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	kcorelisters "k8s.io/client-go/listers/core/v1"
 )
 
 var _ Mutator = &generatorImageConfig{}
@@ -170,7 +169,7 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 			if len(hostname) == 0 {
 				continue
 			}
-			if strings.HasPrefix(hostname, imageregistryv1.DefaultRouteName+"-"+gic.namespace) {
+			if strings.HasPrefix(hostname, defaults.RouteName+"-"+gic.namespace) {
 				defaultHost = hostname
 			} else {
 				externalHostnames = append(externalHostnames, hostname)

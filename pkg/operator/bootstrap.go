@@ -4,16 +4,16 @@ import (
 	"crypto/rand"
 	"fmt"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
-
-	operatorapi "github.com/openshift/api/operator/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -24,7 +24,7 @@ const randomSecretSize = 64
 // ClusterOperator custom resource. This function also creates the initial
 // configuration for the Image Registry.
 func (c *Controller) Bootstrap() error {
-	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
+	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil && !errors.IsNotFound(err) {
 		return fmt.Errorf("unable to get the registry custom resources: %s", err)
 	}
@@ -62,7 +62,7 @@ func (c *Controller) Bootstrap() error {
 
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       imageregistryv1.ImageRegistryResourceName,
+			Name:       defaults.ImageRegistryResourceName,
 			Namespace:  c.params.Deployment.Namespace,
 			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
 		},

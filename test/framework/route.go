@@ -5,19 +5,18 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 
 	routeapiv1 "github.com/openshift/api/route/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		routes, err = client.Routes(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		routes, err = client.Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -27,7 +26,7 @@ func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
 		}
 
 		for _, r := range routes.Items {
-			if strings.HasPrefix(r.Spec.Host, imageregistryv1.DefaultRouteName+"-"+imageregistryv1.ImageRegistryOperatorNamespace) {
+			if strings.HasPrefix(r.Spec.Host, defaults.RouteName+"-"+defaults.ImageRegistryOperatorNamespace) {
 				return true, nil
 			}
 		}
@@ -42,7 +41,7 @@ func EnsureExternalRoutesExist(t *testing.T, client *Clientset, wantedRoutes []s
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		routes, err = client.Routes(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		routes, err = client.Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}

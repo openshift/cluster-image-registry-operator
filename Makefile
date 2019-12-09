@@ -2,13 +2,8 @@ IMAGE ?= docker.io/openshift/origin-cluster-image-registry-operator
 TAG ?= latest
 PROG  := cluster-image-registry-operator
 
-all: generate build build-image verify
+all: build build-image verify
 .PHONY: all
-
-generate:
-	./hack/codegen/update-generated.sh
-	./hack/codegen/update-crd.sh
-.PHONY: generate
 
 build:
 	./hack/build/build.sh
@@ -29,12 +24,8 @@ test-e2e:
 	./hack/test-go.sh -count 1 -timeout 2h -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
-verify: verify-crd verify-fmt verify-sec
+verify: verify-fmt verify-sec
 .PHONY: verify
-
-verify-crd:
-	./hack/codegen/update-crd.sh --verify-only
-.PHONY: verify-crd
 
 verify-fmt:
 	./hack/verify-gofmt.sh
@@ -52,7 +43,6 @@ update-deps:
 		k8s.io/apimachinery@kubernetes-1.16.2 \
 		k8s.io/apiserver@kubernetes-1.16.2 \
 		k8s.io/client-go@kubernetes-1.16.2 \
-		k8s.io/code-generator@kubernetes-1.16.2 \
 		sigs.k8s.io/structured-merge-diff@v0.0.0-20190817042607-6149e4549fca \
 		github.com/prometheus/client_golang@v0.9.2 \
 		github.com/openshift/api@release-4.4 \

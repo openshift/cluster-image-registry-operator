@@ -6,9 +6,8 @@ import (
 	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	regoplisters "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
-
-	regoplisters "github.com/openshift/cluster-image-registry-operator/pkg/generated/listers/imageregistry/v1"
 )
 
 type Listers struct {

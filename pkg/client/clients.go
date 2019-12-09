@@ -7,8 +7,8 @@ import (
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 )
 
 type Clients struct {

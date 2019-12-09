@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
-
-	operatorapi "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 const (
@@ -82,21 +82,21 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	if len(d.Config.Claim) != 0 {
 		_, err := d.Client.PersistentVolumeClaims(d.Namespace).Get(d.Config.Claim, metav1.GetOptions{})
 		if err == nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "PVC Exists", "")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "PVC Exists", "")
 			return true, nil
 		}
 		if !errors.IsNotFound(err) {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, fmt.Sprintf("Unknown error occurred checking for volume claim %s", d.Config.Claim), err.Error())
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, fmt.Sprintf("Unknown error occurred checking for volume claim %s", d.Config.Claim), err.Error())
 			return false, err
 		}
 	}
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "PVC does not exist", "")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "PVC does not exist", "")
 	return false, nil
 }
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.PVC, cr.Spec.Storage.PVC) {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "PVC Configuration Changed", "PVC storage is in an old state")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "PVC Configuration Changed", "PVC storage is in an old state")
 		return true
 	}
 	return false
@@ -151,7 +151,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	)
 
 	if len(d.Config.Claim) == 0 {
-		d.Config.Claim = fmt.Sprintf("%s-storage", imageregistryv1.ImageRegistryName)
+		d.Config.Claim = fmt.Sprintf("%s-storage", defaults.ImageRegistryName)
 
 		// If there is no name and there is no PVC, then we will create a PVC.
 		// If PVC is there and it was created by us, then just start using it again.
@@ -161,25 +161,25 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		if err == nil {
 			if !pvcIsCreatedByOperator(claim) {
 				err = fmt.Errorf("could not create default PVC, it already exists and is not owned by the operator")
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "PVC Already Exists", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "PVC Already Exists", err.Error())
 				return err
 			}
 		} else if errors.IsNotFound(err) {
 			claim, err = d.createPVC(cr)
 			if err != nil {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
 				return err
 			}
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "PVC Created", "")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "PVC Created", "")
 		} else {
 			return err
 		}
 	} else {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "PVC Exists", "")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "PVC Exists", "")
 	}
 
 	if err := d.checkPVC(cr, claim); err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "PVC Issues Found", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "PVC Issues Found", err.Error())
 		return err
 	}
 
