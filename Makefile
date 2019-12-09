@@ -55,9 +55,9 @@ update-deps:
 		k8s.io/code-generator@kubernetes-1.16.2 \
 		sigs.k8s.io/structured-merge-diff@v0.0.0-20190817042607-6149e4549fca \
 		github.com/prometheus/client_golang@v0.9.2 \
-		github.com/openshift/api@release-4.3 \
-		github.com/openshift/client-go@release-4.3 \
-		github.com/openshift/library-go@release-4.3
+		github.com/openshift/api@release-4.4 \
+		github.com/openshift/client-go@release-4.4 \
+		github.com/openshift/library-go@release-4.4
 	go get -u=patch ./cmd/... ./pkg/... ./test/...
 	go mod tidy
 	go mod vendor
