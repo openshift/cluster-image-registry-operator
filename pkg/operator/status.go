@@ -3,11 +3,12 @@ package operator
 import (
 	"fmt"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
 	appsapi "k8s.io/api/apps/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	operatorapiv1 "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 func updateCondition(cr *imageregistryv1.Config, condtype string, condstate operatorapiv1.OperatorCondition) {
@@ -189,5 +190,5 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorRemoved.Reason = "Removed"
 	}
 
-	updateCondition(cr, imageregistryv1.OperatorStatusTypeRemoved, operatorRemoved)
+	updateCondition(cr, defaults.OperatorStatusTypeRemoved, operatorRemoved)
 }

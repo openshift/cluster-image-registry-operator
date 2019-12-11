@@ -3,13 +3,13 @@ package emptydir
 import (
 	"reflect"
 
-	operatorapi "github.com/openshift/api/operator/v1"
-
-	corev1 "k8s.io/api/core/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -63,7 +63,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.EmptyDir, cr.Spec.Storage.EmptyDir) {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "EmptyDir Configuration Changed", "EmptyDir storage is in an unknown state")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "EmptyDir Configuration Changed", "EmptyDir storage is in an unknown state")
 		return true
 	}
 
@@ -75,7 +75,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: d.Config.DeepCopy(),
 		}
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "EmptyDir storage successfully created")
 	}
 
 	return nil

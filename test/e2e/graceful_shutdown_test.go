@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +16,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 	framework.MustEnsureNodeCADaemonSetIsAvailable(t, client)
 
-	pods, err := client.Pods(v1.ImageRegistryOperatorNamespace).List(
+	pods, err := client.Pods(defaults.ImageRegistryOperatorNamespace).List(
 		metav1.ListOptions{
 			LabelSelector: "name=node-ca",
 		},
@@ -38,7 +38,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
-	if err := client.Pods(v1.ImageRegistryOperatorNamespace).Delete(
+	if err := client.Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,
 		&metav1.DeleteOptions{},
 	); err != nil {
@@ -79,7 +79,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
-	pods, err := client.Pods(v1.ImageRegistryOperatorNamespace).List(
+	pods, err := client.Pods(defaults.ImageRegistryOperatorNamespace).List(
 		metav1.ListOptions{
 			LabelSelector: "docker-registry=default",
 		},
@@ -101,7 +101,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
-	if err := client.Pods(v1.ImageRegistryOperatorNamespace).Delete(
+	if err := client.Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,
 		&metav1.DeleteOptions{},
 	); err != nil {

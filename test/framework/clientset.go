@@ -10,9 +10,9 @@ import (
 	restclient "k8s.io/client-go/rest"
 
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	clientimageregistryv1 "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	clientroutev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	clientimageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 )
 
 // Clientset is a set of Kubernetes clients.

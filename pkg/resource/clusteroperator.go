@@ -5,18 +5,19 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+
+	configapi "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	appsapi "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
-
-	configapi "github.com/openshift/api/config/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
-	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 var _ Mutator = &generatorClusterOperator{}
@@ -62,7 +63,7 @@ func (gco *generatorClusterOperator) GetNamespace() string {
 }
 
 func (gco *generatorClusterOperator) GetName() string {
-	return imageregistryv1.ImageRegistryClusterOperatorResourceName
+	return defaults.ImageRegistryClusterOperatorResourceName
 }
 
 func (gco *generatorClusterOperator) Get() (runtime.Object, error) {
@@ -229,7 +230,7 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 
 	version := os.Getenv("RELEASE_VERSION")
 	if gco.cr.Spec.ManagementState == operatorapi.Managed {
-		deploy, err := gco.deployLister.Get(imageregistryv1.ImageRegistryName)
+		deploy, err := gco.deployLister.Get(defaults.ImageRegistryName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return false, nil
@@ -241,7 +242,7 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 			return false, nil
 		}
 
-		version = deploy.Annotations[imageregistryv1.VersionAnnotation]
+		version = deploy.Annotations[defaults.VersionAnnotation]
 	}
 
 	if len(version) == 0 {
@@ -276,7 +277,7 @@ func (gco *generatorClusterOperator) syncRelatedObjects(op *configapi.ClusterOpe
 	// Always sync the openshift-image-registry namespace
 	relatedObjects = append(relatedObjects, configapi.ObjectReference{
 		Resource: "namespaces",
-		Name:     imageregistryv1.ImageRegistryOperatorNamespace,
+		Name:     defaults.ImageRegistryOperatorNamespace,
 	})
 
 	for _, gen := range gco.mutators {

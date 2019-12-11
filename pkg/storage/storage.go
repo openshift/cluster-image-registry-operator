@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"

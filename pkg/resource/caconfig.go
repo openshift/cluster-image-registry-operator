@@ -11,8 +11,8 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

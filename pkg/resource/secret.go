@@ -1,15 +1,16 @@
 package resource
 
 import (
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorSecret{}
@@ -27,7 +28,7 @@ func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset
 		lister:    lister,
 		client:    client,
 		driver:    driver,
-		name:      imageregistryv1.ImageRegistryPrivateConfiguration,
+		name:      defaults.ImageRegistryPrivateConfiguration,
 		namespace: params.Deployment.Namespace,
 	}
 }
