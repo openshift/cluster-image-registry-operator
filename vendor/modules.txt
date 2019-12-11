@@ -13,14 +13,14 @@ github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-04-01/storage
 github.com/Azure/azure-sdk-for-go/version
 # github.com/Azure/azure-storage-blob-go v0.7.0
 github.com/Azure/azure-storage-blob-go/azblob
-# github.com/Azure/go-autorest/autorest v0.9.2
+# github.com/Azure/go-autorest/autorest v0.9.3
 github.com/Azure/go-autorest/autorest
 github.com/Azure/go-autorest/autorest/azure
 # github.com/Azure/go-autorest/autorest/adal v0.8.0
 github.com/Azure/go-autorest/autorest/adal
-# github.com/Azure/go-autorest/autorest/azure/auth v0.4.0
+# github.com/Azure/go-autorest/autorest/azure/auth v0.4.1
 github.com/Azure/go-autorest/autorest/azure/auth
-# github.com/Azure/go-autorest/autorest/azure/cli v0.3.0
+# github.com/Azure/go-autorest/autorest/azure/cli v0.3.1
 github.com/Azure/go-autorest/autorest/azure/cli
 # github.com/Azure/go-autorest/autorest/date v0.2.0
 github.com/Azure/go-autorest/autorest/date
@@ -83,7 +83,7 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 github.com/beorn7/perks/quantile
 # github.com/blang/semver v3.5.1+incompatible
 github.com/blang/semver
-# github.com/coreos/etcd v3.3.17+incompatible
+# github.com/coreos/etcd v3.3.18+incompatible
 github.com/coreos/etcd/auth/authpb
 github.com/coreos/etcd/clientv3
 github.com/coreos/etcd/clientv3/balancer
@@ -123,9 +123,9 @@ github.com/ghodss/yaml
 github.com/go-openapi/jsonpointer
 # github.com/go-openapi/jsonreference v0.19.3
 github.com/go-openapi/jsonreference
-# github.com/go-openapi/spec v0.19.4
+# github.com/go-openapi/spec v0.19.5
 github.com/go-openapi/spec
-# github.com/go-openapi/swag v0.19.5
+# github.com/go-openapi/swag v0.19.6
 github.com/go-openapi/swag
 # github.com/gobuffalo/flect v0.1.5
 github.com/gobuffalo/flect
@@ -202,11 +202,12 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 github.com/munnerz/goautoneg
-# github.com/openshift/api v3.9.1-0.20191031084152-11eee842dafd+incompatible
+# github.com/openshift/api v3.9.1-0.20191211145720-9ffd03c1c270+incompatible
 github.com/openshift/api/config/v1
+github.com/openshift/api/imageregistry/v1
 github.com/openshift/api/operator/v1
 github.com/openshift/api/route/v1
-# github.com/openshift/client-go v0.0.0-20191022152013-2823239d2298
+# github.com/openshift/client-go v0.0.0-20191205152420-9faca5198b4f
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/scheme
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
@@ -215,6 +216,14 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
+github.com/openshift/client-go/imageregistry/clientset/versioned
+github.com/openshift/client-go/imageregistry/clientset/versioned/scheme
+github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1
+github.com/openshift/client-go/imageregistry/informers/externalversions
+github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry
+github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1
+github.com/openshift/client-go/imageregistry/informers/externalversions/internalinterfaces
+github.com/openshift/client-go/imageregistry/listers/imageregistry/v1
 github.com/openshift/client-go/route/clientset/versioned
 github.com/openshift/client-go/route/clientset/versioned/scheme
 github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
@@ -237,7 +246,7 @@ github.com/openshift/installer/pkg/types/libvirt
 github.com/openshift/installer/pkg/types/none
 github.com/openshift/installer/pkg/types/openstack
 github.com/openshift/installer/pkg/types/vsphere
-# github.com/openshift/library-go v0.0.0-20191030100914-d6f3b526f033
+# github.com/openshift/library-go v0.0.0-20191211124107-e0f1590a316e
 github.com/openshift/library-go/pkg/config/client
 github.com/openshift/library-go/pkg/controller/fileobserver
 github.com/openshift/library-go/pkg/operator/events
@@ -252,13 +261,13 @@ github.com/pkg/errors
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
-# github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
+# github.com/prometheus/client_model v0.0.0-20191202183732-d1d2010b5bee
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.4.1
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
-# github.com/prometheus/procfs v0.0.5
+# github.com/prometheus/procfs v0.0.8
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
@@ -283,27 +292,27 @@ go.opencensus.io/trace
 go.opencensus.io/trace/internal
 go.opencensus.io/trace/propagation
 go.opencensus.io/trace/tracestate
-# go.uber.org/atomic v1.5.0
+# go.uber.org/atomic v1.5.1
 go.uber.org/atomic
-# go.uber.org/multierr v1.3.0
+# go.uber.org/multierr v1.4.0
 go.uber.org/multierr
 # go.uber.org/tools v0.0.0-20190618225709-2cfd321de3ee
 go.uber.org/tools/update-license
-# go.uber.org/zap v1.12.0
+# go.uber.org/zap v1.13.0
 go.uber.org/zap
 go.uber.org/zap/buffer
 go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20191029031824-8986dd9e96cf
+# golang.org/x/crypto v0.0.0-20191206172530-e9b2fee46413
 golang.org/x/crypto/pkcs12
 golang.org/x/crypto/pkcs12/internal/rc2
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/lint v0.0.0-20190930215403-16217165b5de
+# golang.org/x/lint v0.0.0-20191125180803-fdd1cda4f05f
 golang.org/x/lint
 golang.org/x/lint/golint
-# golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
+# golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -314,13 +323,13 @@ golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
 golang.org/x/net/websocket
-# golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+# golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6
 golang.org/x/oauth2
 golang.org/x/oauth2/google
 golang.org/x/oauth2/internal
 golang.org/x/oauth2/jws
 golang.org/x/oauth2/jwt
-# golang.org/x/sys v0.0.0-20191029155521-f43be2a4598c
+# golang.org/x/sys v0.0.0-20191210023423-ac6580df4449
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
@@ -332,7 +341,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20191031144223-d9fd88a569ec
+# golang.org/x/tools v0.0.0-20191210221141-98df12377212
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/inspect
 golang.org/x/tools/go/ast/astutil
@@ -350,7 +359,6 @@ golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 golang.org/x/tools/internal/semver
-golang.org/x/tools/internal/span
 # gonum.org/v1/gonum v0.6.0
 gonum.org/v1/gonum/blas
 gonum.org/v1/gonum/blas/blas64
@@ -398,14 +406,15 @@ google.golang.org/appengine/internal/modules
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20191028173616-919d9bdd9fe6
+# google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/iam/v1
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
-# google.golang.org/grpc v1.24.0
+# google.golang.org/grpc v1.25.1
 google.golang.org/grpc
+google.golang.org/grpc/backoff
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/base
 google.golang.org/grpc/balancer/roundrobin
@@ -421,10 +430,13 @@ google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
+google.golang.org/grpc/internal/buffer
 google.golang.org/grpc/internal/channelz
 google.golang.org/grpc/internal/envconfig
 google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
+google.golang.org/grpc/internal/resolver/dns
+google.golang.org/grpc/internal/resolver/passthrough
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/keepalive
@@ -440,7 +452,7 @@ google.golang.org/grpc/status
 google.golang.org/grpc/tap
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
-# gopkg.in/yaml.v2 v2.2.4
+# gopkg.in/yaml.v2 v2.2.7
 gopkg.in/yaml.v2
 # honnef.co/go/tools v0.0.1-2019.2.3
 honnef.co/go/tools/arg
@@ -897,7 +909,7 @@ k8s.io/gengo/parser
 k8s.io/gengo/types
 # k8s.io/klog v1.0.0
 k8s.io/klog
-# k8s.io/kube-openapi v0.0.0-20190918143330-0270cf2f1c1d
+# k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 k8s.io/kube-openapi/cmd/openapi-gen/args
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/common
@@ -908,7 +920,7 @@ k8s.io/kube-openapi/pkg/schemaconv
 k8s.io/kube-openapi/pkg/util
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/utils v0.0.0-20191030222137-2b95a09bc58d
+# k8s.io/utils v0.0.0-20191114200735-6ca3b61696b6
 k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/path
