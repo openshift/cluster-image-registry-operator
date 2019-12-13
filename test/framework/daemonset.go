@@ -4,13 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func MustEnsureNodeCADaemonSetIsAvailable(t *testing.T, client *Clientset) {
@@ -31,7 +30,7 @@ func ensureNodeCADaemonSetIsAvailable(client *Clientset) error {
 func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 	var ds *appsv1.DaemonSet
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		ds, err = client.DaemonSets(imageregistryv1.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
+		ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
 		if err == nil {
 			if ds.Status.NumberAvailable > 0 {
 				return true, nil

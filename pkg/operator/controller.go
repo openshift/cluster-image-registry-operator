@@ -5,6 +5,25 @@ import (
 	"reflect"
 	"time"
 
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+	configset "github.com/openshift/client-go/config/clientset/versioned"
+	configsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned"
+	regopinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	routeset "github.com/openshift/client-go/route/clientset/versioned"
+	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,25 +37,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-
-	operatorapi "github.com/openshift/api/operator/v1"
-	configset "github.com/openshift/client-go/config/clientset/versioned"
-	configsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configinformers "github.com/openshift/client-go/config/informers/externalversions"
-	routeset "github.com/openshift/client-go/route/clientset/versioned"
-	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
-	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
-	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 const (
@@ -83,9 +83,9 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.Service.Name = imageregistryv1.ImageRegistryName
+	p.Service.Name = defaults.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
-	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
+	p.CAConfig.Name = defaults.ImageRegistryCertificatesName
 	p.ServiceCA.Name = "serviceca"
 	p.TrustedCA.Name = "trusted-ca"
 
@@ -135,12 +135,12 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
+	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
 		}
-		return fmt.Errorf("failed to get %q registry operator resource: %s", imageregistryv1.ImageRegistryResourceName, err)
+		return fmt.Errorf("failed to get %q registry operator resource: %s", defaults.ImageRegistryResourceName, err)
 	}
 	cr = cr.DeepCopy() // we don't want to change the cached version
 	prevCR := cr.DeepCopy()
@@ -169,11 +169,11 @@ func (c *Controller) sync() error {
 		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	deploy, err := c.listers.Deployments.Get(imageregistryv1.ImageRegistryName)
+	deploy, err := c.listers.Deployments.Get(defaults.ImageRegistryName)
 	if errors.IsNotFound(err) {
 		deploy = nil
 	} else if err != nil {
-		return fmt.Errorf("failed to get %q deployment: %s", imageregistryv1.ImageRegistryName, err)
+		return fmt.Errorf("failed to get %q deployment: %s", defaults.ImageRegistryName, err)
 	} else {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
@@ -267,7 +267,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}
@@ -291,7 +291,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				return
 			}
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}
@@ -314,7 +314,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}

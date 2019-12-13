@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	operatorapi "github.com/openshift/api/operator/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestAdditionalTrustedCA(t *testing.T) {
@@ -51,7 +51,7 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	defer framework.MustRemoveImageRegistry(t, client)
 	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -73,7 +73,7 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		}
 	}()
 
-	certs, err := client.ConfigMaps(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageRegistryCAConfigMapName, metav1.GetOptions{})
+	certs, err := client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(imageRegistryCAConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestSwapStorage(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
 	config, err := client.Configs().Get(
-		imageregistryv1.ImageRegistryResourceName,
+		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	)
 	if err != nil {
@@ -128,7 +128,7 @@ func TestSwapStorage(t *testing.T) {
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
 	if config, err = client.Configs().Get(
-		imageregistryv1.ImageRegistryResourceName,
+		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	); err != nil {
 		t.Fatal("unable to get image registry config")

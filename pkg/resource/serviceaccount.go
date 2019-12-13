@@ -7,7 +7,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

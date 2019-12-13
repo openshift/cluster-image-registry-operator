@@ -5,13 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+
+	configapiv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
 )
 
 func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Clientset) {
@@ -34,7 +33,7 @@ func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Client
 		externalHosts = cfg.Status.ExternalRegistryHostnames
 
 		for _, h := range externalHosts {
-			if strings.HasPrefix(h, imageregistryv1.DefaultRouteName+"-"+imageregistryv1.ImageRegistryOperatorNamespace) {
+			if strings.HasPrefix(h, defaults.RouteName+"-"+defaults.ImageRegistryOperatorNamespace) {
 				return true, nil
 			}
 		}

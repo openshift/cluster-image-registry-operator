@@ -3,13 +3,14 @@ package resource
 import (
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
+
+	v1 "github.com/openshift/api/imageregistry/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type volumeMount struct {
@@ -69,11 +70,11 @@ func TestMakePodTemplateSpec(t *testing.T) {
 	// Verify volumes and mounts
 	expectedVolumes := map[string]*volumeMount{
 		"registry-tls": {
-			refName:   v1.ImageRegistryName + "-tls",
+			refName:   defaults.ImageRegistryName + "-tls",
 			mountPath: "/etc/secrets",
 		},
 		"registry-certificates": {
-			refName:   v1.ImageRegistryCertificatesName,
+			refName:   defaults.ImageRegistryCertificatesName,
 			mountPath: "/etc/pki/ca-trust/source/anchors",
 		},
 		"trusted-ca": {
