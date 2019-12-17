@@ -9,7 +9,7 @@ if [ -n "${JUNIT_REPORT-}" ]; then
 
     mkdir -p "$ARTIFACT_DIR"
     GO_TEST_JSON="$ARTIFACT_DIR/go_test.json"
-    REPORT_FILE="$ARTIFACT_DIR/go_test.xml"
+    REPORT_FILE="$ARTIFACT_DIR/junit_go_test.xml"
 
     _V="-v"
     for i do [ "$i" != "-v" ] || _V=""; done
