@@ -43,7 +43,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v3.9.1-0.20191211145720-9ffd03c1c270+incompatible
+	github.com/openshift/api v3.9.1-0.20191217101959-25e6c5c55d58+incompatible
 	github.com/openshift/client-go v0.0.0-20191205152420-9faca5198b4f
 	github.com/openshift/crd-schema-gen v1.0.0
 	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410
