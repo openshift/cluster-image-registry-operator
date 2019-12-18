@@ -61,9 +61,23 @@ func (gs *generatorSecret) expected() (runtime.Object, error) {
 		},
 	}
 
-	data, err := gs.driver.Secrets()
+	configenv, err := gs.driver.ConfigEnv()
 	if err != nil {
 		return nil, err
+	}
+
+	data, err := configenv.SecretData()
+	if err != nil {
+		return nil, err
+	}
+
+	volumesData, err := gs.driver.VolumeSecrets()
+	if err != nil {
+		return nil, err
+	}
+
+	for k, v := range volumesData {
+		data[k] = v
 	}
 
 	sec.StringData = data

@@ -10,6 +10,7 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
@@ -41,9 +42,9 @@ func (m *MultiStoragesError) Error() string {
 }
 
 type Driver interface {
-	ConfigEnv() ([]corev1.EnvVar, error)
+	ConfigEnv() (envvar.List, error)
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
-	Secrets() (map[string]string, error)
+	VolumeSecrets() (map[string]string, error)
 	CreateStorage(*imageregistryv1.Config) error
 	StorageExists(*imageregistryv1.Config) (bool, error)
 	RemoveStorage(*imageregistryv1.Config) (bool, error)

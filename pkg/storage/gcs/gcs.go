@@ -6,20 +6,23 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
 	gstorage "cloud.google.com/go/storage"
-	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	goauth2 "golang.org/x/oauth2/google"
 	gapi "google.golang.org/api/googleapi"
 	goption "google.golang.org/api/option"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type GCS struct {
@@ -110,22 +113,11 @@ func GetConfig(listers *regopclient.Listers) (*GCS, error) {
 	return gcsConfig, nil
 }
 
-func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := GetConfig(d.Listers)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]string{
-		"REGISTRY_STORAGE_GCS_KEYFILE": cfg.KeyfileData,
-	}, nil
-}
-
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "gcs"},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: d.Config.Bucket},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "gcs"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: d.Config.Bucket},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile"},
 	)
 	return
 }
@@ -155,6 +147,17 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	}
 
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
+}
+
+func (d *driver) VolumeSecrets() (map[string]string, error) {
+	cfg, err := GetConfig(d.Listers)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		"REGISTRY_STORAGE_GCS_KEYFILE": cfg.KeyfileData,
+	}, nil
 }
 
 func (d *driver) bucketExists(bucketName string) error {

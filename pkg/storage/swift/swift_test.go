@@ -308,7 +308,9 @@ func TestSwiftSecrets(t *testing.T) {
 		},
 		Config: &config,
 	}
-	res, err := d.Secrets()
+	configenv, err := d.ConfigEnv()
+	th.AssertNoErr(t, err)
+	res, err := configenv.SecretData()
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, 2, len(res))
 	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
@@ -339,7 +341,9 @@ func TestSwiftSecrets(t *testing.T) {
 	fakeCloudsYAML = map[string][]byte{
 		cloudSecretKey: fakeCloudsYAMLData,
 	}
-	res, err = d.Secrets()
+	configenv, err = d.ConfigEnv()
+	th.AssertNoErr(t, err)
+	res, err = configenv.SecretData()
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, 2, len(res))
 	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
@@ -499,9 +503,9 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHURL", res[2].Name)
 	th.AssertEquals(t, "http://localhost:5000/v3", res[2].Value)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_USERNAME", res[3].Name)
-	th.AssertEquals(t, true, res[3].ValueFrom != nil)
+	th.AssertEquals(t, true, res[3].Secret)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_PASSWORD", res[4].Name)
-	th.AssertEquals(t, true, res[4].ValueFrom != nil)
+	th.AssertEquals(t, true, res[4].Secret)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHVERSION", res[5].Name)
 	th.AssertEquals(t, "3", res[5].Value)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_DOMAIN", res[6].Name)

@@ -9,23 +9,26 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-04-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/Azure/go-autorest/autorest/to"
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 const (
@@ -261,32 +264,7 @@ func (d *driver) storageAccountsClient(cfg *Azure) (storage.AccountsClient, erro
 
 // ConfigEnv configures the environment variables that will be used in the
 // image registry deployment.
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
-	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "azure"},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: d.Config.Container},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME", Value: d.Config.AccountName},
-		corev1.EnvVar{
-			Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: defaults.ImageRegistryPrivateConfiguration,
-					},
-					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
-				},
-			},
-		},
-	)
-	return
-}
-
-func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
-	return nil, nil, nil
-}
-
-// Secrets returns a map of the storage access secrets.
-func (d *driver) Secrets() (map[string]string, error) {
+func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
@@ -305,9 +283,21 @@ func (d *driver) Secrets() (map[string]string, error) {
 		}
 	}
 
-	return map[string]string{
-		"REGISTRY_STORAGE_AZURE_ACCOUNTKEY": key,
-	}, nil
+	envs = append(envs,
+		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "azure"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: d.Config.Container},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME", Value: d.Config.AccountName},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: key, Secret: true},
+	)
+	return
+}
+
+func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
+	return nil, nil, nil
+}
+
+func (d *driver) VolumeSecrets() (map[string]string, error) {
+	return nil, nil
 }
 
 // containerExists determines whether or not an azure container exists
