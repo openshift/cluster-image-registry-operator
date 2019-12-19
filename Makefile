@@ -38,17 +38,10 @@ verify-sec:
 
 update-deps:
 	go get -d -u \
-		k8s.io/apiextensions-apiserver@kubernetes-1.16.2 \
-		k8s.io/api@kubernetes-1.16.2 \
-		k8s.io/apimachinery@kubernetes-1.16.2 \
-		k8s.io/apiserver@kubernetes-1.16.2 \
-		k8s.io/client-go@kubernetes-1.16.2 \
-		sigs.k8s.io/structured-merge-diff@v0.0.0-20190817042607-6149e4549fca \
-		github.com/prometheus/client_golang@v0.9.2 \
 		github.com/openshift/api@release-4.4 \
 		github.com/openshift/client-go@release-4.4 \
 		github.com/openshift/library-go@release-4.4
-	go get -u=patch ./cmd/... ./pkg/... ./test/...
+	go get -u=patch ./cmd/... ./pkg/... ./test/... sigs.k8s.io/structured-merge-diff@v1.0.1-0.20191108220359-b1b620dd3f06
 	go mod tidy
 	go mod vendor
 .PHONY: update-deps
