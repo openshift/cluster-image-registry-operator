@@ -36,7 +36,6 @@ spec:
       priorityClassName: system-cluster-critical
       tolerations:
       - effect: NoSchedule
-        key: node-role.kubernetes.io/master
         operator: Exists
       serviceAccountName: node-ca
       containers:
