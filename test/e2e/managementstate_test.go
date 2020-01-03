@@ -12,7 +12,8 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -23,7 +24,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 
 	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -35,7 +36,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 	var cr *imageregistryv1.Config
 	var err error
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -53,7 +54,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 	}
 
 	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -78,7 +79,7 @@ func TestManagementStateRemoved(t *testing.T) {
 
 	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -90,7 +91,7 @@ func TestManagementStateRemoved(t *testing.T) {
 	var cr *imageregistryv1.Config
 	var err error
 	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +109,7 @@ func TestManagementStateRemoved(t *testing.T) {
 	}
 
 	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = client.Configs().Get(imageregistryv1.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -126,7 +127,7 @@ func TestManagementStateRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
+	d, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if !errors.IsNotFound(err) {
 		t.Fatalf("deployment is expected to be removed, got %v %v", d, err)
 	}
@@ -143,7 +144,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	t.Log("creating config with ManagementState set to Removed")
 	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Removed,
@@ -157,7 +158,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 		framework.AsyncOperationTimeout,
 		func() (stop bool, err error) {
 			cr, err = client.Configs().Get(
-				imageregistryv1.ImageRegistryResourceName,
+				defaults.ImageRegistryResourceName,
 				metav1.GetOptions{},
 			)
 			if err != nil {

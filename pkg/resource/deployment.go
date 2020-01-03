@@ -13,7 +13,8 @@ import (
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -63,7 +64,7 @@ func (gd *generatorDeployment) GetNamespace() string {
 }
 
 func (gd *generatorDeployment) GetName() string {
-	return imageregistryv1.ImageRegistryName
+	return defaults.ImageRegistryName
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {
@@ -88,7 +89,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			Namespace: gd.GetNamespace(),
 			Labels:    gd.params.Deployment.Labels,
 			Annotations: map[string]string{
-				imageregistryv1.VersionAnnotation: os.Getenv("RELEASE_VERSION"),
+				defaults.VersionAnnotation: os.Getenv("RELEASE_VERSION"),
 			},
 		},
 		Spec: appsapi.DeploymentSpec{

@@ -28,7 +28,8 @@ import (
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
 	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	regopinformers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions"
@@ -83,9 +84,9 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.Healthz.Route = "/healthz"
 	p.Healthz.TimeoutSeconds = 5
 
-	p.Service.Name = imageregistryv1.ImageRegistryName
+	p.Service.Name = defaults.ImageRegistryName
 	p.ImageConfig.Name = "cluster"
-	p.CAConfig.Name = imageregistryv1.ImageRegistryCertificatesName
+	p.CAConfig.Name = defaults.ImageRegistryCertificatesName
 	p.ServiceCA.Name = "serviceca"
 	p.TrustedCA.Name = "trusted-ca"
 
@@ -135,12 +136,12 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.listers.RegistryConfigs.Get(imageregistryv1.ImageRegistryResourceName)
+	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
 		}
-		return fmt.Errorf("failed to get %q registry operator resource: %s", imageregistryv1.ImageRegistryResourceName, err)
+		return fmt.Errorf("failed to get %q registry operator resource: %s", defaults.ImageRegistryResourceName, err)
 	}
 	cr = cr.DeepCopy() // we don't want to change the cached version
 	prevCR := cr.DeepCopy()
@@ -169,11 +170,11 @@ func (c *Controller) sync() error {
 		klog.Warningf("unknown custom resource state: %s", cr.Spec.ManagementState)
 	}
 
-	deploy, err := c.listers.Deployments.Get(imageregistryv1.ImageRegistryName)
+	deploy, err := c.listers.Deployments.Get(defaults.ImageRegistryName)
 	if errors.IsNotFound(err) {
 		deploy = nil
 	} else if err != nil {
-		return fmt.Errorf("failed to get %q deployment: %s", imageregistryv1.ImageRegistryName, err)
+		return fmt.Errorf("failed to get %q deployment: %s", defaults.ImageRegistryName, err)
 	} else {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
@@ -267,7 +268,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}
@@ -291,7 +292,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				return
 			}
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}
@@ -314,7 +315,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
 			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
+				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
 			}

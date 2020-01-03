@@ -11,8 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	configv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	installer "github.com/openshift/installer/pkg/types"
 )
@@ -128,7 +129,7 @@ func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string)
 	parts = append(parts, infra.Status.InfrastructureName)
 
 	// Image Registry Name second
-	parts = append(parts, imageregistryv1.ImageRegistryName)
+	parts = append(parts, defaults.ImageRegistryName)
 
 	// Additional information provided to the function third
 	for _, i := range additionalInfo {

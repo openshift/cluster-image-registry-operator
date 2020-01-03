@@ -3,7 +3,8 @@ package operator
 import (
 	"fmt"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -23,7 +24,7 @@ func verifyResource(cr *imageregistryv1.Config) error {
 	}
 
 	names := map[string]struct{}{
-		imageregistryv1.DefaultRouteName: {},
+		defaults.RouteName: {},
 	}
 
 	for _, routeSpec := range cr.Spec.Routes {

@@ -22,7 +22,8 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 
-	imageregistryapiv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -37,7 +38,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -66,7 +67,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
-	deployments, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+	deployments, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -124,7 +125,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 
-	deployment, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	deployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestRouteConfiguration(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -221,7 +222,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
-	errs := framework.ConditionExistsWithStatusAndReason(client, imageregistryapiv1.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
+	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
 	if len(errs) != 0 {
 		framework.DumpImageRegistryResource(t, client)
 		framework.DumpOperatorLogs(t, client)
@@ -238,7 +239,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that operator can now reach the storage providers api
-	errs = framework.ConditionExistsWithStatusAndReason(client, imageregistryapiv1.StorageExists, operatorapiv1.ConditionTrue, "")
+	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapiv1.ConditionTrue, "")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -289,7 +290,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -411,13 +412,13 @@ func TestSecureRouteConfiguration(t *testing.T) {
 		"tls.key": string(key),
 	}
 
-	if _, err := framework.CreateOrUpdateSecret(tlsSecretName, imageregistryapiv1.ImageRegistryOperatorNamespace, tlsSecretData); err != nil {
+	if _, err := framework.CreateOrUpdateSecret(tlsSecretName, defaults.ImageRegistryOperatorNamespace, tlsSecretData); err != nil {
 		t.Fatalf("unable to create secret: %s", err)
 	}
 
 	framework.MustDeployImageRegistry(t, client, &imageregistryapiv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -438,7 +439,7 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
 
-	route, err := client.Routes(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+	route, err := client.Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to get route: %s", err)
 	}
@@ -464,7 +465,7 @@ func TestVersionReporting(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -483,7 +484,7 @@ func TestVersionReporting(t *testing.T) {
 	}
 
 	err := wait.Poll(5*time.Second, 1*time.Minute, func() (bool, error) {
-		clusterOperatorStatus, err := client.ClusterOperators().Get(imageregistryapiv1.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
+		clusterOperatorStatus, err := client.ClusterOperators().Get(defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Logf("Could not retrieve cluster operator status: %v", err)
 			return false, nil
@@ -516,7 +517,7 @@ func TestRequests(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -546,7 +547,7 @@ func TestRequests(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
-	deploy, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(imageregistryapiv1.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -576,7 +577,7 @@ func TestDisableRedirect(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryapiv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryapiv1.ImageRegistrySpec{
 			ManagementState: operatorapiv1.Managed,
@@ -591,7 +592,7 @@ func TestDisableRedirect(t *testing.T) {
 	framework.MustDeployImageRegistry(t, client, cr)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
 
-	deploy, err := client.Deployments(imageregistryapiv1.ImageRegistryOperatorNamespace).Get(imageregistryapiv1.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

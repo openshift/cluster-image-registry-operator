@@ -3,7 +3,7 @@
 package v1
 
 import (
-	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	v1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )

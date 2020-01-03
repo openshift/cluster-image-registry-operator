@@ -17,7 +17,7 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -170,7 +170,7 @@ func (gic *generatorImageConfig) getRouteHostnames() ([]string, error) {
 			if len(hostname) == 0 {
 				continue
 			}
-			if strings.HasPrefix(hostname, imageregistryv1.DefaultRouteName+"-"+gic.namespace) {
+			if strings.HasPrefix(hostname, defaults.RouteName+"-"+gic.namespace) {
 				defaultHost = hostname
 			} else {
 				externalHostnames = append(externalHostnames, hostname)

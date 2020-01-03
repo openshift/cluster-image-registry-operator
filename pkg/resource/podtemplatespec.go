@@ -14,8 +14,9 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
 	configapiv1 "github.com/openshift/api/config/v1"
+	v1 "github.com/openshift/api/imageregistry/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -115,7 +116,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		}
 	}
 
-	clusterProxy, err := proxyLister.Get(v1.ClusterProxyResourceName)
+	clusterProxy, err := proxyLister.Get(defaults.ClusterProxyResourceName)
 	if errors.IsNotFound(err) {
 		clusterProxy = &configapiv1.Proxy{}
 	} else if err != nil {
@@ -203,7 +204,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					{
 						Secret: &corev1.SecretProjection{
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: v1.ImageRegistryName + "-tls",
+								Name: defaults.ImageRegistryName + "-tls",
 							},
 						},
 					},
@@ -226,14 +227,14 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: v1.ImageRegistryCertificatesName,
+					Name: defaults.ImageRegistryCertificatesName,
 				},
 			},
 		},
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/pki/ca-trust/source/anchors"})
-	deps.AddConfigMap(v1.ImageRegistryCertificatesName)
+	deps.AddConfigMap(defaults.ImageRegistryCertificatesName)
 
 	// Cluster trusted certificate authorities - mount to /usr/share/pki/ca-trust-source/ to add
 	// CAs as low-priority trust sources. Registry runs update-ca-trust extract on startup, which

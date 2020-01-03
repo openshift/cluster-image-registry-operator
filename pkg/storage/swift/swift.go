@@ -15,8 +15,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -53,13 +54,13 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 	cfg := &Swift{}
 
 	// Look for a user defined secret to get the Swift credentials
-	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		// If no user defined credentials were provided, then try to find them in the secret,
 		// created by cloud-credential-operator.
-		sec, err = listers.Secrets.Get(imageregistryv1.CloudCredentialsName)
+		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName), err)
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
 		}
 
 		// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
@@ -106,7 +107,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 				return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
 			}
 		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", imageregistryv1.ImageRegistryOperatorNamespace, imageregistryv1.CloudCredentialsName))
+			return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
 		}
 	} else if err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
+						Name: defaults.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
 				},
@@ -238,7 +239,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
+						Name: defaults.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
 				},
@@ -314,27 +315,27 @@ func (d *driver) containerExists(client *gophercloud.ServiceClient, containerNam
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	client, err := d.getSwiftClient(cr)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Could not connect to registry storage", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Could not connect to registry storage", err.Error())
 		return false, err
 	}
 
 	err = d.containerExists(client, cr.Spec.Storage.Swift.Container)
 	if err != nil {
 		if serr, ok := err.(*gophercloud.ErrResourceNotFound); ok {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Storage does not exist", serr.Error())
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Storage does not exist", serr.Error())
 			return false, nil
 		}
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Unknown error occurred", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown error occurred", err.Error())
 		return false, err
 	}
 
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Swift container Exists", "")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Swift container Exists", "")
 	return true, nil
 }
 
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	if !reflect.DeepEqual(cr.Status.Storage.Swift, cr.Spec.Storage.Swift) {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Swift Configuration Changed", "Swift storage is in an unknown state")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Swift Configuration Changed", "Swift storage is in an unknown state")
 		return true
 	}
 
@@ -344,7 +345,7 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	client, err := d.getSwiftClient(cr)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, err.Error(), err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, err.Error(), err.Error())
 		return err
 	}
 
@@ -368,7 +369,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			// If the error is not ErrResourceNotFound
 			// return the error
 			if _, ok := err.(gophercloud.ErrDefault404); !ok {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Unable to check if container exists", fmt.Sprintf("Error occurred checking if container exists: %v", err))
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to check if container exists", fmt.Sprintf("Error occurred checking if container exists: %v", err))
 				return err
 			}
 			// If the error is ErrResourceNotFound
@@ -377,7 +378,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// If we were supplied a container name and it exists
 		// we can skip the create
 		if !generatedName && err == nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
 			break
 		}
 		// If we generated a container name and it exists
@@ -396,12 +397,12 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
 		if err != nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
 			cr.Status.StorageManaged = false
 			return err
 		}
 
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
 
 		cr.Status.StorageManaged = true
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
@@ -427,7 +428,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 
 	_, err = containers.Delete(client, cr.Spec.Storage.Swift.Container).Extract()
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, err.Error(), err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, err.Error(), err.Error())
 		return false, err
 	}
 
@@ -440,7 +441,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		}
 	}
 
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, "Swift Container Deleted", "The swift container has been removed.")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Swift Container Deleted", "The swift container has been removed.")
 
 	return true, nil
 }

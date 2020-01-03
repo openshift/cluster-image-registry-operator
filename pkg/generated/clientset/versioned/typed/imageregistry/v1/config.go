@@ -5,7 +5,7 @@ package v1
 import (
 	"time"
 
-	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	v1 "github.com/openshift/api/imageregistry/v1"
 	scheme "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
