@@ -129,6 +129,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 			},
 		},
 	}
+	awsConfig.WithUseDualStack(true)
 	if d.Config.RegionEndpoint != "" {
 		awsConfig.WithS3ForcePathStyle(true)
 		awsConfig.WithEndpoint(d.Config.RegionEndpoint)
