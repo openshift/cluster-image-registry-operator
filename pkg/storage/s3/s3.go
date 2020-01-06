@@ -118,7 +118,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
-	sess, err := session.NewSession(&aws.Config{
+	awsConfig := &aws.Config{
 		Credentials: credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
 		Region:      &d.Config.Region,
 		Endpoint:    &d.Config.RegionEndpoint,
@@ -129,7 +129,9 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 				},
 			},
 		},
-	})
+	}
+	awsConfig.WithUseDualStack(true)
+	sess, err := session.NewSession(awsConfig)
 	if err != nil {
 		return nil, err
 	}
