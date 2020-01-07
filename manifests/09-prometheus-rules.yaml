@@ -28,3 +28,18 @@ spec:
           DeploymentConfigs which reference ImageStreamTags may not work as
           expected. Please configure storage and update the config to Managed
           state by editing configs.imageregistry.operator.openshift.io.
+  - name: ImagePruner
+    rules:
+    - alert: ImagePruningDisabled
+      expr: image_registry_operator_image_pruner_install_status < 2
+      labels:
+        severity: warning
+      annotations:
+        message: |
+          Automatic image pruning is not enabled. Regular pruning of images
+          no longer referenced by ImageStreams is strongly recommended to
+          ensure your cluster remains healthy.
+          
+          To remove this warning, install the image pruner by creating an
+          imagepruner.imageregistry.operator.openshift.io resource with the
+          name `cluster`. Ensure that the `suspend` field is set to `false`.
