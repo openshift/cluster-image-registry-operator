@@ -19,6 +19,7 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
+	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -86,6 +87,61 @@ func TestPodResourceConfiguration(t *testing.T) {
 			}
 		}
 
+	}
+}
+
+func TestRolloutStrategyConfiguration(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	cr := &imageregistryapiv1.Config{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: defaults.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+			Replicas: 1,
+			Resources: &corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("512Mi"),
+				},
+			},
+			RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/master": "",
+			},
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      "node-role.kubernetes.io/master",
+					Operator: "Exists",
+					Effect:   "NoSchedule",
+				},
+			},
+		},
+	}
+	framework.MustDeployImageRegistry(t, client, cr)
+	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+
+	deployments, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(deployments.Items) == 0 {
+		t.Errorf("no deployments found in registry namespace")
+	}
+
+	registryDeployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if registryDeployment.Spec.Strategy.Type != appsapi.RecreateDeploymentStrategyType {
+		t.Errorf("expected %v deployment strategy", appsapi.RecreateDeploymentStrategyType)
 	}
 }
 
