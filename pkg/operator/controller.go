@@ -24,13 +24,17 @@ import (
 	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	"github.com/openshift/cluster-image-registry-operator/defaults"
+
+	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	restclient "k8s.io/client-go/rest"
@@ -135,6 +139,81 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 }
 
 func (c *Controller) sync() error {
+	prunerResourceFound := true
+	pcr, err := c.listers.ImagePrunerConfigs.Get(defaults.ImageRegistryImagePrunerResourceName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			prunerResourceFound = false
+		} else {
+			return fmt.Errorf("failed to get %q image registry pruner resource: %s", defaults.ImageRegistryImagePrunerResourceName, err)
+		}
+	}
+	if prunerResourceFound {
+		pcr = pcr.DeepCopy() // we don't want to change the cached version
+		prevPCR := pcr.DeepCopy()
+		prunerCronJob, err := c.listers.CronJobs.Get("image-pruner")
+		if errors.IsNotFound(err) {
+			prunerCronJob = nil
+		} else if err != nil {
+			return fmt.Errorf("failed to get image-pruner pruner job: %s", err)
+		} else {
+			prunerCronJob = prunerCronJob.DeepCopy()
+		}
+
+		prunerJobs, err := c.listers.Jobs.List(labels.Everything())
+		if err != nil {
+			return fmt.Errorf("failed to get pruner jobs: %s", err)
+		}
+		lastPrunerJobConditions := []batchv1.JobCondition{}
+		if len(prunerJobs) > 0 {
+			lastPrunerJobConditions = prunerJobs[len(prunerJobs)-1].Status.Conditions
+		}
+
+		c.syncPrunerStatus(pcr, prunerCronJob, lastPrunerJobConditions)
+
+		metadataChanged := strategy.Metadata(&prevPCR.ObjectMeta, &pcr.ObjectMeta)
+		specChanged := !reflect.DeepEqual(prevPCR.Spec, pcr.Spec)
+		if metadataChanged || specChanged {
+			klog.Infof("Updating pruner cr")
+			difference, err := object.DiffString(prevPCR, pcr)
+			if err != nil {
+				klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(pcr), err)
+			}
+			klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(pcr), metadataChanged, specChanged, difference)
+
+			updatedPCR, err := c.clients.RegOp.ImageregistryV1().ImagePruners().Update(pcr)
+			if err != nil {
+				if !errors.IsConflict(err) {
+					klog.Errorf("unable to update %s: %s", utilObjectInfo(pcr), err)
+				}
+				return err
+			}
+
+			// If we updated the Status field too, we'll make one more call and we
+			// want it to succeed.
+			pcr.ResourceVersion = updatedPCR.ResourceVersion
+
+		}
+
+		pcr.Status.ObservedGeneration = pcr.Generation
+		statusChanged := !reflect.DeepEqual(prevPCR.Status, pcr.Status)
+		if statusChanged {
+			difference, err := object.DiffString(prevPCR, pcr)
+			if err != nil {
+				klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(pcr), err)
+			}
+			klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(pcr), statusChanged, difference)
+
+			_, err = c.clients.RegOp.ImageregistryV1().ImagePruners().UpdateStatus(pcr)
+			if err != nil {
+				if !errors.IsConflict(err) {
+					klog.Errorf("unable to update status %s: %s", utilObjectInfo(pcr), err)
+				}
+				return err
+			}
+		}
+	}
+
 	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -365,6 +444,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
+	c.clients.Batch, err = batchset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return err
+	}
+
 	routeClient, err := routeset.NewForConfig(c.kubeconfig)
 	if err != nil {
 		return err
@@ -455,6 +539,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := regopInformerFactory.Imageregistry().V1().ImagePruners()
+			c.listers.ImagePrunerConfigs = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
 			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
 			return informer.Informer()
@@ -462,6 +551,16 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Infrastructures()
 			c.listers.Infrastructures = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
+			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Batch().V1().Jobs()
+			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 	} {

@@ -69,6 +69,10 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core, g.params, cr))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
+	mutators = append(mutators, newGeneratorPrunerResource(g.listers.ImagePrunerConfigs, g.clients.RegOp.ImageregistryV1(), g.params))
+	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params))
+	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params))
+	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.params))
 
 	// This generator must be the last because he uses other generators.
 	mutators = append(mutators, newGeneratorClusterOperator(g.listers.Deployments, g.listers.ClusterOperators, g.clients.Config, cr, mutators))

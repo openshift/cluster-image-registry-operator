@@ -7,7 +7,10 @@ rules:
 - apiGroups:
   - imageregistry.operator.openshift.io
   resources:
-  - "*"
+  - "configs"
+  - "configs/status"
+  - "imagepruners"
+  - "imagepruners/status"
   verbs:
   - "*"
 - apiGroups:
@@ -37,6 +40,14 @@ rules:
   - pods
   - secrets
   - services
+  - cronjobs
+  verbs:
+  - "*"
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
   verbs:
   - "*"
 - apiGroups:
