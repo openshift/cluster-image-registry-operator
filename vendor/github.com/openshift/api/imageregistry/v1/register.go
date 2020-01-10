@@ -30,8 +30,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Config{},
 		&ConfigList{},
-		&ImagePruner{},
-		&ImagePrunerList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
