@@ -65,7 +65,7 @@ func TestAWSDefaults(t *testing.T) {
 	framework.MustEnsureServiceCAConfigMap(t, client)
 	framework.MustEnsureNodeCADaemonSetIsAvailable(t, client)
 
-	cfg, err := storages3.GetConfig(kcfg, mockLister)
+	cfg, err := storages3.GetConfig(mockLister)
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
@@ -429,7 +429,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Check that the user provided credentials override the system provided ones
-	cfgUser, err := storages3.GetConfig(kcfg, mockLister)
+	cfgUser, err := storages3.GetConfig(mockLister)
 	if err != nil {
 		t.Errorf("unable to get aws configuration: %#v", err)
 	}
