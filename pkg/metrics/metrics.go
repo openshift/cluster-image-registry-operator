@@ -12,11 +12,16 @@ var (
 		Name: "image_registry_operator_image_pruner_install_status",
 		Help: "Installation status code related to the automatic image pruning feature. 0 = not installed, 1 = suspended, 2 = enabled",
 	})
+	completedImagePrunerJobs = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "image_registry_operator_image_pruner_completed_jobs_total",
+		Help: "Total number of completed image pruner jobs by result.",
+	}, []string{"result"})
 )
 
 func init() {
 	registry.MustRegister(
 		storageReconfigured,
 		imagePrunerInstallStatus,
+		completedImagePrunerJobs,
 	)
 }

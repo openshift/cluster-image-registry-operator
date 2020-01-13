@@ -1,38 +1,25 @@
 package metrics
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
-	"io"
-	"io/ioutil"
-	"math/big"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
-	io_prometheus_client "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
+	prometheusutil "github.com/openshift/cluster-image-registry-operator/test/util/prometheus"
 )
 
 func TestMain(m *testing.M) {
-	var err error
-
-	tlsKey, tlsCRT, err = generateTempCertificates()
-	if err != nil {
-		panic(err)
-	}
-
 	// sets the default http client to skip certificate check.
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
-
 	ch := make(chan struct{})
-	go RunServer(5000, ch)
+	tlsKey, tlsCRT, err := StartTestMetricsServer(5000, ch)
+	if err != nil {
+		panic(err)
+	}
 
 	// give http handlers/server some time to process certificates and
 	// get online before running tests.
@@ -43,43 +30,6 @@ func TestMain(m *testing.M) {
 	os.Remove(tlsCRT)
 	close(ch)
 	os.Exit(code)
-}
-
-func generateTempCertificates() (string, string, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		return "", "", err
-	}
-
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, key.Public(), key)
-	if err != nil {
-		return "", "", err
-	}
-
-	cert, err := ioutil.TempFile("", "testcert-")
-	if err != nil {
-		return "", "", err
-	}
-	defer cert.Close()
-	pem.Encode(cert, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: derBytes,
-	})
-
-	keyPath, err := ioutil.TempFile("", "testkey-")
-	if err != nil {
-		return "", "", err
-	}
-	defer keyPath.Close()
-	pem.Encode(keyPath, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
-	})
-
-	return keyPath.Name(), cert.Name(), nil
 }
 
 func TestRun(t *testing.T) {
@@ -121,14 +71,12 @@ func TestStorageReconfigured(t *testing.T) {
 				StorageReconfigured()
 			}
 
-			resp, err := http.Get("https://localhost:5000/metrics")
+			metrics, err := prometheusutil.GetMetricsWithName("https://localhost:5000/metrics", metricName)
 			if err != nil {
-				t.Fatalf("error requesting metrics server: %v", err)
+				t.Fatalf("error locating metric %s: %v", metricName, err)
 			}
-
-			metrics := findMetricsByCounter(resp.Body, metricName)
 			if len(metrics) == 0 {
-				t.Fatal("unable to locate metric", metricName)
+				t.Fatalf("unable to locate metric %s", metricName)
 			}
 
 			val := *metrics[0].Counter.Value
@@ -166,14 +114,13 @@ func TestImagePrunerInstallStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ImagePrunerInstallStatus(tc.installed, tc.enabled)
 
-			resp, err := http.Get("https://localhost:5000/metrics")
+			metrics, err := prometheusutil.GetMetricsWithName("https://localhost:5000/metrics", metricName)
 			if err != nil {
-				t.Fatalf("error requesting metrics server: %v", err)
+				t.Fatalf("error locating metric: %v", err)
 			}
 
-			metrics := findMetricsByCounter(resp.Body, metricName)
 			if len(metrics) == 0 {
-				t.Fatal("unable to locate metric", metricName)
+				t.Fatalf("unable to locate metric %s", metricName)
 			}
 
 			for _, m := range metrics {
@@ -191,16 +138,4 @@ func TestImagePrunerInstallStatus(t *testing.T) {
 		})
 	}
 
-}
-
-func findMetricsByCounter(buf io.ReadCloser, name string) []*io_prometheus_client.Metric {
-	defer buf.Close()
-	mf := io_prometheus_client.MetricFamily{}
-	decoder := expfmt.NewDecoder(buf, "text/plain")
-	for err := decoder.Decode(&mf); err == nil; err = decoder.Decode(&mf) {
-		if *mf.Name == name {
-			return mf.Metric
-		}
-	}
-	return nil
 }

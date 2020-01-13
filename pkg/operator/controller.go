@@ -569,6 +569,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		informers = append(informers, informer)
 	}
 
+	metricsController := NewRateLimitedPrunerMetricsController(kubeInformerFactory)
+
 	configInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
@@ -582,6 +584,8 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return fmt.Errorf("failed to wait for caches to sync")
 		}
 	}
+
+	go metricsController.Run(stopCh)
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 

@@ -43,3 +43,11 @@ spec:
           To remove this warning, install the image pruner by creating an
           imagepruner.imageregistry.operator.openshift.io resource with the
           name `cluster`. Ensure that the `suspend` field is set to `false`.
+    - alert: ImagePruningFailed
+      expr: increase(image_registry_operator_image_pruner_completed_jobs_total{result="failed"}[24h]) > 0
+      labels:
+        severity: warning
+      annotations:
+        message: |
+          A recent image pruning job failed. Review the completed jobs in the
+          `openshift-image-registry` namespace to determine the root cause.

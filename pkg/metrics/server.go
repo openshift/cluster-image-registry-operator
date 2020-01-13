@@ -2,7 +2,13 @@ package metrics
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
+	"math/big"
 	"net/http"
 	"time"
 
@@ -10,13 +16,18 @@ import (
 	"k8s.io/klog"
 )
 
-var (
-	tlsCRT = "/etc/secrets/tls.crt"
-	tlsKey = "/etc/secrets/tls.key"
+const (
+	defaultTLSCrt = "/etc/secrets/tls.crt"
+	defaultTLSKey = "/etc/secrets/tls.key"
 )
 
 // RunServer starts the metrics server.
 func RunServer(port int, stopCh <-chan struct{}) {
+	RunServerWithTLS(port, stopCh, defaultTLSCrt, defaultTLSKey)
+}
+
+// RunServerWithTLS starts the metrics server with the provided TLS crt and key files
+func RunServerWithTLS(port int, stopCh <-chan struct{}, crt string, key string) {
 	if port <= 0 {
 		klog.Error("invalid port for metric server")
 		return
@@ -38,7 +49,7 @@ func RunServer(port int, stopCh <-chan struct{}) {
 	}
 
 	go func() {
-		err := srv.ListenAndServeTLS(tlsCRT, tlsKey)
+		err := srv.ListenAndServeTLS(crt, key)
 		if err != nil && err != http.ErrServerClosed {
 			klog.Errorf("error starting metrics server: %v", err)
 		}
@@ -71,4 +82,58 @@ func ImagePrunerInstallStatus(installed bool, enabled bool) {
 		return
 	}
 	imagePrunerInstallStatus.Set(2)
+}
+
+func ImagePrunerJobCompleted(result string) {
+	completedImagePrunerJobs.WithLabelValues(result).Inc()
+}
+
+// StartTestMetricsServer launches a local metrics server with a generated, self-signed TLS certificate.
+// This method is intended to facilitate testing with Prometheus metrics reported by the operator.
+//
+// Returns the path to the generated TLS .key and .crt files, and error if any.
+func StartTestMetricsServer(port int, stopCh chan struct{}) (tlsKey string, tlsCrt string, err error) {
+	tlsKey, tlsCrt, err = generateTempCertificates()
+	if err != nil {
+		return "", "", err
+	}
+	go RunServerWithTLS(port, stopCh, tlsCrt, tlsKey)
+	return tlsKey, tlsCrt, err
+}
+
+func generateTempCertificates() (string, string, error) {
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		return "", "", err
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+	}
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, key.Public(), key)
+	if err != nil {
+		return "", "", err
+	}
+
+	cert, err := ioutil.TempFile("", "testcert-")
+	if err != nil {
+		return "", "", err
+	}
+	defer cert.Close()
+	pem.Encode(cert, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	})
+
+	keyPath, err := ioutil.TempFile("", "testkey-")
+	if err != nil {
+		return "", "", err
+	}
+	defer keyPath.Close()
+	pem.Encode(keyPath, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	})
+
+	return keyPath.Name(), cert.Name(), nil
 }
