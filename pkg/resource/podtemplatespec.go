@@ -84,7 +84,12 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace strin
 }
 
 func storageConfigure(driver storage.Driver) (envs []corev1.EnvVar, volumes []corev1.Volume, mounts []corev1.VolumeMount, err error) {
-	envs, err = driver.ConfigEnv()
+	configenvs, err := driver.ConfigEnv()
+	if err != nil {
+		return
+	}
+
+	envs, err = configenvs.EnvVars(defaults.ImageRegistryPrivateConfiguration)
 	if err != nil {
 		return
 	}

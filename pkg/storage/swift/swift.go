@@ -5,20 +5,23 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/goware/urlx"
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	yamlv2 "gopkg.in/yaml.v2"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 type Swift struct {
@@ -185,20 +188,7 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageSwift, listers *rego
 	}
 }
 
-// Secrets returns a map of the storage access secrets
-func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := GetConfig(d.Listers)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]string{
-		"REGISTRY_STORAGE_SWIFT_USERNAME": cfg.Username,
-		"REGISTRY_STORAGE_SWIFT_PASSWORD": cfg.Password,
-	}, nil
-}
-
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
@@ -219,47 +209,27 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 	}
 
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: d.Config.Container},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
-		corev1.EnvVar{
-			Name: "REGISTRY_STORAGE_SWIFT_USERNAME",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: defaults.ImageRegistryPrivateConfiguration,
-					},
-					Key: "REGISTRY_STORAGE_SWIFT_USERNAME",
-				},
-			},
-		},
-		corev1.EnvVar{
-			Name: "REGISTRY_STORAGE_SWIFT_PASSWORD",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: defaults.ImageRegistryPrivateConfiguration,
-					},
-					Key: "REGISTRY_STORAGE_SWIFT_PASSWORD",
-				},
-			},
-		},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: d.Config.AuthVersion},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: d.Config.Container},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cfg.Username, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cfg.Password, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: d.Config.AuthVersion},
 	)
 	if d.Config.Domain != "" {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
 	}
 	if d.Config.DomainID != "" {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID})
 	}
 	if d.Config.Tenant != "" {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant})
 	}
 	if d.Config.TenantID != "" {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID})
 	}
 	if d.Config.RegionName != "" {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName})
 	}
 
 	return
@@ -447,6 +417,10 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return nil, nil, nil
+}
+
+func (d *driver) VolumeSecrets() (map[string]string, error) {
+	return nil, nil
 }
 
 // ID return the underlying storage identificator, on this case the Swift

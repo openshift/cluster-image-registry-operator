@@ -4,18 +4,20 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 const (
@@ -48,10 +50,10 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStoragePVC, kubeconfig *res
 	}, nil
 }
 
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "filesystem"},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY", Value: rootDirectory},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "filesystem"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY", Value: rootDirectory},
 	)
 	return
 }
@@ -72,6 +74,10 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	}
 
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
+}
+
+func (d *driver) VolumeSecrets() (map[string]string, error) {
+	return nil, nil
 }
 
 func (d *driver) Secrets() (map[string]string, error) {

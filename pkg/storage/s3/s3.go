@@ -7,11 +7,6 @@ import (
 	"net/url"
 	"reflect"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
-	"github.com/openshift/cluster-image-registry-operator/version"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -19,13 +14,21 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	"golang.org/x/net/http/httpproxy"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	"github.com/openshift/cluster-image-registry-operator/version"
 )
 
 type S3 struct {
@@ -171,50 +174,35 @@ func isBucketNotFound(err interface{}) bool {
 
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
-func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
+func (d *driver) ConfigEnv() (envs envvar.List, err error) {
+	cfg, err := GetConfig(d.KubeConfig, d.Listers)
+	if err != nil {
+		return nil, err
+	}
+
 	if len(d.Config.RegionEndpoint) != 0 {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint})
 	}
 
 	if len(d.Config.KeyID) != 0 {
-		envs = append(envs, corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
 	}
 
 	envs = append(envs,
-		corev1.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
-		corev1.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", d.Config.Encrypt)},
-		corev1.EnvVar{
-			Name: "REGISTRY_STORAGE_S3_ACCESSKEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: defaults.ImageRegistryPrivateConfiguration,
-					},
-					Key: "REGISTRY_STORAGE_S3_ACCESSKEY",
-				},
-			},
-		},
-		corev1.EnvVar{
-			Name: "REGISTRY_STORAGE_S3_SECRETKEY",
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: defaults.ImageRegistryPrivateConfiguration,
-					},
-					Key: "REGISTRY_STORAGE_S3_SECRETKEY",
-				},
-			},
-		},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: cfg.AccessKey, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: cfg.SecretKey, Secret: true},
 	)
 
 	if d.Config.CloudFront != nil {
 		envs = append(envs,
-			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_BASEURL", Value: d.Config.CloudFront.BaseURL},
-			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_KEYPAIRID", Value: d.Config.CloudFront.KeypairID},
-			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_DURATION", Value: d.Config.CloudFront.Duration.String()},
-			corev1.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_PRIVATEKEY", Value: "/etc/docker/cloudfront/private.pem"},
+			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_BASEURL", Value: d.Config.CloudFront.BaseURL},
+			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_KEYPAIRID", Value: d.Config.CloudFront.KeypairID},
+			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_DURATION", Value: d.Config.CloudFront.Duration.String()},
+			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_PRIVATEKEY", Value: "/etc/docker/cloudfront/private.pem"},
 		)
 	}
 
@@ -250,17 +238,8 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
 }
 
-// Secrets returns a map of the storage access secrets.
-func (d *driver) Secrets() (map[string]string, error) {
-	cfg, err := GetConfig(d.KubeConfig, d.Listers)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]string{
-		"REGISTRY_STORAGE_S3_ACCESSKEY": cfg.AccessKey,
-		"REGISTRY_STORAGE_S3_SECRETKEY": cfg.SecretKey,
-	}, nil
+func (d *driver) VolumeSecrets() (map[string]string, error) {
+	return nil, nil
 }
 
 // bucketExists checks whether or not the s3 bucket exists
