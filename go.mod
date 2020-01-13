@@ -35,8 +35,8 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v0.0.0-20191217141120-791af96035a5
-	github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e
+	github.com/openshift/api v0.0.0-20200110191829-69b8abb8b201
+	github.com/openshift/client-go v0.0.0-20200109173103-2763c6378941
 	github.com/openshift/crd-schema-gen v1.0.0
 	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410
 	github.com/openshift/library-go v0.0.0-20191218095328-1c12909e5923
@@ -54,7 +54,6 @@ require (
 	golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6
 	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	golang.org/x/tools v0.0.0-20191210221141-98df12377212 // indirect
 	gonum.org/v1/gonum v0.6.0 // indirect
 	google.golang.org/api v0.7.0
 	google.golang.org/appengine v1.6.5 // indirect
