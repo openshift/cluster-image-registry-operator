@@ -168,6 +168,9 @@ github.com/inconshreveable/mousetrap
 github.com/jmespath/go-jmespath
 # github.com/json-iterator/go v1.1.8
 github.com/json-iterator/go
+# github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible
+github.com/jteeuwen/go-bindata
+github.com/jteeuwen/go-bindata/go-bindata
 # github.com/mailru/easyjson v0.7.0
 github.com/mailru/easyjson/buffer
 github.com/mailru/easyjson/jlexer
@@ -229,6 +232,7 @@ github.com/openshift/installer/pkg/types/none
 github.com/openshift/installer/pkg/types/openstack
 github.com/openshift/installer/pkg/types/vsphere
 # github.com/openshift/library-go v0.0.0-20191218095328-1c12909e5923
+github.com/openshift/library-go/alpha-build-machinery/make/targets/openshift
 github.com/openshift/library-go/pkg/config/client
 github.com/openshift/library-go/pkg/controller/fileobserver
 github.com/openshift/library-go/pkg/operator/events
