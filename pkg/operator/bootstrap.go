@@ -11,6 +11,7 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
+	appsapi "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
@@ -72,6 +73,7 @@ func (c *Controller) Bootstrap() error {
 			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
 			Replicas:        1,
 			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),
+			RolloutStrategy: string(appsapi.RollingUpdateDeploymentStrategyType),
 		},
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
