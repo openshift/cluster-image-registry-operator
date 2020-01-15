@@ -2,6 +2,12 @@ IMAGE ?= docker.io/openshift/origin-cluster-image-registry-operator
 TAG ?= latest
 PROG  := cluster-image-registry-operator
 
+include $(addprefix ./vendor/github.com/openshift/library-go/alpha-build-machinery/make/, \
+    targets/openshift/bindata.mk \
+)
+
+$(call add-bindata,assets,./bindata/...,./bindata/,assets,pkg/assets/bindata.go)
+
 all: build build-image verify
 .PHONY: all
 
@@ -24,7 +30,7 @@ test-e2e:
 	./hack/test-go.sh -count 1 -timeout 2h -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
-verify: verify-fmt
+verify: verify-fmt verify-bindata
 .PHONY: verify
 
 verify-fmt:

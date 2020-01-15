@@ -6,6 +6,10 @@
 package tools
 
 import (
+	// Makefile
+	"github.com/jteeuwen/go-bindata/go-bindata"
+	"github.com/openshift/library-go/alpha-build-machinery/make/targets/openshift"
+
 	// required by hack/codegen/update-generated.sh
 	_ "k8s.io/code-generator"
 	_ "k8s.io/code-generator/cmd/client-gen"

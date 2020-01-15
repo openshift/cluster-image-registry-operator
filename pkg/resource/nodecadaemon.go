@@ -12,83 +12,8 @@ import (
 
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/assets"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-)
-
-const (
-	nodeCADaemonSetDefinition = `
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: node-ca
-  namespace: openshift-image-registry
-spec:
-  selector:
-    matchLabels:
-      name: node-ca
-  template:
-    metadata:
-      labels:
-        name: node-ca
-    spec:
-      nodeSelector:
-        kubernetes.io/os: linux
-      priorityClassName: system-cluster-critical
-      tolerations:
-      - effect: NoSchedule
-        operator: Exists
-      serviceAccountName: node-ca
-      containers:
-      - name: node-ca
-        securityContext:
-          privileged: true
-        image: docker.io/openshift/origin-cluster-image-registry-operator:latest
-        resources:
-          requests:
-            cpu: 10m
-            memory: 10Mi
-        command:
-        - "/bin/sh"
-        - "-c"
-        - |
-          trap 'jobs -p | xargs -r kill; echo shutting down node-ca; exit 0' TERM
-          while [ true ];
-          do
-            for f in $(ls /tmp/serviceca); do
-                echo $f
-                ca_file_path="/tmp/serviceca/${f}"
-                f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
-                reg_dir_path="/etc/docker/certs.d/${f}"
-                if [ -e "${reg_dir_path}" ]; then
-                    cp -u $ca_file_path $reg_dir_path/ca.crt
-                else
-                    mkdir $reg_dir_path
-                    cp $ca_file_path $reg_dir_path/ca.crt
-                fi
-            done
-            for d in $(ls /etc/docker/certs.d); do
-                echo $d
-                dp=$(echo $d | sed  -r 's/(.*):/\1\.\./')
-                reg_conf_path="/tmp/serviceca/${dp}"
-                if [ ! -e "${reg_conf_path}" ]; then
-                    rm -rf /etc/docker/certs.d/$d
-                fi
-            done
-            sleep 60 & wait ${!}
-          done
-        volumeMounts:
-        - name: serviceca
-          mountPath: /tmp/serviceca
-        - name: host
-          mountPath: /etc/docker/certs.d
-      volumes:
-      - name: host
-        hostPath:
-          path: /etc/docker/certs.d
-      - name: serviceca
-        configMap:
-          name: image-registry-certificates
-`
 )
 
 var _ Mutator = &generatorNodeCADaemonSet{}
@@ -134,7 +59,7 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 }
 
 func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
-	daemonSet := resourceread.ReadDaemonSetV1OrDie([]byte(nodeCADaemonSetDefinition))
+	daemonSet := resourceread.ReadDaemonSetV1OrDie(assets.MustAsset("nodecadaemon.yaml"))
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
 
 	return ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
