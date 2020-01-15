@@ -3,6 +3,7 @@ package swift
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/gophercloud/gophercloud"
@@ -203,6 +204,11 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
 	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
 
+	authVersion, err := strconv.Atoi(d.Config.AuthVersion)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse authVersion: %s", err)
+	}
+
 	err = d.ensureAuthURLHasAPIVersion()
 	if err != nil {
 		return nil, err
@@ -214,7 +220,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cfg.Username, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cfg.Password, Secret: true},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: d.Config.AuthVersion},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: authVersion},
 	)
 	if d.Config.Domain != "" {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
