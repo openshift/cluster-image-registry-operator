@@ -438,18 +438,25 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
 
-	route, err := client.Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+	err = wait.Poll(5*time.Second, 1*time.Minute, func() (done bool, err error) {
+		route, err := client.Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+		if err != nil {
+			t.Logf("unable to get route: %s", err)
+			return false, nil
+		}
+		if route.Spec.TLS == nil {
+			t.Fatal("route.Spec.TLS is nil, want a configuration")
+		}
+		if route.Spec.TLS.Certificate != string(cert) {
+			t.Errorf("route tls certificate: got %q, want %q", route.Spec.TLS.Certificate, string(cert))
+		}
+		if route.Spec.TLS.Key != string(key) {
+			t.Errorf("route tls key: got %q, want %q", route.Spec.TLS.Key, string(key))
+		}
+		return true, nil
+	})
 	if err != nil {
-		t.Fatalf("unable to get route: %s", err)
-	}
-	if route.Spec.TLS == nil {
-		t.Fatal("route.Spec.TLS is nil, want a configuration")
-	}
-	if route.Spec.TLS.Certificate != string(cert) {
-		t.Errorf("route tls certificate: got %q, want %q", route.Spec.TLS.Certificate, string(cert))
-	}
-	if route.Spec.TLS.Key != string(key) {
-		t.Errorf("route tls key: got %q, want %q", route.Spec.TLS.Key, string(key))
+		t.Fatalf("failed to observe the route: %s", err)
 	}
 }
 
