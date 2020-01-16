@@ -10,6 +10,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -121,7 +122,7 @@ func createPVWithStorageClass(t *testing.T) error {
 	return nil
 }
 
-func createPVC(t *testing.T, name string) error {
+func createPVC(t *testing.T, name string, accessMode corev1.PersistentVolumeAccessMode) error {
 	client := framework.MustNewClientset(t, nil)
 
 	claim := &corev1.PersistentVolumeClaim{
@@ -131,7 +132,7 @@ func createPVC(t *testing.T, name string) error {
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
-				corev1.ReadWriteMany,
+				accessMode,
 			},
 			Resources: corev1.ResourceRequirements{
 				Requests: corev1.ResourceList{
@@ -198,7 +199,8 @@ func TestDefaultPVC(t *testing.T) {
 	checkTestResult(t, client)
 }
 
-func TestCustomPVC(t *testing.T) {
+func TestCustomRWXPVC(t *testing.T) {
+	claimName := "test-custom-rwx-pvc"
 	client := framework.MustNewClientset(t, nil)
 
 	defer testDefer(t, client)
@@ -211,7 +213,7 @@ func TestCustomPVC(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := createPVC(t, "test-custom-pvc"); err != nil {
+	if err := createPVC(t, claimName, corev1.ReadWriteMany); err != nil {
 		t.Fatal(err)
 	}
 
@@ -227,10 +229,51 @@ func TestCustomPVC(t *testing.T) {
 			ManagementState: operatorapi.Managed,
 			Storage: imageregistryv1.ImageRegistryConfigStorage{
 				PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
-					Claim: "test-custom-pvc",
+					Claim: claimName,
 				},
 			},
 			Replicas: 1,
+		},
+	})
+
+	checkTestResult(t, client)
+}
+
+func TestCustomRWOPVC(t *testing.T) {
+	claimName := "test-custom-rwo-pvc"
+	client := framework.MustNewClientset(t, nil)
+
+	defer testDefer(t, client)
+
+	if err := createPV(t, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := createPVWithStorageClass(t); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := createPVC(t, claimName, corev1.ReadWriteOnce); err != nil {
+		t.Fatal(err)
+	}
+
+	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
+			Kind:       "Config",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: defaults.ImageRegistryResourceName,
+		},
+		Spec: imageregistryv1.ImageRegistrySpec{
+			ManagementState: operatorapi.Managed,
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
+					Claim: claimName,
+				},
+			},
+			Replicas:        1,
+			RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
 		},
 	})
 
