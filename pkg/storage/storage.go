@@ -9,6 +9,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
@@ -155,7 +156,17 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	case configapiv1.GCPPlatformType:
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 	case configapiv1.OpenStackPlatformType:
-		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
+		isSwiftEnabled, err := swift.IsSwiftEnabled(listers)
+		if err != nil {
+			return imageregistryv1.ImageRegistryConfigStorage{}, err
+		}
+		if !isSwiftEnabled {
+			cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
+				Claim: defaults.PVCImageRegistryName,
+			}
+		} else {
+			cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
+		}
 
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.

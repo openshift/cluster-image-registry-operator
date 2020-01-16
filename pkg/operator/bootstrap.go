@@ -7,12 +7,18 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	appsapi "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
@@ -61,6 +67,32 @@ func (c *Controller) Bootstrap() error {
 		mgmtState = operatorapi.Removed
 	}
 
+	infra, err := util.GetInfrastructure(c.listers)
+	if err != nil {
+		return err
+	}
+
+	rolloutStrategy := appsapi.RollingUpdateDeploymentStrategyType
+
+	// If Swift service is not available for OpenStack, we have to start using
+	// Cinder with RWO PVC backend. It means that we need to create an RWO claim
+	// and set the rollout strategy to Recreate.
+	switch infra.Status.PlatformStatus.Type {
+	case configapiv1.OpenStackPlatformType:
+		isSwiftEnabled, err := swift.IsSwiftEnabled(c.listers)
+		if err != nil {
+			return err
+		}
+		if !isSwiftEnabled {
+			err = c.createPVC(corev1.ReadWriteOnce)
+			if err != nil {
+				return err
+			}
+
+			rolloutStrategy = appsapi.RecreateDeploymentStrategyType
+		}
+	}
+
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       defaults.ImageRegistryResourceName,
@@ -73,7 +105,7 @@ func (c *Controller) Bootstrap() error {
 			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
 			Replicas:        1,
 			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),
-			RolloutStrategy: string(appsapi.RollingUpdateDeploymentStrategyType),
+			RolloutStrategy: string(rolloutStrategy),
 		},
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
@@ -90,6 +122,49 @@ func (c *Controller) Bootstrap() error {
 	_, err = client.Configs().Create(cr)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) error {
+	claimName := defaults.PVCImageRegistryName
+
+	// Check that the claim does not exist before creating it
+	claim, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(claimName, metav1.GetOptions{})
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+
+		// "standard" is the default StorageClass name, that was provisioned by the cloud provider
+		storageClassName := "standard"
+
+		claim = &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      claimName,
+				Namespace: defaults.ImageRegistryOperatorNamespace,
+				Annotations: map[string]string{
+					pvc.PVCOwnerAnnotation: "true",
+				},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					accessMode,
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("100Gi"),
+					},
+				},
+				StorageClassName: &storageClassName,
+			},
+		}
+
+		_, err = c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
