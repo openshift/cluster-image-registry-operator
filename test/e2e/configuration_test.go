@@ -234,7 +234,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.ResetClusterProxyConfig(client)
+	defer framework.MustResetClusterProxyConfig(t, client)
 
 	framework.MustDeployImageRegistry(t, client, nil)
 	framework.MustEnsureImageRegistryIsAvailable(t, client)
@@ -306,8 +306,8 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.ResetClusterProxyConfig(client)
-	defer framework.ResetResourceProxyConfig(client)
+	defer framework.MustResetClusterProxyConfig(t, client)
+	defer framework.MustResetResourceProxyConfig(t, client)
 
 	resourceProxyConfig := imageregistryapiv1.ImageRegistryConfigProxy{
 		NoProxy: "resourcenoproxy.example.com",

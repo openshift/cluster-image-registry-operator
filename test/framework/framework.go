@@ -17,8 +17,6 @@ var (
 	// AsyncOperationTimeout is how long we want to wait for asynchronous
 	// operations to complete. ForeverTestTimeout is not long enough to create
 	// several replicas and get them available on a slow machine.
-	// Setting this to 5 minutes:w
-
 	AsyncOperationTimeout = 5 * time.Minute
 )
 
