@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gophercloud/gophercloud"
 	th "github.com/gophercloud/gophercloud/testhelper"
 
 	corev1 "k8s.io/api/core/v1"
@@ -608,4 +609,34 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, true, res)
+}
+
+func TestSwiftIsNotAvailable(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+	// Swift endpoint is not registered
+	handleAuthentication(t, "INVALID")
+
+	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		th.TestMethod(t, r, "HEAD")
+		th.TestHeader(t, r, "Accept", "application/json")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Date", "Wed, 17 Aug 2016 19:25:43 GMT")
+		w.Header().Set("X-Container-Bytes-Used", "100")
+		w.Header().Set("X-Container-Object-Count", "4")
+		w.Header().Set("X-Container-Read", "test")
+		w.Header().Set("X-Container-Write", "test2,user4")
+		w.Header().Set("X-Timestamp", "1471298837.95721")
+		w.Header().Set("X-Trans-Id", "tx554ed59667a64c61866f1-0057b4ba37")
+		w.Header().Set("X-Storage-Policy", "test_policy")
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d, _ := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
+
+	_, err := d.getSwiftClient()
+	// if Swift endpoint is not registered, getSwiftClient should return ErrEndpointNotFound
+	_, ok := err.(*gophercloud.ErrEndpointNotFound)
+	th.AssertEquals(t, true, ok)
 }
