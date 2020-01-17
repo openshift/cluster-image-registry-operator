@@ -507,7 +507,7 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_PASSWORD", res[4].Name)
 	th.AssertEquals(t, true, res[4].Secret)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHVERSION", res[5].Name)
-	th.AssertEquals(t, "3", res[5].Value)
+	th.AssertEquals(t, 3, res[5].Value)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_DOMAIN", res[6].Name)
 	th.AssertEquals(t, domain, res[6].Value)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_TENANT", res[7].Name)
