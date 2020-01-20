@@ -190,6 +190,8 @@ func DeployImageRegistry(logger Logger, client *Clientset, cr *imageregistryapiv
 
 func MustDeployImageRegistry(t *testing.T, client *Clientset, cr *imageregistryapiv1.Config) {
 	if err := DeployImageRegistry(t, client, cr); err != nil {
+		DumpOperatorDeployment(t, client)
+		DumpImageRegistryResource(t, client)
 		t.Fatal(err)
 	}
 }
