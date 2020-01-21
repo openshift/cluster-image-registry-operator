@@ -57,16 +57,7 @@ func replaceEmpty(a string, b string) string {
 
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
 func IsSwiftEnabled(listers *regopclient.Listers) (bool, error) {
-	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
-	_, err := driver.getSwiftClient()
-	if err != nil {
-		// ErrEndpointNotFound means that Swift is not available
-		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
+	return false, nil // <- for testing to make sure we don't use Swift
 }
 
 // GetConfig reads credentials
