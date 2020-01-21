@@ -23,7 +23,6 @@ import (
 
 const (
 	rootDirectory      = "/registry"
-	randomSecretSize   = 32
 	PVCOwnerAnnotation = "imageregistry.openshift.io"
 )
 

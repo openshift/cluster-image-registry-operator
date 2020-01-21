@@ -238,37 +238,32 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
 
 	} else {
-		const numRetries = 5000
-		for i := 0; i < numRetries; i++ {
-			// If the bucket name is blank, let's generate one
-			if len(d.Config.Bucket) == 0 {
-				if d.Config.Bucket, err = util.GenerateStorageName(d.Listers, d.Config.Region); err != nil {
-					return err
-				}
+		// If the bucket name is blank, let's generate one
+		if len(d.Config.Bucket) == 0 {
+			if d.Config.Bucket, err = util.GenerateStorageName(d.Listers, d.Config.Region); err != nil {
+				return err
 			}
-			bucketAttrs := gstorage.BucketAttrs{Location: d.Config.Region}
-			bucket = gclient.Bucket(d.Config.Bucket)
-
-			err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs)
-			if err != nil {
-				if gerr, ok := err.(*gapi.Error); ok {
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
-					return err
-				} else {
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
-					return err
-				}
-			}
-			cr.Status.StorageManaged = true
-			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-				GCS: d.Config.DeepCopy(),
-			}
-			cr.Spec.Storage.GCS = d.Config.DeepCopy()
-
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
-
-			break
 		}
+		bucketAttrs := gstorage.BucketAttrs{Location: d.Config.Region}
+		bucket = gclient.Bucket(d.Config.Bucket)
+
+		err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs)
+		if err != nil {
+			if gerr, ok := err.(*gapi.Error); ok {
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
+				return err
+			} else {
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+				return err
+			}
+		}
+		cr.Status.StorageManaged = true
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			GCS: d.Config.DeepCopy(),
+		}
+		cr.Spec.Storage.GCS = d.Config.DeepCopy()
+
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
 
 		if len(d.Config.Bucket) == 0 {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "")

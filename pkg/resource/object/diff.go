@@ -39,8 +39,6 @@ func printDiff(oldv, newv map[string]string, printer func(key, typ, oldv, newv s
 	for _, k := range keys {
 		printer(k, diff[k][0], diff[k][1], diff[k][2])
 	}
-
-	return
 }
 
 func pairs(prefix string, o interface{}) (res map[string]string) {
