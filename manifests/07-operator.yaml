@@ -54,6 +54,8 @@ spec:
               value: "cluster-image-registry-operator"
             - name: IMAGE
               value: docker.io/openshift/origin-docker-registry:latest
+            - name: IMAGE_PRUNER
+              value: quay.io/openshift/origin-cli:v4.0
           volumeMounts:
             - name: trusted-ca
               mountPath: /var/run/configmaps/trusted-ca/

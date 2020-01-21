@@ -6,7 +6,7 @@ RUN make build
 FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
 COPY images/bin/entrypoint.sh /usr/bin/
 COPY manifests/image-references manifests/0* /manifests/
-COPY vendor/github.com/openshift/api/imageregistry/v1/00-crd.yaml /manifests/
+COPY vendor/github.com/openshift/api/imageregistry/v1/*-crd.yaml /manifests/
 COPY --from=builder /go/src/github.com/openshift/cluster-image-registry-operator/tmp/_output/bin/cluster-image-registry-operator /usr/bin/
 RUN ln /usr/bin/cluster-image-registry-operator /usr/bin/cluster-image-registry-operator-watch && \
     chmod -R g+w /etc/pki/ca-trust/extracted/pem/

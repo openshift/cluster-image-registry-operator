@@ -44,6 +44,10 @@ const (
 	// that reflects the registry operator status.
 	ImageRegistryClusterOperatorResourceName = "image-registry"
 
+	// ImageRegistryImagePrunerResourceName is the name of the clusteroperator resource
+	// that reflects the registry operator status.
+	ImageRegistryImagePrunerResourceName = "cluster"
+
 	// Status Conditions
 
 	// OperatorStatusTypeRemoved denotes that the image-registry instance has been
