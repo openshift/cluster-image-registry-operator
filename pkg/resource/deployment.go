@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"encoding/json"
 	"os"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
@@ -12,6 +13,7 @@ import (
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
@@ -123,9 +125,32 @@ func (gd *generatorDeployment) Create() (runtime.Object, error) {
 }
 
 func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, error) {
-	return commonUpdate(gd, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gd.client.Deployments(gd.GetNamespace()).Update(obj.(*appsapi.Deployment))
-	})
+	/*
+		return commonUpdate(gd, o, func(obj runtime.Object) (runtime.Object, error) {
+			return gd.client.Deployments(gd.GetNamespace()).Update(obj.(*appsapi.Deployment))
+		})
+	*/
+
+	n, err := gd.expected()
+	if err != nil {
+		return nil, false, err
+	}
+
+	data, err := json.Marshal(n)
+	if err != nil {
+		return nil, false, err
+	}
+
+	dep, err := gd.client.Deployments(gd.GetNamespace()).Patch(
+		"image-registry",
+		types.MergePatchType,
+		data,
+	)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return dep, true, nil
 }
 
 func (gd *generatorDeployment) Delete(opts *metav1.DeleteOptions) error {
