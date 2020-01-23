@@ -36,6 +36,7 @@ func generateLogLevel(cr *v1.Config) string {
 func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
+
 	return probeConfig
 }
 
@@ -298,8 +299,14 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			PriorityClassName: "system-cluster-critical",
 			Containers: []corev1.Container{
 				{
-					Name:                     "registry",
-					Image:                    image,
+					Name:  "registry",
+					Image: image,
+					Ports: []corev1.ContainerPort{
+						{
+							ContainerPort: int32(params.Container.Port),
+							Protocol:      "TCP",
+						},
+					},
 					Env:                      env,
 					VolumeMounts:             mounts,
 					LivenessProbe:            generateLivenessProbeConfig(params),
@@ -308,22 +315,16 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					TerminationMessagePath:   "/dev/termination-log",
 					TerminationMessagePolicy: "File",
 					ImagePullPolicy:          "IfNotPresent",
-					Ports: []corev1.ContainerPort{
-						{
-							ContainerPort: int32(params.Container.Port),
-							Protocol:      "TCP",
-						},
-					},
 				},
 			},
+			Volumes:                       volumes,
+			ServiceAccountName:            params.Pod.ServiceAccount,
+			SecurityContext:               securityContext,
 			RestartPolicy:                 "Always",
 			DNSPolicy:                     "ClusterFirst",
 			DeprecatedServiceAccount:      "registry",
 			SchedulerName:                 "default-scheduler",
 			TerminationGracePeriodSeconds: &gracePeriod,
-			Volumes:                       volumes,
-			ServiceAccountName:            params.Pod.ServiceAccount,
-			SecurityContext:               securityContext,
 			Affinity: &corev1.Affinity{
 				PodAntiAffinity: &corev1.PodAntiAffinity{
 					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
