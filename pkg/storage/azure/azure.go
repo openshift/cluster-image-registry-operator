@@ -378,10 +378,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 // StorageChanged checks if the storage configuration has changed.
 func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
-	if !reflect.DeepEqual(cr.Status.Storage.Azure, cr.Spec.Storage.Azure) {
-		return true
-	}
-	return false
+	return !reflect.DeepEqual(cr.Status.Storage.Azure, cr.Spec.Storage.Azure)
 }
 
 // CreateStorage attempts to create a storage account and a storage container.
@@ -532,7 +529,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 // RemoveStorage deletes the storage medium that was created.
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err error) {
-	if cr.Status.StorageManaged != true {
+	if !cr.Status.StorageManaged {
 		return false, nil
 	}
 	if d.Config.AccountName == "" {
