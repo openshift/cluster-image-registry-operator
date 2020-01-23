@@ -158,8 +158,7 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 		return unexportedVar.MatchString(last) || last == ".DefaultMode"
 	}
 
-	diff := cmp.Diff(exp.Spec, cur.Spec, cmp.FilterPath(ignore, cmp.Ignore()))
-	if len(diff) == 0 {
+	if cmp.Equal(exp.Spec, cur.Spec, cmp.FilterPath(ignore, cmp.Ignore())) {
 		return o, false, nil
 	}
 
