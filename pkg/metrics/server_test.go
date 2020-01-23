@@ -139,6 +139,60 @@ func TestStorageReconfigured(t *testing.T) {
 	}
 }
 
+func TestImagePrunerInstallStatus(t *testing.T) {
+	metricName := "image_registry_operator_image_pruner_install_status"
+	testCases := []struct {
+		name      string
+		installed bool
+		enabled   bool
+	}{
+		{
+			name:      "not installed",
+			installed: false,
+			enabled:   false,
+		},
+		{
+			name:      "suspended",
+			installed: true,
+			enabled:   false,
+		},
+		{
+			name:      "enabled",
+			installed: true,
+			enabled:   true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ImagePrunerInstallStatus(tc.installed, tc.enabled)
+
+			resp, err := http.Get("https://localhost:5000/metrics")
+			if err != nil {
+				t.Fatalf("error requesting metrics server: %v", err)
+			}
+
+			metrics := findMetricsByCounter(resp.Body, metricName)
+			if len(metrics) == 0 {
+				t.Fatal("unable to locate metric", metricName)
+			}
+
+			for _, m := range metrics {
+				if !tc.installed && m.Gauge.GetValue() != 0 {
+					t.Errorf("expected metric %s to be 0, got %f", metricName, m.Gauge.GetValue())
+				}
+				if tc.installed && !tc.enabled && m.Gauge.GetValue() != 1 {
+					t.Errorf("expected metric %s to be 1, got %f", metricName, m.Gauge.GetValue())
+				}
+				if tc.installed && tc.enabled && m.Gauge.GetValue() != 2 {
+					t.Errorf("expected metric %s to be 2, got %f", metricName, m.Gauge.GetValue())
+				}
+			}
+
+		})
+	}
+
+}
+
 func findMetricsByCounter(buf io.ReadCloser, name string) []*io_prometheus_client.Metric {
 	defer buf.Close()
 	mf := io_prometheus_client.MetricFamily{}

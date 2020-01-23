@@ -184,6 +184,10 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 }
 
 func (g *Generator) Apply(cr *imageregistryv1.Config) error {
+	// TODO: sync this metric when the auto image pruner code lands.
+	// Setting to installed & enabled prevents the Prometheus alert from firing.
+	metrics.ImagePrunerInstallStatus(true, true)
+	// end TODO
 	err := g.syncStorage(cr)
 	if err == storage.ErrStorageNotConfigured {
 		return err

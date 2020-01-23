@@ -59,3 +59,16 @@ func RunServer(port int, stopCh <-chan struct{}) {
 func StorageReconfigured() {
 	storageReconfigured.Inc()
 }
+
+// ImagePrunerInstallStatus reports the installation state of automatic image pruner CronJob to Prometheus
+func ImagePrunerInstallStatus(installed bool, enabled bool) {
+	if !installed {
+		imagePrunerInstallStatus.Set(0)
+		return
+	}
+	if !enabled {
+		imagePrunerInstallStatus.Set(1)
+		return
+	}
+	imagePrunerInstallStatus.Set(2)
+}
