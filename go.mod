@@ -24,6 +24,7 @@ require (
 	github.com/go-openapi/swag v0.19.6 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
+	github.com/google/go-cmp v0.3.1
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/gophercloud/gophercloud v0.2.1-0.20190725225357-73bf16e49026

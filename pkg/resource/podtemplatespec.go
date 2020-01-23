@@ -36,7 +36,6 @@ func generateLogLevel(cr *v1.Config) string {
 func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
 	probeConfig := generateProbeConfig(p)
 	probeConfig.InitialDelaySeconds = 10
-
 	return probeConfig
 }
 
@@ -46,7 +45,10 @@ func generateReadinessProbeConfig(p *parameters.Globals) *corev1.Probe {
 
 func generateProbeConfig(p *parameters.Globals) *corev1.Probe {
 	return &corev1.Probe{
-		TimeoutSeconds: int32(p.Healthz.TimeoutSeconds),
+		TimeoutSeconds:   int32(p.Healthz.TimeoutSeconds),
+		PeriodSeconds:    10,
+		SuccessThreshold: 1,
+		FailureThreshold: 3,
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme: corev1.URISchemeHTTPS,
@@ -285,6 +287,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		resources = *cr.Spec.Resources
 	}
 
+	gracePeriod := int64(30)
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: params.Deployment.Labels,
@@ -295,24 +298,32 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			PriorityClassName: "system-cluster-critical",
 			Containers: []corev1.Container{
 				{
-					Name:  "registry",
-					Image: image,
+					Name:                     "registry",
+					Image:                    image,
+					Env:                      env,
+					VolumeMounts:             mounts,
+					LivenessProbe:            generateLivenessProbeConfig(params),
+					ReadinessProbe:           generateReadinessProbeConfig(params),
+					Resources:                resources,
+					TerminationMessagePath:   "/dev/termination-log",
+					TerminationMessagePolicy: "File",
+					ImagePullPolicy:          "IfNotPresent",
 					Ports: []corev1.ContainerPort{
 						{
 							ContainerPort: int32(params.Container.Port),
 							Protocol:      "TCP",
 						},
 					},
-					Env:            env,
-					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(params),
-					ReadinessProbe: generateReadinessProbeConfig(params),
-					Resources:      resources,
 				},
 			},
-			Volumes:            volumes,
-			ServiceAccountName: params.Pod.ServiceAccount,
-			SecurityContext:    securityContext,
+			RestartPolicy:                 "Always",
+			DNSPolicy:                     "ClusterFirst",
+			DeprecatedServiceAccount:      "registry",
+			SchedulerName:                 "default-scheduler",
+			TerminationGracePeriodSeconds: &gracePeriod,
+			Volumes:                       volumes,
+			ServiceAccountName:            params.Pod.ServiceAccount,
+			SecurityContext:               securityContext,
 			Affinity: &corev1.Affinity{
 				PodAntiAffinity: &corev1.PodAntiAffinity{
 					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
