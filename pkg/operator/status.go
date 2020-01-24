@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 
@@ -136,6 +137,7 @@ func (c *Controller) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob
 			Reason:  "Error",
 		}
 		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
+		metrics.ImagePrunerInstallStatus(false, false)
 	} else {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
@@ -174,6 +176,9 @@ func (c *Controller) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob
 			Reason:  "Suspended",
 		}
 		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+		if prunerJob != nil {
+			metrics.ImagePrunerInstallStatus(true, false)
+		}
 	} else {
 		prunerJobScheduled := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
@@ -181,6 +186,9 @@ func (c *Controller) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob
 			Reason:  "Scheduled",
 		}
 		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+		if prunerJob != nil {
+			metrics.ImagePrunerInstallStatus(true, true)
+		}
 	}
 }
 
