@@ -2,6 +2,8 @@ package client
 
 import (
 	kappslisters "k8s.io/client-go/listers/apps/v1"
+	kjoblisters "k8s.io/client-go/listers/batch/v1"
+	kbatchlisters "k8s.io/client-go/listers/batch/v1beta1"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
 	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
@@ -11,6 +13,8 @@ import (
 )
 
 type Listers struct {
+	Jobs                kjoblisters.JobNamespaceLister
+	CronJobs            kbatchlisters.CronJobNamespaceLister
 	Deployments         kappslisters.DeploymentNamespaceLister
 	DaemonSets          kappslisters.DaemonSetNamespaceLister
 	Services            kcorelisters.ServiceNamespaceLister
@@ -24,6 +28,7 @@ type Listers struct {
 	ImageConfigs        configlisters.ImageLister
 	ClusterOperators    configlisters.ClusterOperatorLister
 	RegistryConfigs     regoplisters.ConfigLister
+	ImagePrunerConfigs  regoplisters.ImagePrunerLister
 	InstallerConfigMaps kcorelisters.ConfigMapNamespaceLister
 	ProxyConfigs        configlisters.ProxyLister
 	Infrastructures     configlisters.InfrastructureLister

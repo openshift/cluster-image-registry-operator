@@ -8,10 +8,48 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 	appsapi "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	batchapi "k8s.io/api/batch/v1beta1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func updateCondition(cr *imageregistryv1.Config, condtype string, condstate operatorapiv1.OperatorCondition) {
+	found := false
+	conditions := []operatorapiv1.OperatorCondition{}
+
+	for _, c := range cr.Status.Conditions {
+		if c.Type != condtype {
+			conditions = append(conditions, c)
+			continue
+		}
+		if c.Status != condstate.Status {
+			c.Status = condstate.Status
+			c.LastTransitionTime = metaapi.Now()
+		}
+		if c.Reason != condstate.Reason {
+			c.Reason = condstate.Reason
+		}
+		if c.Message != condstate.Message {
+			c.Message = condstate.Message
+		}
+		conditions = append(conditions, c)
+		found = true
+	}
+
+	if !found {
+		conditions = append(conditions, operatorapiv1.OperatorCondition{
+			Type:               condtype,
+			Status:             operatorapiv1.ConditionStatus(condstate.Status),
+			LastTransitionTime: metaapi.Now(),
+			Reason:             condstate.Reason,
+			Message:            condstate.Message,
+		})
+	}
+
+	cr.Status.Conditions = conditions
+}
+
+func updatePrunerCondition(cr *imageregistryv1.ImagePruner, condtype string, condstate operatorapiv1.OperatorCondition) {
 	found := false
 	conditions := []operatorapiv1.OperatorCondition{}
 
@@ -70,6 +108,14 @@ func (c *Controller) setStatusRemoving(cr *imageregistryv1.Config) {
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
+
+	operatorProgressing = operatorapiv1.OperatorCondition{
+		Status:  operatorapiv1.ConditionTrue,
+		Message: "The image pruner is being removed",
+		Reason:  "Removing",
+	}
+
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
 }
 
 func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr error) {
@@ -80,6 +126,62 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
+}
+
+func (c *Controller) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+	if prunerJob == nil {
+		prunerAvailable := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("Pruner CronJob does not exist"),
+			Reason:  "Error",
+		}
+		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
+	} else {
+		prunerAvailable := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Message: fmt.Sprintf("Pruner CronJob has been created"),
+			Reason:  "Ready",
+		}
+		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
+	}
+
+	var foundFailed bool
+	for _, condition := range lastJobConditions {
+		if condition.Type == batchv1.JobFailed {
+			foundFailed = true
+			prunerLastJobStatus := operatorapiv1.OperatorCondition{
+				Status:  operatorapiv1.ConditionTrue,
+				Message: condition.Message,
+				Reason:  condition.Reason,
+			}
+			updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
+
+		}
+	}
+	if !foundFailed {
+		prunerLastJobStatus := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("Pruner completed successfully"),
+			Reason:  "Complete",
+		}
+		updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
+	}
+
+	if *cr.Spec.Suspend == true {
+		prunerJobScheduled := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("The pruner job has been suspended."),
+			Reason:  "Suspended",
+		}
+		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+	} else {
+		prunerJobScheduled := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Message: fmt.Sprintf("The pruner job has been scheduled."),
+			Reason:  "Scheduled",
+		}
+		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+	}
 }
 
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
