@@ -18,7 +18,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -39,25 +38,23 @@ type S3 struct {
 }
 
 type driver struct {
-	Context    context.Context
-	Config     *imageregistryv1.ImageRegistryConfigStorageS3
-	KubeConfig *rest.Config
-	Listers    *regopclient.Listers
+	Context context.Context
+	Config  *imageregistryv1.ImageRegistryConfigStorageS3
+	Listers *regopclient.Listers
 }
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
 	return &driver{
-		Context:    ctx,
-		Config:     c,
-		KubeConfig: kubeconfig,
-		Listers:    listers,
+		Context: ctx,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
 // GetConfig reads configuration for the S3 cloud platform services.
-func GetConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*S3, error) {
+func GetConfig(listers *regopclient.Listers) (*S3, error) {
 	cfg := &S3{}
 
 	infra, err := util.GetInfrastructure(listers)
@@ -110,7 +107,7 @@ func GetConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*S3, erro
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
-	cfg, err := GetConfig(d.KubeConfig, d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +172,7 @@ func isBucketNotFound(err interface{}) bool {
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	cfg, err := GetConfig(d.KubeConfig, d.Listers)
+	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +190,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: cfg.AccessKey, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: cfg.SecretKey, Secret: true},
 	)
