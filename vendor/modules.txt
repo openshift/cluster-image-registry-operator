@@ -191,12 +191,54 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 github.com/munnerz/goautoneg
-# github.com/openshift/api v0.0.0-20200110191829-69b8abb8b201
+# github.com/openshift/api v0.0.0-20200116145750-0e2ff1e215dd
+github.com/openshift/api
+github.com/openshift/api/apps
+github.com/openshift/api/apps/v1
+github.com/openshift/api/authorization
+github.com/openshift/api/authorization/v1
+github.com/openshift/api/build
+github.com/openshift/api/build/v1
+github.com/openshift/api/config
 github.com/openshift/api/config/v1
+github.com/openshift/api/image
+github.com/openshift/api/image/docker10
+github.com/openshift/api/image/dockerpre012
+github.com/openshift/api/image/v1
+github.com/openshift/api/imageregistry
 github.com/openshift/api/imageregistry/v1
+github.com/openshift/api/kubecontrolplane
+github.com/openshift/api/kubecontrolplane/v1
+github.com/openshift/api/legacyconfig/v1
+github.com/openshift/api/network
+github.com/openshift/api/network/v1
+github.com/openshift/api/oauth
+github.com/openshift/api/oauth/v1
+github.com/openshift/api/openshiftcontrolplane
+github.com/openshift/api/openshiftcontrolplane/v1
+github.com/openshift/api/operator
 github.com/openshift/api/operator/v1
+github.com/openshift/api/operator/v1alpha1
+github.com/openshift/api/osin
+github.com/openshift/api/osin/v1
+github.com/openshift/api/pkg/serialization
+github.com/openshift/api/project
+github.com/openshift/api/project/v1
+github.com/openshift/api/quota
+github.com/openshift/api/quota/v1
+github.com/openshift/api/route
 github.com/openshift/api/route/v1
-# github.com/openshift/client-go v0.0.0-20200109173103-2763c6378941
+github.com/openshift/api/samples
+github.com/openshift/api/samples/v1
+github.com/openshift/api/security
+github.com/openshift/api/security/v1
+github.com/openshift/api/servicecertsigner
+github.com/openshift/api/servicecertsigner/v1alpha1
+github.com/openshift/api/template
+github.com/openshift/api/template/v1
+github.com/openshift/api/user
+github.com/openshift/api/user/v1
+# github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/scheme
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
@@ -235,13 +277,17 @@ github.com/openshift/installer/pkg/types/libvirt
 github.com/openshift/installer/pkg/types/none
 github.com/openshift/installer/pkg/types/openstack
 github.com/openshift/installer/pkg/types/vsphere
-# github.com/openshift/library-go v0.0.0-20191218095328-1c12909e5923
+# github.com/openshift/library-go v0.0.0-20200127110935-527e40ed17d9
 github.com/openshift/library-go/alpha-build-machinery/make/targets/openshift
 github.com/openshift/library-go/pkg/config/client
 github.com/openshift/library-go/pkg/controller/fileobserver
 github.com/openshift/library-go/pkg/operator/events
+github.com/openshift/library-go/pkg/operator/resource/resourceapply
+github.com/openshift/library-go/pkg/operator/resource/resourcehelper
+github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 github.com/openshift/library-go/pkg/operator/resource/resourceread
 github.com/openshift/library-go/pkg/operator/resource/retry
+github.com/openshift/library-go/pkg/operator/v1helpers
 github.com/openshift/library-go/pkg/operator/watchdog
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
@@ -350,7 +396,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20200108203644-89082a384178
+# golang.org/x/tools v0.0.0-20200115044656-831fdb1e1868
 golang.org/x/tools/go/analysis
 golang.org/x/tools/go/analysis/passes/inspect
 golang.org/x/tools/go/ast/astutil
@@ -489,7 +535,7 @@ honnef.co/go/tools/staticcheck/vrp
 honnef.co/go/tools/stylecheck
 honnef.co/go/tools/unused
 honnef.co/go/tools/version
-# k8s.io/api v0.17.0
+# k8s.io/api v0.17.1
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -517,6 +563,7 @@ k8s.io/api/discovery/v1beta1
 k8s.io/api/events/v1beta1
 k8s.io/api/extensions/v1beta1
 k8s.io/api/flowcontrol/v1alpha1
+k8s.io/api/imagepolicy/v1alpha1
 k8s.io/api/networking/v1
 k8s.io/api/networking/v1beta1
 k8s.io/api/node/v1alpha1
@@ -532,10 +579,15 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.17.0
+# k8s.io/apiextensions-apiserver v0.17.1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
+k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
-# k8s.io/apimachinery v0.17.0
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
+# k8s.io/apimachinery v0.17.1
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -587,7 +639,7 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.17.0
+# k8s.io/apiserver v0.17.1
 k8s.io/apiserver/pkg/admission
 k8s.io/apiserver/pkg/admission/configuration
 k8s.io/apiserver/pkg/admission/initializer
@@ -671,9 +723,10 @@ k8s.io/apiserver/pkg/util/webhook
 k8s.io/apiserver/pkg/util/wsstream
 k8s.io/apiserver/plugin/pkg/authenticator/token/webhook
 k8s.io/apiserver/plugin/pkg/authorizer/webhook
-# k8s.io/client-go v0.17.0
+# k8s.io/client-go v0.17.1
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/fake
+k8s.io/client-go/dynamic
 k8s.io/client-go/informers
 k8s.io/client-go/informers/admissionregistration
 k8s.io/client-go/informers/admissionregistration/v1
@@ -881,7 +934,7 @@ k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.17.0
+# k8s.io/code-generator v0.17.1
 k8s.io/code-generator
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/client-gen/args
@@ -915,7 +968,7 @@ k8s.io/code-generator/cmd/set-gen
 k8s.io/code-generator/pkg/namer
 k8s.io/code-generator/pkg/util
 k8s.io/code-generator/third_party/forked/golang/reflect
-# k8s.io/component-base v0.17.0
+# k8s.io/component-base v0.17.1
 k8s.io/component-base/featuregate
 k8s.io/component-base/logs
 k8s.io/component-base/metrics
@@ -934,6 +987,12 @@ k8s.io/gengo/parser
 k8s.io/gengo/types
 # k8s.io/klog v1.0.0
 k8s.io/klog
+# k8s.io/kube-aggregator v0.17.1
+k8s.io/kube-aggregator/pkg/apis/apiregistration
+k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
+k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1
+k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme
+k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
 # k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 k8s.io/kube-openapi/cmd/openapi-gen/args
 k8s.io/kube-openapi/pkg/builder
