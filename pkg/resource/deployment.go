@@ -5,10 +5,14 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +25,7 @@ import (
 var _ Mutator = &generatorDeployment{}
 
 type generatorDeployment struct {
+	recorder        events.Recorder
 	lister          appslisters.DeploymentNamespaceLister
 	configMapLister corelisters.ConfigMapNamespaceLister
 	secretLister    corelisters.SecretNamespaceLister
@@ -34,6 +39,7 @@ type generatorDeployment struct {
 
 func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
+		recorder:        events.NewLoggingEventRecorder("image-registry-operator"),
 		lister:          lister,
 		configMapLister: configMapLister,
 		secretLister:    secretLister,
@@ -83,9 +89,9 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	podTemplateSpec.Annotations[parameters.ChecksumOperatorDepsAnnotation] = depsChecksum
 
 	// Strategy defaults to RollingUpdate
-	strategy := gd.cr.Spec.RolloutStrategy
-	if strategy == "" {
-		strategy = string(appsapi.RollingUpdateDeploymentStrategyType)
+	deployStrategy := gd.cr.Spec.RolloutStrategy
+	if deployStrategy == "" {
+		deployStrategy = string(appsapi.RollingUpdateDeploymentStrategyType)
 	}
 
 	deploy := &appsapi.Deployment{
@@ -104,10 +110,16 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			},
 			Template: podTemplateSpec,
 			Strategy: appsapi.DeploymentStrategy{
-				Type: appsapi.DeploymentStrategyType(strategy),
+				Type: appsapi.DeploymentStrategyType(deployStrategy),
 			},
 		},
 	}
+
+	dgst, err := strategy.Checksum(deploy)
+	if err != nil {
+		return nil, err
+	}
+	deploy.ObjectMeta.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
 
 	return deploy, nil
 }
@@ -117,15 +129,77 @@ func (gd *generatorDeployment) Get() (runtime.Object, error) {
 }
 
 func (gd *generatorDeployment) Create() (runtime.Object, error) {
-	return commonCreate(gd, func(obj runtime.Object) (runtime.Object, error) {
-		return gd.client.Deployments(gd.GetNamespace()).Create(obj.(*appsapi.Deployment))
-	})
+	exp, err := gd.expected()
+	if err != nil {
+		return nil, err
+	}
+
+	dep, _, err := resourceapply.ApplyDeployment(
+		gd.client, gd.recorder, exp.(*appsapi.Deployment), -1, false,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	gd.UpdateLastGeneration(dep.ObjectMeta.Generation)
+	return dep, nil
 }
 
 func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, error) {
-	return commonUpdate(gd, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gd.client.Deployments(gd.GetNamespace()).Update(obj.(*appsapi.Deployment))
-	})
+	exp, err := gd.expected()
+	if err != nil {
+		return o, false, err
+	}
+
+	dep, updated, err := resourceapply.ApplyDeployment(
+		gd.client, gd.recorder, exp.(*appsapi.Deployment), gd.LastGeneration(), false,
+	)
+	if err != nil {
+		return o, false, err
+	}
+
+	if updated {
+		gd.UpdateLastGeneration(dep.ObjectMeta.Generation)
+	}
+
+	return dep, updated, nil
+}
+
+func (gd *generatorDeployment) UpdateLastGeneration(lastGen int64) {
+	for i, gen := range gd.cr.Status.Generations {
+		if gen.Name == gd.GetName() &&
+			gen.Group == gd.GetGroup() &&
+			gen.Resource == gd.GetResource() &&
+			gen.Namespace == gd.GetNamespace() {
+
+			gd.cr.Status.Generations[i].LastGeneration = lastGen
+			return
+		}
+	}
+
+	gd.cr.Status.Generations = append(
+		gd.cr.Status.Generations,
+		operatorv1.GenerationStatus{
+			Name:           gd.GetName(),
+			Group:          gd.GetGroup(),
+			Resource:       gd.GetResource(),
+			Namespace:      gd.GetNamespace(),
+			LastGeneration: lastGen,
+		},
+	)
+}
+
+func (gd *generatorDeployment) LastGeneration() int64 {
+	for _, gen := range gd.cr.Status.Generations {
+		if gen.Name == gd.GetName() &&
+			gen.Group == gd.GetGroup() &&
+			gen.Resource == gd.GetResource() &&
+			gen.Namespace == gd.GetNamespace() {
+
+			return gen.LastGeneration
+		}
+	}
+	return -1
 }
 
 func (gd *generatorDeployment) Delete(opts *metav1.DeleteOptions) error {
