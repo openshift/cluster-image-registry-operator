@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -44,6 +45,14 @@ func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, op
 			return false, err
 		}
 		return deploy.Status.Replicas == 0, nil
+	})
+}
+
+func getOperatorPods(client *Clientset) ([]corev1.Pod, error) {
+	return getPodsByLabelSelector(client, OperatorDeploymentNamespace, &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"name": "cluster-image-registry-operator",
+		},
 	})
 }
 

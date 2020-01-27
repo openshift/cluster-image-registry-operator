@@ -153,17 +153,29 @@ func deleteImageRegistryResource(client *Clientset) error {
 }
 
 func RemoveImageRegistry(logger Logger, client *Clientset) error {
+	logger.Logf("checking if the operator has only one replica...")
+	pods, err := getOperatorPods(client)
+	if err != nil {
+		return fmt.Errorf("unable to get operator pods: %s", err)
+	}
+
 	logger.Logf("uninstalling the image registry...")
 	if err := ensureImageRegistryToBeRemoved(logger, client); err != nil {
 		return fmt.Errorf("unable to uninstall the image registry: %s", err)
 	}
+
 	logger.Logf("stopping the operator...")
 	if err := StopDeployment(logger, client, OperatorDeploymentName, OperatorDeploymentNamespace); err != nil {
 		return fmt.Errorf("unable to stop the operator: %s", err)
 	}
+
 	logger.Logf("deleting the image registry resource...")
 	if err := deleteImageRegistryResource(client); err != nil {
 		return fmt.Errorf("unable to delete the image registry resource: %s", err)
+	}
+
+	if len(pods) > 1 {
+		return fmt.Errorf("problem detected: got %d operator replicas, want 1", len(pods))
 	}
 	return nil
 }

@@ -45,20 +45,13 @@ func (psl PodSetLogs) Contains(re *regexp.Regexp) bool {
 }
 
 func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector) (PodSetLogs, error) {
-	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	podList, err := client.Pods(namespace).List(metav1.ListOptions{
-		LabelSelector: selector.String(),
-	})
+	pods, err := getPodsByLabelSelector(client, namespace, labelSelector)
 	if err != nil {
 		return nil, err
 	}
 
 	podLogs := make(PodSetLogs)
-	for _, pod := range podList.Items {
+	for _, pod := range pods {
 		podLog := make(PodLog)
 		for _, container := range pod.Spec.Containers {
 			var containerLog ContainerLog

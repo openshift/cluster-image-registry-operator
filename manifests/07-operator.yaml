@@ -8,6 +8,8 @@ metadata:
     config.openshift.io/inject-proxy: cluster-image-registry-operator 
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       name: cluster-image-registry-operator
