@@ -48,6 +48,20 @@ func replaceEmpty(a string, b string) string {
 	return a
 }
 
+// IsSwiftEnabled checks if Swift service is available for OpenStack platform
+func IsSwiftEnabled(listers *regopclient.Listers) (bool, error) {
+	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
+	_, err := driver.getSwiftClient()
+	if err != nil {
+		// ErrEndpointNotFound means that Swift is not available
+		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 // GetConfig reads credentials
 func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 	cfg := &Swift{}
@@ -125,7 +139,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 }
 
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
-func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.ServiceClient, error) {
+func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
 		return nil, err
@@ -312,7 +326,7 @@ func (d *driver) containerExists(client *gophercloud.ServiceClient, containerNam
 }
 
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
-	client, err := d.getSwiftClient(cr)
+	client, err := d.getSwiftClient()
 	if err != nil {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionUnknown, "Could not connect to registry storage", err.Error())
 		return false, err
@@ -342,7 +356,7 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 }
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	client, err := d.getSwiftClient(cr)
+	client, err := d.getSwiftClient()
 	if err != nil {
 		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapi.ConditionFalse, err.Error(), err.Error())
 		return err
@@ -420,7 +434,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		return false, nil
 	}
 
-	client, err := d.getSwiftClient(cr)
+	client, err := d.getSwiftClient()
 	if err != nil {
 		return false, err
 	}
