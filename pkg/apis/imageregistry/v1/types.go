@@ -155,6 +155,10 @@ type ImageRegistrySpec struct {
 	// Tolerations defines the tolerations for the registry pod.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+	// rolloutStrategy defines rollout strategy for the image registry
+	// deployment.
+	// +optional
+	RolloutStrategy string `json:"rolloutStrategy,omitempty"`
 }
 
 type ImageRegistryStatus struct {

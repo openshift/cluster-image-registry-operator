@@ -135,6 +135,10 @@ spec:
                     value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                   type: object
               type: object
+            rolloutStrategy:
+              description: rolloutStrategy defines rollout strategy for the image
+                registry deployment.
+              type: string
             routes:
               description: Routes defines additional external facing routes which
                 should be created for the registry.
