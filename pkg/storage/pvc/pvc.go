@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -110,13 +111,37 @@ func (d *driver) checkPVC(cr *imageregistryv1.Config, claim *corev1.PersistentVo
 		}
 	}
 
+	// Check what access modes are available.
+
+	// We allow using RWO PV backend, but it has some limitations:
+	// 1. Image registry rollout strategy must be set to Recreate (default is RollingUpdate).
+	// 2. It's not possible to use more than 1 replica of the image registry.
+
+	// RWX backends are accepted with no additional conditions.
+	rwoModeEnabled := false
+
 	for _, claimMode := range claim.Spec.AccessModes {
 		if claimMode == corev1.ReadWriteMany {
 			return nil
 		}
+		if claimMode == corev1.ReadWriteOnce {
+			rwoModeEnabled = true
+		}
 	}
 
-	return fmt.Errorf("PVC %s does not contain the necessary access mode (%s)", d.Config.Claim, corev1.ReadWriteMany)
+	if rwoModeEnabled {
+		if cr.Spec.Replicas > 1 {
+			return fmt.Errorf("cannot use %s access mode with more than one replica of the image registry", corev1.ReadWriteOnce)
+		}
+
+		if cr.Spec.RolloutStrategy != string(appsv1.RecreateDeploymentStrategyType) {
+			return fmt.Errorf("cannot use %s access mode with %s rollout strategy", corev1.ReadWriteOnce, cr.Spec.RolloutStrategy)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("PVC %s does not contain the necessary access modes: %s or %s", d.Config.Claim, corev1.ReadWriteMany, corev1.ReadWriteOnce)
 }
 
 func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolumeClaim, error) {
