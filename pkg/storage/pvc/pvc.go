@@ -22,7 +22,7 @@ import (
 const (
 	rootDirectory      = "/registry"
 	randomSecretSize   = 32
-	pvcOwnerAnnotation = "imageregistry.openshift.io"
+	PVCOwnerAnnotation = "imageregistry.openshift.io"
 )
 
 type driver struct {
@@ -150,7 +150,7 @@ func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolume
 			Name:      d.Config.Claim,
 			Namespace: d.Namespace,
 			Annotations: map[string]string{
-				pvcOwnerAnnotation: "true",
+				PVCOwnerAnnotation: "true",
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -176,7 +176,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	)
 
 	if len(d.Config.Claim) == 0 {
-		d.Config.Claim = fmt.Sprintf("%s-storage", imageregistryv1.ImageRegistryName)
+		d.Config.Claim = imageregistryv1.PVCImageRegistryName
 
 		// If there is no name and there is no PVC, then we will create a PVC.
 		// If PVC is there and it was created by us, then just start using it again.
@@ -231,7 +231,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retriable bool, err 
 }
 
 func pvcIsCreatedByOperator(claim *corev1.PersistentVolumeClaim) (exist bool) {
-	_, exist = claim.Annotations[pvcOwnerAnnotation]
+	_, exist = claim.Annotations[PVCOwnerAnnotation]
 	return
 }
 

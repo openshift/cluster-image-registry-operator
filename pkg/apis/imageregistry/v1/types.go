@@ -15,6 +15,9 @@ const (
 	// ImageRegistryName is the name of the image-registry workload resource (deployment)
 	ImageRegistryName = "image-registry"
 
+	// PVCImageRegistryName is the default name of the claim provisioned for PVC backend
+	PVCImageRegistryName = "image-registry-storage"
+
 	// ImageRegistryResourceName is the name of the image registry config instance
 	ImageRegistryResourceName = "cluster"
 
