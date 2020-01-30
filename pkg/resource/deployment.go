@@ -80,7 +80,13 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	if podTemplateSpec.Annotations == nil {
 		podTemplateSpec.Annotations = map[string]string{}
 	}
+
 	podTemplateSpec.Annotations[parameters.ChecksumOperatorDepsAnnotation] = depsChecksum
+	// Strategy defaults to RollingUpdate
+	strategy := gd.cr.Spec.RolloutStrategy
+	if strategy == "" {
+		strategy = string(appsapi.RollingUpdateDeploymentStrategyType)
+	}
 
 	deploy := &appsapi.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -97,6 +103,9 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 				MatchLabels: gd.params.Deployment.Labels,
 			},
 			Template: podTemplateSpec,
+			Strategy: appsapi.DeploymentStrategy{
+				Type: appsapi.DeploymentStrategyType(strategy),
+			},
 		},
 	}
 

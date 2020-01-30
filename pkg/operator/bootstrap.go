@@ -14,6 +14,7 @@ import (
 	regopset "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned/typed/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	appsapi "k8s.io/api/apps/v1"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -72,6 +73,7 @@ func (c *Controller) Bootstrap() error {
 			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
 			Replicas:        1,
 			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),
+			RolloutStrategy: string(appsapi.RollingUpdateDeploymentStrategyType),
 		},
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
