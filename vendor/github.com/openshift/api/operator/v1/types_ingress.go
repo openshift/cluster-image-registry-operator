@@ -149,7 +149,7 @@ type IngressControllerSpec struct {
 	// routeAdmission defines a policy for handling new route claims (for example,
 	// to allow or deny claims across namespaces).
 	//
-	// The empty, defaults will be applied. See specific routeAdmission fields
+	// If empty, defaults will be applied. See specific routeAdmission fields
 	// for details about their defaults.
 	//
 	// +optional
@@ -326,7 +326,7 @@ type RouteAdmissionPolicy struct {
 	//
 	// - Strict: Do not allow routes in different namespaces to claim the same host.
 	//
-	// - InterNamespaceAllowed: allow routes to claim different paths of the same
+	// - InterNamespaceAllowed: Allow routes to claim different paths of the same
 	//   host name across namespaces.
 	//
 	// If empty, the default is Strict.
@@ -421,10 +421,6 @@ type IngressControllerStatus struct {
 	// observedGeneration is the most recent generation observed.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
-
-	// routeAdmission is the route admission policy that is in effect.
-	// +optional
-	RouteAdmission *RouteAdmissionPolicy `json:"routeAdmission,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
