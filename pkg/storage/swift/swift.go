@@ -1,7 +1,10 @@
 package swift
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -124,6 +127,14 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 	return cfg, nil
 }
 
+func getCloudProviderCert(listers *regopclient.Listers) (string, error) {
+	cm, err := listers.OpenShiftConfig.Get("cloud-provider-config")
+	if err != nil {
+		return "", err
+	}
+	return string(cm.Data["ca-bundle.pem"]), nil
+}
+
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
 func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.ServiceClient, error) {
 	cfg, err := GetConfig(d.Listers)
@@ -150,9 +161,35 @@ func (d *driver) getSwiftClient(cr *imageregistryv1.Config) (*gophercloud.Servic
 		TenantName:       d.Config.Tenant,
 	}
 
-	provider, err := openstack.AuthenticatedClient(*opts)
+	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Create new provider client failed: %v", err)
+	}
+
+	cert, err := getCloudProviderCert(d.Listers)
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, fmt.Errorf("Failed to get cloud provider CA certificate: %v", err)
+	}
+
+	if cert != "" {
+		certPool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("Create system cert pool failed: %v", err)
+		}
+		certPool.AppendCertsFromPEM([]byte(cert))
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs: certPool,
+				},
+			},
+		}
+		provider.HTTPClient = client
+	}
+
+	err = openstack.Authenticate(provider, *opts)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to authenticate provider client: %v", err)
 	}
 
 	endpointOpts := gophercloud.EndpointOpts{

@@ -118,6 +118,17 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
+	cp_ca, err := gcac.openshiftConfigLister.Get("cloud-provider-config")
+	if errors.IsNotFound(err) {
+		klog.Infof("missing the cloud-provider-config configmap: %s", err)
+	} else if err != nil {
+		return cm, err
+	} else {
+		if cert, ok := cp_ca.Data["ca-bundle.pem"]; ok {
+			cm.Data["cloud-provider-ca-bundle.pem"] = cert
+		}
+	}
+
 	return cm, nil
 }
 
