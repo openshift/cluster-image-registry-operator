@@ -247,7 +247,7 @@ func TestSyncVersions(t *testing.T) {
 			}
 
 			lister.deploys, lister.failOnGet = tt.deploys, tt.failOnGet
-			gen := newGeneratorClusterOperator(
+			gen := NewGeneratorClusterOperator(
 				lister, nil, nil, tt.config, nil,
 			)
 
