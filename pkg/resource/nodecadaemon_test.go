@@ -33,9 +33,9 @@ func TestNodeCADaemon(t *testing.T) {
 
 	ds := obj.(*appsv1.DaemonSet)
 	noScheduleToleration := findToleration(ds.Spec.Template.Spec.Tolerations, func(tol corev1.Toleration) bool {
-		return tol.Key == "" && tol.Operator == "Exists" && tol.Value == "" && tol.Effect == "NoSchedule"
+		return tol.Key == "" && tol.Operator == "Exists" && tol.Value == "" && tol.Effect == ""
 	})
 	if noScheduleToleration == nil {
-		t.Errorf("unable to find toleration for all NoSchedule taints, %#+v", ds.Spec.Template.Spec.Tolerations)
+		t.Errorf("unable to find toleration for all taints, %#+v", ds.Spec.Template.Spec.Tolerations)
 	}
 }
