@@ -3,15 +3,22 @@ package operator
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"time"
 
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"k8s.io/apimachinery/pkg/api/errors"
+	kmeta "k8s.io/apimachinery/pkg/api/meta"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	kubeinformers "k8s.io/client-go/informers"
+	kubeset "k8s.io/client-go/kubernetes"
+	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
+	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
+	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
+	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -24,25 +31,14 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned"
 	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 
-	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	kmeta "k8s.io/apimachinery/pkg/api/meta"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/apimachinery/pkg/util/wait"
-	kubeinformers "k8s.io/client-go/informers"
-	kubeset "k8s.io/client-go/kubernetes"
-	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
-	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
-	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
-	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
-	restclient "k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 const (
@@ -146,104 +142,7 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 	return nil
 }
 
-type ByCreationTimestamp []*batchv1.Job
-
-func (b ByCreationTimestamp) Len() int {
-	return len(b)
-}
-
-func (b ByCreationTimestamp) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
-func (b ByCreationTimestamp) Less(i, j int) bool {
-	return !b[j].CreationTimestamp.Time.After(b[i].CreationTimestamp.Time)
-}
-
 func (c *Controller) sync() error {
-	prunerResourceFound := true
-	pcr, err := c.listers.ImagePrunerConfigs.Get(defaults.ImageRegistryImagePrunerResourceName)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			prunerResourceFound = false
-		} else {
-			return fmt.Errorf("failed to get %q image registry pruner resource: %s", defaults.ImageRegistryImagePrunerResourceName, err)
-		}
-	}
-	if prunerResourceFound {
-		pcr = pcr.DeepCopy() // we don't want to change the cached version
-		prevPCR := pcr.DeepCopy()
-		prunerCronJob, err := c.listers.CronJobs.Get("image-pruner")
-		if errors.IsNotFound(err) {
-			prunerCronJob = nil
-		} else if err != nil {
-			return fmt.Errorf("failed to get image-pruner pruner job: %s", err)
-		} else {
-			prunerCronJob = prunerCronJob.DeepCopy()
-		}
-
-		jobSelector := labels.NewSelector()
-		requirement, err := labels.NewRequirement("created-by", selection.Equals, []string{"image-pruner"})
-		if err != nil {
-			return err
-		}
-		jobSelector.Add(*requirement)
-		prunerJobs, err := c.listers.Jobs.List(jobSelector)
-		if err != nil {
-			return fmt.Errorf("failed to get pruner jobs: %s", err)
-		}
-
-		lastPrunerJobConditions := []batchv1.JobCondition{}
-		if len(prunerJobs) > 0 {
-			sort.Sort(ByCreationTimestamp(prunerJobs))
-			lastPrunerJobConditions = prunerJobs[len(prunerJobs)-1].Status.Conditions
-		}
-
-		c.syncPrunerStatus(pcr, prunerCronJob, lastPrunerJobConditions)
-
-		metadataChanged := strategy.Metadata(&prevPCR.ObjectMeta, &pcr.ObjectMeta)
-		specChanged := !reflect.DeepEqual(prevPCR.Spec, pcr.Spec)
-		if metadataChanged || specChanged {
-			klog.Infof("Updating pruner cr")
-			difference, err := object.DiffString(prevPCR, pcr)
-			if err != nil {
-				klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(pcr), err)
-			}
-			klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(pcr), metadataChanged, specChanged, difference)
-
-			updatedPCR, err := c.clients.RegOp.ImageregistryV1().ImagePruners().Update(pcr)
-			if err != nil {
-				if !errors.IsConflict(err) {
-					klog.Errorf("unable to update %s: %s", utilObjectInfo(pcr), err)
-				}
-				return err
-			}
-
-			// If we updated the Status field too, we'll make one more call and we
-			// want it to succeed.
-			pcr.ResourceVersion = updatedPCR.ResourceVersion
-
-		}
-
-		pcr.Status.ObservedGeneration = pcr.Generation
-		statusChanged := !reflect.DeepEqual(prevPCR.Status, pcr.Status)
-		if statusChanged {
-			difference, err := object.DiffString(prevPCR, pcr)
-			if err != nil {
-				klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(pcr), err)
-			}
-			klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(pcr), statusChanged, difference)
-
-			_, err = c.clients.RegOp.ImageregistryV1().ImagePruners().UpdateStatus(pcr)
-			if err != nil {
-				if !errors.IsConflict(err) {
-					klog.Errorf("unable to update status %s: %s", utilObjectInfo(pcr), err)
-				}
-				return err
-			}
-		}
-	}
-
 	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -601,7 +500,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 
-	// TODO(dmage): This controller should be started from main.
+	// TODO(dmage):This controller should be started from main.
 	go clusterOperatorStatusController.Run(stopCh)
 
 	klog.Info("waiting for informer caches to sync")
