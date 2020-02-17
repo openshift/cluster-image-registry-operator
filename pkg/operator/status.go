@@ -129,7 +129,7 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
-func (c *Controller) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
 	if prunerJob == nil {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
