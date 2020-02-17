@@ -38,6 +38,9 @@ var (
 )
 
 func TestAWSDefaults(t *testing.T) {
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
 	kcfg, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
@@ -62,17 +65,14 @@ func TestAWSDefaults(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
-
 	// TODO: Move these checks to a conformance test run on all providers
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
-	framework.MustEnsureServiceCAConfigMap(t, client)
-	framework.MustEnsureNodeCADaemonSetIsAvailable(t, client)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
+	framework.EnsureServiceCAConfigMap(te)
+	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	cfg, err := storages3.GetConfig(mockLister)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestAWSDefaults(t *testing.T) {
 
 	// Check that the image-registry-private-configuration secret exists and
 	// contains the correct information
-	imageRegistryPrivateConfiguration, err := client.Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
@@ -93,7 +93,7 @@ func TestAWSDefaults(t *testing.T) {
 
 	// Check that the image registry resource exists
 	// and contains the correct region and a non-empty bucket name
-	cr, err := client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
@@ -113,45 +113,12 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
-	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
-
-	// Wait for the image registry resource to have an updated StorageTagged condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
-
-	// Wait for the image registry resource to have an updated StorageEncrypted condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
-
-	// Wait for the image registry resource to have an updated StorageIncompleteUploadCleanupEnabled condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
-
-	// Wait for the image registry resource to have an updated StoragePublicAccessBlocked condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	// Wait for the image registry resource to have an updated  conditions
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageIncompleteUploadCleanupEnabled, operatorapi.ConditionTrue, "Enable Cleanup Successful")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful")
 
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSession(&aws.Config{
@@ -231,7 +198,6 @@ func TestAWSDefaults(t *testing.T) {
 		if aerr, ok := err.(awserr.Error); ok {
 			t.Errorf("unable to get encryption information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
 		} else {
-
 			t.Errorf("unknown error occurred getting encryption information for S3 bucket: %#v", err)
 		}
 	}
@@ -248,7 +214,6 @@ func TestAWSDefaults(t *testing.T) {
 
 	for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
 		found := false
-
 		for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
 			if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
 				found = true
@@ -268,7 +233,6 @@ func TestAWSDefaults(t *testing.T) {
 		if aerr, ok := err.(awserr.Error); ok {
 			t.Errorf("unable to get lifecycle information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
 		} else {
-
 			t.Errorf("unknown error occurred getting lifecycle information for S3 bucket: %#v", err)
 		}
 	}
@@ -288,7 +252,6 @@ func TestAWSDefaults(t *testing.T) {
 	}
 	for _, wantedRule := range wantedLifecycleConfiguration.Rules {
 		found := false
-
 		for _, gotRule := range getBucketLifecycleConfigurationResult.Rules {
 			if reflect.DeepEqual(wantedRule, gotRule) {
 				found = true
@@ -300,7 +263,7 @@ func TestAWSDefaults(t *testing.T) {
 		}
 	}
 
-	registryDeployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,6 +308,9 @@ func TestAWSDefaults(t *testing.T) {
 }
 
 func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("unable to get kubeconfig: %s", err)
@@ -369,44 +335,34 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
-
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	if _, err := framework.CreateOrUpdateSecret(defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser), err)
 	}
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
+	framework.DeployImageRegistry(te, nil)
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
 
 	// Remove the image-registry-private-configuration-user secret
-	err = client.Secrets(defaults.ImageRegistryOperatorNamespace).Delete(defaults.ImageRegistryPrivateConfigurationUser, &metav1.DeleteOptions{})
+	err = te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Delete(defaults.ImageRegistryPrivateConfigurationUser, &metav1.DeleteOptions{})
 	if err != nil {
 		t.Errorf("unable to remove %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser, err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
 
 func TestAWSUpdateCredentials(t *testing.T) {
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
 	kcfg, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
@@ -431,13 +387,10 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
-
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
@@ -461,33 +414,26 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
 
 	// Remove the image-registry-private-configuration-user secret
-	err = client.Secrets(defaults.ImageRegistryOperatorNamespace).Delete(defaults.ImageRegistryPrivateConfigurationUser, &metav1.DeleteOptions{})
+	err = te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Delete(defaults.ImageRegistryPrivateConfigurationUser, &metav1.DeleteOptions{})
 	if err != nil {
 		t.Errorf("unable to remove %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser, err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
 
 func TestAWSChangeS3Encryption(t *testing.T) {
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("unable to get kubeconfig: %s", err)
@@ -512,22 +458,19 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-
-	cr, err := client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
 
 	// Check that the image-registry-private-configuration secret exists and
 	// contains the correct information
-	imageRegistryPrivateConfiguration, err := client.Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
@@ -588,7 +531,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		}
 	}
 
-	if _, err = client.Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"keyID": "testKey"}}}}`)); err != nil {
+	if _, err = te.Client().Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"keyID": "testKey"}}}}`)); err != nil {
 		t.Errorf("unable to patch image registry custom resource: %#v", err)
 	}
 
@@ -636,7 +579,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedBucketEncryption, getBucketEncryptionResult)
 	}
 
-	registryDeployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -682,6 +625,9 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 }
 
 func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
 	kcfg, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
@@ -706,20 +652,17 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		t.Skip("skipping on non-AWS platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-
-	cr, err := client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
 	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it)
-	err = client.Configs().Delete(defaults.ImageRegistryResourceName, &metav1.DeleteOptions{})
+	err = te.Client().Configs().Delete(defaults.ImageRegistryResourceName, &metav1.DeleteOptions{})
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
@@ -749,5 +692,4 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if exists {
 		t.Errorf("s3 bucket should have been deleted, but it wasn't")
 	}
-
 }

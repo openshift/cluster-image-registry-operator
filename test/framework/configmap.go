@@ -2,7 +2,6 @@ package framework
 
 import (
 	"fmt"
-	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -13,13 +12,13 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func MustEnsureServiceCAConfigMap(t *testing.T, client *Clientset) {
+func EnsureServiceCAConfigMap(te TestEnv) {
 	expectedAnnotations := map[string]string{
 		"service.beta.openshift.io/inject-cabundle": "true",
 	}
-	err := ensureConfigMap("serviceca", expectedAnnotations, client)
+	err := ensureConfigMap("serviceca", expectedAnnotations, te.Client())
 	if err != nil {
-		t.Fatal(err)
+		te.Fatal(err)
 	}
 }
 

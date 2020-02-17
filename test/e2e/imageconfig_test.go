@@ -21,19 +21,21 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	const imageConfigName = "cluster"
 	const userCAConfigMapName = "test-image-registry-operator-additional-trusted-ca"
 	const imageRegistryCAConfigMapName = "image-registry-certificates"
-	client := framework.MustNewClientset(t, nil)
+
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
 	caData := map[string]string{
 		"foo.example.com":       "certificateFoo",
 		"bar.example.com..5000": "certificateBar",
 	}
 
-	err := client.ConfigMaps(openshiftConfigNamespace).Delete(userCAConfigMapName, &metav1.DeleteOptions{})
+	err := te.Client().ConfigMaps(openshiftConfigNamespace).Delete(userCAConfigMapName, &metav1.DeleteOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		t.Fatal(err)
 	}
 
-	_, err = client.ConfigMaps(openshiftConfigNamespace).Create(&corev1.ConfigMap{
+	_, err = te.Client().ConfigMaps(openshiftConfigNamespace).Create(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userCAConfigMapName,
 		},
@@ -43,47 +45,34 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	imageConfig, err := client.Images().Get(imageConfigName, metav1.GetOptions{})
+	imageConfig, err := te.Client().Images().Get(imageConfigName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to get image config: %v", err)
 	}
 
 	oldAdditionalTrustedCA := imageConfig.Spec.AdditionalTrustedCA.Name
-	if _, err := client.Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+userCAConfigMapName+`"}}}`)); err != nil {
+	if _, err := te.Client().Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+userCAConfigMapName+`"}}}`)); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if _, err := client.Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+oldAdditionalTrustedCA+`"}}}`)); err != nil {
+		if _, err := te.Client().Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+oldAdditionalTrustedCA+`"}}}`)); err != nil {
 			panic(fmt.Errorf("unable to restore image config"))
 		}
 	}()
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-		},
+		Replicas: 1,
 	})
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsSet(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
 
-	defer func() {
-		if t.Failed() {
-			framework.DumpImageRegistryResource(t, client)
-			framework.DumpOperatorLogs(t, client)
-		}
-	}()
-
-	certs, err := client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(imageRegistryCAConfigMapName, metav1.GetOptions{})
+	certs, err := te.Client().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(imageRegistryCAConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,13 +95,13 @@ func TestAdditionalTrustedCA(t *testing.T) {
 }
 
 func TestSwapStorage(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-	defer framework.MustRemoveImageRegistry(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
 
-	config, err := client.Configs().Get(
+	config, err := te.Client().Configs().Get(
 		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	)
@@ -129,15 +118,15 @@ func TestSwapStorage(t *testing.T) {
 		EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 	}
 
-	if _, err = client.Configs().Update(config); err != nil {
+	if _, err = te.Client().Configs().Update(config); err != nil {
 		t.Fatal("unable to update image registry config")
 	}
 
 	// give some room for the operator to act.
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
 
-	if config, err = client.Configs().Get(
+	if config, err = te.Client().Configs().Get(
 		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	); err != nil {

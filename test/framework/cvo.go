@@ -1,8 +1,6 @@
 package framework
 
 import (
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -27,13 +25,13 @@ func addCompomentOverride(overrides []configv1.ComponentOverride, override confi
 	return append(overrides, override), true
 }
 
-func DisableCVOForOperator(logger Logger, client *Clientset) error {
-	cv, err := client.ClusterVersions().Get(ClusterVersionName, metav1.GetOptions{})
+func DisableCVOForOperator(te TestEnv) {
+	cv, err := te.Client().ClusterVersions().Get(ClusterVersionName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		// The cluster is not managed by the Cluster Version Operator?
-		return nil
+		return
 	} else if err != nil {
-		return err
+		te.Fatal(err)
 	}
 
 	changed := false
@@ -69,17 +67,15 @@ func DisableCVOForOperator(logger Logger, client *Clientset) error {
 	changed = changed || componentChanged
 
 	if changed {
-		if _, err := client.ClusterVersions().Update(cv); err != nil {
-			return err
+		if _, err := te.Client().ClusterVersions().Update(cv); err != nil {
+			te.Fatal(err)
 		}
 	}
 
-	if err := StopDeployment(logger, client, "kube-apiserver-operator", "openshift-kube-apiserver-operator"); err != nil {
-		return fmt.Errorf("unable to stop kube apiserver operator: %v", err)
+	if err := StopDeployment(te, te.Client(), "kube-apiserver-operator", "openshift-kube-apiserver-operator"); err != nil {
+		te.Fatalf("unable to stop kube apiserver operator: %v", err)
 	}
-	if err := StopDeployment(logger, client, "openshift-apiserver-operator", "openshift-apiserver-operator"); err != nil {
-		return fmt.Errorf("unable to stop openshift apiserver operator: %v", err)
+	if err := StopDeployment(te, te.Client(), "openshift-apiserver-operator", "openshift-apiserver-operator"); err != nil {
+		te.Fatalf("unable to stop openshift apiserver operator: %v", err)
 	}
-
-	return nil
 }

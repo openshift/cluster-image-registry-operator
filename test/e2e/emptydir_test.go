@@ -14,33 +14,22 @@ import (
 )
 
 func TestBasicEmptyDir(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
 
-	cr := &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
-
-	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +38,7 @@ func TestBasicEmptyDir(t *testing.T) {
 		t.Errorf("error: the deployment doesn't have available replicas")
 	}
 
-	logs, err := framework.GetOperatorLogs(client)
+	logs, err := framework.GetOperatorLogs(te.Client())
 	if err != nil {
 		t.Fatal(err)
 	}

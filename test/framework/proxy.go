@@ -2,7 +2,6 @@ package framework
 
 import (
 	"fmt"
-	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,16 +20,10 @@ func SetResourceProxyConfig(proxyConfig imageregistryapiv1.ImageRegistryConfigPr
 }
 
 // ResetResourceProxyConfig patches the image registry resource to contain an empty proxy configuration
-func ResetResourceProxyConfig(client *Clientset) error {
-	_, err := client.Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"proxy": {"http": "", "https": "", "noProxy": ""}}}`))
-	return err
-}
-
-// MustResetResourceProxyConfig is like ResetResourceProxyConfig but calls
-// t.Fatal if it returns a non-nil error.
-func MustResetResourceProxyConfig(t *testing.T, client *Clientset) {
-	if err := ResetResourceProxyConfig(client); err != nil {
-		t.Fatal(err)
+func ResetResourceProxyConfig(te TestEnv) {
+	_, err := te.Client().Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"proxy": {"http": "", "https": "", "noProxy": ""}}}`))
+	if err != nil {
+		te.Fatal(err)
 	}
 }
 
@@ -41,16 +34,10 @@ func SetClusterProxyConfig(proxyConfig openshiftapiv1.ProxySpec, client *Clients
 }
 
 // ResetClusterProxyConfig patches the cluster proxy resource to contain an empty proxy configuration
-func ResetClusterProxyConfig(client *Clientset) error {
-	_, err := client.Proxies().Patch(defaults.ClusterProxyResourceName, types.MergePatchType, []byte(`{"spec": {"httpProxy": "", "httpsProxy": "", "noProxy": ""}}`))
-	return err
-}
-
-// MustResetClusterProxyConfig is like ResetClusterProxyConfig but calls
-// t.Fatal if it returns a non-nil error.
-func MustResetClusterProxyConfig(t *testing.T, client *Clientset) {
-	if err := ResetClusterProxyConfig(client); err != nil {
-		t.Fatal(err)
+func ResetClusterProxyConfig(te TestEnv) {
+	_, err := te.Client().Proxies().Patch(defaults.ClusterProxyResourceName, types.MergePatchType, []byte(`{"spec": {"httpProxy": "", "httpsProxy": "", "noProxy": ""}}`))
+	if err != nil {
+		te.Fatal(err)
 	}
 }
 

@@ -29,127 +29,93 @@ import (
 )
 
 func TestPodResourceConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-			Resources: &corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("512Mi"),
-				},
-			},
-			NodeSelector: map[string]string{
-				"node-role.kubernetes.io/master": "",
-			},
-			Tolerations: []corev1.Toleration{
-				{
-					Key:      "node-role.kubernetes.io/master",
-					Operator: "Exists",
-					Effect:   "NoSchedule",
-				},
+		Replicas: 1,
+		Resources: &corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("512Mi"),
 			},
 		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+		NodeSelector: map[string]string{
+			"node-role.kubernetes.io/master": "",
+		},
+		Tolerations: []corev1.Toleration{
+			{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: "Exists",
+				Effect:   "NoSchedule",
+			},
+		},
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	deployments, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(deployments.Items) == 0 {
-		t.Errorf("no deployments found in registry namespace")
+
+	mem, ok := deployment.Spec.Template.Spec.Containers[0].Resources.Limits[corev1.ResourceMemory]
+	if !ok {
+		framework.DumpYAML(t, "deployment", deployment)
+		t.Errorf("no memory limit set on registry deployment")
 	}
 
-	for _, deployment := range deployments.Items {
-		if strings.HasPrefix(deployment.Name, "image-registry") {
-			mem, ok := deployment.Spec.Template.Spec.Containers[0].Resources.Limits[corev1.ResourceMemory]
-			if !ok {
-				framework.DumpYAML(t, "deployment", deployment)
-				t.Errorf("no memory limit set on registry deployment")
-			}
-			if mem.String() != "512Mi" {
-				t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
-			}
-		}
-
+	if mem.String() != "512Mi" {
+		t.Errorf("expected memory limit of 512Mi, found: %s", mem.String())
 	}
 }
 
 func TestRolloutStrategyConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-			Resources: &corev1.ResourceRequirements{
-				Limits: corev1.ResourceList{
-					corev1.ResourceMemory: resource.MustParse("512Mi"),
-				},
-			},
-			RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
-			NodeSelector: map[string]string{
-				"node-role.kubernetes.io/master": "",
-			},
-			Tolerations: []corev1.Toleration{
-				{
-					Key:      "node-role.kubernetes.io/master",
-					Operator: "Exists",
-					Effect:   "NoSchedule",
-				},
+		Replicas: 1,
+		Resources: &corev1.ResourceRequirements{
+			Limits: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("512Mi"),
 			},
 		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+		RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
+		NodeSelector: map[string]string{
+			"node-role.kubernetes.io/master": "",
+		},
+		Tolerations: []corev1.Toleration{
+			{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: "Exists",
+				Effect:   "NoSchedule",
+			},
+		},
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	deployments, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(deployments.Items) == 0 {
-		t.Errorf("no deployments found in registry namespace")
-	}
-
-	registryDeployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if registryDeployment.Spec.Strategy.Type != appsapi.RecreateDeploymentStrategyType {
+	if deployment.Spec.Strategy.Type != appsapi.RecreateDeploymentStrategyType {
 		t.Errorf("expected %v deployment strategy", appsapi.RecreateDeploymentStrategyType)
 	}
 }
 
 func TestPodTolerationsConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-
-	defer framework.MustRemoveImageRegistry(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
 	tolerations := []corev1.Toleration{
 		{
@@ -160,28 +126,18 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 		},
 	}
 
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas:    1,
-			Tolerations: tolerations,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+		Replicas:    1,
+		Tolerations: tolerations,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	deployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,40 +145,22 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	if !reflect.DeepEqual(tolerations, deployment.Spec.Template.Spec.Tolerations) {
 		t.Errorf("expected tolerations not found wanted: %#v, got %#v", tolerations, deployment.Spec.Template.Spec.Tolerations)
 	}
-
 }
 
 func TestPodAffinityConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-			Affinity: &corev1.Affinity{
-				NodeAffinity: &corev1.NodeAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
-						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+	affinity := &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{
+					{
+						MatchExpressions: []corev1.NodeSelectorRequirement{
 							{
-								MatchExpressions: []corev1.NodeSelectorRequirement{
-									{
-										Key:      "myExampleKey",
-										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"value1", "value2"},
-									},
-								},
+								Key:      "myExampleKey",
+								Operator: corev1.NodeSelectorOpIn,
+								Values:   []string{"value1", "value2"},
 							},
 						},
 					},
@@ -230,137 +168,121 @@ func TestPodAffinityConfiguration(t *testing.T) {
 			},
 		},
 	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	deployment, err := framework.WaitForRegistryDeployment(client)
+
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 1,
+		Affinity: affinity,
+	})
+	deployment, err := framework.WaitForRegistryDeployment(te.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(cr.Spec.Affinity, deployment.Spec.Template.Spec.Affinity) {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpImageRegistryDeployment(t, client)
-		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", cr.Spec.Affinity, deployment.Spec.Template.Spec.Affinity)
+	if !reflect.DeepEqual(affinity, deployment.Spec.Template.Spec.Affinity) {
+		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", affinity, deployment.Spec.Template.Spec.Affinity)
 	}
 
 }
 
 func TestRouteConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-
-	defer framework.MustRemoveImageRegistry(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
 	hostname := "test.example.com"
 
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas:     1,
-			DefaultRoute: true,
-			Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
-				{
-					Name:     "testroute",
-					Hostname: hostname,
-				},
+		Replicas:     1,
+		DefaultRoute: true,
+		Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
+			{
+				Name:     "testroute",
+				Hostname: hostname,
 			},
 		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.MustEnsureDefaultExternalRegistryHostnameIsSet(t, client)
-	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
-	framework.MustEnsureDefaultExternalRouteExists(t, client)
-	framework.EnsureExternalRoutesExist(t, client, []string{hostname})
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureDefaultExternalRegistryHostnameIsSet(te)
+	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
+	framework.EnsureDefaultExternalRouteExists(te)
+	framework.EnsureExternalRoutesExist(t, te.Client(), []string{hostname})
 }
 
 func TestOperatorProxyConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+	defer framework.ResetClusterProxyConfig(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.MustResetClusterProxyConfig(t, client)
-
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.DeployImageRegistry(te, nil)
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	// Wait for the registry operator to be deployed
-	deployment, err := framework.WaitForRegistryOperatorDeployment(client)
+	deployment, err := framework.WaitForRegistryOperatorDeployment(te.Client())
 	if err != nil {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 
 	// Get the service network to set as NO_PROXY so that the
 	// operator will come up once it is re-deployed
-	network, err := client.Networks().Get("cluster", metav1.GetOptions{})
+	network, err := te.Client().Networks().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to get network configuration: %v", err)
 	}
 
 	// Set the proxy env vars
-	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http://http.example.org"},{"name":"HTTPS_PROXY","value":"https://https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ",")))); err != nil {
+	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		framework.OperatorDeploymentName,
+		types.StrategicMergePatchType,
+		[]byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http://http.example.org"},{"name":"HTTPS_PROXY","value":"https://https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ","))),
+	); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 	defer func() {
-		if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+		if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
 			t.Fatalf("failed to patch operator env vars: %v", err)
 		}
 	}()
 
 	// Wait for the registry operator to be re-deployed
 	// after the proxy information is injected into the deployment
-	_, err = framework.WaitForNewRegistryOperatorDeployment(client, deployment.Status.ObservedGeneration)
+	_, err = framework.WaitForNewRegistryOperatorDeployment(te.Client(), deployment.Status.ObservedGeneration)
 	if err != nil {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
-		framework.DumpOperatorDeployment(t, client)
 		t.Fatal(err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
-	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
-	if len(errs) != 0 {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
-		framework.DumpOperatorDeployment(t, client)
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
 
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
-
-	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that operator can now reach the storage providers api
-	errs = framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapiv1.ConditionTrue, "")
-	if len(errs) != 0 {
-		for _, err := range errs {
-			t.Errorf("%#v", err)
-		}
-	}
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionTrue, "")
 }
 
 func TestOperandProxyConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+	defer framework.ResetClusterProxyConfig(te)
+	defer framework.ResetResourceProxyConfig(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-	defer framework.MustResetClusterProxyConfig(t, client)
-	defer framework.MustResetResourceProxyConfig(t, client)
+	defer func() {
+		if t.Failed() {
+			framework.DumpClusterProxyResource(t, te.Client())
+		}
+	}()
 
 	resourceProxyConfig := imageregistryapiv1.ImageRegistryConfigProxy{
 		NoProxy: "resourcenoproxy.example.com",
@@ -374,95 +296,68 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		HTTPSProxy: "https://clusterhttpsproxy.example.com",
 	}
 
-	proxyEnvVars := map[string][]corev1.EnvVar{
-		"emtpyVars": {
-			{Name: "NO_PROXY", Value: "", ValueFrom: nil},
-			{Name: "HTTP_PROXY", Value: "", ValueFrom: nil},
-			{Name: "HTTPS_PROXY", Value: "", ValueFrom: nil},
-		},
-		"resourceVars": {
-			{Name: "NO_PROXY", Value: resourceProxyConfig.NoProxy, ValueFrom: nil},
-			{Name: "HTTP_PROXY", Value: resourceProxyConfig.HTTP, ValueFrom: nil},
-			{Name: "HTTPS_PROXY", Value: resourceProxyConfig.HTTPS, ValueFrom: nil},
-		},
-		"clusterVars": {
-			{Name: "NO_PROXY", Value: clusterProxyConfig.NoProxy, ValueFrom: nil},
-			{Name: "HTTP_PROXY", Value: clusterProxyConfig.HTTPProxy, ValueFrom: nil},
-			{Name: "HTTPS_PROXY", Value: clusterProxyConfig.HTTPSProxy, ValueFrom: nil},
-		},
+	emptyVars := []corev1.EnvVar{
+		{Name: "NO_PROXY", Value: ""},
+		{Name: "HTTP_PROXY", Value: ""},
+		{Name: "HTTPS_PROXY", Value: ""},
+	}
+	resourceVars := []corev1.EnvVar{
+		{Name: "NO_PROXY", Value: resourceProxyConfig.NoProxy},
+		{Name: "HTTP_PROXY", Value: resourceProxyConfig.HTTP},
+		{Name: "HTTPS_PROXY", Value: resourceProxyConfig.HTTPS},
+	}
+	clusterVars := []corev1.EnvVar{
+		{Name: "NO_PROXY", Value: clusterProxyConfig.NoProxy},
+		{Name: "HTTP_PROXY", Value: clusterProxyConfig.HTTPProxy},
+		{Name: "HTTPS_PROXY", Value: clusterProxyConfig.HTTPSProxy},
 	}
 
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+		Replicas: 1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err := framework.WaitForRegistryDeployment(client)
+	registryDeployment, err := framework.WaitForRegistryDeployment(te.Client())
 	if err != nil {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 
 	// Check that the default deployment does not contain any proxy settings
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["emptyVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
-		t.Errorf("%v", err)
-	}
+	framework.CheckEnvVars(te, emptyVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
 
 	// Patch the cluster proxy config to set the proxy settings
-	if err := framework.SetClusterProxyConfig(clusterProxyConfig, client); err != nil {
+	if err := framework.SetClusterProxyConfig(clusterProxyConfig, te.Client()); err != nil {
 		t.Errorf("unable to patch cluster proxy instance: %v", err)
 	}
 
 	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err = framework.WaitForNewRegistryDeployment(client, registryDeployment.Status.ObservedGeneration)
+	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)
 	if err != nil {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 
 	// Check that the new deployment contains the cluster proxy settings
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["clusterVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
-		t.Errorf("%v", err)
-		framework.DumpClusterProxyResource(t, client)
-		framework.DumpImageRegistryDeployment(t, client)
-		framework.DumpOperatorDeployment(t, client)
-	}
+	framework.CheckEnvVars(te, clusterVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
 
 	// Patch the image registry resource to contain the proxy settings
-	if err := framework.SetResourceProxyConfig(resourceProxyConfig, client); err != nil {
+	if err := framework.SetResourceProxyConfig(resourceProxyConfig, te.Client()); err != nil {
 		t.Errorf("unable to set resource proxy configuration: %v", err)
 	}
 
 	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err = framework.WaitForNewRegistryDeployment(client, registryDeployment.Status.ObservedGeneration)
+	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)
 	if err != nil {
-		framework.DumpImageRegistryResource(t, client)
-		framework.DumpOperatorLogs(t, client)
 		t.Fatal(err)
 	}
 
 	// Check that the new deployment contains the resource proxy settings (overriding the cluster proxy config)
-	for _, err = range framework.CheckEnvVars(proxyEnvVars["resourceVars"], registryDeployment.Spec.Template.Spec.Containers[0].Env, true) {
-		t.Errorf("%v", err)
-	}
+	framework.CheckEnvVars(te, resourceVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
 }
 
 func generateCertificate(hostname string) ([]byte, []byte, error) {
@@ -504,9 +399,8 @@ func generateCertificate(hostname string) ([]byte, []byte, error) {
 }
 
 func TestSecureRouteConfiguration(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-
-	defer framework.MustRemoveImageRegistry(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
 	hostname := "test.example.com"
 	cert, key, err := generateCertificate(hostname)
@@ -524,31 +418,26 @@ func TestSecureRouteConfiguration(t *testing.T) {
 		t.Fatalf("unable to create secret: %s", err)
 	}
 
-	framework.MustDeployImageRegistry(t, client, &imageregistryapiv1.Config{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-			Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
-				{
-					Name:       routeName,
-					Hostname:   hostname,
-					SecretName: tlsSecretName,
-				},
+		Replicas: 1,
+		Routes: []imageregistryapiv1.ImageRegistryConfigRoute{
+			{
+				Name:       routeName,
+				Hostname:   hostname,
+				SecretName: tlsSecretName,
 			},
 		},
 	})
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.EnsureExternalRegistryHostnamesAreSet(t, client, []string{hostname})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 
 	err = wait.Poll(5*time.Second, 1*time.Minute, func() (done bool, err error) {
-		route, err := client.Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+		route, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
 		if err != nil {
 			t.Logf("unable to get route: %s", err)
 			return false, nil
@@ -570,36 +459,25 @@ func TestSecureRouteConfiguration(t *testing.T) {
 }
 
 func TestVersionReporting(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-
-	if _, err := client.Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`)); err != nil {
+	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`)); err != nil {
 		t.Fatalf("failed to patch operator to new version: %v", err)
 	}
 
 	err := wait.Poll(5*time.Second, 1*time.Minute, func() (bool, error) {
-		clusterOperatorStatus, err := client.ClusterOperators().Get(defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
+		clusterOperatorStatus, err := te.Client().ClusterOperators().Get(defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
 		if err != nil {
 			t.Logf("Could not retrieve cluster operator status: %v", err)
 			return false, nil
@@ -622,47 +500,35 @@ func TestVersionReporting(t *testing.T) {
 }
 
 func TestRequests(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Requests: imageregistryapiv1.ImageRegistryConfigRequests{
-				Read: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
-					MaxRunning: 1,
-					MaxInQueue: 2,
-					MaxWaitInQueue: metav1.Duration{
-						Duration: 3 * time.Second,
-					},
-				},
-				Write: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
-					MaxRunning: 4,
-					MaxInQueue: 5,
-					MaxWaitInQueue: metav1.Duration{
-						Duration: 6 * time.Hour,
-					},
+		Requests: imageregistryapiv1.ImageRegistryConfigRequests{
+			Read: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
+				MaxRunning: 1,
+				MaxInQueue: 2,
+				MaxWaitInQueue: metav1.Duration{
+					Duration: 3 * time.Second,
 				},
 			},
-			Replicas: 1,
+			Write: imageregistryapiv1.ImageRegistryConfigRequestsLimits{
+				MaxRunning: 4,
+				MaxInQueue: 5,
+				MaxWaitInQueue: metav1.Duration{
+					Duration: 6 * time.Hour,
+				},
+			},
 		},
-	}
+		Replicas: 1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
 
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-
-	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -675,39 +541,24 @@ func TestRequests(t *testing.T) {
 		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXINQUEUE", Value: "5", ValueFrom: nil},
 		{Name: "REGISTRY_OPENSHIFT_REQUESTS_WRITE_MAXWAITINQUEUE", Value: "6h0m0s", ValueFrom: nil},
 	}
-
-	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false) {
-		t.Errorf("%v", err)
-	}
+	framework.CheckEnvVars(te, expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false)
 }
 
 func TestDisableRedirect(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Managed,
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			DisableRedirect: true,
-			Replicas:        1,
-		},
-	}
+		DisableRedirect: true,
+		Replicas:        1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
 
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-
-	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -715,8 +566,5 @@ func TestDisableRedirect(t *testing.T) {
 	expectedEnvVars := []corev1.EnvVar{
 		{Name: "REGISTRY_STORAGE_REDIRECT_DISABLE", Value: "true", ValueFrom: nil},
 	}
-
-	for _, err = range framework.CheckEnvVars(expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false) {
-		t.Errorf("%v", err)
-	}
+	framework.CheckEnvVars(te, expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false)
 }

@@ -66,28 +66,8 @@ func TestGCSMinimal(t *testing.T) {
 		t.Skip("skipping on non-GCP platform")
 	}
 
-	client := framework.MustNewClientset(t, nil)
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	// Custom resource configuration to use GCS
-	cr := &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				GCS: &imageregistryv1.ImageRegistryConfigStorageGCS{
-					Bucket: "openshift-test-bucket",
-				},
-			},
-			Replicas: 1,
-		},
-	}
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
 	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
@@ -101,15 +81,25 @@ func TestGCSMinimal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsSet(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+	const bucketName = "openshift-test-bucket"
+
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			GCS: &imageregistryv1.ImageRegistryConfigStorageGCS{
+				Bucket: bucketName,
+			},
+		},
+		Replicas: 1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsSet(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
 
 	// Check that the image-registry-private-configuration secret exists and
 	// contains the correct information synced from the image-registry-private-configuration-user secret
-	imageRegistryPrivateConfiguration, err := client.Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
@@ -118,7 +108,7 @@ func TestGCSMinimal(t *testing.T) {
 		t.Errorf("secret %s/%s contains incorrect gcs credentials", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
 
-	registryDeployment, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,16 +118,14 @@ func TestGCSMinimal(t *testing.T) {
 	// contain the correct values
 	gcsEnvVars := []corev1.EnvVar{
 		{Name: "REGISTRY_STORAGE", Value: "gcs", ValueFrom: nil},
-		{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: string(cr.Spec.Storage.GCS.Bucket), ValueFrom: nil},
+		{Name: "REGISTRY_STORAGE_GCS_BUCKET", Value: bucketName, ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_GCS_KEYFILE", Value: "/gcs/keyfile", ValueFrom: nil},
 	}
 
-	for _, err = range framework.CheckEnvVars(gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, false) {
-		t.Errorf("%v", err)
-	}
+	framework.CheckEnvVars(te, gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, false)
 
 	// Get a fresh version of the image registry resource
-	_, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	_, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("%s", err)
 	}

@@ -20,34 +20,32 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func testDefer(t *testing.T, client *framework.Clientset) {
-	if t.Failed() {
-		scList, err := client.StorageClasses().List(metav1.ListOptions{})
+func dumpResourcesOnFailure(te framework.TestEnv) {
+	if te.Failed() {
+		scList, err := te.Client().StorageClasses().List(metav1.ListOptions{})
 		if err != nil {
-			t.Logf("unable to dump the storage classes: %s", err)
+			te.Logf("unable to dump the storage classes: %s", err)
 		} else {
-			framework.DumpYAML(t, "storageclasses", scList)
+			framework.DumpYAML(te, "storageclasses", scList)
 		}
 
-		pvList, err := client.PersistentVolumes().List(metav1.ListOptions{})
+		pvList, err := te.Client().PersistentVolumes().List(metav1.ListOptions{})
 		if err != nil {
-			t.Logf("unable to dump the persistent volumes: %s", err)
+			te.Logf("unable to dump the persistent volumes: %s", err)
 		} else {
-			framework.DumpYAML(t, "persistentvolumes", pvList)
+			framework.DumpYAML(te, "persistentvolumes", pvList)
 		}
 
-		pvcList, err := client.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		pvcList, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
-			t.Logf("unable to dump the persistent volume claims: %s", err)
+			te.Logf("unable to dump the persistent volume claims: %s", err)
 		} else {
-			framework.DumpYAML(t, "persistentvolumeclaims", pvcList)
+			framework.DumpYAML(te, "persistentvolumeclaims", pvcList)
 		}
 	}
-	framework.MustRemoveImageRegistry(t, client)
 }
 
-func createPV(t *testing.T, storageClass string) error {
-	client := framework.MustNewClientset(t, nil)
+func createPV(te framework.TestEnv, storageClass string) {
 	name := ""
 
 	for i := 0; i < 100; i++ {
@@ -76,9 +74,9 @@ func createPV(t *testing.T, storageClass string) error {
 			},
 		}
 
-		_, err := client.PersistentVolumes().Create(pv)
+		_, err := te.Client().PersistentVolumes().Create(pv)
 		if err == nil {
-			t.Logf("PersistentVolume %s created", pvName)
+			te.Logf("PersistentVolume %s created", pvName)
 			name = pvName
 			break
 		}
@@ -87,45 +85,34 @@ func createPV(t *testing.T, storageClass string) error {
 			continue
 		}
 
-		t.Logf("unable to create PersistentVolume %s: %s", pvName, err)
+		te.Logf("unable to create PersistentVolume %s: %s", pvName, err)
 	}
 
 	if name == "" {
-		return fmt.Errorf("unable to create PersistentVolume")
+		te.Fatal("unable to create PersistentVolume")
 	}
 
 	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
-		pv, pvErr := client.PersistentVolumes().Get(name, metav1.GetOptions{})
+		pv, pvErr := te.Client().PersistentVolumes().Get(name, metav1.GetOptions{})
 		return (pv != nil && pv.Status.Phase != corev1.VolumePending), pvErr
 	})
-
 	if err != nil {
-		return err
+		te.Fatal(err)
 	}
-
-	return nil
 }
 
-func createPVWithStorageClass(t *testing.T) error {
-	client := framework.MustNewClientset(t, nil)
-
-	storageClassList, err := client.StorageClasses().List(metav1.ListOptions{})
+func createPVWithStorageClass(te framework.TestEnv) {
+	storageClassList, err := te.Client().StorageClasses().List(metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("unable to list storage classes: %s", err)
+		te.Fatalf("unable to list storage classes: %s", err)
 	}
 
 	for _, storageClass := range storageClassList.Items {
-		if err := createPV(t, storageClass.Name); err != nil {
-			return err
-		}
+		createPV(te, storageClass.Name)
 	}
-
-	return nil
 }
 
-func createPVC(t *testing.T, name string, accessMode corev1.PersistentVolumeAccessMode) error {
-	client := framework.MustNewClientset(t, nil)
-
+func createPVC(te framework.TestEnv, name string, accessMode corev1.PersistentVolumeAccessMode) {
 	claim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -143,140 +130,92 @@ func createPVC(t *testing.T, name string, accessMode corev1.PersistentVolumeAcce
 		},
 	}
 
-	_, err := client.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
+	_, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
 	if err != nil {
-		return err
+		te.Fatal(err)
 	}
-
-	return nil
 }
 
-func checkTestResult(t *testing.T, client *framework.Clientset) {
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+func checkTestResult(te framework.TestEnv) {
+	framework.EnsureImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
 
-	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
-		t.Fatal(err)
+		te.Fatal(err)
 	}
 	if deploy.Status.AvailableReplicas == 0 {
-		framework.DumpYAML(t, "deployment", deploy)
-		t.Errorf("error: the deployment doesn't have available replicas")
+		framework.DumpYAML(te, "deployment", deploy)
+		te.Errorf("error: the deployment doesn't have available replicas")
 	}
 }
 
 func TestDefaultPVC(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+	defer dumpResourcesOnFailure(te)
 
-	defer testDefer(t, client)
+	createPV(te, "")
+	createPVWithStorageClass(te)
 
-	if err := createPV(t, ""); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := createPVWithStorageClass(t); err != nil {
-		t.Fatal(err)
-	}
-
-	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{},
-			},
-			Replicas: 1,
-		},
+		Replicas: 1,
 	})
 
-	checkTestResult(t, client)
+	checkTestResult(te)
 }
 
 func TestCustomRWXPVC(t *testing.T) {
 	claimName := "test-custom-rwx-pvc"
-	client := framework.MustNewClientset(t, nil)
 
-	defer testDefer(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+	defer dumpResourcesOnFailure(te)
 
-	if err := createPV(t, ""); err != nil {
-		t.Fatal(err)
-	}
+	createPV(te, "")
+	createPVWithStorageClass(te)
+	createPVC(te, claimName, corev1.ReadWriteMany)
 
-	if err := createPVWithStorageClass(t); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := createPVC(t, claimName, corev1.ReadWriteMany); err != nil {
-		t.Fatal(err)
-	}
-
-	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
-					Claim: claimName,
-				},
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
+				Claim: claimName,
 			},
-			Replicas: 1,
 		},
+		Replicas: 1,
 	})
 
-	checkTestResult(t, client)
+	checkTestResult(te)
 }
 
 func TestCustomRWOPVC(t *testing.T) {
 	claimName := "test-custom-rwo-pvc"
-	client := framework.MustNewClientset(t, nil)
 
-	defer testDefer(t, client)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+	defer dumpResourcesOnFailure(te)
 
-	if err := createPV(t, ""); err != nil {
-		t.Fatal(err)
-	}
+	createPV(te, "")
+	createPVWithStorageClass(te)
+	createPVC(te, claimName, corev1.ReadWriteOnce)
 
-	if err := createPVWithStorageClass(t); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := createPVC(t, claimName, corev1.ReadWriteOnce); err != nil {
-		t.Fatal(err)
-	}
-
-	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
-					Claim: claimName,
-				},
+	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
+				Claim: claimName,
 			},
-			Replicas:        1,
-			RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
 		},
+		Replicas:        1,
+		RolloutStrategy: string(appsapi.RecreateDeploymentStrategyType),
 	})
 
-	checkTestResult(t, client)
+	checkTestResult(te)
 }

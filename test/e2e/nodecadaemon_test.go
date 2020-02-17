@@ -16,25 +16,18 @@ import (
 )
 
 func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryapiv1.Config{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
-			ManagementState: operatorapiv1.Removed,
-			Replicas:        1,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Removed,
+		Replicas:        1,
+	})
+	framework.EnsureImageRegistryIsAvailable(te)
 
 	t.Log("waiting until the node-ca daemon is deployed")
 	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
+		_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			t.Logf("ds/node-ca has not been created yet: %s", err)
 			return false, nil
