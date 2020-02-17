@@ -3,6 +3,7 @@ package framework
 import (
 	"fmt"
 	"strings"
+	"testing"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -196,7 +197,7 @@ func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
 	DumpYAML(logger, "the image registry deployment", d)
 }
 
-func EnsureImageRegistryIsProcessed(te TestEnv) *imageregistryapiv1.Config {
+func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Config {
 	var cr *imageregistryapiv1.Config
 	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
@@ -220,10 +221,10 @@ func EnsureImageRegistryIsProcessed(te TestEnv) *imageregistryapiv1.Config {
 	return cr
 }
 
-func EnsureImageRegistryIsAvailable(te TestEnv) {
+func WaitUntilImageRegistryIsAvailable(te TestEnv) {
 	te.Logf("waiting for the operator to deploy the registry...")
 
-	cr := EnsureImageRegistryIsProcessed(te)
+	cr := WaitUntilImageRegistryConfigIsProcessed(te)
 	conds := GetImageRegistryConditions(cr)
 	if conds.Progressing.IsTrue() || conds.Available.IsFalse() {
 		DumpYAML(te, "the latest observed state of the image registry resource", cr)
@@ -365,6 +366,21 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	if oldVersion != cfg.ResourceVersion {
 		te.Errorf("registry config resource version was updated when it should have been stable, went from %s to %s", oldVersion, cfg.ResourceVersion)
 	}
+}
+
+func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
+	te := Setup(t)
+
+	defer func() {
+		if te.Failed() {
+			TeardownImageRegistry(te)
+		}
+	}()
+
+	DeployImageRegistry(te, spec)
+	WaitUntilImageRegistryIsAvailable(te)
+	EnsureClusterOperatorStatusIsNormal(te)
+	return te
 }
 
 func TeardownImageRegistry(te TestEnv) {

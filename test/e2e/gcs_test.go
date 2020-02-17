@@ -92,7 +92,7 @@ func TestGCSMinimal(t *testing.T) {
 		},
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)

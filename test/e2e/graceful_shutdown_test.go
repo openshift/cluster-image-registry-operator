@@ -74,11 +74,9 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 }
 
 func TestImageRegistryGracefulShutdown(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(

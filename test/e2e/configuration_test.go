@@ -29,10 +29,7 @@ import (
 )
 
 func TestPodResourceConfiguration(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -54,8 +51,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 			},
 		},
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
+	defer framework.TeardownImageRegistry(te)
 
 	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
@@ -74,10 +70,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 }
 
 func TestRolloutStrategyConfiguration(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -100,8 +93,7 @@ func TestRolloutStrategyConfiguration(t *testing.T) {
 			},
 		},
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
+	defer framework.TeardownImageRegistry(te)
 
 	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
@@ -114,9 +106,6 @@ func TestRolloutStrategyConfiguration(t *testing.T) {
 }
 
 func TestPodTolerationsConfiguration(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
 	tolerations := []corev1.Toleration{
 		{
 			Key:      "mykey",
@@ -126,7 +115,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 		},
 	}
 
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -134,8 +123,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 		Replicas:    1,
 		Tolerations: tolerations,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
+	defer framework.TeardownImageRegistry(te)
 
 	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
 	if err != nil {
@@ -189,12 +177,9 @@ func TestPodAffinityConfiguration(t *testing.T) {
 }
 
 func TestRouteConfiguration(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
 	hostname := "test.example.com"
 
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -208,8 +193,8 @@ func TestRouteConfiguration(t *testing.T) {
 			},
 		},
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
+	defer framework.TeardownImageRegistry(te)
+
 	framework.EnsureDefaultExternalRegistryHostnameIsSet(te)
 	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 	framework.EnsureDefaultExternalRouteExists(te)
@@ -217,13 +202,9 @@ func TestRouteConfiguration(t *testing.T) {
 }
 
 func TestOperatorProxyConfiguration(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 	defer framework.ResetClusterProxyConfig(te)
-
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	// Wait for the registry operator to be deployed
 	deployment, err := framework.WaitForRegistryOperatorDeployment(te.Client())
@@ -273,7 +254,13 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 }
 
 func TestOperandProxyConfiguration(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 1,
+	})
 	defer framework.TeardownImageRegistry(te)
 	defer framework.ResetClusterProxyConfig(te)
 	defer framework.ResetResourceProxyConfig(te)
@@ -311,16 +298,6 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		{Name: "HTTP_PROXY", Value: clusterProxyConfig.HTTPProxy},
 		{Name: "HTTPS_PROXY", Value: clusterProxyConfig.HTTPSProxy},
 	}
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
-		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
-		},
-		Replicas: 1,
-	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
 	registryDeployment, err := framework.WaitForRegistryDeployment(te.Client())
@@ -432,7 +409,7 @@ func TestSecureRouteConfiguration(t *testing.T) {
 			},
 		},
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 
@@ -459,18 +436,14 @@ func TestSecureRouteConfiguration(t *testing.T) {
 }
 
 func TestVersionReporting(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
+	defer framework.TeardownImageRegistry(te)
 
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`)); err != nil {
 		t.Fatalf("failed to patch operator to new version: %v", err)
@@ -500,10 +473,7 @@ func TestVersionReporting(t *testing.T) {
 }
 
 func TestRequests(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -526,7 +496,7 @@ func TestRequests(t *testing.T) {
 		},
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	defer framework.TeardownImageRegistry(te)
 
 	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
@@ -545,10 +515,7 @@ func TestRequests(t *testing.T) {
 }
 
 func TestDisableRedirect(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
@@ -556,7 +523,7 @@ func TestDisableRedirect(t *testing.T) {
 		DisableRedirect: true,
 		Replicas:        1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	defer framework.TeardownImageRegistry(te)
 
 	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {

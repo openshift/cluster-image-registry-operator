@@ -23,7 +23,7 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 		ManagementState: operatorapiv1.Removed,
 		Replicas:        1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 
 	t.Log("waiting until the node-ca daemon is deployed")
 	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {

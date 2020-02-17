@@ -17,11 +17,8 @@ import (
 )
 
 func TestManagementStateUnmanaged(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 
 	if _, err := te.Client().Configs().Patch(
 		defaults.ImageRegistryResourceName,
@@ -55,11 +52,8 @@ func TestManagementStateUnmanaged(t *testing.T) {
 }
 
 func TestManagementStateRemoved(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 
 	if _, err := te.Client().Configs().Patch(
 		defaults.ImageRegistryResourceName,
@@ -140,7 +134,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	}
 
 	t.Log("making sure image registry is up and running")
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }

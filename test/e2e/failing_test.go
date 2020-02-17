@@ -21,7 +21,7 @@ func TestDegraded(t *testing.T) {
 		},
 		Replicas: -1,
 	})
-	cr := framework.EnsureImageRegistryIsProcessed(te)
+	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
 
 	var degraded operatorapi.OperatorCondition
 	for _, cond := range cr.Status.Conditions {

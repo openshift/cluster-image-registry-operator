@@ -16,17 +16,14 @@ import (
 )
 
 func TestRecreateDeployment(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		ManagementState: operatorapi.Managed,
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	defer framework.TeardownImageRegistry(te)
 
 	t.Logf("deleting the image registry deployment...")
 	if err := framework.DeleteCompletely(
@@ -47,11 +44,8 @@ func TestRecreateDeployment(t *testing.T) {
 }
 
 func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 
 	// add a new environment variable and a host port to the deployment.
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(

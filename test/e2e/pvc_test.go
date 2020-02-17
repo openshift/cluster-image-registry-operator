@@ -137,7 +137,7 @@ func createPVC(te framework.TestEnv, name string, accessMode corev1.PersistentVo
 }
 
 func checkTestResult(te framework.TestEnv) {
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)

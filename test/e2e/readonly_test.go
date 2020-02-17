@@ -13,10 +13,7 @@ import (
 )
 
 func TestReadOnly(t *testing.T) {
-	te := framework.Setup(t)
-	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		ManagementState: operatorapi.Managed,
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
@@ -24,9 +21,9 @@ func TestReadOnly(t *testing.T) {
 		ReadOnly: true,
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	defer framework.TeardownImageRegistry(te)
+
 	framework.EnsureInternalRegistryHostnameIsSet(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})

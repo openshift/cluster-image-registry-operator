@@ -25,7 +25,7 @@ func TestBaremetalAndVSphereDefaults(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, nil)
-	cr := framework.EnsureImageRegistryIsProcessed(te)
+	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	conds := framework.GetImageRegistryConditions(cr)

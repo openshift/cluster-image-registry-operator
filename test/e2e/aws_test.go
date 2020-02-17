@@ -67,7 +67,7 @@ func TestAWSDefaults(t *testing.T) {
 
 	// TODO: Move these checks to a conformance test run on all providers
 	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
@@ -354,7 +354,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	// Wait for the image registry resource to have an updated StorageExists condition
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
@@ -388,7 +388,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 
@@ -425,7 +425,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	// Wait for the image registry resource to have an updated StorageExists condition
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
 
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
@@ -459,7 +459,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 
@@ -653,7 +653,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 

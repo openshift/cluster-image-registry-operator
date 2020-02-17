@@ -18,14 +18,11 @@ import (
 // is set correctly based on the image registry's custom resources
 // Spec.ManagementState field
 func TestPruneRegistryFlag(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
 	// TODO: Move these checks to a conformance test run on all providers
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
@@ -95,7 +92,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 // TestPruner verifies that the pruner controller installs the cronjob and sets it's
 // conditions appropriately
 func TestPruner(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
 	defer func() {
@@ -105,10 +102,7 @@ func TestPruner(t *testing.T) {
 	}()
 
 	// TODO: Move these checks to a conformance test run on all providers
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)

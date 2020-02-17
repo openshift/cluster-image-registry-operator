@@ -67,7 +67,7 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		},
 		Replicas: 1,
 	})
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
@@ -95,11 +95,8 @@ func TestAdditionalTrustedCA(t *testing.T) {
 }
 
 func TestSwapStorage(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
-
-	framework.DeployImageRegistry(te, nil)
-	framework.EnsureImageRegistryIsAvailable(te)
 
 	config, err := te.Client().Configs().Get(
 		defaults.ImageRegistryResourceName,
@@ -123,7 +120,7 @@ func TestSwapStorage(t *testing.T) {
 	}
 
 	// give some room for the operator to act.
-	framework.EnsureImageRegistryIsAvailable(te)
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	if config, err = te.Client().Configs().Get(
