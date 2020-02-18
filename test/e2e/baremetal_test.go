@@ -9,7 +9,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestBaremetalDefaults(t *testing.T) {
+func TestBaremetalAndVSphereDefaults(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
 	infrastructureConfig, err := client.Infrastructures().Get("cluster", metav1.GetOptions{})
@@ -17,8 +17,9 @@ func TestBaremetalDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if infrastructureConfig.Status.PlatformStatus.Type != configapiv1.BareMetalPlatformType {
-		t.Skip("skipping on non-BareMetal platform")
+	if infrastructureConfig.Status.PlatformStatus.Type != configapiv1.BareMetalPlatformType &&
+		infrastructureConfig.Status.PlatformStatus.Type != configapiv1.VSpherePlatformType {
+		t.Skip("skipping on non-BareMetal non-VSphere platform")
 	}
 
 	// Start of the meaningful part
