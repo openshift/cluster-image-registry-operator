@@ -329,13 +329,8 @@ func (d *driver) ensureAuthURLHasAPIVersion() error {
 }
 
 func (d *driver) containerExists(client *gophercloud.ServiceClient, containerName string) error {
-	if len(containerName) == 0 {
-		return nil
-	}
 	_, err := containers.Get(client, containerName, containers.GetOpts{}).Extract()
-
 	return err
-
 }
 
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
