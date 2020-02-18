@@ -21,6 +21,7 @@ import (
 	imageregistryv1informers "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/cluster-image-registry-operator/pkg/generated/listers/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 type ClusterOperatorStatusController struct {
@@ -108,7 +109,7 @@ func (c *ClusterOperatorStatusController) sync() error {
 
 	gen := resource.NewGenerator(c.kubeconfig, c.clients, c.listers, Parameters(defaults.ImageRegistryOperatorNamespace))
 	resources, err := gen.List(cr)
-	if err != nil {
+	if err != nil && err != storage.ErrStorageNotConfigured {
 		return err
 	}
 
