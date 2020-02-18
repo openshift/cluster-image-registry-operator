@@ -1,11 +1,12 @@
 package resource
 
 import (
+	"fmt"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,7 +24,7 @@ type generatorSecret struct {
 	namespace string
 }
 
-func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorSecret {
+func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals) *generatorSecret {
 	return &generatorSecret{
 		lister:    lister,
 		client:    client,
@@ -54,6 +55,10 @@ func (gs *generatorSecret) GetName() string {
 }
 
 func (gs *generatorSecret) expected() (runtime.Object, error) {
+	if gs.driver == nil {
+		return nil, fmt.Errorf("no storage driver present")
+	}
+
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gs.GetName(),

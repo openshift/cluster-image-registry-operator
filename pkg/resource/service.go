@@ -7,7 +7,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,7 +27,7 @@ type generatorService struct {
 	secretName string
 }
 
-func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorService {
+func newGeneratorService(lister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorService {
 	return &generatorService{
 		lister:     lister,
 		client:     client,

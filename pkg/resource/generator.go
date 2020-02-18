@@ -93,21 +93,23 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 
 func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
-	if err != nil {
+	if err != nil && err != storage.ErrStorageNotConfigured {
 		return nil, err
+	} else if err == storage.ErrStorageNotConfigured {
+		klog.V(6).Info("storage not configured, some mutators might not work.")
 	}
 
 	var mutators []Mutator
-	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, g.clients.RBAC, cr))
-	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params, cr))
-	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params, cr))
+	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, g.clients.RBAC))
+	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params))
+	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params))
 	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.ImageConfigs, g.listers.OpenShiftConfig, g.listers.Services, g.clients.Core, g.params, cr))
+	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.ImageConfigs, g.listers.OpenShiftConfig, g.listers.Services, g.clients.Core, g.params))
 	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver, g.params, cr))
+	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver, g.params))
 	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, g.listers.Services, g.clients.Config, g.params))
 	mutators = append(mutators, newGeneratorNodeCADaemonSet(g.listers.DaemonSets, g.listers.Services, g.clients.Apps, g.params))
-	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core, g.params, cr))
+	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core, g.params))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
 
