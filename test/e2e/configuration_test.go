@@ -228,7 +228,28 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 	defer func() {
-		if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+		if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+			framework.OperatorDeploymentName,
+			types.StrategicMergePatchType,
+			framework.MarshalJSON(map[string]interface{}{
+				"spec": map[string]interface{}{
+					"template": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"containers": []map[string]interface{}{
+								{
+									"name": "cluster-image-registry-operator",
+									"env": []map[string]interface{}{
+										{"name": "NO_PROXY", "$patch": "delete"},
+										{"name": "HTTP_PROXY", "$patch": "delete"},
+										{"name": "HTTPS_PROXY", "$patch": "delete"},
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
+		); err != nil {
 			t.Fatalf("failed to patch operator env vars: %v", err)
 		}
 	}()
@@ -244,7 +265,28 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	// showing that the operator can no longer reach the storage providers api
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
 
-	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":""},{"name":"HTTPS_PROXY","value":""},{"name":"NO_PROXY","value":""}]}]}}}}`)); err != nil {
+	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		framework.OperatorDeploymentName,
+		types.StrategicMergePatchType,
+		framework.MarshalJSON(map[string]interface{}{
+			"spec": map[string]interface{}{
+				"template": map[string]interface{}{
+					"spec": map[string]interface{}{
+						"containers": []map[string]interface{}{
+							{
+								"name": "cluster-image-registry-operator",
+								"env": []map[string]interface{}{
+									{"name": "NO_PROXY", "$patch": "delete"},
+									{"name": "HTTP_PROXY", "$patch": "delete"},
+									{"name": "HTTPS_PROXY", "$patch": "delete"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
+	); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 
@@ -262,12 +304,12 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		Replicas: 1,
 	})
 	defer framework.TeardownImageRegistry(te)
-	defer framework.ResetClusterProxyConfig(te)
-	defer framework.ResetResourceProxyConfig(te)
 
+	defer framework.ResetClusterProxyConfig(te)
 	defer func() {
 		if t.Failed() {
 			framework.DumpClusterProxyResource(t, te.Client())
+			framework.DumpImageRegistryDeployment(t, te.Client())
 		}
 	}()
 
@@ -283,11 +325,6 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		HTTPSProxy: "https://clusterhttpsproxy.example.com",
 	}
 
-	emptyVars := []corev1.EnvVar{
-		{Name: "NO_PROXY", Value: ""},
-		{Name: "HTTP_PROXY", Value: ""},
-		{Name: "HTTPS_PROXY", Value: ""},
-	}
 	resourceVars := []corev1.EnvVar{
 		{Name: "NO_PROXY", Value: resourceProxyConfig.NoProxy},
 		{Name: "HTTP_PROXY", Value: resourceProxyConfig.HTTP},
@@ -306,12 +343,14 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	}
 
 	// Check that the default deployment does not contain any proxy settings
-	framework.CheckEnvVars(te, emptyVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
+	framework.CheckEnvVarsAreNotSet(
+		te,
+		registryDeployment.Spec.Template.Spec.Containers[0].Env,
+		[]string{"NO_PROXY", "HTTP_PROXY", "HTTPS_PROXY"},
+	)
 
 	// Patch the cluster proxy config to set the proxy settings
-	if err := framework.SetClusterProxyConfig(clusterProxyConfig, te.Client()); err != nil {
-		t.Errorf("unable to patch cluster proxy instance: %v", err)
-	}
+	framework.SetClusterProxyConfig(te, clusterProxyConfig)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
 	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)
@@ -323,9 +362,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	framework.CheckEnvVars(te, clusterVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
 
 	// Patch the image registry resource to contain the proxy settings
-	if err := framework.SetResourceProxyConfig(resourceProxyConfig, te.Client()); err != nil {
-		t.Errorf("unable to set resource proxy configuration: %v", err)
-	}
+	framework.SetResourceProxyConfig(te, resourceProxyConfig)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
 	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)

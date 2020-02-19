@@ -8,7 +8,7 @@ type JSONPatch struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-func MarshalJSON(patch []JSONPatch) []byte {
+func MarshalJSON(patch interface{}) []byte {
 	buf, err := json.Marshal(patch)
 	if err != nil {
 		// This function is expected to be used only in tests with known data

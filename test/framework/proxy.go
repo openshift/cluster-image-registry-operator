@@ -13,10 +13,11 @@ import (
 )
 
 // SetResourceProxyConfig patches the image registry resource to contain the provided proxy configuration
-func SetResourceProxyConfig(proxyConfig imageregistryapiv1.ImageRegistryConfigProxy, client *Clientset) error {
-	_, err := client.Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"proxy": {"http": "%s", "https": "%s", "noProxy": "%s"}}}`, proxyConfig.HTTP, proxyConfig.HTTPS, proxyConfig.NoProxy)))
-
-	return err
+func SetResourceProxyConfig(te TestEnv, proxyConfig imageregistryapiv1.ImageRegistryConfigProxy) {
+	_, err := te.Client().Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"proxy": {"http": "%s", "https": "%s", "noProxy": "%s"}}}`, proxyConfig.HTTP, proxyConfig.HTTPS, proxyConfig.NoProxy)))
+	if err != nil {
+		te.Fatalf("unable to set resource proxy configuration: %v", err)
+	}
 }
 
 // ResetResourceProxyConfig patches the image registry resource to contain an empty proxy configuration
@@ -28,9 +29,11 @@ func ResetResourceProxyConfig(te TestEnv) {
 }
 
 // SetClusterProxyConfig patches the cluster proxy resource to contain the provided proxy configuration
-func SetClusterProxyConfig(proxyConfig openshiftapiv1.ProxySpec, client *Clientset) error {
-	_, err := client.Proxies().Patch(defaults.ClusterProxyResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"httpProxy": "%s", "httpsProxy": "%s", "noProxy": "%s"}}`, proxyConfig.HTTPProxy, proxyConfig.HTTPSProxy, proxyConfig.NoProxy)))
-	return err
+func SetClusterProxyConfig(te TestEnv, proxyConfig openshiftapiv1.ProxySpec) {
+	_, err := te.Client().Proxies().Patch(defaults.ClusterProxyResourceName, types.MergePatchType, []byte(fmt.Sprintf(`{"spec": {"httpProxy": "%s", "httpsProxy": "%s", "noProxy": "%s"}}`, proxyConfig.HTTPProxy, proxyConfig.HTTPSProxy, proxyConfig.NoProxy)))
+	if err != nil {
+		te.Fatalf("unable to patch cluster proxy instance: %v", err)
+	}
 }
 
 // ResetClusterProxyConfig patches the cluster proxy resource to contain an empty proxy configuration
