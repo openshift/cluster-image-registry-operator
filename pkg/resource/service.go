@@ -10,7 +10,8 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
@@ -35,7 +36,7 @@ func newGeneratorService(lister corelisters.ServiceNamespaceLister, client cores
 		namespace:  params.Deployment.Namespace,
 		labels:     params.Deployment.Labels,
 		port:       params.Container.Port,
-		secretName: imageregistryv1.ImageRegistryName + "-tls",
+		secretName: defaults.ImageRegistryName + "-tls",
 	}
 }
 

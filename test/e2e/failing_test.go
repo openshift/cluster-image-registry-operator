@@ -8,7 +8,8 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -19,7 +20,7 @@ func TestDegraded(t *testing.T) {
 
 	framework.MustDeployImageRegistry(t, client, &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,

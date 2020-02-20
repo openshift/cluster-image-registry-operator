@@ -21,8 +21,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
@@ -100,13 +101,13 @@ func getAzureConfigFromUserSecret(sec *corev1.Secret) (*Azure, error) {
 
 // GetConfig reads configuration for the Azure cloud platform services.
 func GetConfig(listers *regopclient.Listers) (*Azure, error) {
-	sec, err := listers.Secrets.Get(imageregistryv1.ImageRegistryPrivateConfigurationUser)
+	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, fmt.Errorf("unable to get user provided secrets: %s", err)
 		}
 
-		creds, err := listers.Secrets.Get(imageregistryv1.CloudCredentialsName)
+		creds, err := listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get cluster minted credentials: %s", err)
 		}
@@ -271,7 +272,7 @@ func (d *driver) ConfigEnv() (envs []corev1.EnvVar, err error) {
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: imageregistryv1.ImageRegistryPrivateConfiguration,
+						Name: defaults.ImageRegistryPrivateConfiguration,
 					},
 					Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
 				},
@@ -368,21 +369,21 @@ func (d *driver) containerExists(containerName string) (bool, error) {
 // StorageExists checks if the storage container exists and is accessible.
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	if d.Config.AccountName == "" || d.Config.Container == "" {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage is not configured")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage is not configured")
 		return false, nil
 	}
 
 	exists, err := d.containerExists(d.Config.Container)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
 		return false, err
 	}
 	if !exists {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Could not find storage container %s", d.Config.Container))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Could not find storage container %s", d.Config.Container))
 		return false, nil
 	}
 
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
 	return true, nil
 }
 
@@ -398,7 +399,7 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return err
 	}
 	infra, err := util.GetInfrastructure(d.Listers)
@@ -409,12 +410,12 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	if key != "" {
 		// UPI
 		if d.Config.AccountName == "" {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account key is provided, but account name is not specified")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account key is provided, but account name is not specified")
 			return nil
 		}
 
 		if d.Config.Container == "" {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account is provided, but container is not specified")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account is provided, but container is not specified")
 			return nil
 		}
 
@@ -422,12 +423,12 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			Azure: d.Config.DeepCopy(),
 		}
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonUserManaged, "Storage is managed by the user")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonUserManaged, "Storage is managed by the user")
 	} else {
 		// IPI
 		storageAccountsClient, err := d.storageAccountsClient(cfg)
 		if err != nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
 			return err
 		}
 
@@ -454,7 +455,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				}
 			}
 			if d.Config.AccountName == "" {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", lastErr))
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", lastErr))
 				return fmt.Errorf("attmpts to create storage account failed, last error: %s", lastErr)
 			}
 		} else {
@@ -465,7 +466,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 			if *result.NameAvailable {
 				if err = d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region); err != nil {
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", err))
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", err))
 					return err
 				}
 				cr.Status.StorageManaged = true
@@ -478,7 +479,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		var containerExists bool
 		if len(d.Config.Container) != 0 {
 			if containerExists, err = d.containerExists(d.Config.Container); err != nil {
-				util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
 			}
 		}
 
@@ -486,7 +487,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 				Azure: d.Config.DeepCopy(),
 			}
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Azure container exists")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Azure container exists")
 			return nil
 		}
 
@@ -494,7 +495,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		const numRetries = 5000
 		key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 		if err != nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary key: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary key: %s", err))
 			return err
 		}
 		for i := 0; i < numRetries; i++ {
@@ -513,17 +514,17 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					switch e.ServiceCode() {
 					case azblob.ServiceCodeContainerAlreadyExists:
 						if len(d.Config.Container) != 0 && !generatedName {
-							util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, "StoragePermissionDenied", "The container exists but we do not have permission to access it")
+							util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, "StoragePermissionDenied", "The container exists but we do not have permission to access it")
 							break
 						}
 						d.Config.Container = ""
 						continue
 					default:
-						util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
+						util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
 						return err
 					}
 				} else {
-					util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, string(e.ServiceCode()), fmt.Sprintf("Unable to create storage container: %s", err))
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, string(e.ServiceCode()), fmt.Sprintf("Unable to create storage container: %s", err))
 					return err
 				}
 			}
@@ -532,7 +533,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				Azure: d.Config.DeepCopy(),
 			}
 			cr.Spec.Storage.Azure = d.Config.DeepCopy()
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
 
 			break
 		}
@@ -546,19 +547,19 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		return false, nil
 	}
 	if d.Config.AccountName == "" {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage is not configured")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage is not configured")
 		return false, nil
 	}
 
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
 	}
 
 	storageAccountsClient, err := d.storageAccountsClient(cfg)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
 		return false, err
 	}
 
@@ -568,36 +569,36 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 			d.Config.AccountName = ""
 			cr.Spec.Storage.Azure.AccountName = "" // TODO
 			cr.Status.Storage.Azure.AccountName = ""
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
 			return false, nil
 		}
 		if err != nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
 			return false, err
 		}
 
 		err = d.deleteStorageContainer(d.Config.AccountName, key, d.Config.Container)
 		if err != nil {
-			util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
 			return false, err // TODO: is it retryable?
 		}
 
 		d.Config.Container = ""
 		cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
 		cr.Status.Storage.Azure.Container = ""
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
 	}
 
 	_, err = storageAccountsClient.Delete(d.Context, cfg.ResourceGroup, d.Config.AccountName)
 	if err != nil {
-		util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage account: %s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage account: %s", err))
 		return false, err
 	}
 
 	d.Config.AccountName = ""
 	cr.Spec.Storage.Azure.AccountName = "" // TODO
 	cr.Status.Storage.Azure.AccountName = ""
-	util.UpdateCondition(cr, imageregistryv1.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountDeleted, "Storage account has been deleted")
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountDeleted, "Storage account has been deleted")
 
 	return false, nil
 }

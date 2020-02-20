@@ -14,7 +14,8 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
@@ -34,7 +35,7 @@ func testDefer(t *testing.T, client *framework.Clientset) {
 			framework.DumpYAML(t, "persistentvolumes", pvList)
 		}
 
-		pvcList, err := client.PersistentVolumeClaims(imageregistryv1.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		pvcList, err := client.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			t.Logf("unable to dump the persistent volume claims: %s", err)
 		} else {
@@ -127,7 +128,7 @@ func createPVC(t *testing.T, name string) error {
 	claim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: imageregistryv1.ImageRegistryOperatorNamespace,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -141,7 +142,7 @@ func createPVC(t *testing.T, name string) error {
 		},
 	}
 
-	_, err := client.PersistentVolumeClaims(imageregistryv1.ImageRegistryOperatorNamespace).Create(claim)
+	_, err := client.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
 	if err != nil {
 		return err
 	}
@@ -155,7 +156,7 @@ func checkTestResult(t *testing.T, client *framework.Clientset) {
 	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
 	framework.MustEnsureOperatorIsNotHotLooping(t, client)
 
-	deploy, err := client.Deployments(imageregistryv1.ImageRegistryOperatorNamespace).Get(imageregistryv1.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestDefaultPVC(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,
@@ -221,7 +222,7 @@ func TestCustomPVC(t *testing.T) {
 			Kind:       "Config",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: imageregistryv1.ImageRegistryResourceName,
+			Name: defaults.ImageRegistryResourceName,
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: operatorapi.Managed,

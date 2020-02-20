@@ -5,7 +5,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	v1 "github.com/openshift/api/imageregistry/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

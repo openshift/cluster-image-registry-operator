@@ -2,7 +2,7 @@ package listers
 
 import (
 	configset "github.com/openshift/client-go/config/clientset/versioned"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -34,7 +34,7 @@ func (m *mockLister) GetListers() (*regopclient.Listers, error) {
 		return nil, err
 	}
 
-	m.listers.Secrets = MockSecretNamespaceLister{namespace: imageregistryv1.ImageRegistryOperatorNamespace, client: coreClient}
+	m.listers.Secrets = MockSecretNamespaceLister{namespace: defaults.ImageRegistryOperatorNamespace, client: coreClient}
 	m.listers.InstallerConfigMaps = MockConfigMapNamespaceLister{namespace: installerConfigNamespace, client: coreClient}
 	m.listers.Infrastructures = MockInfrastructureLister{client: *configClient}
 

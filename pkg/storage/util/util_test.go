@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	configv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
@@ -94,7 +94,7 @@ func TestGenerateStorageName(t *testing.T) {
 				t.Errorf("%v", err)
 			}
 
-			rawPrefix := fmt.Sprintf("%s-%s", tt.infraName, imageregistryv1.ImageRegistryName)
+			rawPrefix := fmt.Sprintf("%s-%s", tt.infraName, defaults.ImageRegistryName)
 			wantedPrefix := replaceMultiDash.ReplaceAllString(rawPrefix, "-")
 			if len(wantedPrefix) > 62 {
 				wantedPrefix = wantedPrefix[0:62]

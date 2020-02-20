@@ -13,7 +13,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -41,7 +42,7 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 	var mutators []Mutator
 	if cr.Spec.DefaultRoute {
 		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, g.clients.Route, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
-			Name: imageregistryv1.DefaultRouteName,
+			Name: defaults.RouteName,
 		}))
 	}
 	for _, route := range cr.Spec.Routes {

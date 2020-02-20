@@ -5,7 +5,7 @@ package v1
 import (
 	time "time"
 
-	imageregistryv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	versioned "github.com/openshift/cluster-image-registry-operator/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/openshift/cluster-image-registry-operator/pkg/generated/informers/externalversions/internalinterfaces"
 	v1 "github.com/openshift/cluster-image-registry-operator/pkg/generated/listers/imageregistry/v1"

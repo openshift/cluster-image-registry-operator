@@ -5,7 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	imregv1 "github.com/openshift/cluster-image-registry-operator/pkg/apis/imageregistry/v1"
+	imregv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 
 	cfgapi "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -95,10 +96,10 @@ func TestSyncVersions(t *testing.T) {
 			modified:     false,
 			expectsError: false,
 			deploys: map[string]appsv1.Deployment{
-				imregv1.ImageRegistryName: {
+				defaults.ImageRegistryName: {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							imregv1.VersionAnnotation: "1",
+							defaults.VersionAnnotation: "1",
 						},
 					},
 				},
@@ -117,10 +118,10 @@ func TestSyncVersions(t *testing.T) {
 				"RELEASE_VERSION": "2",
 			},
 			deploys: map[string]appsv1.Deployment{
-				imregv1.ImageRegistryName: {
+				defaults.ImageRegistryName: {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							imregv1.VersionAnnotation: "1",
+							defaults.VersionAnnotation: "1",
 						},
 					},
 					Status: appsv1.DeploymentStatus{
@@ -148,10 +149,10 @@ func TestSyncVersions(t *testing.T) {
 				"RELEASE_VERSION": "2",
 			},
 			deploys: map[string]appsv1.Deployment{
-				imregv1.ImageRegistryName: {
+				defaults.ImageRegistryName: {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							imregv1.VersionAnnotation: "1",
+							defaults.VersionAnnotation: "1",
 						},
 					},
 					Status: appsv1.DeploymentStatus{
@@ -179,10 +180,10 @@ func TestSyncVersions(t *testing.T) {
 				"RELEASE_VERSION": "3",
 			},
 			deploys: map[string]appsv1.Deployment{
-				imregv1.ImageRegistryName: {
+				defaults.ImageRegistryName: {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							imregv1.VersionAnnotation: "1",
+							defaults.VersionAnnotation: "1",
 						},
 					},
 					Status: appsv1.DeploymentStatus{
@@ -210,10 +211,10 @@ func TestSyncVersions(t *testing.T) {
 				"RELEASE_VERSION": "4",
 			},
 			deploys: map[string]appsv1.Deployment{
-				imregv1.ImageRegistryName: {
+				defaults.ImageRegistryName: {
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: map[string]string{
-							imregv1.VersionAnnotation: "1",
+							defaults.VersionAnnotation: "1",
 						},
 					},
 					Status: appsv1.DeploymentStatus{
