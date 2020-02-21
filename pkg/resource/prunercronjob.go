@@ -14,6 +14,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1beta1"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
@@ -44,14 +45,16 @@ type generatorPrunerCronJob struct {
 	lister       batchlisters.CronJobNamespaceLister
 	client       batchset.BatchV1beta1Interface
 	prunerLister imageregistryv1listers.ImagePrunerLister
+	configLister imageregistryv1listers.ConfigLister
 	cr           *imageregistryapiv1.ImagePruner
 }
 
-func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, params *parameters.Globals) *generatorPrunerCronJob {
+func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, configLister imageregistryv1listers.ConfigLister, params *parameters.Globals) *generatorPrunerCronJob {
 	return &generatorPrunerCronJob{
 		lister:       lister,
 		client:       client,
 		prunerLister: prunerLister,
+		configLister: configLister,
 	}
 }
 
@@ -77,6 +80,11 @@ func (gcj *generatorPrunerCronJob) GetName() string {
 
 func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 	cr, err := gcj.prunerLister.Get(defaults.ImageRegistryImagePrunerResourceName)
+	if err != nil {
+		return nil, err
+	}
+
+	rcr, err := gcj.configLister.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +124,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 										"--certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt",
 										fmt.Sprintf("--keep-tag-revisions=%d", gcj.getKeepTagRevisions(cr)),
 										fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
+										fmt.Sprintf("--prune-registry=%t", gcj.getPruneRegistry(rcr)),
 										"--confirm=true",
 									},
 								},
@@ -128,6 +137,15 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 	}
 	cj.Spec.JobTemplate.Labels = map[string]string{"created-by": gcj.GetName()}
 	return cj, nil
+}
+
+func (gcj *generatorPrunerCronJob) getPruneRegistry(cr *imageregistryapiv1.Config) bool {
+	switch cr.Spec.ManagementState {
+	case operatorapi.Managed:
+		return true
+	default:
+		return false
+	}
 }
 
 func (gcj *generatorPrunerCronJob) getSuspend(cr *imageregistryapiv1.ImagePruner) *bool {

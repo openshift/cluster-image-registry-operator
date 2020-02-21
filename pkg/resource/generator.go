@@ -112,7 +112,7 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorPrunerResource(g.listers.ImagePrunerConfigs, g.clients.RegOp.ImageregistryV1(), g.params))
 	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params))
 	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.params))
+	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.listers.RegistryConfigs, g.params))
 
 	return mutators, nil
 }
