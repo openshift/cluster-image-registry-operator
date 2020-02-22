@@ -58,10 +58,28 @@ func replaceEmpty(a string, b string) string {
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
 func IsSwiftEnabled(listers *regopclient.Listers) (bool, error) {
 	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
-	_, err := driver.getSwiftClient()
+	conn, err := driver.getSwiftClient()
 	if err != nil {
 		// ErrEndpointNotFound means that Swift is not available
 		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
+			return false, nil
+		}
+		return false, err
+	}
+
+	// Try to list containers to make sure the user has required permissions to do that
+	listOpts := containers.ListOpts{Full: false}
+	_, err = containers.List(conn, listOpts).AllPages()
+	if err != nil {
+		// If the user has no permissions, we consider that Swift is unavailable
+		// Depending on the configuration swift returns different error codes:
+		// 403 with Keystone and 401 with internal Swauth.
+		// It means we have to catch them both.
+		// More information about Swith auth: https://docs.openstack.org/swift/latest/overview_auth.html
+		if _, ok := err.(gophercloud.ErrDefault403); ok {
+			return false, nil
+		}
+		if _, ok := err.(gophercloud.ErrDefault401); ok {
 			return false, nil
 		}
 		return false, err
