@@ -11,6 +11,10 @@ const (
 	// PVCImageRegistryName is the default name of the claim provisioned for PVC backend
 	PVCImageRegistryName = "image-registry-storage"
 
+	// InstallationPullSecret is the secret where we keep pull secrets provided during
+	// cluster installation.
+	InstallationPullSecret = "installation-pull-secrets"
+
 	// ImageRegistryResourceName is the name of the image registry config instance
 	ImageRegistryResourceName = "cluster"
 
