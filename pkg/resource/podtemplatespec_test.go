@@ -88,6 +88,17 @@ func TestMakePodTemplateSpec(t *testing.T) {
 			},
 			optional: true,
 		},
+		"installation-pull-secrets": {
+			refName:   defaults.InstallationPullSecret,
+			mountPath: "/var/lib/kubelet/",
+			optional:  true,
+			items: []corev1.KeyToPath{
+				{
+					Key:  ".dockerconfigjson",
+					Path: "config.json",
+				},
+			},
+		},
 	}
 	// emptyDir adds an additional volume
 	expectedVolumes["registry-storage"] = &volumeMount{
@@ -132,7 +143,8 @@ func TestMakePodTemplateSpec(t *testing.T) {
 		"image-registry-certificates": false,
 	}
 	expectedSecrets := map[string]bool{
-		"image-registry-tls": false,
+		"image-registry-tls":        false,
+		"installation-pull-secrets": false,
 	}
 	for cm := range deps.configMaps {
 		if _, ok := expectedConfigMaps[cm]; !ok {

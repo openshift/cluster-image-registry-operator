@@ -273,6 +273,31 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/usr/share/pki/ca-trust-source"})
 	deps.AddConfigMap(params.TrustedCA.Name)
 
+	vol = corev1.Volume{
+		Name: defaults.InstallationPullSecret,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				Items: []corev1.KeyToPath{
+					{
+						Key:  ".dockerconfigjson",
+						Path: "config.json",
+					},
+				},
+				SecretName: defaults.InstallationPullSecret,
+				Optional:   &optional,
+			},
+		},
+	}
+	volumes = append(volumes, vol)
+	mounts = append(
+		mounts,
+		corev1.VolumeMount{
+			Name:      vol.Name,
+			MountPath: "/var/lib/kubelet/",
+		},
+	)
+	deps.AddSecret(defaults.InstallationPullSecret)
+
 	image := os.Getenv("IMAGE")
 
 	resources := corev1.ResourceRequirements{
