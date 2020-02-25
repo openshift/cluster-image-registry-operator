@@ -8,6 +8,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+func FlagExistsWithValue(args []string, flag string, value string) error {
+	for _, arg := range args {
+		if strings.HasPrefix(arg, flag) {
+			if strings.Split(arg, "=")[1] == value {
+				return nil
+			}
+			return fmt.Errorf("flag %q was found, but the value was %q when it should have been %q: %#v", flag, strings.Split(arg, "=")[1], value, args)
+		}
+	}
+	return fmt.Errorf("flag %q was not found in %#v", flag, args)
+}
+
 func CheckEnvVars(want []corev1.EnvVar, have []corev1.EnvVar, includes bool) []error {
 	var errs []error
 

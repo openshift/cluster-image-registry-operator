@@ -64,12 +64,20 @@ func runOperator(cmd *cobra.Command, args []string) {
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
+	go metrics.RunServer(metricsPort, stopCh)
+
+	imagePrunerController, err := operator.NewImagePrunerController(cfg)
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	go imagePrunerController.Run(stopCh)
+
 	controller, err := operator.NewController(cfg)
 	if err != nil {
 		klog.Fatal(err)
 	}
 
-	go metrics.RunServer(metricsPort, stopCh)
 	err = controller.Run(stopCh)
 	if err != nil {
 		klog.Fatal(err)
