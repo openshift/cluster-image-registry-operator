@@ -120,7 +120,6 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 //      a.) check to make sure that we can access the storage or
 //      b.) see if we need to try to create the new storage
 func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
-	var runCreate bool
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
 	if err != nil {
@@ -128,18 +127,6 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	}
 
 	if driver.StorageChanged(cr) {
-		runCreate = true
-	} else {
-		exists, err := driver.StorageExists(cr)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			runCreate = true
-		}
-	}
-
-	if runCreate {
 		reconf := g.storageReconfigured(cr, g.kubeconfig, g.listers)
 		if err := driver.CreateStorage(cr); err != nil {
 			return err
