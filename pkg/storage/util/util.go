@@ -8,14 +8,11 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	installer "github.com/openshift/installer/pkg/types"
 
-	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 var (
@@ -61,49 +58,6 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
-// GetInfrastructure gets information about the cloud platform that the cluster is
-// installed on including the Type, Region, and other platform specific information.
-// Currently the install config is used as a backup to be compatible with upgrades
-// from 4.1 -> 4.2 when platformStatus did not exist, but should be able to be removed
-// in the future.
-func GetInfrastructure(listers *regopclient.Listers) (*configv1.Infrastructure, error) {
-	infra, err := listers.Infrastructures.Get("cluster")
-	if err != nil {
-		return nil, err
-	}
-
-	if infra.Status.PlatformStatus == nil {
-		infra.Status.PlatformStatus = &configv1.PlatformStatus{
-			Type: infra.Status.Platform,
-		}
-
-		// TODO: Eventually we should be able to remove our dependency on the install config
-		// but it is needed for now since platformStatus doesn't get set on upgrade
-		// from 4.1 -> 4.2
-		ic, err := listers.InstallerConfigMaps.Get("cluster-config-v1")
-		if err != nil {
-			return nil, err
-		}
-		installConfig := &installer.InstallConfig{}
-		if err := yaml.NewYAMLOrJSONDecoder(strings.NewReader(string(ic.Data["install-config"])), 100).Decode(installConfig); err != nil {
-			return nil, fmt.Errorf("unable to decode cluster install configuration: %v", err)
-		}
-
-		if installConfig.Platform.AWS != nil {
-			infra.Status.PlatformStatus.AWS = &configv1.AWSPlatformStatus{Region: installConfig.Platform.AWS.Region}
-		}
-
-		if installConfig.Platform.GCP != nil {
-			infra.Status.PlatformStatus.GCP = &configv1.GCPPlatformStatus{
-				Region:    installConfig.Platform.GCP.Region,
-				ProjectID: installConfig.Platform.GCP.ProjectID,
-			}
-		}
-	}
-
-	return infra, nil
-}
-
 // GetValueFromSecret gets value for key in a secret
 // or returns an error if it does not exist
 func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
@@ -117,7 +71,7 @@ func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
 // medium that the registry will use
 func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string) (string, error) {
 	// Get the infrastructure name
-	infra, err := GetInfrastructure(listers)
+	infra, err := listers.Infrastructures.Get("cluster")
 	if err != nil {
 		return "", err
 	}

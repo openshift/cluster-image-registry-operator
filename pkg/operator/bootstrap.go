@@ -9,7 +9,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -67,7 +66,7 @@ func (c *Controller) Bootstrap() error {
 		mgmtState = operatorapi.Removed
 	}
 
-	infra, err := util.GetInfrastructure(c.listers)
+	infra, err := c.listers.Infrastructures.Get("cluster")
 	if err != nil {
 		return err
 	}
