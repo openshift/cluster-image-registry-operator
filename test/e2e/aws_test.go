@@ -105,7 +105,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists")
+	errs := framework.ConditionExistsWithStatusAndReason(client, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
