@@ -123,6 +123,13 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
+	if err == storage.ErrStorageNotConfigured {
+		cr.Spec.Storage, err = storage.GetPlatformStorage(g.listers)
+		if err != nil {
+			return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
+		}
+		driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
+	}
 	if err != nil {
 		return err
 	}
@@ -147,19 +154,6 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 		if reconf {
 			metrics.StorageReconfigured()
 		}
-	}
-
-	// XXX BZ 1722878
-	// This is a workaround for a bug that affected OCP 4.2 and earlier. We
-	// may have multiple storage engines set on Status, that is not a valid
-	// situation. Here we check if this is the case and if yes we fix it by
-	// copying what we have on the Spec into the Status.
-	_, err = storage.NewDriver(
-		&cr.Status.Storage, g.kubeconfig, g.listers,
-	)
-	if _, ok := err.(*storage.MultiStoragesError); ok {
-		specCopy := cr.Spec.Storage.DeepCopy()
-		cr.Status.Storage = *specCopy
 	}
 
 	return nil
@@ -275,7 +269,9 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 	}
 
 	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, g.listers)
-	if err != nil {
+	if err == storage.ErrStorageNotConfigured {
+		return nil
+	} else if err != nil {
 		return err
 	}
 
@@ -294,6 +290,8 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 	if err != nil {
 		return fmt.Errorf("unable to remove storage: %s, %s", err, derr)
 	}
+
+	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{}
 
 	return nil
 }
