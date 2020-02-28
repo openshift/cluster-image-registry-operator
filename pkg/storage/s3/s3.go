@@ -57,7 +57,7 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 func GetConfig(listers *regopclient.Listers) (*S3, error) {
 	cfg := &S3{}
 
-	infra, err := util.GetInfrastructure(listers)
+	infra, err := listers.Infrastructures.Get("cluster")
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := d.Listers.Infrastructures.Get("cluster")
 	if err != nil {
 		return err
 	}
