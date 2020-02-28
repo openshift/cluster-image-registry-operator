@@ -53,7 +53,7 @@ type Driver interface {
 	ID() string
 }
 
-func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	var names []string
 	var drivers []Driver
 
@@ -102,18 +102,6 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	}
 
 	return nil, &MultiStoragesError{names}
-}
-
-func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
-	drv, err := newDriver(cfg, kubeconfig, listers)
-	if err == ErrStorageNotConfigured {
-		*cfg, err = GetPlatformStorage(listers)
-		if err != nil {
-			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
-		}
-		drv, err = newDriver(cfg, kubeconfig, listers)
-	}
-	return drv, err
 }
 
 // GetPlatformStorage returns the storage configuration that should be used
