@@ -9,41 +9,36 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
 
 	configapi "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 var _ Mutator = &generatorClusterOperator{}
 
 type generatorClusterOperator struct {
-	mutators     []Mutator
-	cr           *imageregistryv1.Config
-	deployLister appslisters.DeploymentNamespaceLister
-	configLister configlisters.ClusterOperatorLister
-	configClient configv1client.ClusterOperatorsGetter
+	mutators []Mutator
+	cr       *imageregistryv1.Config
+	listers  *regopclient.Listers
+	clients  *regopclient.Clients
 }
 
 func NewGeneratorClusterOperator(
-	deployLister appslisters.DeploymentNamespaceLister,
-	configLister configlisters.ClusterOperatorLister,
-	configClient configv1client.ClusterOperatorsGetter,
+	listers *regopclient.Listers,
+	clients *regopclient.Clients,
 	cr *imageregistryv1.Config,
 	mutators []Mutator,
 ) *generatorClusterOperator {
 	return &generatorClusterOperator{
-		deployLister: deployLister,
-		configLister: configLister,
-		configClient: configClient,
-		cr:           cr,
-		mutators:     mutators,
+		listers:  listers,
+		clients:  clients,
+		cr:       cr,
+		mutators: mutators,
 	}
 }
 
@@ -68,7 +63,7 @@ func (gco *generatorClusterOperator) GetName() string {
 }
 
 func (gco *generatorClusterOperator) Get() (runtime.Object, error) {
-	return gco.configLister.Get(gco.GetName())
+	return gco.listers.ClusterOperators.Get(gco.GetName())
 }
 
 func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
@@ -86,7 +81,7 @@ func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
 	_ = gco.syncConditions(co)
 	_ = gco.syncRelatedObjects(co)
 
-	return gco.configClient.ClusterOperators().Create(co)
+	return gco.clients.Config.ClusterOperators().Create(co)
 }
 
 func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, bool, error) {
@@ -109,12 +104,12 @@ func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, b
 		return o, false, nil
 	}
 
-	n, err := gco.configClient.ClusterOperators().UpdateStatus(co)
+	n, err := gco.clients.Config.ClusterOperators().UpdateStatus(co)
 	return n, err == nil, err
 }
 
 func (gco *generatorClusterOperator) Delete(opts *metav1.DeleteOptions) error {
-	return gco.configClient.ClusterOperators().Delete(gco.GetName(), opts)
+	return gco.clients.Config.ClusterOperators().Delete(gco.GetName(), opts)
 }
 
 func (gco *generatorClusterOperator) Owned() bool {
@@ -231,7 +226,7 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 
 	version := os.Getenv("RELEASE_VERSION")
 	if gco.cr.Spec.ManagementState == operatorapi.Managed {
-		deploy, err := gco.deployLister.Get(defaults.ImageRegistryName)
+		deploy, err := gco.listers.Deployments.Get(defaults.ImageRegistryName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return false, nil

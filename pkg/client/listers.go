@@ -32,13 +32,3 @@ type Listers struct {
 	ProxyConfigs        configlisters.ProxyLister
 	Infrastructures     configlisters.InfrastructureLister
 }
-
-type ImagePrunerControllerListers struct {
-	Jobs                kjoblisters.JobNamespaceLister
-	CronJobs            kbatchlisters.CronJobNamespaceLister
-	ServiceAccounts     kcorelisters.ServiceAccountNamespaceLister
-	ClusterRoles        krbaclisters.ClusterRoleLister
-	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
-	RegistryConfigs     regoplisters.ConfigLister
-	ImagePrunerConfigs  regoplisters.ImagePrunerLister
-}

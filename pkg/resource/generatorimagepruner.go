@@ -14,7 +14,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.ImagePrunerControllerListers, params *parameters.Globals) *ImagePrunerGenerator {
+func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers, params *parameters.Globals) *ImagePrunerGenerator {
 	return &ImagePrunerGenerator{
 		kubeconfig: kubeconfig,
 		listers:    listers,
@@ -25,7 +25,7 @@ func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, l
 
 type ImagePrunerGenerator struct {
 	kubeconfig *rest.Config
-	listers    *client.ImagePrunerControllerListers
+	listers    *client.Listers
 	clients    *client.Clients
 	params     *parameters.Globals
 }

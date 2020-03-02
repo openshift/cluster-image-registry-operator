@@ -1,4 +1,4 @@
-package operator
+package controllers
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
+	batchapi "k8s.io/api/batch/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,23 +15,18 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/wait"
-	kubeinformers "k8s.io/client-go/informers"
-	kubeset "k8s.io/client-go/kubernetes"
-	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
-	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
-	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
-	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned"
-	regopinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
@@ -48,24 +44,27 @@ var (
 	defaultPrunerFailedJobsHistoryLimit     = int32(3)
 )
 
+// ImagePrunerController keeps track of openshift image pruner components.
+type ImagePrunerController struct {
+	kubeconfig *restclient.Config
+	params     parameters.Globals
+	generator  *resource.ImagePrunerGenerator
+	workqueue  workqueue.RateLimitingInterface
+	listers    *regopclient.Listers
+	clients    *regopclient.Clients
+	informers  *regopclient.Informers
+}
+
 // NewImagePrunerController returns a controller for openshift image pruner.
-func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerController, error) {
-	namespace, err := regopclient.GetWatchNamespace()
-	if err != nil {
-		klog.Fatalf("failed to get watch namespace: %s", err)
-	}
-
-	p := Parameters(namespace)
-
-	listers := &regopclient.ImagePrunerControllerListers{}
-	clients := &regopclient.Clients{}
+func NewImagePrunerController(g *regopclient.Generator) (*ImagePrunerController, error) {
 	c := &ImagePrunerController{
-		kubeconfig: kubeconfig,
-		params:     *p,
-		generator:  resource.NewImagePrunerGenerator(kubeconfig, clients, listers, p),
+		kubeconfig: g.Kubeconfig,
+		params:     *g.Params,
+		generator:  resource.NewImagePrunerGenerator(g.Kubeconfig, g.Clients, g.Listers, g.Params),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), imagePrunerWorkQueueKey),
-		listers:    listers,
-		clients:    clients,
+		listers:    g.Listers,
+		clients:    g.Clients,
+		informers:  g.Informers,
 	}
 
 	// Initial event to bootstrap the pruner if it doesn't exist.
@@ -74,32 +73,71 @@ func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerContro
 	return c, nil
 }
 
-// ImagePrunerController keeps track of openshift image pruner components.
-type ImagePrunerController struct {
-	kubeconfig *restclient.Config
-	params     parameters.Globals
-	generator  *resource.ImagePrunerGenerator
-	workqueue  workqueue.RateLimitingInterface
-	listers    *regopclient.ImagePrunerControllerListers
-	clients    *regopclient.Clients
+func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+	if prunerJob == nil {
+		prunerAvailable := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("Pruner CronJob does not exist"),
+			Reason:  "Error",
+		}
+		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
+		metrics.ImagePrunerInstallStatus(false, false)
+	} else {
+		prunerAvailable := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Message: fmt.Sprintf("Pruner CronJob has been created"),
+			Reason:  "Ready",
+		}
+		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
+	}
+
+	var foundFailed bool
+	for _, condition := range lastJobConditions {
+		if condition.Type == batchv1.JobFailed {
+			foundFailed = true
+			prunerLastJobStatus := operatorapiv1.OperatorCondition{
+				Status:  operatorapiv1.ConditionTrue,
+				Message: condition.Message,
+				Reason:  condition.Reason,
+			}
+			updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
+
+		}
+	}
+	if !foundFailed {
+		prunerLastJobStatus := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("Pruner completed successfully"),
+			Reason:  "Complete",
+		}
+		updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
+	}
+
+	if *cr.Spec.Suspend == true {
+		prunerJobScheduled := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionFalse,
+			Message: fmt.Sprintf("The pruner job has been suspended."),
+			Reason:  "Suspended",
+		}
+		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+		if prunerJob != nil {
+			metrics.ImagePrunerInstallStatus(true, false)
+		}
+	} else {
+		prunerJobScheduled := operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Message: fmt.Sprintf("The pruner job has been scheduled."),
+			Reason:  "Scheduled",
+		}
+		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
+		if prunerJob != nil {
+			metrics.ImagePrunerInstallStatus(true, true)
+		}
+	}
 }
 
 func (c *ImagePrunerController) createOrUpdateResources(cr *imageregistryv1.ImagePruner) error {
 	return c.generator.Apply(cr)
-}
-
-type ByCreationTimestamp []*batchv1.Job
-
-func (b ByCreationTimestamp) Len() int {
-	return len(b)
-}
-
-func (b ByCreationTimestamp) Swap(i, j int) {
-	b[i], b[j] = b[j], b[i]
-}
-
-func (b ByCreationTimestamp) Less(i, j int) bool {
-	return !b[j].CreationTimestamp.Time.After(b[i].CreationTimestamp.Time)
 }
 
 // Bootstrap  creates the initial configuration for the Image Pruner.
@@ -266,7 +304,7 @@ func (c *ImagePrunerController) eventProcessor() {
 	}
 }
 
-func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
+func (c *ImagePrunerController) eventHandler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
 			klog.V(1).Infof("add event to image pruner workqueue due to %s (add)", utilObjectInfo(o))
@@ -316,93 +354,13 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 func (c *ImagePrunerController) Run(stopCh <-chan struct{}) error {
 	defer c.workqueue.ShutDown()
 
-	var err error
-
-	c.clients.Core, err = coreset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Apps, err = appsset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.RBAC, err = rbacset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Kube, err = kubeset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.RegOp, err = regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Batch, err = batchset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
-	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
-
-	var informers []cache.SharedIndexInformer
-	for _, ctor := range []func() cache.SharedIndexInformer{
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
-			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(c.params.Deployment.Namespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Rbac().V1().ClusterRoles()
-			c.listers.ClusterRoles = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Rbac().V1().ClusterRoleBindings()
-			c.listers.ClusterRoleBindings = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().Configs()
-			c.listers.RegistryConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().ImagePruners()
-			c.listers.ImagePrunerConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
-			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1().Jobs()
-			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-	} {
-		informer := ctor()
-		informer.AddEventHandler(c.handler())
-		informers = append(informers, informer)
-	}
-
-	kubeInformerFactory.Start(stopCh)
-	regopInformerFactory.Start(stopCh)
-
-	klog.Info("waiting for informer caches to sync")
-	for _, informer := range informers {
-		if ok := cache.WaitForCacheSync(stopCh, informer.HasSynced); !ok {
-			return fmt.Errorf("failed to wait for caches to sync")
-		}
-	}
+	c.informers.ClusterRoleBindings.AddEventHandler(c.eventHandler())
+	c.informers.ClusterRoles.AddEventHandler(c.eventHandler())
+	c.informers.CronJobs.AddEventHandler(c.eventHandler())
+	c.informers.ImagePrunerConfigs.AddEventHandler(c.eventHandler())
+	c.informers.Jobs.AddEventHandler(c.eventHandler())
+	c.informers.RegistryConfigs.AddEventHandler(c.eventHandler())
+	c.informers.ServiceAccounts.AddEventHandler(c.eventHandler())
 
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 

@@ -15,15 +15,19 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+)
+
+var (
+	failOnGet bool
+	deploys   map[string]appsv1.Deployment
 )
 
 type deployLister struct {
-	deploys   map[string]appsv1.Deployment
-	failOnGet bool
 }
 
 func (d deployLister) Get(name string) (*appsv1.Deployment, error) {
-	if d.failOnGet {
+	if failOnGet {
 		return nil, &kerror.StatusError{
 			ErrStatus: metav1.Status{
 				Reason: metav1.StatusReasonInternalError,
@@ -31,7 +35,7 @@ func (d deployLister) Get(name string) (*appsv1.Deployment, error) {
 		}
 	}
 
-	deploy, ok := d.deploys[name]
+	deploy, ok := deploys[name]
 	if !ok {
 		return nil, &kerror.StatusError{
 			ErrStatus: metav1.Status{
@@ -47,7 +51,8 @@ func (d deployLister) List(selector labels.Selector) ([]*appsv1.Deployment, erro
 }
 
 func TestSyncVersions(t *testing.T) {
-	lister := deployLister{}
+	listers := regopclient.Listers{}
+	dLister := deployLister{}
 	co := &cfgapi.ClusterOperator{}
 
 	for _, tt := range []struct {
@@ -247,9 +252,10 @@ func TestSyncVersions(t *testing.T) {
 				os.Setenv(name, val)
 			}
 
-			lister.deploys, lister.failOnGet = tt.deploys, tt.failOnGet
+			listers.Deployments, failOnGet = dLister, tt.failOnGet
+			deploys = tt.deploys
 			gen := NewGeneratorClusterOperator(
-				lister, nil, nil, tt.config, nil,
+				&listers, nil, tt.config, nil,
 			)
 
 			modified, err := gen.syncVersions(co)
@@ -275,6 +281,8 @@ func TestSyncVersions(t *testing.T) {
 					tt.versions, co.Status.Versions,
 				)
 			}
+			failOnGet = false
+			deploys = map[string]appsv1.Deployment{}
 		})
 	}
 }

@@ -1,5 +1,7 @@
 package defaults
 
+import "time"
+
 const (
 	// RouteName is the name of the default route created for the registry
 	// when a default route is requested from the operator
@@ -84,4 +86,13 @@ const (
 	// VersionAnnotation reflects the version of the registry that this deployment
 	// is running.
 	VersionAnnotation = "release.openshift.io/version"
+
+	// ResyncDuration is the default resync time for a lister.
+	ResyncDuration = 10 * time.Minute
+
+	// OpenshiftConfigNamespace is the default OpenShift configuration namespace.
+	OpenshiftConfigNamespace = "openshift-config"
+
+	// KubeSystemNamespace is the default Kube System namespace.
+	KubeSystemNamespace = "kube-system"
 )
