@@ -192,7 +192,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	}
 }
 
-func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error, removed bool) {
+func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error) {
 	operatorAvailable := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,
 		Message: "",
@@ -206,7 +206,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		if e, ok := applyError.(permanentError); ok {
 			operatorAvailable.Message = applyError.Error()
 			operatorAvailable.Reason = e.Reason
-		} else if removed {
+		} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 			operatorAvailable.Status = operatorapiv1.ConditionTrue
 			operatorAvailable.Message = "The registry is removed"
 			operatorAvailable.Reason = "Removed"
@@ -241,7 +241,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorProgressing.Status = operatorapiv1.ConditionFalse
 		operatorProgressing.Message = "The registry configuration is set to unmanaged mode"
 		operatorProgressing.Reason = "Unmanaged"
-	} else if removed {
+	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 		if deploy != nil {
 			operatorProgressing.Message = "The deployment is being removed"
 			operatorProgressing.Reason = "DeletingDeployment"
@@ -294,7 +294,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		Message: "",
 		Reason:  "",
 	}
-	if removed {
+	if cr.Spec.ManagementState == operatorapiv1.Removed {
 		operatorRemoved.Status = operatorapiv1.ConditionTrue
 		operatorRemoved.Message = "The registry is removed"
 		operatorRemoved.Reason = "Removed"

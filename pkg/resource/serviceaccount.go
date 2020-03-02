@@ -7,7 +7,6 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
@@ -20,7 +19,7 @@ type generatorServiceAccount struct {
 	namespace string
 }
 
-func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorServiceAccount {
+func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorServiceAccount {
 	return &generatorServiceAccount{
 		lister:    lister,
 		client:    client,

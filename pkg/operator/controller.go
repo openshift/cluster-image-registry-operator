@@ -159,11 +159,9 @@ func (c *Controller) sync() error {
 	}
 
 	var applyError error
-	removed := false
 	switch cr.Spec.ManagementState {
 	case operatorapi.Removed:
 		applyError = c.RemoveResources(cr)
-		removed = true
 	case operatorapi.Managed:
 		applyError = c.createOrUpdateResources(cr)
 	case operatorapi.Unmanaged:
@@ -181,7 +179,7 @@ func (c *Controller) sync() error {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
-	c.syncStatus(cr, deploy, applyError, removed)
+	c.syncStatus(cr, deploy, applyError)
 
 	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)

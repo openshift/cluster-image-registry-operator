@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
@@ -73,6 +74,10 @@ func (gd *generatorDeployment) GetName() string {
 }
 
 func (gd *generatorDeployment) expected() (runtime.Object, error) {
+	if gd.driver == nil {
+		return nil, fmt.Errorf("no storage driver present")
+	}
+
 	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.proxyLister, gd.driver, gd.params, gd.cr)
 	if err != nil {
 		return nil, err

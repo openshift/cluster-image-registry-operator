@@ -11,7 +11,6 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
@@ -31,7 +30,7 @@ type generatorCAConfig struct {
 	namespace             string
 }
 
-func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals, cr *imageregistryv1.Config) *generatorCAConfig {
+func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorCAConfig {
 	return &generatorCAConfig{
 		lister:                lister,
 		imageConfigLister:     imageConfigLister,
