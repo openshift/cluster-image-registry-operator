@@ -93,8 +93,10 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 
 func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
-	if err != nil {
+	if err != nil && err != storage.ErrStorageNotConfigured {
 		return nil, err
+	} else if err == storage.ErrStorageNotConfigured {
+		klog.V(6).Info("storage not configured, some mutators might not work.")
 	}
 
 	var mutators []Mutator

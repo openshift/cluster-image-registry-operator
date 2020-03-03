@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"fmt"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -54,6 +56,10 @@ func (gs *generatorSecret) GetName() string {
 }
 
 func (gs *generatorSecret) expected() (runtime.Object, error) {
+	if gs.driver == nil {
+		return nil, fmt.Errorf("no storage driver present")
+	}
+
 	sec := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gs.GetName(),
