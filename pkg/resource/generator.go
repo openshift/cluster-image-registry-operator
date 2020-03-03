@@ -5,14 +5,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,6 +12,15 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 func ApplyMutator(gen Mutator) error {

@@ -5,11 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +12,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func testDefer(t *testing.T, client *framework.Clientset) {

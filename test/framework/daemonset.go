@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 func MustEnsureNodeCADaemonSetIsAvailable(t *testing.T, client *Clientset) {

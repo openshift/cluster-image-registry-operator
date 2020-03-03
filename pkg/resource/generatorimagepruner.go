@@ -3,14 +3,15 @@ package resource
 import (
 	"fmt"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.ImagePrunerControllerListers, params *parameters.Globals) *ImagePrunerGenerator {

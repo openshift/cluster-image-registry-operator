@@ -1,12 +1,13 @@
 package listers
 
 import (
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-
-	configset "github.com/openshift/client-go/config/clientset/versioned"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
+
+	configset "github.com/openshift/client-go/config/clientset/versioned"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 const (

@@ -6,17 +6,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	osapi "github.com/openshift/api/config/v1"
-	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	osapi "github.com/openshift/api/config/v1"
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 const (

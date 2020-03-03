@@ -6,18 +6,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-
-	configapi "github.com/openshift/api/config/v1"
-	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
+
+	configapi "github.com/openshift/api/config/v1"
+	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	routelisters "github.com/openshift/client-go/route/listers/route/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 var _ Mutator = &generatorImageConfig{}

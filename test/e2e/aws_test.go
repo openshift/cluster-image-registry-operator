@@ -6,24 +6,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	storages3 "github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	configapiv1 "github.com/openshift/api/config/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 var (

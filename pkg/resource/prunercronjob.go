@@ -15,8 +15,8 @@ import (
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )

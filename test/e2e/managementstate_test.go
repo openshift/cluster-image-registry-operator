@@ -4,15 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestManagementStateUnmanaged(t *testing.T) {

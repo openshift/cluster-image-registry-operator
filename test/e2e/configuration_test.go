@@ -13,18 +13,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
 	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestPodResourceConfiguration(t *testing.T) {

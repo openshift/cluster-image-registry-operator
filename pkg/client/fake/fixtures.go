@@ -1,14 +1,6 @@
 package fake
 
 import (
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-
-	configv1 "github.com/openshift/api/config/v1"
-	regopv1 "github.com/openshift/api/imageregistry/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
-	regopv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
-	routev1listers "github.com/openshift/client-go/route/listers/route/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -18,6 +10,15 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	rbacv1listers "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
+
+	configv1 "github.com/openshift/api/config/v1"
+	regopv1 "github.com/openshift/api/imageregistry/v1"
+	routev1 "github.com/openshift/api/route/v1"
+	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
+	regopv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+	routev1listers "github.com/openshift/client-go/route/listers/route/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 // FixturesBuilder helps create an in-memory version of client.Listers.

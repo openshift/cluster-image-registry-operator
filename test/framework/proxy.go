@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 // SetResourceProxyConfig patches the image registry resource to contain the provided proxy configuration

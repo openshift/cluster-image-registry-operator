@@ -3,12 +3,12 @@ package framework
 import (
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
 	kappsapiv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 func WaitForRegistryDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {

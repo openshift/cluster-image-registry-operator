@@ -13,6 +13,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

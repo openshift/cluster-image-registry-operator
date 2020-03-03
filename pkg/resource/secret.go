@@ -3,15 +3,15 @@ package resource
 import (
 	"fmt"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorSecret{}

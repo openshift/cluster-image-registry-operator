@@ -3,10 +3,10 @@ package operator
 import (
 	"fmt"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 )
 
 func appendFinalizer(cr *imageregistryv1.Config) {

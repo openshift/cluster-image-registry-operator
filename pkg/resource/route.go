@@ -5,11 +5,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	routeapi "github.com/openshift/api/route/v1"
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

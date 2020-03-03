@@ -6,19 +6,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	v1 "github.com/openshift/api/imageregistry/v1"
-	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	v1 "github.com/openshift/api/imageregistry/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 func generateLogLevel(cr *v1.Config) string {
