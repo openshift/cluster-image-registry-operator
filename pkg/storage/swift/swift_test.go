@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	th "github.com/gophercloud/gophercloud/testhelper"
 
 	corev1 "k8s.io/api/core/v1"
@@ -644,11 +645,67 @@ func TestSwiftEndpointTypeObjectStore(t *testing.T) {
 	th.AssertEquals(t, true, res)
 }
 
+func TestSwiftIsAvailable(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	handleAuthentication(t, "object-store")
+
+	fakeCloudsYAMLData := []byte(`clouds:
+  ` + cloudName + `:
+    auth:
+      auth_url: ` + th.Endpoint() + "v3" + `
+      project_name: ` + tenant + `
+      username: ` + username + `
+      password: ` + password + `
+      domain_name: ` + domain + `
+    region_name: RegionOne`)
+
+	fakeCloudsYAML = map[string][]byte{
+		cloudSecretKey: fakeCloudsYAMLData,
+	}
+
+	th.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		th.TestMethod(t, r, "GET")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Accept", "application/json")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+
+		// Empty container list
+		w.Write([]byte("[]"))
+	})
+
+	// IsSwiftEnabled should return true in this case
+	listers := &regopclient.Listers{
+		Secrets:         MockIPISecretNamespaceLister{},
+		Infrastructures: fakeInfrastructureLister(cloudName),
+		OpenShiftConfig: MockConfigMapNamespaceLister{},
+	}
+	res, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, true, res)
+}
+
 func TestSwiftIsNotAvailable(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
 	// Swift endpoint is not registered
 	handleAuthentication(t, "INVALID")
+
+	fakeCloudsYAMLData := []byte(`clouds:
+  ` + cloudName + `:
+    auth:
+      auth_url: ` + th.Endpoint() + "v3" + `
+      project_name: ` + tenant + `
+      username: ` + username + `
+      password: ` + password + `
+      domain_name: ` + domain + `
+    region_name: RegionOne`)
+
+	fakeCloudsYAML = map[string][]byte{
+		cloudSecretKey: fakeCloudsYAMLData,
+	}
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "HEAD")
@@ -669,7 +726,121 @@ func TestSwiftIsNotAvailable(t *testing.T) {
 	d, _ := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
 	_, err := d.getSwiftClient()
-	// if Swift endpoint is not registered, getSwiftClient should return ErrEndpointNotFound
+	// if Swift endpoint is not registered, getSwiftClient should return *ErrEndpointNotFound
 	_, ok := err.(*gophercloud.ErrEndpointNotFound)
 	th.AssertEquals(t, true, ok)
+
+	// IsSwiftEnabled should return false in this case
+	listers := &regopclient.Listers{
+		Secrets:         MockIPISecretNamespaceLister{},
+		Infrastructures: fakeInfrastructureLister(cloudName),
+		OpenShiftConfig: MockConfigMapNamespaceLister{},
+	}
+	res, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, res)
+}
+
+func TestNoPermissionsKeystone(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	handleAuthentication(t, "object-store")
+
+	fakeCloudsYAMLData := []byte(`clouds:
+  ` + cloudName + `:
+    auth:
+      auth_url: ` + th.Endpoint() + "v3" + `
+      project_name: ` + tenant + `
+      username: ` + username + `
+      password: ` + password + `
+      domain_name: ` + domain + `
+    region_name: RegionOne`)
+
+	fakeCloudsYAML = map[string][]byte{
+		cloudSecretKey: fakeCloudsYAMLData,
+	}
+
+	th.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		th.TestMethod(t, r, "GET")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Accept", "application/json")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+		// Swift returns 403 because the user doesn't have required permissions
+		w.WriteHeader(http.StatusForbidden)
+	})
+
+	d, _ := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
+
+	conn, err := d.getSwiftClient()
+	th.AssertNoErr(t, err)
+
+	// if the user doesn't have permissions, gophercloud should return ErrDefault403
+	listOpts := containers.ListOpts{Full: false}
+	_, err = containers.List(conn, listOpts).AllPages()
+	_, ok := err.(gophercloud.ErrDefault403)
+	th.AssertEquals(t, true, ok)
+
+	// IsSwiftEnabled should return false in this case
+	listers := &regopclient.Listers{
+		Secrets:         MockIPISecretNamespaceLister{},
+		Infrastructures: fakeInfrastructureLister(cloudName),
+		OpenShiftConfig: MockConfigMapNamespaceLister{},
+	}
+	res, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, res)
+}
+
+func TestNoPermissionsSwauth(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+
+	handleAuthentication(t, "object-store")
+
+	fakeCloudsYAMLData := []byte(`clouds:
+  ` + cloudName + `:
+    auth:
+      auth_url: ` + th.Endpoint() + "v3" + `
+      project_name: ` + tenant + `
+      username: ` + username + `
+      password: ` + password + `
+      domain_name: ` + domain + `
+    region_name: RegionOne`)
+
+	fakeCloudsYAML = map[string][]byte{
+		cloudSecretKey: fakeCloudsYAMLData,
+	}
+
+	th.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		th.TestMethod(t, r, "GET")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Accept", "application/json")
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+		// Swift returns 401 when the client tries to get the response schema
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+
+	d, _ := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
+
+	conn, err := d.getSwiftClient()
+	th.AssertNoErr(t, err)
+
+	// if the user doesn't have permissions, gophercloud should return ErrDefault401
+	listOpts := containers.ListOpts{Full: false}
+	_, err = containers.List(conn, listOpts).AllPages()
+	_, ok := err.(gophercloud.ErrDefault401)
+	th.AssertEquals(t, true, ok)
+
+	// IsSwiftEnabled should return false in this case
+	listers := &regopclient.Listers{
+		Secrets:         MockIPISecretNamespaceLister{},
+		Infrastructures: fakeInfrastructureLister(cloudName),
+		OpenShiftConfig: MockConfigMapNamespaceLister{},
+	}
+	res, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, res)
 }
