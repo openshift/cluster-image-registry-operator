@@ -125,7 +125,7 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	// Create a driver with the current configuration
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
 	if err == storage.ErrStorageNotConfigured {
-		cr.Spec.Storage, err = storage.GetPlatformStorage(g.listers)
+		cr.Spec.Storage, _, err = storage.GetPlatformStorage(g.listers)
 		if err != nil {
 			return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
