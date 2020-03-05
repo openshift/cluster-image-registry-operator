@@ -4,22 +4,23 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
-
-	configapiv1 "github.com/openshift/api/config/v1"
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
-	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
 )
 
 // randomSecretSize is the number of random bytes to generate

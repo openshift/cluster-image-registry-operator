@@ -6,13 +6,14 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	corev1 "k8s.io/api/core/v1"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	corev1 "k8s.io/api/core/v1"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
 var (

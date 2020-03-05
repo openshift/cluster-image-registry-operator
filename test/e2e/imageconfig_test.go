@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestAdditionalTrustedCA(t *testing.T) {

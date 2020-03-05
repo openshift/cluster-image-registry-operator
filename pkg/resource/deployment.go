@@ -4,16 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
-	configlisters "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +11,17 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorDeployment{}

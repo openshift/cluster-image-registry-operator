@@ -4,17 +4,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/test/framework"
-	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
+	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
 var (

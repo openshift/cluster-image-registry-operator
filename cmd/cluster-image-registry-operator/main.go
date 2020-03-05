@@ -8,16 +8,17 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
+
+	"github.com/openshift/library-go/pkg/operator/watchdog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/version"
-	"github.com/openshift/library-go/pkg/operator/watchdog"
-
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
 const metricsPort = 60000

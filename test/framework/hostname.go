@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	configapiv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	configapiv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Clientset) {

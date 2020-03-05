@@ -2,16 +2,17 @@ package operator
 
 import (
 	"fmt"
-	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
 	appsapi "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchapi "k8s.io/api/batch/v1beta1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
 
 func updateCondition(cr *imageregistryv1.Config, condtype string, condstate operatorapiv1.OperatorCondition) {

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	operatorapi "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {

@@ -12,6 +12,7 @@ import (
 	"k8s.io/klog"
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 

@@ -5,15 +5,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	cfgapi "github.com/openshift/api/config/v1"
-	imregv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	kerror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
+
+	cfgapi "github.com/openshift/api/config/v1"
+	imregv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapi "github.com/openshift/api/operator/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 type deployLister struct {

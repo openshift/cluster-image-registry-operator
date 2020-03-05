@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-
-	routeapiv1 "github.com/openshift/api/route/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	routeapiv1 "github.com/openshift/api/route/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
 func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
