@@ -25,7 +25,6 @@ type Listers struct {
 	ImageConfigs        configlisters.ImageLister
 	ClusterOperators    configlisters.ClusterOperatorLister
 	RegistryConfigs     regoplisters.ConfigLister
-	InstallerConfigMaps kcorelisters.ConfigMapNamespaceLister
 	ProxyConfigs        configlisters.ProxyLister
 	Infrastructures     configlisters.InfrastructureLister
 }

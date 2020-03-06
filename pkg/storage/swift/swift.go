@@ -386,7 +386,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := d.Listers.Infrastructures.Get("cluster")
 	if err != nil {
 		return fmt.Errorf("failed to get cluster infrastructure info: %v", err)
 	}
