@@ -191,6 +191,58 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 
 }
 
+func TestPodAffinityConfiguration(t *testing.T) {
+	client := framework.MustNewClientset(t, nil)
+
+	defer framework.MustRemoveImageRegistry(t, client)
+
+	cr := &imageregistryapiv1.Config{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: imageregistryapiv1.SchemeGroupVersion.String(),
+			Kind:       "Config",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: defaults.ImageRegistryResourceName,
+		},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			ManagementState: operatorapiv1.Managed,
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+			Replicas: 1,
+			Affinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{
+							{
+								MatchExpressions: []corev1.NodeSelectorRequirement{
+									{
+										Key:      "myExampleKey",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"value1", "value2"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	framework.MustDeployImageRegistry(t, client, cr)
+	deployment, err := framework.WaitForRegistryDeployment(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(cr.Spec.Affinity, deployment.Spec.Template.Spec.Affinity) {
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpImageRegistryDeployment(t, client)
+		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", cr.Spec.Affinity, deployment.Spec.Template.Spec.Affinity)
+	}
+
+}
+
 func TestRouteConfiguration(t *testing.T) {
 	client := framework.MustNewClientset(t, nil)
 
