@@ -311,6 +311,29 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		resources = *cr.Spec.Resources
 	}
 
+	var affinity *corev1.Affinity
+	if cr.Spec.Affinity != nil {
+		affinity = cr.Spec.Affinity
+	} else {
+		affinity = &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+					{
+						Weight: 100,
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							//TODO godoc for this field says it cannot be empty, but the doc at
+							// https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#an-example-of-a-pod-that-uses-pod-affinity
+							// talks about using an empty topologyKey with anti-affinity as signifying "all topologies",
+							// That said, the standard kubernetes.io/hostname has appeared sufficient in testing on AWS clusters with 3 worker nodes
+							TopologyKey: "kubernetes.io/hostname",
+							Namespaces:  []string{params.Deployment.Namespace},
+						},
+					},
+				},
+			},
+		}
+	}
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: params.Deployment.Labels,
@@ -339,23 +362,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			Volumes:            volumes,
 			ServiceAccountName: params.Pod.ServiceAccount,
 			SecurityContext:    securityContext,
-			Affinity: &corev1.Affinity{
-				PodAntiAffinity: &corev1.PodAntiAffinity{
-					PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
-						{
-							Weight: 100,
-							PodAffinityTerm: corev1.PodAffinityTerm{
-								//TODO godoc for this field says it cannot be empty, but the doc at
-								// https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#an-example-of-a-pod-that-uses-pod-affinity
-								// talks about using an empty topologyKey with anti-affinity as signifying "all topologies",
-								// That said, the standard kubernetes.io/hostname has appeared sufficient in testing on AWS clusters with 3 worker nodes
-								TopologyKey: "kubernetes.io/hostname",
-								Namespaces:  []string{params.Deployment.Namespace},
-							},
-						},
-					},
-				},
-			},
+			Affinity:           affinity,
 		},
 	}
 
