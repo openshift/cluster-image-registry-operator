@@ -120,7 +120,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 //   historical reasons.
 func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
-	replicas := int32(0)
+	replicas := int32(1)
 
 	infra, err := listers.Infrastructures.Get("cluster")
 	if err != nil {
