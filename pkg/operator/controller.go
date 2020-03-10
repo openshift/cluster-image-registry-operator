@@ -485,6 +485,12 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		c.kubeconfig, c.clients, c.listers,
 	)
 
+	nodeCADaemonController := NewNodeCADaemonController(
+		c.clients.Apps,
+		kubeInformerFactory.Apps().V1().DaemonSets(),
+		kubeInformerFactory.Core().V1().Services(),
+	)
+
 	configInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
@@ -493,6 +499,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 
 	// TODO(dmage):This controller should be started from main.
 	go clusterOperatorStatusController.Run(stopCh)
+	go nodeCADaemonController.Run(stopCh)
 
 	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {

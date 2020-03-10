@@ -281,6 +281,14 @@ func (gco *generatorClusterOperator) syncRelatedObjects(op *configapi.ClusterOpe
 		Name:     defaults.ImageRegistryOperatorNamespace,
 	})
 
+	// The controller for the node-ca daemonset is always enabled
+	relatedObjects = append(relatedObjects, configapi.ObjectReference{
+		Group:     "apps",
+		Resource:  "daemonsets",
+		Namespace: defaults.ImageRegistryOperatorNamespace,
+		Name:      "node-ca",
+	})
+
 	for _, gen := range gco.mutators {
 		relatedObjects = append(relatedObjects, configapi.ObjectReference{
 			Group:     gen.GetGroup(),

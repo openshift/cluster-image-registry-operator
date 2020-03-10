@@ -6,9 +6,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	appslisters "k8s.io/client-go/listers/apps/v1"
-	kcorelisters "k8s.io/client-go/listers/core/v1"
+	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
+	appsv1listers "k8s.io/client-go/listers/apps/v1"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 
@@ -19,13 +19,13 @@ import (
 var _ Mutator = &generatorNodeCADaemonSet{}
 
 type generatorNodeCADaemonSet struct {
-	daemonSetLister appslisters.DaemonSetNamespaceLister
-	serviceLister   kcorelisters.ServiceNamespaceLister
-	client          appsclientv1.AppsV1Interface
+	daemonSetLister appsv1listers.DaemonSetNamespaceLister
+	serviceLister   corev1listers.ServiceNamespaceLister
+	client          appsv1client.AppsV1Interface
 	params          *parameters.Globals
 }
 
-func newGeneratorNodeCADaemonSet(daemonSetLister appslisters.DaemonSetNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, client appsclientv1.AppsV1Interface, params *parameters.Globals) *generatorNodeCADaemonSet {
+func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface, params *parameters.Globals) Mutator {
 	return &generatorNodeCADaemonSet{
 		daemonSetLister: daemonSetLister,
 		serviceLister:   serviceLister,
