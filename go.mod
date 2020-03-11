@@ -36,7 +36,7 @@ require (
 	github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v0.0.0-20200306192528-e5737622441f
+	github.com/openshift/api v0.0.0-20200311183032-85e16cc5dd7c
 	github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 	github.com/openshift/crd-schema-gen v1.0.0
 	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410 // indirect
