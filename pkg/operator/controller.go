@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeset "k8s.io/client-go/kubernetes"
@@ -271,6 +272,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metav1.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -295,6 +300,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metav1.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -317,6 +326,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				if clusterOperator.GetName() != imageregistryv1.ImageRegistryClusterOperatorResourceName {
 					return
 				}
+			}
+			obj := o.(metav1.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
