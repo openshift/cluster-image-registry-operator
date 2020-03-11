@@ -25,7 +25,7 @@ func TestNodeCADaemon(t *testing.T) {
 
 	clientset := kfake.NewSimpleClientset()
 
-	g := newGeneratorNodeCADaemonSet(nil, nil, clientset.AppsV1(), params)
+	g := NewGeneratorNodeCADaemonSet(nil, nil, clientset.AppsV1(), params)
 	obj, err := g.Create()
 	if err != nil {
 		t.Fatal(err)
