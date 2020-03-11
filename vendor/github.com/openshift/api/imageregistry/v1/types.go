@@ -245,7 +245,7 @@ type ImageRegistryConfigStorageAzure struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:MinLength=3
 	// +kubebuilder:validation:Pattern=`^[0-9a-z]+(-[0-9a-z]+)*$`
-	Container string `json:"container" protobuf:"bytes,2,opt,name=container"`
+	Container string `json:"container,omitempty" protobuf:"bytes,2,opt,name=container"`
 }
 
 // ImageRegistryConfigStorage describes how the storage should be configured

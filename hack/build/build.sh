@@ -17,4 +17,4 @@ BUILD_PATH="${REPO_PATH}/cmd/${PROJECT_NAME}"
 VERSION="$(git describe --tags --always --dirty)"
 GO_LDFLAGS="-X ${REPO_PATH}/version.Version=${VERSION}"
 echo "building ${PROJECT_NAME}..."
-go build -o ${BIN_DIR}/${PROJECT_NAME} -ldflags "${GO_LDFLAGS}" ${BUILD_PATH}
+GO111MODULE=on go build -mod=vendor -o ${BIN_DIR}/${PROJECT_NAME} -ldflags "${GO_LDFLAGS}" ${BUILD_PATH}
