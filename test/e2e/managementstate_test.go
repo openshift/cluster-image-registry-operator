@@ -99,6 +99,10 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
+	if !framework.PlatformHasDefaultStorage(te) {
+		t.Skip("skipping because the current platform does not provide default storage configuration")
+	}
+
 	t.Log("creating config with ManagementState set to Removed")
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
 		ManagementState: operatorapi.Removed,

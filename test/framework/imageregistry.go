@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	configapiv1 "github.com/openshift/api/config/v1"
-	osapi "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 
@@ -260,13 +259,13 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 	gotProgressing := false
 	gotDegraded := false
 	for _, c := range status.Status.Conditions {
-		if c.Type == osapi.OperatorAvailable {
+		if c.Type == configapiv1.OperatorAvailable {
 			gotAvailable = true
 		}
-		if c.Type == osapi.OperatorProgressing {
+		if c.Type == configapiv1.OperatorProgressing {
 			gotProgressing = true
 		}
-		if c.Type == osapi.OperatorDegraded {
+		if c.Type == configapiv1.OperatorDegraded {
 			gotDegraded = true
 		}
 	}
@@ -368,8 +367,20 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	}
 }
 
+func PlatformHasDefaultStorage(te TestEnv) bool {
+	return !PlatformIsOneOf(te, []configapiv1.PlatformType{
+		configapiv1.BareMetalPlatformType,
+		configapiv1.VSpherePlatformType,
+	})
+}
+
 func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
 	te := Setup(t)
+
+	noStorage := (spec == nil || spec.Storage == imageregistryapiv1.ImageRegistryConfigStorage{})
+	if noStorage && !PlatformHasDefaultStorage(te) {
+		t.Skip("skipping because the current platform does not provide default storage configuration")
+	}
 
 	defer func() {
 		if te.Failed() {
