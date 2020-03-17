@@ -233,6 +233,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -257,6 +261,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -279,6 +287,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
+			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
