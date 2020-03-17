@@ -20,6 +20,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -66,7 +67,7 @@ func (c *Controller) Bootstrap() error {
 		mgmtState = operatorapi.Removed
 	}
 
-	infra, err := c.listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(c.listers)
 	if err != nil {
 		return err
 	}

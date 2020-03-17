@@ -24,6 +24,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	storages3 "github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
@@ -45,7 +46,7 @@ func TestAWSDefaults(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -345,7 +346,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kubeconfig)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -400,7 +401,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -474,7 +475,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kubeconfig)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -661,7 +662,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
