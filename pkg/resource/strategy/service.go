@@ -3,7 +3,7 @@ package strategy
 import (
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func Service(o, n *corev1.Service) (bool, error) {
@@ -12,7 +12,7 @@ func Service(o, n *corev1.Service) (bool, error) {
 		return false, err
 	}
 
-	if o.Annotations[parameters.ChecksumOperatorAnnotation] == dgst {
+	if o.Annotations[defaults.ChecksumOperatorAnnotation] == dgst {
 		return false, nil
 	}
 
@@ -24,7 +24,7 @@ func Service(o, n *corev1.Service) (bool, error) {
 	if o.Annotations == nil {
 		o.Annotations = map[string]string{}
 	}
-	o.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
+	o.Annotations[defaults.ChecksumOperatorAnnotation] = dgst
 
 	return true, nil
 }

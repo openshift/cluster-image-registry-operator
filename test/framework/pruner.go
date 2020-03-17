@@ -3,7 +3,7 @@ package framework
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func DumpImagePrunerResource(logger Logger, client *Clientset) {

@@ -14,7 +14,7 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
@@ -29,7 +29,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 
 	finalizers := []string{}
 	for _, v := range o.ObjectMeta.Finalizers {
-		if v != parameters.ImageRegistryOperatorResourceFinalizer {
+		if v != defaults.ImageRegistryOperatorResourceFinalizer {
 			finalizers = append(finalizers, v)
 		}
 	}
@@ -62,7 +62,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 			}
 			finalizers = []string{}
 			for _, v := range cr.ObjectMeta.Finalizers {
-				if v != parameters.ImageRegistryOperatorResourceFinalizer {
+				if v != defaults.ImageRegistryOperatorResourceFinalizer {
 					finalizers = append(finalizers, v)
 				}
 			}

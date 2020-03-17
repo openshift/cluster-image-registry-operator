@@ -13,7 +13,7 @@ import (
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorCAConfig{}
@@ -31,18 +31,18 @@ type generatorCAConfig struct {
 	namespace             string
 }
 
-func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorCAConfig {
+func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface) *generatorCAConfig {
 	return &generatorCAConfig{
 		lister:                lister,
 		imageConfigLister:     imageConfigLister,
 		openshiftConfigLister: openshiftConfigLister,
 		serviceLister:         serviceLister,
 		client:                client,
-		imageConfigName:       params.ImageConfig.Name,
-		serviceCAName:         params.ServiceCA.Name,
-		serviceName:           params.Service.Name,
-		name:                  params.CAConfig.Name,
-		namespace:             params.Deployment.Namespace,
+		imageConfigName:       defaults.ImageConfigName,
+		serviceCAName:         defaults.ServiceCAName,
+		serviceName:           defaults.ServiceName,
+		name:                  defaults.ImageRegistryCertificatesName,
+		namespace:             defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

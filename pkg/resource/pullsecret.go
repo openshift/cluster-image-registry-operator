@@ -7,8 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorPullSecret{}
@@ -18,13 +17,10 @@ type generatorPullSecret struct {
 	namespace string
 }
 
-func newGeneratorPullSecret(
-	client coreset.CoreV1Interface,
-	params *parameters.Globals,
-) *generatorPullSecret {
+func newGeneratorPullSecret(client coreset.CoreV1Interface) *generatorPullSecret {
 	return &generatorPullSecret{
 		client:    client,
-		namespace: params.Deployment.Namespace,
+		namespace: defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

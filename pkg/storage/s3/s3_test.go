@@ -10,8 +10,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 )
 

@@ -9,8 +9,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -24,13 +23,13 @@ type generatorSecret struct {
 	namespace string
 }
 
-func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver, params *parameters.Globals) *generatorSecret {
+func newGeneratorSecret(lister corelisters.SecretNamespaceLister, client coreset.CoreV1Interface, driver storage.Driver) *generatorSecret {
 	return &generatorSecret{
 		lister:    lister,
 		client:    client,
 		driver:    driver,
 		name:      defaults.ImageRegistryPrivateConfiguration,
-		namespace: params.Deployment.Namespace,
+		namespace: defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 )
 
@@ -20,12 +20,12 @@ type generatorServiceCA struct {
 	namespace string
 }
 
-func newGeneratorServiceCA(lister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorServiceCA {
+func newGeneratorServiceCA(lister corelisters.ConfigMapNamespaceLister, client coreset.CoreV1Interface) *generatorServiceCA {
 	return &generatorServiceCA{
 		lister:    lister,
 		client:    client,
-		name:      params.ServiceCA.Name,
-		namespace: params.Deployment.Namespace,
+		name:      defaults.ServiceCAName,
+		namespace: defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

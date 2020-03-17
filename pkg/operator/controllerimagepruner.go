@@ -29,9 +29,8 @@ import (
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	regopinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
@@ -50,19 +49,11 @@ var (
 
 // NewImagePrunerController returns a controller for openshift image pruner.
 func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerController, error) {
-	namespace, err := regopclient.GetWatchNamespace()
-	if err != nil {
-		klog.Fatalf("failed to get watch namespace: %s", err)
-	}
-
-	p := Parameters(namespace)
-
 	listers := &regopclient.ImagePrunerControllerListers{}
 	clients := &regopclient.Clients{}
 	c := &ImagePrunerController{
 		kubeconfig: kubeconfig,
-		params:     *p,
-		generator:  resource.NewImagePrunerGenerator(kubeconfig, clients, listers, p),
+		generator:  resource.NewImagePrunerGenerator(kubeconfig, clients, listers),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), imagePrunerWorkQueueKey),
 		listers:    listers,
 		clients:    clients,
@@ -77,7 +68,6 @@ func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerContro
 // ImagePrunerController keeps track of openshift image pruner components.
 type ImagePrunerController struct {
 	kubeconfig *restclient.Config
-	params     parameters.Globals
 	generator  *resource.ImagePrunerGenerator
 	workqueue  workqueue.RateLimitingInterface
 	listers    *regopclient.ImagePrunerControllerListers
@@ -348,14 +338,14 @@ func (c *ImagePrunerController) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
 
 	var informers []cache.SharedIndexInformer
 	for _, ctor := range []func() cache.SharedIndexInformer{
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
-			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(c.params.Deployment.Namespace)
+			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {

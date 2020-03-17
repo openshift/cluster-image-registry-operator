@@ -7,7 +7,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorServiceAccount{}
@@ -19,12 +19,12 @@ type generatorServiceAccount struct {
 	namespace string
 }
 
-func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorServiceAccount {
+func newGeneratorServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface) *generatorServiceAccount {
 	return &generatorServiceAccount{
 		lister:    lister,
 		client:    client,
-		name:      params.Pod.ServiceAccount,
-		namespace: params.Deployment.Namespace,
+		name:      defaults.ServiceAccountName,
+		namespace: defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

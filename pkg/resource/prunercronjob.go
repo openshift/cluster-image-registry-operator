@@ -17,8 +17,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var (
@@ -50,7 +49,7 @@ type generatorPrunerCronJob struct {
 	cr           *imageregistryapiv1.ImagePruner
 }
 
-func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, configLister imageregistryv1listers.ConfigLister, params *parameters.Globals) *generatorPrunerCronJob {
+func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, configLister imageregistryv1listers.ConfigLister) *generatorPrunerCronJob {
 	return &generatorPrunerCronJob{
 		lister:       lister,
 		client:       client,

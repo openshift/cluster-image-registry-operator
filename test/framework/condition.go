@@ -10,7 +10,7 @@ import (
 
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {

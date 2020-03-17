@@ -6,8 +6,8 @@ import (
 
 	configset "github.com/openshift/client-go/config/clientset/versioned"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 const (

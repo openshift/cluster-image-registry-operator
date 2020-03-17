@@ -18,7 +18,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorClusterOperator{}

@@ -15,6 +15,6 @@ PROJECT_NAME="cluster-image-registry-operator"
 REPO_PATH="github.com/openshift/cluster-image-registry-operator"
 BUILD_PATH="${REPO_PATH}/cmd/${PROJECT_NAME}"
 VERSION="$(git describe --tags --always --dirty)"
-GO_LDFLAGS="-X ${REPO_PATH}/version.Version=${VERSION}"
+GO_LDFLAGS="-X ${REPO_PATH}/pkg/version.Version=${VERSION}"
 echo "building ${PROJECT_NAME}..."
 go build -o ${BIN_DIR}/${PROJECT_NAME} -ldflags "${GO_LDFLAGS}" ${BUILD_PATH}

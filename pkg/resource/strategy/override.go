@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func Override(o, n runtime.Object) (bool, error) {
@@ -29,7 +29,7 @@ func Override(o, n runtime.Object) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("unable to get meta accessor for old object: %s", err)
 	}
-	if ometa.GetAnnotations()[parameters.ChecksumOperatorAnnotation] == dgst {
+	if ometa.GetAnnotations()[defaults.ChecksumOperatorAnnotation] == dgst {
 		return false, nil
 	}
 
@@ -50,7 +50,7 @@ func Override(o, n runtime.Object) (bool, error) {
 	if ometa.GetAnnotations() == nil {
 		ometa.SetAnnotations(map[string]string{})
 	}
-	ometa.GetAnnotations()[parameters.ChecksumOperatorAnnotation] = dgst
+	ometa.GetAnnotations()[defaults.ChecksumOperatorAnnotation] = dgst
 
 	return true, nil
 }

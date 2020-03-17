@@ -6,20 +6,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 var _ Mutator = &generatorPrunerClusterRoleBinding{}
 
 type generatorPrunerClusterRoleBinding struct {
-	lister      rbaclisters.ClusterRoleBindingLister
-	client      rbacset.RbacV1Interface
-	saName      string
-	saNamespace string
+	lister rbaclisters.ClusterRoleBindingLister
+	client rbacset.RbacV1Interface
 }
 
-func newGeneratorPrunerClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals) *generatorPrunerClusterRoleBinding {
+func newGeneratorPrunerClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface) *generatorPrunerClusterRoleBinding {
 	return &generatorPrunerClusterRoleBinding{
 		lister: lister,
 		client: client,

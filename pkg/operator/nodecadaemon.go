@@ -14,7 +14,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
@@ -81,7 +81,7 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 }
 
 func (c *NodeCADaemonController) sync() error {
-	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient, Parameters(defaults.ImageRegistryOperatorNamespace))
+	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient)
 	return resource.ApplyMutator(gen)
 }
 

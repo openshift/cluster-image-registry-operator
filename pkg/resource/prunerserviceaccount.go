@@ -6,8 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 var _ Mutator = &generatorPrunerServiceAccount{}
@@ -17,7 +15,7 @@ type generatorPrunerServiceAccount struct {
 	client coreset.CoreV1Interface
 }
 
-func newGeneratorPrunerServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface, params *parameters.Globals) *generatorPrunerServiceAccount {
+func newGeneratorPrunerServiceAccount(lister corelisters.ServiceAccountNamespaceLister, client coreset.CoreV1Interface) *generatorPrunerServiceAccount {
 	return &generatorPrunerServiceAccount{
 		lister: lister,
 		client: client,
