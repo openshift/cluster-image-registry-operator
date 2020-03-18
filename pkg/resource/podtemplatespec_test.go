@@ -8,9 +8,8 @@ import (
 
 	v1 "github.com/openshift/api/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 )
 
@@ -25,10 +24,6 @@ type volumeMount struct {
 
 func TestMakePodTemplateSpec(t *testing.T) {
 	// TODO: Make this table-driven to verify all storage drivers
-	params := &parameters.Globals{}
-	params.Deployment.Namespace = "openshift-image-registry"
-	params.TrustedCA.Name = "trusted-ca"
-
 	testBuilder := cirofake.NewFixturesBuilder()
 	config := &v1.Config{
 		ObjectMeta: metav1.ObjectMeta{
@@ -63,7 +58,7 @@ func TestMakePodTemplateSpec(t *testing.T) {
 
 	fixture := testBuilder.Build()
 	emptyDirStorage := emptydir.NewDriver(config.Spec.Storage.EmptyDir, fixture.Listers)
-	pod, deps, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, emptyDirStorage, params, config)
+	pod, deps, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, emptyDirStorage, config)
 	if err != nil {
 		t.Fatalf("error creating pod template: %v", err)
 	}
@@ -79,7 +74,7 @@ func TestMakePodTemplateSpec(t *testing.T) {
 			mountPath: "/etc/pki/ca-trust/source/anchors",
 		},
 		"trusted-ca": {
-			refName:   params.TrustedCA.Name,
+			refName:   defaults.TrustedCAName,
 			mountPath: "/usr/share/pki/ca-trust-source",
 			items: []corev1.KeyToPath{
 				{

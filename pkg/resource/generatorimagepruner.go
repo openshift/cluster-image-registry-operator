@@ -11,15 +11,13 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
-func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.ImagePrunerControllerListers, params *parameters.Globals) *ImagePrunerGenerator {
+func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.ImagePrunerControllerListers) *ImagePrunerGenerator {
 	return &ImagePrunerGenerator{
 		kubeconfig: kubeconfig,
 		listers:    listers,
 		clients:    clients,
-		params:     params,
 	}
 }
 
@@ -27,14 +25,13 @@ type ImagePrunerGenerator struct {
 	kubeconfig *rest.Config
 	listers    *client.ImagePrunerControllerListers
 	clients    *client.Clients
-	params     *parameters.Globals
 }
 
 func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator, error) {
 	var mutators []Mutator
-	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params))
-	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.listers.RegistryConfigs, g.params))
+	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
+	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
+	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.listers.RegistryConfigs))
 
 	return mutators, nil
 }

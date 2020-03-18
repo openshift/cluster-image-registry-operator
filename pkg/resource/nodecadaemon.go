@@ -13,7 +13,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/assets"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorNodeCADaemonSet{}
@@ -22,15 +22,13 @@ type generatorNodeCADaemonSet struct {
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
 	serviceLister   corev1listers.ServiceNamespaceLister
 	client          appsv1client.AppsV1Interface
-	params          *parameters.Globals
 }
 
-func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface, params *parameters.Globals) Mutator {
+func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface) Mutator {
 	return &generatorNodeCADaemonSet{
 		daemonSetLister: daemonSetLister,
 		serviceLister:   serviceLister,
 		client:          client,
-		params:          params,
 	}
 }
 
@@ -47,7 +45,7 @@ func (ds *generatorNodeCADaemonSet) GetResource() string {
 }
 
 func (ds *generatorNodeCADaemonSet) GetNamespace() string {
-	return ds.params.Deployment.Namespace
+	return defaults.ImageRegistryOperatorNamespace
 }
 
 func (ds *generatorNodeCADaemonSet) GetName() string {

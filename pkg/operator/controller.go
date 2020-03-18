@@ -32,9 +32,8 @@ import (
 	routesetv1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
@@ -64,45 +63,16 @@ func (e permanentError) Error() string {
 	return e.Err.Error()
 }
 
-func Parameters(namespace string) *parameters.Globals {
-	p := &parameters.Globals{}
-
-	p.Deployment.Namespace = namespace
-	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
-
-	p.Pod.ServiceAccount = "registry"
-	p.Container.Port = 5000
-
-	p.Healthz.Route = "/healthz"
-	p.Healthz.TimeoutSeconds = 5
-
-	p.Service.Name = defaults.ImageRegistryName
-	p.ImageConfig.Name = "cluster"
-	p.CAConfig.Name = defaults.ImageRegistryCertificatesName
-	p.ServiceCA.Name = "serviceca"
-	p.TrustedCA.Name = "trusted-ca"
-
-	return p
-}
-
 // NewController returns a controller for openshift image registry objects.
 //
 // This controller keeps track of resources needed in order to have openshift
 // internal registry working.
 func NewController(kubeconfig *restclient.Config) (*Controller, error) {
-	namespace, err := regopclient.GetWatchNamespace()
-	if err != nil {
-		klog.Fatalf("failed to get watch namespace: %s", err)
-	}
-
-	p := Parameters(namespace)
-
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
 	c := &Controller{
 		kubeconfig: kubeconfig,
-		params:     *p,
-		generator:  resource.NewGenerator(kubeconfig, clients, listers, p),
+		generator:  resource.NewGenerator(kubeconfig, clients, listers),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:    listers,
 		clients:    clients,
@@ -117,7 +87,6 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 // Controller keeps track of openshift image registry components.
 type Controller struct {
 	kubeconfig *restclient.Config
-	params     parameters.Globals
 	generator  *resource.Generator
 	workqueue  workqueue.RateLimitingInterface
 	listers    *regopclient.Listers
@@ -374,46 +343,46 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	}
 
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
+	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
-	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
+	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 
 	var informers []cache.SharedIndexInformer
 	for _, ctor := range []func() cache.SharedIndexInformer{
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Apps().V1().Deployments()
-			c.listers.Deployments = informer.Lister().Deployments(c.params.Deployment.Namespace)
+			c.listers.Deployments = informer.Lister().Deployments(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Apps().V1().DaemonSets()
-			c.listers.DaemonSets = informer.Lister().DaemonSets(c.params.Deployment.Namespace)
+			c.listers.DaemonSets = informer.Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().Services()
-			c.listers.Services = informer.Lister().Services(c.params.Deployment.Namespace)
+			c.listers.Services = informer.Lister().Services(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().Secrets()
-			c.listers.Secrets = informer.Lister().Secrets(c.params.Deployment.Namespace)
+			c.listers.Secrets = informer.Lister().Secrets(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().ConfigMaps()
-			c.listers.ConfigMaps = informer.Lister().ConfigMaps(c.params.Deployment.Namespace)
+			c.listers.ConfigMaps = informer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
-			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(c.params.Deployment.Namespace)
+			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
 			informer := routeInformerFactory.Route().V1().Routes()
-			c.listers.Routes = informer.Lister().Routes(c.params.Deployment.Namespace)
+			c.listers.Routes = informer.Lister().Routes(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {

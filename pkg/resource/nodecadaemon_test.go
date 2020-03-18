@@ -6,8 +6,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kfake "k8s.io/client-go/kubernetes/fake"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 )
 
 func findToleration(list []corev1.Toleration, cond func(toleration corev1.Toleration) bool) *corev1.Toleration {
@@ -20,12 +18,9 @@ func findToleration(list []corev1.Toleration, cond func(toleration corev1.Tolera
 }
 
 func TestNodeCADaemon(t *testing.T) {
-	params := &parameters.Globals{}
-	params.Deployment.Namespace = "openshift-image-registry"
-
 	clientset := kfake.NewSimpleClientset()
 
-	g := NewGeneratorNodeCADaemonSet(nil, nil, clientset.AppsV1(), params)
+	g := NewGeneratorNodeCADaemonSet(nil, nil, clientset.AppsV1())
 	obj, err := g.Create()
 	if err != nil {
 		t.Fatal(err)

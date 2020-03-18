@@ -17,8 +17,7 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorImageConfig{}
@@ -33,15 +32,15 @@ type generatorImageConfig struct {
 	serviceName   string
 }
 
-func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, configClient configset.ConfigV1Interface, params *parameters.Globals) *generatorImageConfig {
+func newGeneratorImageConfig(configLister configlisters.ImageLister, routeLister routelisters.RouteNamespaceLister, serviceLister kcorelisters.ServiceNamespaceLister, configClient configset.ConfigV1Interface) *generatorImageConfig {
 	return &generatorImageConfig{
 		configLister:  configLister,
 		routeLister:   routeLister,
 		serviceLister: serviceLister,
 		configClient:  configClient,
-		name:          params.ImageConfig.Name,
-		namespace:     params.Deployment.Namespace,
-		serviceName:   params.Service.Name,
+		name:          defaults.ImageConfigName,
+		namespace:     defaults.ImageRegistryOperatorNamespace,
+		serviceName:   defaults.ServiceName,
 	}
 }
 

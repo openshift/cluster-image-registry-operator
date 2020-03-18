@@ -16,8 +16,7 @@ import (
 	operatorapi "github.com/openshift/api/operator/v1"
 	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
@@ -96,8 +95,8 @@ func (c *Controller) Bootstrap() error {
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       defaults.ImageRegistryResourceName,
-			Namespace:  c.params.Deployment.Namespace,
-			Finalizers: []string{parameters.ImageRegistryOperatorResourceFinalizer},
+			Namespace:  defaults.ImageRegistryOperatorNamespace,
+			Finalizers: []string{defaults.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: mgmtState,

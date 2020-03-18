@@ -10,7 +10,7 @@ import (
 
 	routeapiv1 "github.com/openshift/api/route/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {

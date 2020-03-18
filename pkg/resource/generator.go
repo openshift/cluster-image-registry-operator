@@ -15,10 +15,9 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -63,12 +62,11 @@ func ApplyMutator(gen Mutator) error {
 	})
 }
 
-func NewGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers, params *parameters.Globals) *Generator {
+func NewGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers) *Generator {
 	return &Generator{
 		kubeconfig: kubeconfig,
 		listers:    listers,
 		clients:    clients,
-		params:     params,
 	}
 }
 
@@ -76,18 +74,17 @@ type Generator struct {
 	kubeconfig *rest.Config
 	listers    *client.Listers
 	clients    *client.Clients
-	params     *parameters.Globals
 }
 
 func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 	var mutators []Mutator
 	if cr.Spec.DefaultRoute {
-		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, g.clients.Route, g.params, cr, imageregistryv1.ImageRegistryConfigRoute{
+		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, g.clients.Route, cr, imageregistryv1.ImageRegistryConfigRoute{
 			Name: defaults.RouteName,
 		}))
 	}
 	for _, route := range cr.Spec.Routes {
-		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, g.clients.Route, g.params, cr, route))
+		mutators = append(mutators, newGeneratorRoute(g.listers.Routes, g.listers.Secrets, g.clients.Route, cr, route))
 	}
 	return mutators
 }
@@ -102,15 +99,15 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 
 	var mutators []Mutator
 	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, g.clients.RBAC))
-	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC, g.params))
-	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.ImageConfigs, g.listers.OpenShiftConfig, g.listers.Services, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver, g.params))
-	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, g.listers.Services, g.clients.Config, g.params))
-	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core, g.params))
-	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, g.params, cr))
+	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
+	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
+	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core))
+	mutators = append(mutators, newGeneratorCAConfig(g.listers.ConfigMaps, g.listers.ImageConfigs, g.listers.OpenShiftConfig, g.listers.Services, g.clients.Core))
+	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core))
+	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver))
+	mutators = append(mutators, newGeneratorImageConfig(g.listers.ImageConfigs, g.listers.Routes, g.listers.Services, g.clients.Config))
+	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
+	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
 
 	return mutators, nil
@@ -209,7 +206,7 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 		if _, found := knownNames[route.Name]; found {
 			continue
 		}
-		err = g.clients.Route.Routes(g.params.Deployment.Namespace).Delete(route.Name, opts)
+		err = g.clients.Route.Routes(defaults.ImageRegistryOperatorNamespace).Delete(route.Name, opts)
 		if err != nil {
 			return err
 		}

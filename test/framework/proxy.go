@@ -10,7 +10,7 @@ import (
 	openshiftapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 // SetResourceProxyConfig patches the image registry resource to contain the provided proxy configuration

@@ -7,7 +7,7 @@ import (
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorClusterRoleBinding{}
@@ -19,12 +19,12 @@ type generatorClusterRoleBinding struct {
 	saNamespace string
 }
 
-func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface, params *parameters.Globals) *generatorClusterRoleBinding {
+func newGeneratorClusterRoleBinding(lister rbaclisters.ClusterRoleBindingLister, client rbacset.RbacV1Interface) *generatorClusterRoleBinding {
 	return &generatorClusterRoleBinding{
 		lister:      lister,
 		client:      client,
-		saName:      params.Pod.ServiceAccount,
-		saNamespace: params.Deployment.Namespace,
+		saName:      defaults.ServiceAccountName,
+		saNamespace: defaults.ImageRegistryOperatorNamespace,
 	}
 }
 

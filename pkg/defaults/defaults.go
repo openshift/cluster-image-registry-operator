@@ -84,4 +84,26 @@ const (
 	// VersionAnnotation reflects the version of the registry that this deployment
 	// is running.
 	VersionAnnotation = "release.openshift.io/version"
+
+	ImageRegistryOperatorResourceFinalizer = "imageregistry.operator.openshift.io/finalizer"
+
+	ChecksumOperatorAnnotation     = "imageregistry.operator.openshift.io/checksum"
+	ChecksumOperatorDepsAnnotation = "imageregistry.operator.openshift.io/dependencies-checksum"
+
+	SupplementalGroupsAnnotation = "openshift.io/sa.scc.supplemental-groups"
+
+	ServiceName           = "image-registry"
+	ServiceAccountName    = "registry"
+	ContainerPort         = 5000
+	HealthzRoute          = "/healthz"
+	HealthzTimeoutSeconds = 5
+
+	ImageConfigName = "cluster"
+
+	ServiceCAName = "serviceca"
+	TrustedCAName = "trusted-ca"
+)
+
+var (
+	DeploymentLabels = map[string]string{"docker-registry": "default"}
 )

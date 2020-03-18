@@ -17,8 +17,7 @@ import (
 	v1 "github.com/openshift/api/imageregistry/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
@@ -34,25 +33,25 @@ func generateLogLevel(cr *v1.Config) string {
 	return "debug"
 }
 
-func generateLivenessProbeConfig(p *parameters.Globals) *corev1.Probe {
-	probeConfig := generateProbeConfig(p)
+func generateLivenessProbeConfig() *corev1.Probe {
+	probeConfig := generateProbeConfig()
 	probeConfig.InitialDelaySeconds = 10
 
 	return probeConfig
 }
 
-func generateReadinessProbeConfig(p *parameters.Globals) *corev1.Probe {
-	return generateProbeConfig(p)
+func generateReadinessProbeConfig() *corev1.Probe {
+	return generateProbeConfig()
 }
 
-func generateProbeConfig(p *parameters.Globals) *corev1.Probe {
+func generateProbeConfig() *corev1.Probe {
 	return &corev1.Probe{
-		TimeoutSeconds: int32(p.Healthz.TimeoutSeconds),
+		TimeoutSeconds: int32(defaults.HealthzTimeoutSeconds),
 		Handler: corev1.Handler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme: corev1.URISchemeHTTPS,
-				Path:   p.Healthz.Route,
-				Port:   intstr.FromInt(p.Container.Port),
+				Path:   defaults.HealthzRoute,
+				Port:   intstr.FromInt(defaults.ContainerPort),
 			},
 		},
 	}
@@ -64,19 +63,19 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace strin
 		return nil, err
 	}
 
-	sgrange, ok := ns.Annotations[parameters.SupplementalGroupsAnnotation]
+	sgrange, ok := ns.Annotations[defaults.SupplementalGroupsAnnotation]
 	if !ok {
-		return nil, fmt.Errorf("namespace %q doesn't have annotation %s", namespace, parameters.SupplementalGroupsAnnotation)
+		return nil, fmt.Errorf("namespace %q doesn't have annotation %s", namespace, defaults.SupplementalGroupsAnnotation)
 	}
 
 	idx := strings.Index(sgrange, "/")
 	if idx == -1 {
-		return nil, fmt.Errorf("annotation %s in namespace %q doesn't contain '/'", parameters.SupplementalGroupsAnnotation, namespace)
+		return nil, fmt.Errorf("annotation %s in namespace %q doesn't contain '/'", defaults.SupplementalGroupsAnnotation, namespace)
 	}
 
 	gid, err := strconv.ParseInt(sgrange[:idx], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", parameters.SupplementalGroupsAnnotation, namespace, err)
+		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", defaults.SupplementalGroupsAnnotation, namespace, err)
 	}
 
 	return &corev1.PodSecurityContext{
@@ -103,7 +102,7 @@ func storageConfigure(driver storage.Driver) (envs []corev1.EnvVar, volumes []co
 	return
 }
 
-func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configlisters.ProxyLister, driver storage.Driver, params *parameters.Globals, cr *v1.Config) (corev1.PodTemplateSpec, *dependencies, error) {
+func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configlisters.ProxyLister, driver storage.Driver, cr *v1.Config) (corev1.PodTemplateSpec, *dependencies, error) {
 	env, volumes, mounts, err := storageConfigure(driver)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, nil, err
@@ -131,7 +130,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 
 	env = append(env,
-		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", params.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_HTTP_ADDR", Value: fmt.Sprintf(":%d", defaults.ContainerPort)},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_NET", Value: "tcp"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_SECRET", Value: cr.Spec.HTTPSecret},
 		corev1.EnvVar{Name: "REGISTRY_LOG_LEVEL", Value: generateLogLevel(cr)},
@@ -140,7 +139,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_METRICS_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
-		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", params.Service.Name, params.Deployment.Namespace, params.Container.Port)},
+		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", defaults.ServiceName, defaults.ImageRegistryOperatorNamespace, defaults.ContainerPort)},
 	)
 
 	if cr.Spec.ReadOnly {
@@ -197,7 +196,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		)
 	}
 
-	securityContext, err := generateSecurityContext(coreClient, params.Deployment.Namespace)
+	securityContext, err := generateSecurityContext(coreClient, defaults.ImageRegistryOperatorNamespace)
 	if err != nil {
 		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("generate security context for deployment config: %s", err)
 	}
@@ -253,7 +252,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: params.TrustedCA.Name,
+					Name: defaults.TrustedCAName,
 				},
 				// Trust bundle is in PEM format - needs to be mounted to /anchors so that
 				// update-ca-trust extract knows that these CAs should always be trusted.
@@ -272,7 +271,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/usr/share/pki/ca-trust-source"})
-	deps.AddConfigMap(params.TrustedCA.Name)
+	deps.AddConfigMap(defaults.TrustedCAName)
 
 	vol = corev1.Volume{
 		Name: defaults.InstallationPullSecret,
@@ -326,7 +325,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 							// talks about using an empty topologyKey with anti-affinity as signifying "all topologies",
 							// That said, the standard kubernetes.io/hostname has appeared sufficient in testing on AWS clusters with 3 worker nodes
 							TopologyKey: "kubernetes.io/hostname",
-							Namespaces:  []string{params.Deployment.Namespace},
+							Namespaces:  []string{defaults.ImageRegistryOperatorNamespace},
 						},
 					},
 				},
@@ -336,7 +335,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: params.Deployment.Labels,
+			Labels: defaults.DeploymentLabels,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations:       cr.Spec.Tolerations,
@@ -348,19 +347,19 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					Image: image,
 					Ports: []corev1.ContainerPort{
 						{
-							ContainerPort: int32(params.Container.Port),
+							ContainerPort: int32(defaults.ContainerPort),
 							Protocol:      "TCP",
 						},
 					},
 					Env:            env,
 					VolumeMounts:   mounts,
-					LivenessProbe:  generateLivenessProbeConfig(params),
-					ReadinessProbe: generateReadinessProbeConfig(params),
+					LivenessProbe:  generateLivenessProbeConfig(),
+					ReadinessProbe: generateReadinessProbeConfig(),
 					Resources:      resources,
 				},
 			},
 			Volumes:            volumes,
-			ServiceAccountName: params.Pod.ServiceAccount,
+			ServiceAccountName: defaults.ServiceAccountName,
 			SecurityContext:    securityContext,
 			Affinity:           affinity,
 		},

@@ -18,8 +18,8 @@ import (
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -107,7 +107,7 @@ func (c *ClusterOperatorStatusController) sync() error {
 	}
 	cr = cr.DeepCopy()
 
-	gen := resource.NewGenerator(c.kubeconfig, c.clients, c.listers, Parameters(defaults.ImageRegistryOperatorNamespace))
+	gen := resource.NewGenerator(c.kubeconfig, c.clients, c.listers)
 	resources, err := gen.List(cr)
 	if err != nil && err != storage.ErrStorageNotConfigured {
 		return err

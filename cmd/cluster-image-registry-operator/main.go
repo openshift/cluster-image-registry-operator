@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
-	"github.com/openshift/cluster-image-registry-operator/version"
+	"github.com/openshift/cluster-image-registry-operator/pkg/version"
 )
 
 const metricsPort = 60000

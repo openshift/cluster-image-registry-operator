@@ -24,10 +24,9 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
@@ -200,7 +199,7 @@ func getStorageContainer(accountName, key, containerName string) (azblob.Contain
 	}
 
 	p := azblob.NewPipeline(c, azblob.PipelineOptions{
-		Telemetry: azblob.TelemetryOptions{Value: parameters.UserAgent},
+		Telemetry: azblob.TelemetryOptions{Value: defaults.UserAgent},
 	})
 
 	u, err := url.Parse(fmt.Sprintf(blobFormatString, accountName))
@@ -257,7 +256,7 @@ func (d *driver) storageAccountsClient(cfg *Azure) (storage.AccountsClient, erro
 
 	storageAccountsClient := storage.NewAccountsClient(cfg.SubscriptionID)
 	storageAccountsClient.Authorizer = auth
-	storageAccountsClient.AddToUserAgent(parameters.UserAgent)
+	storageAccountsClient.AddToUserAgent(defaults.UserAgent)
 
 	return storageAccountsClient, nil
 }
@@ -337,7 +336,7 @@ func (d *driver) containerExists(containerName string) (bool, error) {
 	}
 
 	p := azblob.NewPipeline(c, azblob.PipelineOptions{
-		Telemetry: azblob.TelemetryOptions{Value: parameters.UserAgent},
+		Telemetry: azblob.TelemetryOptions{Value: defaults.UserAgent},
 	})
 
 	service := azblob.NewServiceURL(*u, p)

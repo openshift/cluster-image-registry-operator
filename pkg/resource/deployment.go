@@ -18,8 +18,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 
-	"github.com/openshift/cluster-image-registry-operator/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/strategy"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
@@ -35,11 +34,10 @@ type generatorDeployment struct {
 	coreClient      coreset.CoreV1Interface
 	client          appsset.AppsV1Interface
 	driver          storage.Driver
-	params          *parameters.Globals
 	cr              *imageregistryv1.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, params *parameters.Globals, cr *imageregistryv1.Config) *generatorDeployment {
+func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
 		recorder:        events.NewLoggingEventRecorder("image-registry-operator"),
 		lister:          lister,
@@ -49,7 +47,6 @@ func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, config
 		coreClient:      coreClient,
 		client:          client,
 		driver:          driver,
-		params:          params,
 		cr:              cr,
 	}
 }
@@ -67,7 +64,7 @@ func (gd *generatorDeployment) GetResource() string {
 }
 
 func (gd *generatorDeployment) GetNamespace() string {
-	return gd.params.Deployment.Namespace
+	return defaults.ImageRegistryOperatorNamespace
 }
 
 func (gd *generatorDeployment) GetName() string {
@@ -79,7 +76,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 		return nil, fmt.Errorf("no storage driver present")
 	}
 
-	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.proxyLister, gd.driver, gd.params, gd.cr)
+	podTemplateSpec, deps, err := makePodTemplateSpec(gd.coreClient, gd.proxyLister, gd.driver, gd.cr)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +89,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	if podTemplateSpec.Annotations == nil {
 		podTemplateSpec.Annotations = map[string]string{}
 	}
-	podTemplateSpec.Annotations[parameters.ChecksumOperatorDepsAnnotation] = depsChecksum
+	podTemplateSpec.Annotations[defaults.ChecksumOperatorDepsAnnotation] = depsChecksum
 
 	// Strategy defaults to RollingUpdate
 	deployStrategy := gd.cr.Spec.RolloutStrategy
@@ -104,7 +101,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gd.GetName(),
 			Namespace: gd.GetNamespace(),
-			Labels:    gd.params.Deployment.Labels,
+			Labels:    defaults.DeploymentLabels,
 			Annotations: map[string]string{
 				defaults.VersionAnnotation: os.Getenv("RELEASE_VERSION"),
 			},
@@ -112,7 +109,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 		Spec: appsapi.DeploymentSpec{
 			Replicas: &gd.cr.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: gd.params.Deployment.Labels,
+				MatchLabels: defaults.DeploymentLabels,
 			},
 			Template: podTemplateSpec,
 			Strategy: appsapi.DeploymentStrategy{
@@ -125,7 +122,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	deploy.ObjectMeta.Annotations[parameters.ChecksumOperatorAnnotation] = dgst
+	deploy.ObjectMeta.Annotations[defaults.ChecksumOperatorAnnotation] = dgst
 
 	return deploy, nil
 }

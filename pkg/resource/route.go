@@ -10,7 +10,7 @@ import (
 	routeset "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/parameters"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 const RouteOwnerAnnotation = "imageregistry.openshift.io"
@@ -31,13 +31,13 @@ type generatorRoute struct {
 	route        imageregistryv1.ImageRegistryConfigRoute
 }
 
-func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, params *parameters.Globals, cr *imageregistryv1.Config, route imageregistryv1.ImageRegistryConfigRoute) *generatorRoute {
+func newGeneratorRoute(lister routelisters.RouteNamespaceLister, secretLister corelisters.SecretNamespaceLister, client routeset.RouteV1Interface, cr *imageregistryv1.Config, route imageregistryv1.ImageRegistryConfigRoute) *generatorRoute {
 	return &generatorRoute{
 		lister:       lister,
 		secretLister: secretLister,
 		client:       client,
-		namespace:    params.Deployment.Namespace,
-		serviceName:  params.Service.Name,
+		namespace:    defaults.ImageRegistryOperatorNamespace,
+		serviceName:  defaults.ServiceName,
 		route:        route,
 	}
 }
