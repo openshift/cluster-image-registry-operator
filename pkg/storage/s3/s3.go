@@ -58,7 +58,7 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 func GetConfig(kubeconfig *rest.Config, listers *regopclient.Listers) (*S3, error) {
 	cfg := &S3{}
 
-	infra, err := listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(listers)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +321,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	infra, err := d.Listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return err
 	}
