@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -27,8 +28,12 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		"bar.example.com..5000": "certificateBar",
 	}
 
-	client.ConfigMaps(openshiftConfigNamespace).Delete(userCAConfigMapName, &metav1.DeleteOptions{})
-	_, err := client.ConfigMaps(openshiftConfigNamespace).Create(&corev1.ConfigMap{
+	err := client.ConfigMaps(openshiftConfigNamespace).Delete(userCAConfigMapName, &metav1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		t.Fatal(err)
+	}
+
+	_, err = client.ConfigMaps(openshiftConfigNamespace).Create(&corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: userCAConfigMapName,
 		},
@@ -39,6 +44,10 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	}
 
 	imageConfig, err := client.Images().Get(imageConfigName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("unable to get image config: %v", err)
+	}
+
 	oldAdditionalTrustedCA := imageConfig.Spec.AdditionalTrustedCA.Name
 	if _, err := client.Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+userCAConfigMapName+`"}}}`)); err != nil {
 		t.Fatal(err)

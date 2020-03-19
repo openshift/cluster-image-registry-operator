@@ -36,30 +36,37 @@ func DisableCVOForOperator(logger Logger, client *Clientset) error {
 		return err
 	}
 
-	var changed bool
-	cv.Spec.Overrides, changed = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
+	changed := false
+	var componentChanged bool
+
+	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
 		Group:     "", // XXX(dmage): it will be changed soon.
 		Kind:      "Deployment",
 		Namespace: OperatorDeploymentNamespace,
 		Name:      OperatorDeploymentName,
 		Unmanaged: true,
 	})
+	changed = changed || componentChanged
+
 	// Disable the kube and openshift apiserver operators so the kube+openshift apiservers don't get
 	// restarted while we're running our tests.
-	cv.Spec.Overrides, changed = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
+	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
 		Group:     "",
 		Kind:      "Deployment",
 		Namespace: "openshift-kube-apiserver-operator",
 		Name:      "kube-apiserver-operator",
 		Unmanaged: true,
 	})
-	cv.Spec.Overrides, changed = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
+	changed = changed || componentChanged
+
+	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
 		Group:     "",
 		Kind:      "Deployment",
 		Namespace: "openshift-apiserver-operator",
 		Name:      "openshift-apiserver-operator",
 		Unmanaged: true,
 	})
+	changed = changed || componentChanged
 
 	if changed {
 		if _, err := client.ClusterVersions().Update(cv); err != nil {

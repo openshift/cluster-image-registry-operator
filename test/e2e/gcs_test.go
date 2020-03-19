@@ -48,7 +48,14 @@ func TestGCSMinimal(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
