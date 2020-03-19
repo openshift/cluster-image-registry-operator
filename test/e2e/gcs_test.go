@@ -48,7 +48,14 @@ func TestGCSMinimal(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
@@ -106,7 +113,7 @@ func TestGCSMinimal(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	keyfileData, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_GCS_KEYFILE"]
+	keyfileData := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_GCS_KEYFILE"]
 	if string(keyfileData) != fakeGCSKeyfile {
 		t.Errorf("secret %s/%s contains incorrect gcs credentials", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
@@ -130,7 +137,7 @@ func TestGCSMinimal(t *testing.T) {
 	}
 
 	// Get a fresh version of the image registry resource
-	cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	_, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("%s", err)
 	}

@@ -1,5 +1,6 @@
 
 # Temporary Build Files
+/_output
 tmp/_output
 tmp/_test
 deploy/test

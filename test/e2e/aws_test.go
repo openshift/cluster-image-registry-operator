@@ -44,7 +44,14 @@ func TestAWSDefaults(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
@@ -78,8 +85,8 @@ func TestAWSDefaults(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
+	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
 	if string(accessKey) != cfg.AccessKey || string(secretKey) != cfg.SecretKey {
 		t.Errorf("secret %s/%s contains incorrect aws credentials (AccessKey or SecretKey)", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
@@ -344,7 +351,14 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kubeconfig)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
@@ -399,7 +413,14 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
@@ -473,7 +494,14 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kubeconfig)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
@@ -503,8 +531,8 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
+	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
 
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSession(&aws.Config{
@@ -660,7 +688,14 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 
 	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
 	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
 
 	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {

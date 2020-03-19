@@ -2,6 +2,10 @@ IMAGE ?= docker.io/openshift/origin-cluster-image-registry-operator
 TAG ?= latest
 PROG  := cluster-image-registry-operator
 
+GOLANGCI_LINT = _output/tools/golangci-lint
+GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
+GOLANGCI_LINT_VERSION = v1.24
+
 include $(addprefix ./vendor/github.com/openshift/library-go/alpha-build-machinery/make/, \
     targets/openshift/bindata.mk \
 )
@@ -22,20 +26,29 @@ build-image:
 test: test-unit test-e2e
 .PHONY: test
 
-test-unit: verify
-	./hack/test-go.sh ./cmd/... ./pkg/...
+test-unit:
+	./hack/test-go.sh ./cmd/... ./pkg/... ./test/framework/...
 .PHONY: test-unit
 
 test-e2e:
 	./hack/test-go.sh -count 1 -timeout 2h -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
-verify: verify-fmt verify-bindata
 .PHONY: verify
 
 verify-fmt:
 	./hack/verify-gofmt.sh
-.PHONY: verify-gofmt
+verify: verify-fmt
+.PHONY: verify-fmt
+
+$(GOLANGCI_LINT):
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(dir $@) v1.24.0
+
+verify-golangci-lint: $(GOLANGCI_LINT)
+	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run --timeout=300s ./cmd/... ./pkg/... ./test/...
+
+verify: verify-golangci-lint
+.PHONY: verify-golangci-lint
 
 update-deps:
 	go get -d -u \

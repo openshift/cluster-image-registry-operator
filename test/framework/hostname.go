@@ -47,8 +47,7 @@ func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Client
 
 func EnsureExternalRegistryHostnamesAreSet(t *testing.T, client *Clientset, wantedHostnames []string) {
 	var cfg *configapiv1.Image
-	var err error
-	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
 		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
 		if errors.IsNotFound(err) {

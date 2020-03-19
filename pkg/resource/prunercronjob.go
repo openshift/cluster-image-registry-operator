@@ -46,7 +46,6 @@ type generatorPrunerCronJob struct {
 	client       batchset.BatchV1beta1Interface
 	prunerLister imageregistryv1listers.ImagePrunerLister
 	configLister imageregistryv1listers.ConfigLister
-	cr           *imageregistryapiv1.ImagePruner
 }
 
 func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, configLister imageregistryv1listers.ConfigLister) *generatorPrunerCronJob {
@@ -213,7 +212,7 @@ func (gcj *generatorPrunerCronJob) getKeepTagRevisions(cr *imageregistryapiv1.Im
 
 func (gcj *generatorPrunerCronJob) getKeepYoungerThan(cr *imageregistryapiv1.ImagePruner) string {
 	if cr.Spec.KeepYoungerThan != nil {
-		return fmt.Sprintf("%s", cr.Spec.KeepYoungerThan)
+		return cr.Spec.KeepYoungerThan.String()
 	}
 	return defaultKeepYoungerThan
 }

@@ -62,6 +62,38 @@ func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerContro
 	// Initial event to bootstrap the pruner if it doesn't exist.
 	c.workqueue.AddRateLimited(imagePrunerWorkQueueKey)
 
+	var err error
+
+	c.clients.Core, err = coreset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
+	c.clients.Apps, err = appsset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
+	c.clients.RBAC, err = rbacset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
+	c.clients.Kube, err = kubeset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
+	c.clients.RegOp, err = regopset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
+	c.clients.Batch, err = batchset.NewForConfig(c.kubeconfig)
+	if err != nil {
+		return c, err
+	}
+
 	return c, nil
 }
 
@@ -92,7 +124,7 @@ func (b ByCreationTimestamp) Less(i, j int) bool {
 	return !b[j].CreationTimestamp.Time.After(b[i].CreationTimestamp.Time)
 }
 
-// Bootstrap  creates the initial configuration for the Image Pruner.
+// Bootstrap creates the initial configuration for the Image Pruner.
 func (c *ImagePrunerController) Bootstrap() error {
 	cr, err := c.listers.ImagePrunerConfigs.Get(defaults.ImageRegistryImagePrunerResourceName)
 	if err != nil && !errors.IsNotFound(err) {
@@ -303,40 +335,8 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 }
 
 // Run starts the ImagePrunerController.
-func (c *ImagePrunerController) Run(stopCh <-chan struct{}) error {
+func (c *ImagePrunerController) Run(stopCh <-chan struct{}) {
 	defer c.workqueue.ShutDown()
-
-	var err error
-
-	c.clients.Core, err = coreset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Apps, err = appsset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.RBAC, err = rbacset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Kube, err = kubeset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.RegOp, err = regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	c.clients.Batch, err = batchset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
@@ -389,8 +389,8 @@ func (c *ImagePrunerController) Run(stopCh <-chan struct{}) error {
 
 	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
-		if ok := cache.WaitForCacheSync(stopCh, informer.HasSynced); !ok {
-			return fmt.Errorf("failed to wait for caches to sync")
+		if !cache.WaitForCacheSync(stopCh, informer.HasSynced) {
+			return
 		}
 	}
 
@@ -399,6 +399,4 @@ func (c *ImagePrunerController) Run(stopCh <-chan struct{}) error {
 	klog.Info("started image pruner events processor")
 	<-stopCh
 	klog.Info("shutting down image pruner events processor")
-
-	return nil
 }

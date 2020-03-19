@@ -155,7 +155,7 @@ func TestPruner(t *testing.T) {
 	truePtr := true
 	cr.Spec.Suspend = &truePtr
 	cr.Spec.Schedule = "10 10 * * *"
-	cr, err = client.ImagePruners().Update(cr)
+	_, err = client.ImagePruners().Update(cr)
 	if errors.IsNotFound(err) {
 		t.Errorf("unable to get the image registry pruner custom resource: %s", err)
 	} else if err != nil {
@@ -197,7 +197,7 @@ func TestPruner(t *testing.T) {
 	falsePtr := false
 	cr.Spec.Suspend = &falsePtr
 	cr.Spec.Schedule = ""
-	cr, err = client.ImagePruners().Update(cr)
+	_, err = client.ImagePruners().Update(cr)
 	if errors.IsNotFound(err) {
 		t.Errorf("unable to get the image registry pruner custom resource: %s", err)
 	} else if err != nil {

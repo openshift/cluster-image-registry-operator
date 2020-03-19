@@ -50,7 +50,7 @@ func runOperator(cmd *cobra.Command, args []string) {
 
 	logstderr := klogFlags.Lookup("logtostderr")
 	if logstderr != nil {
-		logstderr.Value.Set("true")
+		_ = logstderr.Value.Set("true")
 	}
 
 	printVersion()
