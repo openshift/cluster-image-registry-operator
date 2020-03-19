@@ -62,13 +62,15 @@ func (m MockUPISecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
 		}, nil
 	}
 
-	return nil, &k8serrors.StatusError{metav1.Status{
-		Status:  metav1.StatusFailure,
-		Code:    http.StatusNotFound,
-		Reason:  metav1.StatusReasonNotFound,
-		Details: &metav1.StatusDetails{},
-		Message: fmt.Sprintf("No secret with name %v was found", name),
-	}}
+	return nil, &k8serrors.StatusError{
+		ErrStatus: metav1.Status{
+			Status:  metav1.StatusFailure,
+			Code:    http.StatusNotFound,
+			Reason:  metav1.StatusReasonNotFound,
+			Details: &metav1.StatusDetails{},
+			Message: fmt.Sprintf("No secret with name %v was found", name),
+		},
+	}
 }
 
 func (m MockUPISecretNamespaceLister) List(selector labels.Selector) ([]*corev1.Secret, error) {
@@ -88,13 +90,15 @@ func (m MockIPISecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
 		}, nil
 	}
 
-	return nil, &k8serrors.StatusError{metav1.Status{
-		Status:  metav1.StatusFailure,
-		Code:    http.StatusNotFound,
-		Reason:  metav1.StatusReasonNotFound,
-		Details: &metav1.StatusDetails{},
-		Message: fmt.Sprintf("No secret with name %v was found", name),
-	}}
+	return nil, &k8serrors.StatusError{
+		ErrStatus: metav1.Status{
+			Status:  metav1.StatusFailure,
+			Code:    http.StatusNotFound,
+			Reason:  metav1.StatusReasonNotFound,
+			Details: &metav1.StatusDetails{},
+			Message: fmt.Sprintf("No secret with name %v was found", name),
+		},
+	}
 }
 
 func (m MockIPISecretNamespaceLister) List(selector labels.Selector) ([]*corev1.Secret, error) {
@@ -114,13 +118,15 @@ func (m MockConfigMapNamespaceLister) Get(name string) (*corev1.ConfigMap, error
 		}, nil
 	}
 
-	return nil, &k8serrors.StatusError{metav1.Status{
-		Status:  metav1.StatusFailure,
-		Code:    http.StatusNotFound,
-		Reason:  metav1.StatusReasonNotFound,
-		Details: &metav1.StatusDetails{},
-		Message: fmt.Sprintf("No config map with name %v was found", name),
-	}}
+	return nil, &k8serrors.StatusError{
+		ErrStatus: metav1.Status{
+			Status:  metav1.StatusFailure,
+			Code:    http.StatusNotFound,
+			Reason:  metav1.StatusReasonNotFound,
+			Details: &metav1.StatusDetails{},
+			Message: fmt.Sprintf("No config map with name %v was found", name),
+		},
+	}
 }
 
 func (m MockConfigMapNamespaceLister) List(selector labels.Selector) ([]*corev1.ConfigMap, error) {
@@ -185,7 +191,7 @@ func handleAuthentication(t *testing.T, endpointType string) {
 
 func fakeInfrastructureLister(cloudName string) configlisters.InfrastructureLister {
 	fakeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	fakeIndexer.Add(&configv1.Infrastructure{
+	err := fakeIndexer.Add(&configv1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster",
 		},
@@ -200,6 +206,9 @@ func fakeInfrastructureLister(cloudName string) configlisters.InfrastructureList
 			},
 		},
 	})
+	if err != nil {
+		panic(err) // should never happen
+	}
 	return configlisters.NewInfrastructureLister(fakeIndexer)
 }
 
@@ -270,8 +279,9 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 
 	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
-	d.CreateStorage(&installConfig)
+	err := d.CreateStorage(&installConfig)
 
+	th.AssertNoErr(t, err)
 	th.AssertEquals(t, true, installConfig.Status.StorageManaged)
 	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
 	th.AssertEquals(t, operatorapi.ConditionTrue, installConfig.Status.Conditions[0].Status)
@@ -291,8 +301,9 @@ func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 
 	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
 
-	d.RemoveStorage(&installConfig)
+	_, err := d.RemoveStorage(&installConfig)
 
+	th.AssertNoErr(t, err)
 	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
 	th.AssertEquals(t, operatorapi.ConditionFalse, installConfig.Status.Conditions[0].Status)
 	th.AssertEquals(t, "", installConfig.Status.Storage.Swift.Container)
@@ -426,8 +437,9 @@ func TestSwiftCreateStorageCloudConfig(t *testing.T) {
 
 	d, installConfig := mockConfig(false, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
 
-	d.CreateStorage(&installConfig)
+	err := d.CreateStorage(&installConfig)
 
+	th.AssertNoErr(t, err)
 	th.AssertEquals(t, true, installConfig.Status.StorageManaged)
 	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
 	th.AssertEquals(t, operatorapi.ConditionTrue, installConfig.Status.Conditions[0].Status)
@@ -461,8 +473,9 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 
 	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockIPISecretNamespaceLister{})
 
-	d.RemoveStorage(&installConfig)
+	_, err := d.RemoveStorage(&installConfig)
 
+	th.AssertNoErr(t, err)
 	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
 	th.AssertEquals(t, operatorapi.ConditionFalse, installConfig.Status.Conditions[0].Status)
 	th.AssertEquals(t, "", installConfig.Status.Storage.Swift.Container)
@@ -673,7 +686,7 @@ func TestSwiftIsAvailable(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 
 		// Empty container list
-		w.Write([]byte("[]"))
+		_, _ = w.Write([]byte("[]"))
 	})
 
 	// IsSwiftEnabled should return true in this case

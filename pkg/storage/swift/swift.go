@@ -235,16 +235,14 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 
 	var client *gophercloud.ServiceClient
 	client, err = openstack.NewContainerV1(provider, endpointOpts)
-	if err != nil {
-		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
-			endpointOpts.Type = "object-store"
-			client, err = openstack.NewContainerV1(provider, endpointOpts)
-			if err != nil {
-				return nil, err
-			}
-		} else {
+	if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
+		endpointOpts.Type = "object-store"
+		client, err = openstack.NewContainerV1(provider, endpointOpts)
+		if err != nil {
 			return nil, err
 		}
+	} else if err != nil {
+		return nil, err
 	}
 
 	return client, nil

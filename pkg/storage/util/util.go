@@ -75,6 +75,7 @@ func GetInfrastructure(listers *regopclient.Listers) (*configv1.Infrastructure, 
 
 	if infra.Status.PlatformStatus == nil {
 		infra.Status.PlatformStatus = &configv1.PlatformStatus{
+			//nolint:staticcheck
 			Type: infra.Status.Platform,
 		}
 

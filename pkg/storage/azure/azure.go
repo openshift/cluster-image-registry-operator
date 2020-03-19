@@ -256,7 +256,7 @@ func (d *driver) storageAccountsClient(cfg *Azure) (storage.AccountsClient, erro
 
 	storageAccountsClient := storage.NewAccountsClient(cfg.SubscriptionID)
 	storageAccountsClient.Authorizer = auth
-	storageAccountsClient.AddToUserAgent(defaults.UserAgent)
+	_ = storageAccountsClient.AddToUserAgent(defaults.UserAgent)
 
 	return storageAccountsClient, nil
 }

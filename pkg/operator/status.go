@@ -134,7 +134,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	if prunerJob == nil {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
-			Message: fmt.Sprintf("Pruner CronJob does not exist"),
+			Message: "Pruner CronJob does not exist",
 			Reason:  "Error",
 		}
 		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
@@ -142,7 +142,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	} else {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
-			Message: fmt.Sprintf("Pruner CronJob has been created"),
+			Message: "Pruner CronJob has been created",
 			Reason:  "Ready",
 		}
 		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
@@ -164,16 +164,16 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	if !foundFailed {
 		prunerLastJobStatus := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
-			Message: fmt.Sprintf("Pruner completed successfully"),
+			Message: "Pruner completed successfully",
 			Reason:  "Complete",
 		}
 		updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
 	}
 
-	if *cr.Spec.Suspend == true {
+	if *cr.Spec.Suspend {
 		prunerJobScheduled := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
-			Message: fmt.Sprintf("The pruner job has been suspended."),
+			Message: "The pruner job has been suspended",
 			Reason:  "Suspended",
 		}
 		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)
@@ -183,7 +183,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	} else {
 		prunerJobScheduled := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
-			Message: fmt.Sprintf("The pruner job has been scheduled."),
+			Message: "The pruner job has been scheduled",
 			Reason:  "Scheduled",
 		}
 		updatePrunerCondition(cr, "Scheduled", prunerJobScheduled)

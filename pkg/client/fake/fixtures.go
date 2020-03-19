@@ -73,7 +73,10 @@ func NewFixturesBuilder() *FixturesBuilder {
 // AddDaemonSets adds appsv1.DaemonSets to the lister cache
 func (f *FixturesBuilder) AddDaemonSets(objs ...*appsv1.DaemonSet) *FixturesBuilder {
 	for _, v := range objs {
-		f.dsIndexer.Add(v)
+		err := f.dsIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -82,7 +85,10 @@ func (f *FixturesBuilder) AddDaemonSets(objs ...*appsv1.DaemonSet) *FixturesBuil
 // AddDeployments adds appsv1.Deployments to the lister cache
 func (f *FixturesBuilder) AddDeployments(objs ...*appsv1.Deployment) *FixturesBuilder {
 	for _, v := range objs {
-		f.deploymentIndexer.Add(v)
+		err := f.deploymentIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -99,7 +105,10 @@ func (f *FixturesBuilder) AddNamespaces(objs ...*corev1.Namespace) *FixturesBuil
 // AddServices adds corev1.Services to the lister cache
 func (f *FixturesBuilder) AddServices(objs ...*corev1.Service) *FixturesBuilder {
 	for _, v := range objs {
-		f.servicesIndexer.Add(v)
+		err := f.servicesIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -108,7 +117,10 @@ func (f *FixturesBuilder) AddServices(objs ...*corev1.Service) *FixturesBuilder 
 // AddSecrets adds corev1.Secrets to the lister cache
 func (f *FixturesBuilder) AddSecrets(objs ...*corev1.Secret) *FixturesBuilder {
 	for _, v := range objs {
-		f.secretsIndexer.Add(v)
+		err := f.secretsIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -117,7 +129,10 @@ func (f *FixturesBuilder) AddSecrets(objs ...*corev1.Secret) *FixturesBuilder {
 // AddConfigMaps adds corev1.ConfigMaps to the lister cache
 func (f *FixturesBuilder) AddConfigMaps(objs ...*corev1.ConfigMap) *FixturesBuilder {
 	for _, v := range objs {
-		f.configMapsIndexer.Add(v)
+		err := f.configMapsIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -126,7 +141,10 @@ func (f *FixturesBuilder) AddConfigMaps(objs ...*corev1.ConfigMap) *FixturesBuil
 // AddServiceAccounts adds corev1.ServiceAccounts to the lister cache
 func (f *FixturesBuilder) AddServiceAccounts(objs ...*corev1.ServiceAccount) *FixturesBuilder {
 	for _, v := range objs {
-		f.serviceAcctIndexer.Add(v)
+		err := f.serviceAcctIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -135,7 +153,10 @@ func (f *FixturesBuilder) AddServiceAccounts(objs ...*corev1.ServiceAccount) *Fi
 // AddRoutes adds route.openshift.io/v1 Routes to the lister cahce
 func (f *FixturesBuilder) AddRoutes(objs ...*routev1.Route) *FixturesBuilder {
 	for _, v := range objs {
-		f.routesIndexer.Add(v)
+		err := f.routesIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -144,7 +165,10 @@ func (f *FixturesBuilder) AddRoutes(objs ...*routev1.Route) *FixturesBuilder {
 // AddClusterRoles adds rbacv1.ClusterRoles to the lister cache
 func (f *FixturesBuilder) AddClusterRoles(objs ...*rbacv1.ClusterRole) *FixturesBuilder {
 	for _, v := range objs {
-		f.clusterRolesIndexer.Add(v)
+		err := f.clusterRolesIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -153,7 +177,10 @@ func (f *FixturesBuilder) AddClusterRoles(objs ...*rbacv1.ClusterRole) *Fixtures
 // AddClusterRoleBindings adds rbacv1.ClusterRoleBindings to the lister cache
 func (f *FixturesBuilder) AddClusterRoleBindings(objs ...*rbacv1.ClusterRoleBinding) *FixturesBuilder {
 	for _, v := range objs {
-		f.clusterRoleBindingsIndexer.Add(v)
+		err := f.clusterRoleBindingsIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 		f.kClientSet = append(f.kClientSet, v)
 	}
 	return f
@@ -161,33 +188,48 @@ func (f *FixturesBuilder) AddClusterRoleBindings(objs ...*rbacv1.ClusterRoleBind
 
 // AddImageConfig adds cluster-wide config.openshift.io/v1 Image to the lister cache
 func (f *FixturesBuilder) AddImageConfig(config *configv1.Image) *FixturesBuilder {
-	f.imageConfigsIndexer.Add(config)
+	err := f.imageConfigsIndexer.Add(config)
+	if err != nil {
+		panic(err)
+	}
 	return f
 }
 
 // AddClusterOperators adds config.openshift.io/v1 ClusterOperators to the lister cache
 func (f *FixturesBuilder) AddClusterOperators(objs ...*configv1.ClusterOperator) *FixturesBuilder {
 	for _, v := range objs {
-		f.clusterOperatorsIndexer.Add(v)
+		err := f.clusterOperatorsIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
 	}
 	return f
 }
 
 // AddRegistryOperatorConfig adds imageregistry.operator.openshift.io/v1 Config to the lister cache
 func (f *FixturesBuilder) AddRegistryOperatorConfig(config *regopv1.Config) *FixturesBuilder {
-	f.registryConfigsIndexer.Add(config)
+	err := f.registryConfigsIndexer.Add(config)
+	if err != nil {
+		panic(err)
+	}
 	return f
 }
 
 // AddProxyConfig adds cluster-wide config.openshift.io/v1 Proxy to the lister cache
 func (f *FixturesBuilder) AddProxyConfig(config *configv1.Proxy) *FixturesBuilder {
-	f.proxyConfigsIndexer.Add(config)
+	err := f.proxyConfigsIndexer.Add(config)
+	if err != nil {
+		panic(err)
+	}
 	return f
 }
 
 // AddInfraConfig adds cluster-wide config.openshift.io/v1 Infrastructure to the lister cache
 func (f *FixturesBuilder) AddInfraConfig(config *configv1.Infrastructure) *FixturesBuilder {
-	f.infraIndexer.Add(config)
+	err := f.infraIndexer.Add(config)
+	if err != nil {
+		panic(err)
+	}
 	return f
 }
 

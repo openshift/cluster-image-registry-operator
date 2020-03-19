@@ -127,7 +127,7 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) err
 	claimName := defaults.PVCImageRegistryName
 
 	// Check that the claim does not exist before creating it
-	claim, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(claimName, metav1.GetOptions{})
+	_, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(claimName, metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return err
@@ -136,7 +136,7 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) err
 		// "standard" is the default StorageClass name, that was provisioned by the cloud provider
 		storageClassName := "standard"
 
-		claim = &corev1.PersistentVolumeClaim{
+		claim := &corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      claimName,
 				Namespace: defaults.ImageRegistryOperatorNamespace,

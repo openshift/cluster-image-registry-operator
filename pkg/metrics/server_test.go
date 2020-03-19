@@ -8,6 +8,7 @@ import (
 	"encoding/pem"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net/http"
 	"os"
@@ -39,8 +40,14 @@ func TestMain(m *testing.M) {
 	time.Sleep(time.Second)
 
 	code := m.Run()
-	os.Remove(tlsKey)
-	os.Remove(tlsCRT)
+	keyErr := os.Remove(tlsKey)
+	crtErr := os.Remove(tlsCRT)
+	if keyErr != nil {
+		log.Fatal(keyErr)
+	}
+	if crtErr != nil {
+		log.Fatal(crtErr)
+	}
 	close(ch)
 	os.Exit(code)
 }
@@ -64,20 +71,26 @@ func generateTempCertificates() (string, string, error) {
 		return "", "", err
 	}
 	defer cert.Close()
-	pem.Encode(cert, &pem.Block{
+	err = pem.Encode(cert, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: derBytes,
 	})
+	if err != nil {
+		return "", "", err
+	}
 
 	keyPath, err := ioutil.TempFile("", "testkey-")
 	if err != nil {
 		return "", "", err
 	}
 	defer keyPath.Close()
-	pem.Encode(keyPath, &pem.Block{
+	err = pem.Encode(keyPath, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
+	if err != nil {
+		return "", "", err
+	}
 
 	return keyPath.Name(), cert.Name(), nil
 }

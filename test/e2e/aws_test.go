@@ -78,8 +78,8 @@ func TestAWSDefaults(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
+	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
 	if string(accessKey) != cfg.AccessKey || string(secretKey) != cfg.SecretKey {
 		t.Errorf("secret %s/%s contains incorrect aws credentials (AccessKey or SecretKey)", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
@@ -503,8 +503,8 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey, _ := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
+	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
 
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSession(&aws.Config{
