@@ -378,6 +378,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(c.params.Deployment.Namespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(c.params.Deployment.Namespace))
 
@@ -431,6 +432,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		func() cache.SharedIndexInformer {
 			informer := openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps()
 			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(openshiftConfigNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
@@ -490,6 +496,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	configInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
+	kubeSystemKubeInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 

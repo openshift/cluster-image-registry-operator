@@ -18,6 +18,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 var (
@@ -121,7 +122,7 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)
 
-	infra, err := listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(listers)
 	if err != nil {
 		return imageregistryv1.ImageRegistryConfigStorage{}, replicas, err
 	}

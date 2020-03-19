@@ -6,6 +6,7 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 
@@ -48,7 +49,7 @@ func TestGCSMinimal(t *testing.T) {
 	newMockLister, err := listers.NewMockLister(kcfg)
 	mockLister, err := newMockLister.GetListers()
 
-	infra, err := mockLister.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(mockLister)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
