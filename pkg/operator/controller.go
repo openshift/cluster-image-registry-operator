@@ -233,6 +233,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -257,6 +261,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
+			}
 			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
@@ -279,6 +287,10 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
 					return
 				}
+			}
+			obj := o.(metaapi.Object)
+			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
@@ -345,6 +357,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 
@@ -426,6 +439,11 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Infrastructures()
 			c.listers.Infrastructures = informer.Lister()
 			return informer.Informer()
@@ -463,6 +481,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	configInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
+	kubeSystemKubeInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 
