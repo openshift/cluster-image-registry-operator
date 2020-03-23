@@ -286,6 +286,9 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorDegraded.Status = operatorapiv1.ConditionTrue
 		operatorDegraded.Message = applyError.Error()
 		operatorDegraded.Reason = e.Reason
+	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
+		operatorDegraded.Message = "The registry is removed"
+		operatorDegraded.Reason = "Removed"
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
