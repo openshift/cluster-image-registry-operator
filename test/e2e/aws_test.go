@@ -679,6 +679,27 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 			t.Errorf("unable to find environment variable: wanted %s", val.Name)
 		}
 	}
+
+	// If a user sets Encrypt: false, don't overwrite it
+	if _, err = client.Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"storage": {"s3": {"Encrypt": "false"}}}}`)); err != nil {
+		t.Errorf("unable to patch image registry custom resource: %#v", err)
+	}
+
+	_, err = framework.WaitForNewRegistryDeployment(client, registryDeployment.Status.ObservedGeneration)
+	if err != nil {
+		framework.DumpImageRegistryResource(t, client)
+		framework.DumpOperatorLogs(t, client)
+		t.Fatal(err)
+	}
+
+	cr, err = client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	if err != nil {
+		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
+	}
+
+	if cr.Spec.Storage.S3.Encrypt {
+		t.Errorf("expected Encrypt to be false, but it was %t instead", cr.Spec.Storage.S3.Encrypt)
+	}
 }
 
 func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {

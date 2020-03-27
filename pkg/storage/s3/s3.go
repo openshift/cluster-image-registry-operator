@@ -297,6 +297,12 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 // CreateStorage attempts to create an s3 bucket
 // and apply any provided tags
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
+
+	// If the config is blank setup some sane defaults
+	if reflect.DeepEqual(d.Config, imageregistryv1.ImageRegistryConfigStorageS3{}) {
+		d.Config.Encrypt = true
+	}
+
 	svc, err := d.getS3Service()
 	if err != nil {
 		return err
@@ -455,7 +461,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Enable default encryption on the bucket
-	if cr.Status.StorageManaged {
+	if cr.Status.StorageManaged && d.Config.Encrypt {
 		var encryption *s3.ServerSideEncryptionByDefault
 		var encryptionType string
 
@@ -490,7 +496,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 		} else {
 			util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", fmt.Sprintf("Default %s encryption was successfully enabled on the S3 bucket", encryptionType))
-			d.Config.Encrypt = true
 			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 				S3: d.Config.DeepCopy(),
 			}
