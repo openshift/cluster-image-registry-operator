@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +18,9 @@ func EnsureDefaultExternalRouteExists(te TestEnv) {
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		routes, err = te.Client().Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		routes, err = te.Client().Routes(defaults.ImageRegistryOperatorNamespace).List(
+			context.Background(), metav1.ListOptions{},
+		)
 		if err != nil {
 			return false, err
 		}
@@ -42,7 +45,9 @@ func EnsureExternalRoutesExist(t *testing.T, client *Clientset, wantedRoutes []s
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		routes, err = client.Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		routes, err = client.Routes(defaults.ImageRegistryOperatorNamespace).List(
+			context.Background(), metav1.ListOptions{},
+		)
 		if err != nil {
 			return false, err
 		}

@@ -2,6 +2,7 @@ package framework
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"regexp"
@@ -50,9 +51,11 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 		return nil, err
 	}
 
-	podList, err := client.Pods(namespace).List(metav1.ListOptions{
-		LabelSelector: selector.String(),
-	})
+	podList, err := client.Pods(namespace).List(
+		context.Background(), metav1.ListOptions{
+			LabelSelector: selector.String(),
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +67,7 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 			var containerLog ContainerLog
 			log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 				Container: container.Name,
-			}).Stream()
+			}).Stream(context.Background())
 			if err != nil {
 				return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
 			}
@@ -109,7 +112,7 @@ func MustFollowPodLog(t *testing.T, pod corev1.Pod) (<-chan string, <-chan error
 	client := MustNewClientset(t, nil)
 	ls, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 		Follow: true,
-	}).Stream()
+	}).Stream(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

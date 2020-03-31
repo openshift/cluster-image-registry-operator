@@ -60,7 +60,7 @@ func (g *ImagePrunerGenerator) Remove(cr *imageregistryv1.ImagePruner) error {
 
 	gracePeriod := int64(0)
 	propagationPolicy := metaapi.DeletePropagationForeground
-	opts := &metaapi.DeleteOptions{
+	opts := metaapi.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
 	}

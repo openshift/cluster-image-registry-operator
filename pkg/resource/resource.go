@@ -22,7 +22,7 @@ type Mutator interface {
 	Getter
 	Create() (runtime.Object, error)
 	Update(o runtime.Object) (runtime.Object, bool, error)
-	Delete(opts *metaapi.DeleteOptions) error
+	Delete(opts metaapi.DeleteOptions) error
 	// Owned indicates whether this resource is explicitly owned by the registry operator
 	// and therefore should be removed when the registry config resource is removed.
 	Owned() bool

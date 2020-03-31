@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"os"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -60,7 +61,9 @@ func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
 	daemonSet := resourceread.ReadDaemonSetV1OrDie(assets.MustAsset("nodecadaemon.yaml"))
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
 
-	return ds.client.DaemonSets(ds.GetNamespace()).Create(daemonSet)
+	return ds.client.DaemonSets(ds.GetNamespace()).Create(
+		context.TODO(), daemonSet, metav1.CreateOptions{},
+	)
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
@@ -78,12 +81,16 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 		return o, false, nil
 	}
 
-	n, err := ds.client.DaemonSets(ds.GetNamespace()).Update(daemonSet)
+	n, err := ds.client.DaemonSets(ds.GetNamespace()).Update(
+		context.TODO(), daemonSet, metav1.UpdateOptions{},
+	)
 	return n, err == nil, err
 }
 
-func (ds *generatorNodeCADaemonSet) Delete(opts *metav1.DeleteOptions) error {
-	return ds.client.DaemonSets(ds.GetNamespace()).Delete(ds.GetName(), opts)
+func (ds *generatorNodeCADaemonSet) Delete(opts metav1.DeleteOptions) error {
+	return ds.client.DaemonSets(ds.GetNamespace()).Delete(
+		context.TODO(), ds.GetName(), opts,
+	)
 }
 
 func (ds *generatorNodeCADaemonSet) Owned() bool {

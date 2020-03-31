@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -138,18 +139,24 @@ func (gcac *generatorCAConfig) Get() (runtime.Object, error) {
 
 func (gcac *generatorCAConfig) Create() (runtime.Object, error) {
 	return commonCreate(gcac, func(obj runtime.Object) (runtime.Object, error) {
-		return gcac.client.ConfigMaps(gcac.GetNamespace()).Create(obj.(*corev1.ConfigMap))
+		return gcac.client.ConfigMaps(gcac.GetNamespace()).Create(
+			context.TODO(), obj.(*corev1.ConfigMap), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gcac *generatorCAConfig) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcac, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gcac.client.ConfigMaps(gcac.GetNamespace()).Update(obj.(*corev1.ConfigMap))
+		return gcac.client.ConfigMaps(gcac.GetNamespace()).Update(
+			context.TODO(), obj.(*corev1.ConfigMap), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gcac *generatorCAConfig) Delete(opts *metav1.DeleteOptions) error {
-	return gcac.client.ConfigMaps(gcac.GetNamespace()).Delete(gcac.GetName(), opts)
+func (gcac *generatorCAConfig) Delete(opts metav1.DeleteOptions) error {
+	return gcac.client.ConfigMaps(gcac.GetNamespace()).Delete(
+		context.TODO(), gcac.GetName(), opts,
+	)
 }
 
 func (g *generatorCAConfig) Owned() bool {

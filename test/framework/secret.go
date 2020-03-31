@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +29,9 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		// Skip using the cache here so we don't have as many
 		// retries due to slow cache updates
-		cur, err := client.Secrets(namespace).Get(name, metav1.GetOptions{})
+		cur, err := client.Secrets(namespace).Get(
+			context.Background(), name, metav1.GetOptions{},
+		)
 		if err != nil {
 			if !errors.IsNotFound(err) {
 				return err
@@ -52,10 +55,14 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 		}
 
 		if errors.IsNotFound(err) {
-			_, err := client.Secrets(namespace).Create(cur)
+			_, err := client.Secrets(namespace).Create(
+				context.Background(), cur, metav1.CreateOptions{},
+			)
 			return err
 		}
-		updatedSecret, err = client.Secrets(namespace).Update(cur)
+		updatedSecret, err = client.Secrets(namespace).Update(
+			context.Background(), cur, metav1.UpdateOptions{},
+		)
 		return err
 
 	}); err != nil {

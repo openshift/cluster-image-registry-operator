@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -30,32 +31,52 @@ func TestAdditionalTrustedCA(t *testing.T) {
 		"bar.example.com..5000": "certificateBar",
 	}
 
-	err := te.Client().ConfigMaps(openshiftConfigNamespace).Delete(userCAConfigMapName, &metav1.DeleteOptions{})
+	err := te.Client().ConfigMaps(openshiftConfigNamespace).Delete(
+		context.Background(), userCAConfigMapName, metav1.DeleteOptions{},
+	)
 	if err != nil && !errors.IsNotFound(err) {
 		t.Fatal(err)
 	}
 
-	_, err = te.Client().ConfigMaps(openshiftConfigNamespace).Create(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: userCAConfigMapName,
+	_, err = te.Client().ConfigMaps(openshiftConfigNamespace).Create(
+		context.Background(),
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: userCAConfigMapName,
+			},
+			Data: caData,
 		},
-		Data: caData,
-	})
+		metav1.CreateOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	imageConfig, err := te.Client().Images().Get(imageConfigName, metav1.GetOptions{})
+	imageConfig, err := te.Client().Images().Get(
+		context.Background(), imageConfigName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatalf("unable to get image config: %v", err)
 	}
 
 	oldAdditionalTrustedCA := imageConfig.Spec.AdditionalTrustedCA.Name
-	if _, err := te.Client().Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+userCAConfigMapName+`"}}}`)); err != nil {
+	if _, err := te.Client().Images().Patch(
+		context.Background(),
+		imageConfigName,
+		types.MergePatchType,
+		[]byte(`{"spec": {"additionalTrustedCA": {"name": "`+userCAConfigMapName+`"}}}`),
+		metav1.PatchOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if _, err := te.Client().Images().Patch(imageConfigName, types.MergePatchType, []byte(`{"spec": {"additionalTrustedCA": {"name": "`+oldAdditionalTrustedCA+`"}}}`)); err != nil {
+		if _, err := te.Client().Images().Patch(
+			context.Background(),
+			imageConfigName,
+			types.MergePatchType,
+			[]byte(`{"spec": {"additionalTrustedCA": {"name": "`+oldAdditionalTrustedCA+`"}}}`),
+			metav1.PatchOptions{},
+		); err != nil {
 			panic(fmt.Errorf("unable to restore image config"))
 		}
 	}()
@@ -72,7 +93,9 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
-	certs, err := te.Client().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(imageRegistryCAConfigMapName, metav1.GetOptions{})
+	certs, err := te.Client().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), imageRegistryCAConfigMapName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,8 +122,7 @@ func TestSwapStorage(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 
 	config, err := te.Client().Configs().Get(
-		defaults.ImageRegistryResourceName,
-		metav1.GetOptions{},
+		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 	)
 	if err != nil {
 		t.Fatal("unable to get image registry config")
@@ -115,7 +137,9 @@ func TestSwapStorage(t *testing.T) {
 		EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 	}
 
-	if _, err = te.Client().Configs().Update(config); err != nil {
+	if _, err = te.Client().Configs().Update(
+		context.Background(), config, metav1.UpdateOptions{},
+	); err != nil {
 		t.Fatal("unable to update image registry config")
 	}
 
@@ -124,8 +148,7 @@ func TestSwapStorage(t *testing.T) {
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	if config, err = te.Client().Configs().Get(
-		defaults.ImageRegistryResourceName,
-		metav1.GetOptions{},
+		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 	); err != nil {
 		t.Fatal("unable to get image registry config")
 	}

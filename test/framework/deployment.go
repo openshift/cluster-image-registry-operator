@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"time"
 
 	kappsapiv1 "k8s.io/api/apps/v1"
@@ -14,7 +15,9 @@ import (
 func WaitForRegistryDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+		)
 		if err == nil {
 			return true, nil
 		}
@@ -30,7 +33,9 @@ func WaitForRegistryDeployment(client *Clientset) (*kappsapiv1.Deployment, error
 func WaitForNewRegistryDeployment(client *Clientset, currentGeneration int64) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+		)
 		if err == nil {
 			return true, nil
 		}
@@ -49,7 +54,9 @@ func WaitForNewRegistryDeployment(client *Clientset, currentGeneration int64) (*
 func WaitForRegistryOperatorDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(
+			context.Background(), OperatorDeploymentName, metav1.GetOptions{},
+		)
 		if err == nil {
 			return true, nil
 		}
@@ -65,7 +72,9 @@ func WaitForRegistryOperatorDeployment(client *Clientset) (*kappsapiv1.Deploymen
 func WaitForNewRegistryOperatorDeployment(client *Clientset, currentGeneration int64) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(
+			context.Background(), OperatorDeploymentName, metav1.GetOptions{},
+		)
 		if err == nil {
 			return true, nil
 		}

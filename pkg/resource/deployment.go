@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -205,8 +206,10 @@ func (gd *generatorDeployment) LastGeneration() int64 {
 	return -1
 }
 
-func (gd *generatorDeployment) Delete(opts *metav1.DeleteOptions) error {
-	return gd.client.Deployments(gd.GetNamespace()).Delete(gd.GetName(), opts)
+func (gd *generatorDeployment) Delete(opts metav1.DeleteOptions) error {
+	return gd.client.Deployments(gd.GetNamespace()).Delete(
+		context.TODO(), gd.GetName(), opts,
+	)
 }
 
 func (g *generatorDeployment) Owned() bool {

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 
 	if _, err := te.Client().Configs().Patch(
+		context.Background(),
 		defaults.ImageRegistryResourceName,
 		types.JSONPatchType,
 		framework.MarshalJSON([]framework.JSONPatch{
@@ -30,12 +32,15 @@ func TestManagementStateUnmanaged(t *testing.T) {
 				Value: operatorapi.Unmanaged,
 			},
 		}),
+		metav1.PatchOptions{},
 	); err != nil {
 		t.Fatalf("unable to switch to unmanaged state: %s", err)
 	}
 
 	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if err != nil {
 			return false, err
 		}
@@ -56,6 +61,7 @@ func TestManagementStateRemoved(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 
 	if _, err := te.Client().Configs().Patch(
+		context.Background(),
 		defaults.ImageRegistryResourceName,
 		types.JSONPatchType,
 		framework.MarshalJSON([]framework.JSONPatch{
@@ -65,12 +71,15 @@ func TestManagementStateRemoved(t *testing.T) {
 				Value: operatorapi.Removed,
 			},
 		}),
+		metav1.PatchOptions{},
 	); err != nil {
 		t.Fatalf("unable to switch to removed state: %s", err)
 	}
 
 	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if err != nil {
 			return false, err
 		}
@@ -86,7 +95,9 @@ func TestManagementStateRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	d, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if !errors.IsNotFound(err) {
 		t.Fatalf("deployment is expected to be removed, got %v %v", d, err)
 	}
@@ -115,8 +126,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 		framework.AsyncOperationTimeout,
 		func() (stop bool, err error) {
 			cr, err = te.Client().Configs().Get(
-				defaults.ImageRegistryResourceName,
-				metav1.GetOptions{},
+				context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 			)
 			if err != nil {
 				return false, err
@@ -133,7 +143,9 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	t.Log("updating ManagementState to Managed with no storage config")
 	cr.Spec.ManagementState = operatorapi.Managed
 	cr.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{}
-	if _, err = te.Client().Configs().Update(cr); err != nil {
+	if _, err = te.Client().Configs().Update(
+		context.Background(), cr, metav1.UpdateOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 

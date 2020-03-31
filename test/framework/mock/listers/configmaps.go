@@ -1,6 +1,8 @@
 package listers
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -13,11 +15,15 @@ type MockConfigMapNamespaceLister struct {
 }
 
 func (m MockConfigMapNamespaceLister) Get(name string) (*corev1.ConfigMap, error) {
-	return m.client.ConfigMaps(m.namespace).Get(name, metav1.GetOptions{})
+	return m.client.ConfigMaps(m.namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
 }
 
 func (m MockConfigMapNamespaceLister) List(selector labels.Selector) ([]*corev1.ConfigMap, error) {
-	configMapList, err := m.client.ConfigMaps(m.namespace).List(metav1.ListOptions{})
+	configMapList, err := m.client.ConfigMaps(m.namespace).List(
+		context.Background(), metav1.ListOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}

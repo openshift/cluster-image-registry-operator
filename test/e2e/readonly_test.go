@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +27,9 @@ func TestReadOnly(t *testing.T) {
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
-	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

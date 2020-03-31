@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,7 +57,7 @@ func (gs *generatorPullSecret) expected() (runtime.Object, error) {
 	}
 
 	orig, err := gs.client.Secrets("openshift-config").Get(
-		"pull-secret", metav1.GetOptions{},
+		context.TODO(), "pull-secret", metav1.GetOptions{},
 	)
 	if errors.IsNotFound(err) {
 		return sec, nil
@@ -69,14 +71,14 @@ func (gs *generatorPullSecret) expected() (runtime.Object, error) {
 
 func (gs *generatorPullSecret) Get() (runtime.Object, error) {
 	return gs.client.Secrets(gs.GetNamespace()).Get(
-		gs.GetName(), metav1.GetOptions{},
+		context.TODO(), gs.GetName(), metav1.GetOptions{},
 	)
 }
 
 func (gs *generatorPullSecret) Create() (runtime.Object, error) {
 	return commonCreate(gs, func(obj runtime.Object) (runtime.Object, error) {
 		return gs.client.Secrets(gs.GetNamespace()).Create(
-			obj.(*corev1.Secret),
+			context.TODO(), obj.(*corev1.Secret), metav1.CreateOptions{},
 		)
 	})
 }
@@ -84,13 +86,15 @@ func (gs *generatorPullSecret) Create() (runtime.Object, error) {
 func (gs *generatorPullSecret) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gs, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gs.client.Secrets(gs.GetNamespace()).Update(
-			obj.(*corev1.Secret),
+			context.TODO(), obj.(*corev1.Secret), metav1.UpdateOptions{},
 		)
 	})
 }
 
-func (gs *generatorPullSecret) Delete(opts *metav1.DeleteOptions) error {
-	return gs.client.Secrets(gs.GetNamespace()).Delete(gs.GetName(), opts)
+func (gs *generatorPullSecret) Delete(opts metav1.DeleteOptions) error {
+	return gs.client.Secrets(gs.GetNamespace()).Delete(
+		context.TODO(), gs.GetName(), opts,
+	)
 }
 
 func (g *generatorPullSecret) Owned() bool {

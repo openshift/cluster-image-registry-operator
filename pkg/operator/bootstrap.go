@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 
@@ -115,8 +116,9 @@ func (c *Controller) Bootstrap() error {
 		return err
 	}
 
-	_, err = client.Configs().Create(cr)
-	if err != nil {
+	if _, err = client.Configs().Create(
+		context.TODO(), cr, metav1.CreateOptions{},
+	); err != nil {
 		return err
 	}
 
@@ -127,7 +129,9 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) err
 	claimName := defaults.PVCImageRegistryName
 
 	// Check that the claim does not exist before creating it
-	_, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(claimName, metav1.GetOptions{})
+	_, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(
+		context.TODO(), claimName, metav1.GetOptions{},
+	)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return err
@@ -157,7 +161,9 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) err
 			},
 		}
 
-		_, err = c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
+		_, err = c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(
+			context.TODO(), claim, metav1.CreateOptions{},
+		)
 		if err != nil {
 			return err
 		}

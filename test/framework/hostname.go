@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -19,7 +20,9 @@ func EnsureDefaultExternalRegistryHostnameIsSet(te TestEnv) {
 	externalHosts := []string{}
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
-		cfg, err = te.Client().Images().Get("cluster", metav1.GetOptions{})
+		cfg, err = te.Client().Images().Get(
+			context.Background(), "cluster", metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			te.Logf("waiting for the image config resource: the resource does not exist")
 			cfg = nil
@@ -48,7 +51,9 @@ func EnsureExternalRegistryHostnamesAreSet(te TestEnv, wantedHostnames []string)
 	var cfg *configapiv1.Image
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
-		cfg, err = te.Client().Images().Get("cluster", metav1.GetOptions{})
+		cfg, err = te.Client().Images().Get(
+			context.Background(), "cluster", metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			te.Logf("waiting for the image config resource: the resource does not exist")
 			cfg = nil

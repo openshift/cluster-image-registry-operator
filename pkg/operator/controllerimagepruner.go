@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -160,7 +161,9 @@ func (c *ImagePrunerController) Bootstrap() error {
 		return err
 	}
 
-	_, err = client.ImageregistryV1().ImagePruners().Create(cr)
+	_, err = client.ImageregistryV1().ImagePruners().Create(
+		context.TODO(), cr, metav1.CreateOptions{},
+	)
 	if err != nil {
 		return err
 	}
@@ -221,7 +224,9 @@ func (c *ImagePrunerController) sync() error {
 		}
 		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(pcr), metadataChanged, specChanged, difference)
 
-		updatedPCR, err := c.clients.RegOp.ImageregistryV1().ImagePruners().Update(pcr)
+		updatedPCR, err := c.clients.RegOp.ImageregistryV1().ImagePruners().Update(
+			context.TODO(), pcr, metav1.UpdateOptions{},
+		)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update %s: %s", utilObjectInfo(pcr), err)
@@ -244,7 +249,9 @@ func (c *ImagePrunerController) sync() error {
 		}
 		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(pcr), statusChanged, difference)
 
-		_, err = c.clients.RegOp.ImageregistryV1().ImagePruners().UpdateStatus(pcr)
+		_, err = c.clients.RegOp.ImageregistryV1().ImagePruners().UpdateStatus(
+			context.TODO(), pcr, metav1.UpdateOptions{},
+		)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update status %s: %s", utilObjectInfo(pcr), err)

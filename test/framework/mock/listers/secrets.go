@@ -1,6 +1,8 @@
 package listers
 
 import (
+	"context"
+
 	coreapi "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -13,11 +15,15 @@ type MockSecretNamespaceLister struct {
 }
 
 func (m MockSecretNamespaceLister) Get(name string) (*coreapi.Secret, error) {
-	return m.client.Secrets(m.namespace).Get(name, metav1.GetOptions{})
+	return m.client.Secrets(m.namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
 }
 
 func (m MockSecretNamespaceLister) List(selector labels.Selector) ([]*coreapi.Secret, error) {
-	secretList, err := m.client.Secrets(m.namespace).List(metav1.ListOptions{})
+	secretList, err := m.client.Secrets(m.namespace).List(
+		context.Background(), metav1.ListOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}

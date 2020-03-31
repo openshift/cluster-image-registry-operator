@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -56,7 +57,9 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		if cr == nil {
 			// Skip using the cache here so we don't have as many
 			// retries due to slow cache updates
-			cr, err := client.Configs().Get(o.Name, metav1.GetOptions{})
+			cr, err := client.Configs().Get(
+				context.TODO(), o.Name, metav1.GetOptions{},
+			)
 			if err != nil {
 				return fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
 			}
@@ -70,7 +73,9 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 
 		cr.ObjectMeta.Finalizers = finalizers
 
-		_, err := client.Configs().Update(cr)
+		_, err := client.Configs().Update(
+			context.TODO(), cr, metav1.UpdateOptions{},
+		)
 		if err != nil {
 			cr = nil
 			return err

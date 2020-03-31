@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -195,7 +196,7 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 
 	gracePeriod := int64(0)
 	propagationPolicy := metaapi.DeletePropagationForeground
-	opts := &metaapi.DeleteOptions{
+	opts := metaapi.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
 	}
@@ -206,7 +207,9 @@ func (g *Generator) removeObsoleteRoutes(cr *imageregistryv1.Config) error {
 		if _, found := knownNames[route.Name]; found {
 			continue
 		}
-		err = g.clients.Route.Routes(defaults.ImageRegistryOperatorNamespace).Delete(route.Name, opts)
+		err = g.clients.Route.Routes(defaults.ImageRegistryOperatorNamespace).Delete(
+			context.TODO(), route.Name, opts,
+		)
 		if err != nil {
 			return err
 		}
@@ -250,7 +253,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 
 	gracePeriod := int64(0)
 	propagationPolicy := metaapi.DeletePropagationForeground
-	opts := &metaapi.DeleteOptions{
+	opts := metaapi.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
 	}

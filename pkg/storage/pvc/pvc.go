@@ -1,6 +1,7 @@
 package pvc
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -86,7 +87,9 @@ func (d *driver) Secrets() (map[string]string, error) {
 
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	if len(d.Config.Claim) != 0 {
-		_, err := d.Client.PersistentVolumeClaims(d.Namespace).Get(d.Config.Claim, metav1.GetOptions{})
+		_, err := d.Client.PersistentVolumeClaims(d.Namespace).Get(
+			context.TODO(), d.Config.Claim, metav1.GetOptions{},
+		)
 		if err == nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "PVC Exists", "")
 			return true, nil
@@ -110,7 +113,9 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 
 func (d *driver) checkPVC(cr *imageregistryv1.Config, claim *corev1.PersistentVolumeClaim) (err error) {
 	if claim == nil {
-		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(d.Config.Claim, metav1.GetOptions{})
+		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(
+			context.TODO(), d.Config.Claim, metav1.GetOptions{},
+		)
 		if err != nil {
 			return err
 		}
@@ -169,7 +174,9 @@ func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolume
 		},
 	}
 
-	return d.Client.PersistentVolumeClaims(d.Namespace).Create(claim)
+	return d.Client.PersistentVolumeClaims(d.Namespace).Create(
+		context.TODO(), claim, metav1.CreateOptions{},
+	)
 }
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
@@ -186,7 +193,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// If PVC is there and it was created by us, then just start using it again.
 		storageManaged = true
 
-		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(d.Config.Claim, metav1.GetOptions{})
+		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(
+			context.TODO(), d.Config.Claim, metav1.GetOptions{},
+		)
 		if err == nil {
 			if !pvcIsCreatedByOperator(claim) {
 				err = fmt.Errorf("could not create default PVC, it already exists and is not owned by the operator")
@@ -226,7 +235,9 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retriable bool, err 
 		return false, nil
 	}
 
-	err = d.Client.PersistentVolumeClaims(d.Namespace).Delete(d.Config.Claim, &metav1.DeleteOptions{})
+	err = d.Client.PersistentVolumeClaims(d.Namespace).Delete(
+		context.TODO(), d.Config.Claim, metav1.DeleteOptions{},
+	)
 	if err != nil && !errors.IsNotFound(err) {
 		return false, err
 	}

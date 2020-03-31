@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
-		metav1.ListOptions{
+		context.Background(), metav1.ListOptions{
 			LabelSelector: "name=node-ca",
 		},
 	)
@@ -40,8 +41,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
-		pod.Name,
-		&metav1.DeleteOptions{},
+		context.Background(), pod.Name, metav1.DeleteOptions{},
 	); err != nil {
 		t.Fatalf("error deleting pod: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
-		metav1.ListOptions{
+		context.Background(), metav1.ListOptions{
 			LabelSelector: "docker-registry=default",
 		},
 	)
@@ -102,8 +102,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
-		pod.Name,
-		&metav1.DeleteOptions{},
+		context.Background(), pod.Name, metav1.DeleteOptions{},
 	); err != nil {
 		t.Fatalf("error deleting pod: %v", err)
 	}
