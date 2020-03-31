@@ -16,12 +16,12 @@ func startOperator(client *Clientset) error {
 	return nil
 }
 
-func DumpOperatorDeployment(logger Logger, client *Clientset) {
-	deployment, err := client.Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
+func DumpOperatorDeployment(te TestEnv) {
+	deployment, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(OperatorDeploymentName, metav1.GetOptions{})
 	if err != nil {
-		logger.Logf("failed to get the operator deployment %v", err)
+		te.Logf("failed to get the operator deployment %v", err)
 	}
-	DumpYAML(logger, "the operator deployment", deployment)
+	DumpYAML(te, "the operator deployment", deployment)
 }
 
 func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, operatorDeploymentNamespace string) error {
@@ -55,10 +55,11 @@ func GetOperatorLogs(client *Clientset) (PodSetLogs, error) {
 	})
 }
 
-func DumpOperatorLogs(logger Logger, client *Clientset) {
-	podLogs, err := GetOperatorLogs(client)
+func DumpOperatorLogs(te TestEnv) {
+	podLogs, err := GetOperatorLogs(te.Client())
 	if err != nil {
-		logger.Logf("failed to get the operator logs: %s", err)
+		te.Logf("failed to get the operator logs: %s", err)
+		return
 	}
-	DumpPodLogs(logger, podLogs)
+	DumpPodLogs(te, podLogs)
 }

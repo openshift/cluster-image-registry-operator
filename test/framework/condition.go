@@ -13,7 +13,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {
+func ConditionExistsWithStatusAndReason(te TestEnv, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) {
 	var errs []error
 
 	// Wait for the image registry resource to have an updated condition
@@ -22,7 +22,7 @@ func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string,
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := client.Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				errs = append(errs, err)
@@ -54,10 +54,12 @@ func ConditionExistsWithStatusAndReason(client *Clientset, conditionType string,
 		errs = append(errs, err)
 	}
 
-	return errs
+	for _, err := range errs {
+		te.Errorf("%#v", err)
+	}
 }
 
-func PrunerConditionExistsWithStatusAndReason(client *Clientset, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) []error {
+func PrunerConditionExistsWithStatusAndReason(te TestEnv, conditionType string, conditionStatus operatorapi.ConditionStatus, conditionReason string) {
 	var errs []error
 
 	// Wait for the image registry resource to have an updated condition
@@ -66,7 +68,7 @@ func PrunerConditionExistsWithStatusAndReason(client *Clientset, conditionType s
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := client.ImagePruners().Get(defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{})
+		cr, err := te.Client().ImagePruners().Get(defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				errs = append(errs, err)
@@ -96,5 +98,8 @@ func PrunerConditionExistsWithStatusAndReason(client *Clientset, conditionType s
 	if err != nil {
 		errs = append(errs, err)
 	}
-	return errs
+
+	for _, err := range errs {
+		te.Errorf("%#v", err)
+	}
 }

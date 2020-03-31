@@ -14,33 +14,20 @@ import (
 )
 
 func TestBasicEmptyDir(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	cr := &imageregistryv1.Config{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: imageregistryv1.SchemeGroupVersion.String(),
-			Kind:       "Config",
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: defaults.ImageRegistryResourceName,
-		},
-		Spec: imageregistryv1.ImageRegistrySpec{
-			ManagementState: operatorapi.Managed,
-			Storage: imageregistryv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
-			},
-			Replicas: 1,
-		},
-	}
-	framework.MustDeployImageRegistry(t, client, cr)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureInternalRegistryHostnameIsSet(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+		Replicas: 1,
+	})
+	defer framework.TeardownImageRegistry(te)
 
-	deploy, err := client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
+
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +36,7 @@ func TestBasicEmptyDir(t *testing.T) {
 		t.Errorf("error: the deployment doesn't have available replicas")
 	}
 
-	logs, err := framework.GetOperatorLogs(client)
+	logs, err := framework.GetOperatorLogs(te.Client())
 	if err != nil {
 		t.Fatal(err)
 	}

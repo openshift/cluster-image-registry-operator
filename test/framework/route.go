@@ -13,16 +13,16 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
+func EnsureDefaultExternalRouteExists(te TestEnv) {
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		routes, err = client.Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		routes, err = te.Client().Routes(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
 		if err != nil {
 			return false, err
 		}
 		if routes == nil || len(routes.Items) < 1 {
-			t.Logf("insuffient routes found: %#v", routes)
+			te.Logf("insuffient routes found: %#v", routes)
 			return false, nil
 		}
 
@@ -34,7 +34,7 @@ func MustEnsureDefaultExternalRouteExists(t *testing.T, client *Clientset) {
 		return false, nil
 	})
 	if err != nil {
-		t.Fatalf("did not find default external route: %#v, err: %v", routes, err)
+		te.Fatalf("did not find default external route: %#v, err: %v", routes, err)
 	}
 }
 

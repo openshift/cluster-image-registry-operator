@@ -2,7 +2,6 @@ package framework
 
 import (
 	"strings"
-	"testing"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -14,15 +13,15 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Clientset) {
+func EnsureDefaultExternalRegistryHostnameIsSet(te TestEnv) {
 	var cfg *configapiv1.Image
 	var err error
 	externalHosts := []string{}
 	err = wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
-		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
+		cfg, err = te.Client().Images().Get("cluster", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			t.Logf("waiting for the image config resource: the resource does not exist")
+			te.Logf("waiting for the image config resource: the resource does not exist")
 			cfg = nil
 			return false, nil
 		} else if err != nil {
@@ -41,17 +40,17 @@ func MustEnsureDefaultExternalRegistryHostnameIsSet(t *testing.T, client *Client
 		return false, nil
 	})
 	if err != nil {
-		t.Fatalf("cluster image config resource was not updated with default external registry hostname: %v, err: %v", externalHosts, err)
+		te.Fatalf("cluster image config resource was not updated with default external registry hostname: %v, err: %v", externalHosts, err)
 	}
 }
 
-func EnsureExternalRegistryHostnamesAreSet(t *testing.T, client *Clientset, wantedHostnames []string) {
+func EnsureExternalRegistryHostnamesAreSet(te TestEnv, wantedHostnames []string) {
 	var cfg *configapiv1.Image
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
 		var err error
-		cfg, err = client.Images().Get("cluster", metav1.GetOptions{})
+		cfg, err = te.Client().Images().Get("cluster", metav1.GetOptions{})
 		if errors.IsNotFound(err) {
-			t.Logf("waiting for the image config resource: the resource does not exist")
+			te.Logf("waiting for the image config resource: the resource does not exist")
 			cfg = nil
 			return false, nil
 		} else if err != nil {
@@ -76,6 +75,6 @@ func EnsureExternalRegistryHostnamesAreSet(t *testing.T, client *Clientset, want
 		return true, nil
 	})
 	if err != nil {
-		t.Errorf("cluster image config resource was not updated with external registry hostnames: wanted: %#v, got: %#v,  err: %v", wantedHostnames, cfg.Status.ExternalRegistryHostnames, err)
+		te.Errorf("cluster image config resource was not updated with external registry hostnames: wanted: %#v, got: %#v,  err: %v", wantedHostnames, cfg.Status.ExternalRegistryHostnames, err)
 	}
 }

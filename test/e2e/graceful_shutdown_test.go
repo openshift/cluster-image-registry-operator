@@ -13,10 +13,11 @@ import (
 )
 
 func TestNodeCAGracefulShutdown(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-	framework.MustEnsureNodeCADaemonSetIsAvailable(t, client)
+	te := framework.Setup(t)
 
-	pods, err := client.Pods(defaults.ImageRegistryOperatorNamespace).List(
+	framework.EnsureNodeCADaemonSetIsAvailable(te)
+
+	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
 		metav1.ListOptions{
 			LabelSelector: "name=node-ca",
 		},
@@ -38,7 +39,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
-	if err := client.Pods(defaults.ImageRegistryOperatorNamespace).Delete(
+	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,
 		&metav1.DeleteOptions{},
 	); err != nil {
@@ -73,13 +74,12 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 }
 
 func TestImageRegistryGracefulShutdown(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
-	defer framework.MustRemoveImageRegistry(t, client)
-	framework.MustDeployImageRegistry(t, client, nil)
-	framework.MustEnsureImageRegistryIsAvailable(t, client)
-	framework.MustEnsureOperatorIsNotHotLooping(t, client)
+	te := framework.SetupAvailableImageRegistry(t, nil)
+	defer framework.TeardownImageRegistry(te)
 
-	pods, err := client.Pods(defaults.ImageRegistryOperatorNamespace).List(
+	framework.EnsureOperatorIsNotHotLooping(te)
+
+	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
 		metav1.ListOptions{
 			LabelSelector: "docker-registry=default",
 		},
@@ -101,7 +101,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 
 	logch, errch := framework.MustFollowPodLog(t, pod)
 
-	if err := client.Pods(defaults.ImageRegistryOperatorNamespace).Delete(
+	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,
 		&metav1.DeleteOptions{},
 	); err != nil {

@@ -11,9 +11,10 @@ import (
 )
 
 func TestBaremetalAndVSphereDefaults(t *testing.T) {
-	client := framework.MustNewClientset(t, nil)
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
 
-	infrastructureConfig, err := client.Infrastructures().Get("cluster", metav1.GetOptions{})
+	infrastructureConfig, err := te.Client().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,12 +24,9 @@ func TestBaremetalAndVSphereDefaults(t *testing.T) {
 		t.Skip("skipping on non-BareMetal non-VSphere platform")
 	}
 
-	// Start of the meaningful part
-	defer framework.MustRemoveImageRegistry(t, client)
-
-	framework.MustDeployImageRegistry(t, client, nil)
-	cr := framework.MustEnsureImageRegistryIsProcessed(t, client)
-	framework.MustEnsureClusterOperatorStatusIsNormal(t, client)
+	framework.DeployImageRegistry(te, nil)
+	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	conds := framework.GetImageRegistryConditions(cr)
 	if conds.Available.Reason() != "Removed" {

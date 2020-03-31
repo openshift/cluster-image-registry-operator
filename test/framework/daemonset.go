@@ -1,7 +1,6 @@
 package framework
 
 import (
-	"testing"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,19 +11,11 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func MustEnsureNodeCADaemonSetIsAvailable(t *testing.T, client *Clientset) {
-	err := ensureNodeCADaemonSetIsAvailable(client)
+func EnsureNodeCADaemonSetIsAvailable(te TestEnv) {
+	_, err := WaitForNodeCADaemonSet(te.Client())
 	if err != nil {
-		t.Fatal(err)
+		te.Fatal(err)
 	}
-}
-
-func ensureNodeCADaemonSetIsAvailable(client *Clientset) error {
-	_, err := WaitForNodeCADaemonSet(client)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
