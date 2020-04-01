@@ -213,12 +213,6 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 	defer framework.ResetClusterProxyConfig(te)
 
-	// Wait for the registry operator to be deployed
-	deployment, err := framework.WaitForRegistryOperatorDeployment(te.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// Get the service network to set as NO_PROXY so that the
 	// operator will come up once it is re-deployed
 	network, err := te.Client().Networks().Get(
@@ -265,14 +259,13 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("failed to patch operator env vars: %v", err)
 		}
+
+		framework.WaitUntilDeploymentIsRolledOut(te, framework.OperatorDeploymentNamespace, framework.OperatorDeploymentName)
 	}()
 
 	// Wait for the registry operator to be re-deployed
 	// after the proxy information is injected into the deployment
-	_, err = framework.WaitForNewRegistryOperatorDeployment(te.Client(), deployment.Status.ObservedGeneration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	framework.WaitUntilDeploymentIsRolledOut(te, framework.OperatorDeploymentNamespace, framework.OperatorDeploymentName)
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
@@ -304,6 +297,8 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
+
+	framework.WaitUntilDeploymentIsRolledOut(te, framework.OperatorDeploymentNamespace, framework.OperatorDeploymentName)
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that operator can now reach the storage providers api
@@ -508,6 +503,8 @@ func TestVersionReporting(t *testing.T) {
 	); err != nil {
 		t.Fatalf("failed to patch operator to new version: %v", err)
 	}
+
+	framework.WaitUntilDeploymentIsRolledOut(te, framework.OperatorDeploymentNamespace, framework.OperatorDeploymentName)
 
 	err := wait.Poll(5*time.Second, 1*time.Minute, func() (bool, error) {
 		clusterOperatorStatus, err := te.Client().ClusterOperators().Get(
