@@ -1,6 +1,8 @@
 package listers
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
@@ -13,11 +15,15 @@ type MockInfrastructureLister struct {
 }
 
 func (m MockInfrastructureLister) Get(name string) (*configv1.Infrastructure, error) {
-	return m.client.ConfigV1().Infrastructures().Get(name, metav1.GetOptions{})
+	return m.client.ConfigV1().Infrastructures().Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
 }
 
 func (m MockInfrastructureLister) List(selector labels.Selector) ([]*configv1.Infrastructure, error) {
-	infrastructureList, err := m.client.ConfigV1().Infrastructures().List(metav1.ListOptions{})
+	infrastructureList, err := m.client.ConfigV1().Infrastructures().List(
+		context.Background(), metav1.ListOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}

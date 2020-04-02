@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -159,7 +160,9 @@ func (c *Controller) sync() error {
 		}
 		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
 
-		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(cr)
+		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(
+			context.TODO(), cr, metaapi.UpdateOptions{},
+		)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
@@ -181,7 +184,9 @@ func (c *Controller) sync() error {
 		}
 		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
 
-		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(cr)
+		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(
+			context.TODO(), cr, metaapi.UpdateOptions{},
+		)
 		if err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)

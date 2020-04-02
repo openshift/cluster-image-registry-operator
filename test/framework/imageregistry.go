@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -87,7 +88,13 @@ func (c ImageRegistryConditions) String() string {
 }
 
 func ensureImageRegistryToBeRemoved(te TestEnv) {
-	if _, err := te.Client().Configs().Patch(defaults.ImageRegistryResourceName, types.MergePatchType, []byte(`{"spec": {"managementState": "Removed"}}`)); err != nil {
+	if _, err := te.Client().Configs().Patch(
+		context.Background(),
+		defaults.ImageRegistryResourceName,
+		types.MergePatchType,
+		[]byte(`{"spec": {"managementState": "Removed"}}`),
+		metav1.PatchOptions{},
+	); err != nil {
 		if errors.IsNotFound(err) {
 			// That's not exactly what we are asked for. And few seconds later
 			// the operator may bootstrap it. However, if the operator is
@@ -100,7 +107,9 @@ func ensureImageRegistryToBeRemoved(te TestEnv) {
 
 	var cr *imageregistryapiv1.Config
 	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			cr = nil
 			return true, nil
@@ -122,14 +131,18 @@ func ensureImageRegistryToBeRemoved(te TestEnv) {
 func deleteImageRegistryResource(te TestEnv) {
 	// TODO(dmage): the finalizer should be removed by the operator
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			return nil
 		} else if err != nil {
 			return err
 		}
 		cr.Finalizers = nil
-		_, err = te.Client().Configs().Update(cr)
+		_, err = te.Client().Configs().Update(
+			context.Background(), cr, metav1.UpdateOptions{},
+		)
 		return err
 	}); err != nil {
 		te.Fatalf("unable to delete the image registry resource: %s", err)
@@ -137,10 +150,14 @@ func deleteImageRegistryResource(te TestEnv) {
 
 	if err := DeleteCompletely(
 		func() (metav1.Object, error) {
-			return te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+			return te.Client().Configs().Get(
+				context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+			)
 		},
 		func(deleteOptions *metav1.DeleteOptions) error {
-			return te.Client().Configs().Delete(defaults.ImageRegistryResourceName, deleteOptions)
+			return te.Client().Configs().Delete(
+				context.Background(), defaults.ImageRegistryResourceName, *deleteOptions,
+			)
 		},
 	); err != nil && !errors.IsNotFound(err) {
 		te.Fatalf("unable to delete the image registry resource: %s", err)
@@ -167,7 +184,9 @@ func DeployImageRegistry(te TestEnv, spec *imageregistryapiv1.ImageRegistrySpec)
 			},
 			Spec: *spec,
 		}
-		if _, err := te.Client().Configs().Create(cr); err != nil {
+		if _, err := te.Client().Configs().Create(
+			context.Background(), cr, metav1.CreateOptions{},
+		); err != nil {
 			te.Fatalf("unable to create the image registry resource: %s", err)
 		}
 	}
@@ -179,7 +198,9 @@ func DeployImageRegistry(te TestEnv, spec *imageregistryapiv1.ImageRegistrySpec)
 }
 
 func DumpImageRegistryResource(te TestEnv) {
-	cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	cr, err := te.Client().Configs().Get(
+		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+	)
 	if err != nil {
 		te.Logf("unable to dump the image registry resource: %s", err)
 		return
@@ -188,7 +209,9 @@ func DumpImageRegistryResource(te TestEnv) {
 }
 
 func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
-	d, err := client.Deployments(OperatorDeploymentNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	d, err := client.Deployments(OperatorDeploymentNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		logger.Logf("unable to dump the image registry deployment: %s", err)
 		return
@@ -199,7 +222,9 @@ func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
 func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Config {
 	var cr *imageregistryapiv1.Config
 	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err = te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			te.Logf("waiting for the registry: the resource does not exist")
 			cr = nil
@@ -236,7 +261,9 @@ func WaitUntilImageRegistryIsAvailable(te TestEnv) {
 
 func EnsureInternalRegistryHostnameIsSet(te TestEnv) {
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
-		cfg, err := te.Client().Images().Get("cluster", metav1.GetOptions{})
+		cfg, err := te.Client().Images().Get(
+			context.Background(), "cluster", metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			te.Logf("waiting for the image config resource: the resource does not exist")
 			cfg = nil
@@ -275,7 +302,9 @@ func hasExpectedClusterOperatorConditions(status *configapiv1.ClusterOperator) b
 func EnsureClusterOperatorStatusIsSet(te TestEnv) *configapiv1.ClusterOperator {
 	var status *configapiv1.ClusterOperator
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		status, err = te.Client().ClusterOperators().Get(defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
+		status, err = te.Client().ClusterOperators().Get(
+			context.Background(), defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			te.Logf("waiting for the cluster operator resource: the resource does not exist")
 			return false, nil
@@ -336,7 +365,9 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	var cfg *imageregistryapiv1.Config
 	var err error
 	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
-		cfg, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cfg, err = te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if err != nil || cfg == nil {
 			te.Logf("failed to retrieve registry operator config: %v", err)
 			return false, nil
@@ -352,7 +383,9 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	// is updating the registry config resource when we should be at steady state.
 	time.Sleep(15 * time.Second)
 	err = wait.Poll(1*time.Second, 30*time.Second, func() (stop bool, err error) {
-		cfg, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cfg, err = te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if err != nil || cfg == nil {
 			te.Logf("failed to retrieve registry operator config: %v", err)
 			return false, nil

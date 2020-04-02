@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -99,7 +100,9 @@ func TestGCSMinimal(t *testing.T) {
 
 	// Check that the image-registry-private-configuration secret exists and
 	// contains the correct information synced from the image-registry-private-configuration-user secret
-	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
@@ -108,7 +111,9 @@ func TestGCSMinimal(t *testing.T) {
 		t.Errorf("secret %s/%s contains incorrect gcs credentials", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
 
-	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +130,9 @@ func TestGCSMinimal(t *testing.T) {
 	framework.CheckEnvVars(te, gcsEnvVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, false)
 
 	// Get a fresh version of the image registry resource
-	_, err = te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	_, err = te.Client().Configs().Get(
+		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Errorf("%s", err)
 	}

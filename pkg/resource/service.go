@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -98,7 +99,9 @@ func (gs *generatorService) Create() (runtime.Object, error) {
 		return svc, err
 	}
 
-	return gs.client.Services(gs.GetNamespace()).Create(svc)
+	return gs.client.Services(gs.GetNamespace()).Create(
+		context.TODO(), svc, metav1.CreateOptions{},
+	)
 }
 
 func (gs *generatorService) Update(o runtime.Object) (runtime.Object, bool, error) {
@@ -110,12 +113,16 @@ func (gs *generatorService) Update(o runtime.Object) (runtime.Object, bool, erro
 		return o, false, err
 	}
 
-	u, err := gs.client.Services(gs.GetNamespace()).Update(svc)
+	u, err := gs.client.Services(gs.GetNamespace()).Update(
+		context.TODO(), svc, metav1.UpdateOptions{},
+	)
 	return u, true, err
 }
 
-func (gs *generatorService) Delete(opts *metav1.DeleteOptions) error {
-	return gs.client.Services(gs.GetNamespace()).Delete(gs.GetName(), opts)
+func (gs *generatorService) Delete(opts metav1.DeleteOptions) error {
+	return gs.client.Services(gs.GetNamespace()).Delete(
+		context.TODO(), gs.GetName(), opts,
+	)
 }
 
 func (g *generatorService) Owned() bool {

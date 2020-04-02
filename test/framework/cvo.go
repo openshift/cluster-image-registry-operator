@@ -1,6 +1,8 @@
 package framework
 
 import (
+	"context"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -26,7 +28,9 @@ func addCompomentOverride(overrides []configv1.ComponentOverride, override confi
 }
 
 func DisableCVOForOperator(te TestEnv) {
-	cv, err := te.Client().ClusterVersions().Get(ClusterVersionName, metav1.GetOptions{})
+	cv, err := te.Client().ClusterVersions().Get(
+		context.Background(), ClusterVersionName, metav1.GetOptions{},
+	)
 	if errors.IsNotFound(err) {
 		// The cluster is not managed by the Cluster Version Operator?
 		return
@@ -67,7 +71,9 @@ func DisableCVOForOperator(te TestEnv) {
 	changed = changed || componentChanged
 
 	if changed {
-		if _, err := te.Client().ClusterVersions().Update(cv); err != nil {
+		if _, err := te.Client().ClusterVersions().Update(
+			context.Background(), cv, metav1.UpdateOptions{},
+		); err != nil {
 			te.Fatal(err)
 		}
 	}

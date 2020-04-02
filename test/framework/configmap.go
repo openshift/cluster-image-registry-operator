@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,7 +26,9 @@ func EnsureServiceCAConfigMap(te TestEnv) {
 func ensureConfigMap(name string, annotations map[string]string, client *Clientset) error {
 	var configMap *corev1.ConfigMap
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		configMap, err = client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(name, metav1.GetOptions{})
+		configMap, err = client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), name, metav1.GetOptions{},
+		)
 		if err == nil {
 			return true, nil
 		}

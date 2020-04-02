@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -223,19 +224,24 @@ func (gcj *generatorPrunerCronJob) Get() (runtime.Object, error) {
 
 func (gcj *generatorPrunerCronJob) Create() (runtime.Object, error) {
 	return commonCreate(gcj, func(obj runtime.Object) (runtime.Object, error) {
-
-		return gcj.client.CronJobs(gcj.GetNamespace()).Create(obj.(*batchapi.CronJob))
+		return gcj.client.CronJobs(gcj.GetNamespace()).Create(
+			context.TODO(), obj.(*batchapi.CronJob), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gcj *generatorPrunerCronJob) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcj, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gcj.client.CronJobs(gcj.GetNamespace()).Update(obj.(*batchapi.CronJob))
+		return gcj.client.CronJobs(gcj.GetNamespace()).Update(
+			context.TODO(), obj.(*batchapi.CronJob), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gcj *generatorPrunerCronJob) Delete(opts *metav1.DeleteOptions) error {
-	return gcj.client.CronJobs(gcj.GetNamespace()).Delete(gcj.GetName(), opts)
+func (gcj *generatorPrunerCronJob) Delete(opts metav1.DeleteOptions) error {
+	return gcj.client.CronJobs(gcj.GetNamespace()).Delete(
+		context.TODO(), gcj.GetName(), opts,
+	)
 }
 
 func (gcj *generatorPrunerCronJob) Owned() bool {

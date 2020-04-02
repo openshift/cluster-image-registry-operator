@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -22,7 +23,9 @@ func ConditionExistsWithStatusAndReason(te TestEnv, conditionType string, condit
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := te.Client().Configs().Get(defaults.ImageRegistryResourceName, metav1.GetOptions{})
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				errs = append(errs, err)
@@ -68,7 +71,9 @@ func PrunerConditionExistsWithStatusAndReason(te TestEnv, conditionType string, 
 		conditionExists := false
 
 		// Get a fresh version of the image registry resource
-		cr, err := te.Client().ImagePruners().Get(defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{})
+		cr, err := te.Client().ImagePruners().Get(
+			context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
+		)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				errs = append(errs, err)

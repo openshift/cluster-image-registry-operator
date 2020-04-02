@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -58,7 +59,9 @@ func generateProbeConfig() *corev1.Probe {
 }
 
 func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace string) (*corev1.PodSecurityContext, error) {
-	ns, err := coreClient.Namespaces().Get(namespace, metav1.GetOptions{})
+	ns, err := coreClient.Namespaces().Get(
+		context.TODO(), namespace, metav1.GetOptions{},
+	)
 	if err != nil {
 		return nil, err
 	}

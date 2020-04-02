@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -67,7 +69,9 @@ func (g *generatorServiceCA) Get() (runtime.Object, error) {
 
 func (g *generatorServiceCA) Create() (runtime.Object, error) {
 	o := g.expected()
-	cm, err := g.client.ConfigMaps(g.GetNamespace()).Create(o)
+	cm, err := g.client.ConfigMaps(g.GetNamespace()).Create(
+		context.TODO(), o, metav1.CreateOptions{},
+	)
 	return cm, err
 }
 
@@ -79,12 +83,16 @@ func (g *generatorServiceCA) Update(obj runtime.Object) (runtime.Object, bool, e
 	if !updated {
 		return o, updated, nil
 	}
-	u, err := g.client.ConfigMaps(g.GetNamespace()).Update(o)
+	u, err := g.client.ConfigMaps(g.GetNamespace()).Update(
+		context.TODO(), o, metav1.UpdateOptions{},
+	)
 	return u, true, err
 }
 
-func (g *generatorServiceCA) Delete(opts *metav1.DeleteOptions) error {
-	return g.client.ConfigMaps(g.GetNamespace()).Delete(g.GetName(), opts)
+func (g *generatorServiceCA) Delete(opts metav1.DeleteOptions) error {
+	return g.client.ConfigMaps(g.GetNamespace()).Delete(
+		context.TODO(), g.GetName(), opts,
+	)
 }
 
 func (g *generatorServiceCA) Owned() bool {

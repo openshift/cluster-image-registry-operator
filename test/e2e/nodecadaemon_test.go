@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -27,7 +28,9 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 
 	t.Log("waiting until the node-ca daemon is deployed")
 	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
+		_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), "node-ca", metav1.GetOptions{},
+		)
 		if errors.IsNotFound(err) {
 			t.Logf("ds/node-ca has not been created yet: %s", err)
 			return false, nil

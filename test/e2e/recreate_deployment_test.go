@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -28,10 +29,14 @@ func TestRecreateDeployment(t *testing.T) {
 	t.Logf("deleting the image registry deployment...")
 	if err := framework.DeleteCompletely(
 		func() (metav1.Object, error) {
-			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+				context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+			)
 		},
 		func(deleteOptions *metav1.DeleteOptions) error {
-			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Delete(defaults.ImageRegistryName, deleteOptions)
+			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Delete(
+				context.Background(), defaults.ImageRegistryName, *deleteOptions,
+			)
 		},
 	); err != nil {
 		t.Fatalf("unable to delete the deployment: %s", err)
@@ -49,6 +54,7 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 
 	// add a new environment variable and a host port to the deployment.
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		context.Background(),
 		defaults.ImageRegistryName,
 		types.JSONPatchType,
 		[]byte(`[
@@ -63,6 +69,7 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 				"value": {"name": "foo", "containerPort": 2222}
 			}
 		]`),
+		metav1.PatchOptions{},
 	); err != nil {
 		t.Fatalf("unable to patch image registry deployment: %v", err)
 	}
@@ -74,7 +81,7 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 		func() (stop bool, err error) {
 			deployment, err := te.Client().Deployments(
 				framework.OperatorDeploymentNamespace,
-			).Get("image-registry", metav1.GetOptions{})
+			).Get(context.Background(), "image-registry", metav1.GetOptions{})
 			if err != nil {
 				return false, err
 			}

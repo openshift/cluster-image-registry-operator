@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +15,9 @@ func TestBaremetalAndVSphereDefaults(t *testing.T) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
-	infrastructureConfig, err := te.Client().Infrastructures().Get("cluster", metav1.GetOptions{})
+	infrastructureConfig, err := te.Client().Infrastructures().Get(
+		context.Background(), "cluster", metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

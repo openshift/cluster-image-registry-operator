@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -105,18 +107,24 @@ func (gr *generatorRoute) Get() (runtime.Object, error) {
 
 func (gr *generatorRoute) Create() (runtime.Object, error) {
 	return commonCreate(gr, func(obj runtime.Object) (runtime.Object, error) {
-		return gr.client.Routes(gr.GetNamespace()).Create(obj.(*routeapi.Route))
+		return gr.client.Routes(gr.GetNamespace()).Create(
+			context.TODO(), obj.(*routeapi.Route), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gr *generatorRoute) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gr, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gr.client.Routes(gr.GetNamespace()).Update(obj.(*routeapi.Route))
+		return gr.client.Routes(gr.GetNamespace()).Update(
+			context.TODO(), obj.(*routeapi.Route), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gr *generatorRoute) Delete(opts *metav1.DeleteOptions) error {
-	return gr.client.Routes(gr.GetNamespace()).Delete(gr.GetName(), opts)
+func (gr *generatorRoute) Delete(opts metav1.DeleteOptions) error {
+	return gr.client.Routes(gr.GetNamespace()).Delete(
+		context.TODO(), gr.GetName(), opts,
+	)
 }
 
 func (g *generatorRoute) Owned() bool {

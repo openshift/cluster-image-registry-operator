@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"reflect"
@@ -86,7 +87,9 @@ func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
 	_ = gco.syncConditions(co)
 	_ = gco.syncRelatedObjects(co)
 
-	return gco.configClient.ClusterOperators().Create(co)
+	return gco.configClient.ClusterOperators().Create(
+		context.TODO(), co, metav1.CreateOptions{},
+	)
 }
 
 func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, bool, error) {
@@ -109,12 +112,16 @@ func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, b
 		return o, false, nil
 	}
 
-	n, err := gco.configClient.ClusterOperators().UpdateStatus(co)
+	n, err := gco.configClient.ClusterOperators().UpdateStatus(
+		context.TODO(), co, metav1.UpdateOptions{},
+	)
 	return n, err == nil, err
 }
 
-func (gco *generatorClusterOperator) Delete(opts *metav1.DeleteOptions) error {
-	return gco.configClient.ClusterOperators().Delete(gco.GetName(), opts)
+func (gco *generatorClusterOperator) Delete(opts metav1.DeleteOptions) error {
+	return gco.configClient.ClusterOperators().Delete(
+		context.TODO(), gco.GetName(), opts,
+	)
 }
 
 func (gco *generatorClusterOperator) Owned() bool {

@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -53,7 +54,9 @@ func TestPodResourceConfiguration(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), "image-registry", metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +98,9 @@ func TestRolloutStrategyConfiguration(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +130,9 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get("image-registry", metav1.GetOptions{})
+	deployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), "image-registry", metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,21 +221,26 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Get the service network to set as NO_PROXY so that the
 	// operator will come up once it is re-deployed
-	network, err := te.Client().Networks().Get("cluster", metav1.GetOptions{})
+	network, err := te.Client().Networks().Get(
+		context.Background(), "cluster", metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatalf("unable to get network configuration: %v", err)
 	}
 
 	// Set the proxy env vars
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		context.Background(),
 		framework.OperatorDeploymentName,
 		types.StrategicMergePatchType,
 		[]byte(fmt.Sprintf(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"HTTP_PROXY","value":"http://http.example.org"},{"name":"HTTPS_PROXY","value":"https://https.example.org"},{"name":"NO_PROXY","value":"%s"}]}]}}}}`, strings.Join(network.Spec.ServiceNetwork, ","))),
+		metav1.PatchOptions{},
 	); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 	defer func() {
 		if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+			context.Background(),
 			framework.OperatorDeploymentName,
 			types.StrategicMergePatchType,
 			framework.MarshalJSON(map[string]interface{}{
@@ -249,6 +261,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 					},
 				},
 			}),
+			metav1.PatchOptions{},
 		); err != nil {
 			t.Fatalf("failed to patch operator env vars: %v", err)
 		}
@@ -266,6 +279,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
 
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		context.Background(),
 		framework.OperatorDeploymentName,
 		types.StrategicMergePatchType,
 		framework.MarshalJSON(map[string]interface{}{
@@ -286,6 +300,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 				},
 			},
 		}),
+		metav1.PatchOptions{},
 	); err != nil {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
@@ -451,7 +466,9 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 
 	err = wait.Poll(5*time.Second, 1*time.Minute, func() (done bool, err error) {
-		route, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).Get(routeName, metav1.GetOptions{})
+		route, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), routeName, metav1.GetOptions{},
+		)
 		if err != nil {
 			t.Logf("unable to get route: %s", err)
 			return false, nil
@@ -482,12 +499,20 @@ func TestVersionReporting(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(framework.OperatorDeploymentName, types.StrategicMergePatchType, []byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`)); err != nil {
+	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
+		context.Background(),
+		framework.OperatorDeploymentName,
+		types.StrategicMergePatchType,
+		[]byte(`{"spec": {"template": {"spec": {"containers": [{"name":"cluster-image-registry-operator","env":[{"name":"RELEASE_VERSION","value":"test-v2"}]}]}}}}`),
+		metav1.PatchOptions{},
+	); err != nil {
 		t.Fatalf("failed to patch operator to new version: %v", err)
 	}
 
 	err := wait.Poll(5*time.Second, 1*time.Minute, func() (bool, error) {
-		clusterOperatorStatus, err := te.Client().ClusterOperators().Get(defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{})
+		clusterOperatorStatus, err := te.Client().ClusterOperators().Get(
+			context.Background(), defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{},
+		)
 		if err != nil {
 			t.Logf("Could not retrieve cluster operator status: %v", err)
 			return false, nil
@@ -535,7 +560,9 @@ func TestRequests(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -562,7 +589,9 @@ func TestDisableRedirect(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

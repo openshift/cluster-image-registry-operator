@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -95,18 +96,24 @@ func (gs *generatorSecret) Get() (runtime.Object, error) {
 
 func (gs *generatorSecret) Create() (runtime.Object, error) {
 	return commonCreate(gs, func(obj runtime.Object) (runtime.Object, error) {
-		return gs.client.Secrets(gs.GetNamespace()).Create(obj.(*corev1.Secret))
+		return gs.client.Secrets(gs.GetNamespace()).Create(
+			context.TODO(), obj.(*corev1.Secret), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gs *generatorSecret) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gs, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gs.client.Secrets(gs.GetNamespace()).Update(obj.(*corev1.Secret))
+		return gs.client.Secrets(gs.GetNamespace()).Update(
+			context.TODO(), obj.(*corev1.Secret), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gs *generatorSecret) Delete(opts *metav1.DeleteOptions) error {
-	return gs.client.Secrets(gs.GetNamespace()).Delete(gs.GetName(), opts)
+func (gs *generatorSecret) Delete(opts metav1.DeleteOptions) error {
+	return gs.client.Secrets(gs.GetNamespace()).Delete(
+		context.TODO(), gs.GetName(), opts,
+	)
 }
 
 func (g *generatorSecret) Owned() bool {

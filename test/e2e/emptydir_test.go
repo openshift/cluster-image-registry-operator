@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"regexp"
 	"testing"
 
@@ -27,7 +28,9 @@ func TestBasicEmptyDir(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
-	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

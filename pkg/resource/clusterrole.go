@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"context"
+
 	rbacapi "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -106,18 +108,24 @@ func (gcr *generatorClusterRole) Get() (runtime.Object, error) {
 
 func (gcr *generatorClusterRole) Create() (runtime.Object, error) {
 	return commonCreate(gcr, func(obj runtime.Object) (runtime.Object, error) {
-		return gcr.client.ClusterRoles().Create(obj.(*rbacapi.ClusterRole))
+		return gcr.client.ClusterRoles().Create(
+			context.TODO(), obj.(*rbacapi.ClusterRole), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gcr *generatorClusterRole) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcr, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gcr.client.ClusterRoles().Update(obj.(*rbacapi.ClusterRole))
+		return gcr.client.ClusterRoles().Update(
+			context.TODO(), obj.(*rbacapi.ClusterRole), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gcr *generatorClusterRole) Delete(opts *metav1.DeleteOptions) error {
-	return gcr.client.ClusterRoles().Delete(gcr.GetName(), opts)
+func (gcr *generatorClusterRole) Delete(opts metav1.DeleteOptions) error {
+	return gcr.client.ClusterRoles().Delete(
+		context.TODO(), gcr.GetName(), opts,
+	)
 }
 
 func (g *generatorClusterRole) Owned() bool {

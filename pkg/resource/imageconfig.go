@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -79,7 +80,9 @@ func (gic *generatorImageConfig) Create() (runtime.Object, error) {
 		ObjectMeta: gic.objectMeta(),
 	}
 
-	ic, err := gic.configClient.Images().Create(ic)
+	ic, err := gic.configClient.Images().Create(
+		context.TODO(), ic, metav1.CreateOptions{},
+	)
 	if err != nil {
 		return ic, err
 	}
@@ -103,7 +106,9 @@ func (gic *generatorImageConfig) Create() (runtime.Object, error) {
 	ic.Status.InternalRegistryHostname = internalHostname
 
 	// Create strips status fields, so need to explicitly set status separately
-	return gic.configClient.Images().UpdateStatus(ic)
+	return gic.configClient.Images().UpdateStatus(
+		context.TODO(), ic, metav1.UpdateOptions{},
+	)
 }
 
 func (gic *generatorImageConfig) Update(o runtime.Object) (runtime.Object, bool, error) {
@@ -139,12 +144,16 @@ func (gic *generatorImageConfig) Update(o runtime.Object) (runtime.Object, bool,
 		return o, false, nil
 	}
 
-	n, err := gic.configClient.Images().UpdateStatus(ic)
+	n, err := gic.configClient.Images().UpdateStatus(
+		context.TODO(), ic, metav1.UpdateOptions{},
+	)
 	return n, err == nil, err
 }
 
-func (gic *generatorImageConfig) Delete(opts *metav1.DeleteOptions) error {
-	return gic.configClient.Images().Delete(gic.GetName(), opts)
+func (gic *generatorImageConfig) Delete(opts metav1.DeleteOptions) error {
+	return gic.configClient.Images().Delete(
+		context.TODO(), gic.GetName(), opts,
+	)
 }
 
 func (g *generatorImageConfig) Owned() bool {

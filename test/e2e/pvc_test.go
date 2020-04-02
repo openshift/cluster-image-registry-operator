@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -22,21 +23,27 @@ import (
 
 func dumpResourcesOnFailure(te framework.TestEnv) {
 	if te.Failed() {
-		scList, err := te.Client().StorageClasses().List(metav1.ListOptions{})
+		scList, err := te.Client().StorageClasses().List(
+			context.Background(), metav1.ListOptions{},
+		)
 		if err != nil {
 			te.Logf("unable to dump the storage classes: %s", err)
 		} else {
 			framework.DumpYAML(te, "storageclasses", scList)
 		}
 
-		pvList, err := te.Client().PersistentVolumes().List(metav1.ListOptions{})
+		pvList, err := te.Client().PersistentVolumes().List(
+			context.Background(), metav1.ListOptions{},
+		)
 		if err != nil {
 			te.Logf("unable to dump the persistent volumes: %s", err)
 		} else {
 			framework.DumpYAML(te, "persistentvolumes", pvList)
 		}
 
-		pvcList, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).List(metav1.ListOptions{})
+		pvcList, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).List(
+			context.Background(), metav1.ListOptions{},
+		)
 		if err != nil {
 			te.Logf("unable to dump the persistent volume claims: %s", err)
 		} else {
@@ -74,7 +81,9 @@ func createPV(te framework.TestEnv, storageClass string) {
 			},
 		}
 
-		_, err := te.Client().PersistentVolumes().Create(pv)
+		_, err := te.Client().PersistentVolumes().Create(
+			context.Background(), pv, metav1.CreateOptions{},
+		)
 		if err == nil {
 			te.Logf("PersistentVolume %s created", pvName)
 			name = pvName
@@ -93,7 +102,9 @@ func createPV(te framework.TestEnv, storageClass string) {
 	}
 
 	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
-		pv, pvErr := te.Client().PersistentVolumes().Get(name, metav1.GetOptions{})
+		pv, pvErr := te.Client().PersistentVolumes().Get(
+			context.Background(), name, metav1.GetOptions{},
+		)
 		return (pv != nil && pv.Status.Phase != corev1.VolumePending), pvErr
 	})
 	if err != nil {
@@ -102,7 +113,9 @@ func createPV(te framework.TestEnv, storageClass string) {
 }
 
 func createPVWithStorageClass(te framework.TestEnv) {
-	storageClassList, err := te.Client().StorageClasses().List(metav1.ListOptions{})
+	storageClassList, err := te.Client().StorageClasses().List(
+		context.Background(), metav1.ListOptions{},
+	)
 	if err != nil {
 		te.Fatalf("unable to list storage classes: %s", err)
 	}
@@ -130,7 +143,9 @@ func createPVC(te framework.TestEnv, name string, accessMode corev1.PersistentVo
 		},
 	}
 
-	_, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(claim)
+	_, err := te.Client().PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(
+		context.Background(), claim, metav1.CreateOptions{},
+	)
 	if err != nil {
 		te.Fatal(err)
 	}
@@ -142,7 +157,9 @@ func checkTestResult(te framework.TestEnv) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 
-	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(defaults.ImageRegistryName, metav1.GetOptions{})
+	deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
 	if err != nil {
 		te.Fatal(err)
 	}

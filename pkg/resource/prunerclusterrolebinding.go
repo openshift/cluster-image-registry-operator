@@ -1,6 +1,8 @@
 package resource
 
 import (
+	"context"
+
 	rbacapi "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,18 +75,24 @@ func (gcrb *generatorPrunerClusterRoleBinding) Get() (runtime.Object, error) {
 
 func (gcrb *generatorPrunerClusterRoleBinding) Create() (runtime.Object, error) {
 	return commonCreate(gcrb, func(obj runtime.Object) (runtime.Object, error) {
-		return gcrb.client.ClusterRoleBindings().Create(obj.(*rbacapi.ClusterRoleBinding))
+		return gcrb.client.ClusterRoleBindings().Create(
+			context.TODO(), obj.(*rbacapi.ClusterRoleBinding), metav1.CreateOptions{},
+		)
 	})
 }
 
 func (gcrb *generatorPrunerClusterRoleBinding) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcrb, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gcrb.client.ClusterRoleBindings().Update(obj.(*rbacapi.ClusterRoleBinding))
+		return gcrb.client.ClusterRoleBindings().Update(
+			context.TODO(), obj.(*rbacapi.ClusterRoleBinding), metav1.UpdateOptions{},
+		)
 	})
 }
 
-func (gcrb *generatorPrunerClusterRoleBinding) Delete(opts *metav1.DeleteOptions) error {
-	return gcrb.client.ClusterRoleBindings().Delete(gcrb.GetName(), opts)
+func (gcrb *generatorPrunerClusterRoleBinding) Delete(opts metav1.DeleteOptions) error {
+	return gcrb.client.ClusterRoleBindings().Delete(
+		context.TODO(), gcrb.GetName(), opts,
+	)
 }
 
 func (g *generatorPrunerClusterRoleBinding) Owned() bool {

@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,7 +22,9 @@ func EnsureNodeCADaemonSetIsAvailable(te TestEnv) {
 func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 	var ds *appsv1.DaemonSet
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
+		ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+			context.Background(), "node-ca", metav1.GetOptions{},
+		)
 		if err == nil {
 			if ds.Status.NumberAvailable > 0 {
 				return true, nil
