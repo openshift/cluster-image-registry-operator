@@ -35,8 +35,7 @@ spec:
         kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
       tolerations:
-      - effect: NoSchedule
-        operator: Exists
+      - operator: Exists
       serviceAccountName: node-ca
       containers:
       - name: node-ca
