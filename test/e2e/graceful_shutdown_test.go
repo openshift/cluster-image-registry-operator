@@ -26,18 +26,27 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	// selects pod to kill. MustEnsureNodeCADaemonSetIsAvailable guarantees
-	// we have at least one pod available.
-	var pod corev1.Pod
+	client := framework.MustNewClientset(t, nil)
+
+	var pod *corev1.Pod
+	var logch <-chan string
+	var errch <-chan error
 	for _, p := range pods.Items {
 		if p.Status.Phase != "Running" {
 			continue
 		}
-		pod = p
+
+		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
+			continue
+		}
+
+		pod = &p
 		break
 	}
-
-	logch, errch := framework.MustFollowPodLog(t, pod)
+	if pod == nil {
+		t.Fatal("unable to attach to any pod log stream")
+	}
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,
@@ -88,18 +97,27 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	// selects pod to kill. MustEnsureImageRegistryIsAvailable guarantees
-	// we have at least one pod available.
-	var pod corev1.Pod
+	client := framework.MustNewClientset(t, nil)
+
+	var pod *corev1.Pod
+	var logch <-chan string
+	var errch <-chan error
 	for _, p := range pods.Items {
 		if p.Status.Phase != "Running" {
 			continue
 		}
-		pod = p
+
+		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
+			continue
+		}
+
+		pod = &p
 		break
 	}
-
-	logch, errch := framework.MustFollowPodLog(t, pod)
+	if pod == nil {
+		t.Fatal("unable to attach to any pod log stream")
+	}
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
 		pod.Name,

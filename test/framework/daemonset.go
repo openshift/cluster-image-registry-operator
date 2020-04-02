@@ -23,10 +23,7 @@ func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get("node-ca", metav1.GetOptions{})
 		if err == nil {
-			if ds.Status.NumberAvailable > 0 {
-				return true, nil
-			}
-			return false, nil
+			return ds.Status.NumberAvailable > 0, nil
 		}
 		if errors.IsNotFound(err) {
 			return false, nil
