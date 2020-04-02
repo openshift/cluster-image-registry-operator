@@ -42,41 +42,58 @@ func DumpYAML(logger Logger, prefix string, obj interface{}) {
 	logger.Logf("%s:\n%s", prefix, string(data))
 }
 
+// WaitUntilFinalized waits until obj is finalized. It expects getObject to
+// return the up-to-date version of obj.
+func WaitUntilFinalized(obj metav1.Object, getObject func() (metav1.Object, error)) error {
+	uid := obj.GetUID()
+
+	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		obj, err := getObject()
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+
+		if obj.GetUID() != uid {
+			// the old object is finalized and a new one is created
+			return true, nil
+		}
+
+		if obj.GetDeletionTimestamp() == nil {
+			return false, fmt.Errorf("waiting until %T %s/%s (%s) is finalized, but its is not deleted", obj, obj.GetNamespace(), obj.GetName(), uid)
+		}
+
+		return false, nil
+	})
+}
+
 // DeleteCompletely sends a delete request and waits until the resource and
 // its dependents are deleted.
-func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func(*metav1.DeleteOptions) error) error {
+func DeleteCompletely(getObject func() (metav1.Object, error), deleteObject func(metav1.DeleteOptions) error) error {
 	obj, err := getObject()
+	if errors.IsNotFound(err) {
+		return nil
+	}
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil
-		}
 		return err
 	}
 
 	uid := obj.GetUID()
-
 	policy := metav1.DeletePropagationForeground
-	if err := deleteObject(&metav1.DeleteOptions{
+	err = deleteObject(metav1.DeleteOptions{
 		Preconditions: &metav1.Preconditions{
 			UID: &uid,
 		},
 		PropagationPolicy: &policy,
-	}); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
-		}
+	})
+	if errors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 
-	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		obj, err = getObject()
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return true, nil
-			}
-			return false, err
-		}
-
-		return obj.GetUID() != uid, nil
-	})
+	return WaitUntilFinalized(obj, getObject)
 }

@@ -27,8 +27,8 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 	framework.WaitUntilImageRegistryIsAvailable(te)
 
 	t.Log("waiting until the node-ca daemon is deployed")
-	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+	err := wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
 			context.Background(), "node-ca", metav1.GetOptions{},
 		)
 		if errors.IsNotFound(err) {
@@ -37,6 +37,12 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 		} else if err != nil {
 			return false, err
 		}
+
+		if ds.Status.NumberAvailable == 0 {
+			t.Logf("ds/node-ca has no available replicas")
+			return false, nil
+		}
+
 		return true, nil
 	})
 	if err != nil {

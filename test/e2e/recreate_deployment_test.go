@@ -33,9 +33,9 @@ func TestRecreateDeployment(t *testing.T) {
 				context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
 			)
 		},
-		func(deleteOptions *metav1.DeleteOptions) error {
+		func(deleteOptions metav1.DeleteOptions) error {
 			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Delete(
-				context.Background(), defaults.ImageRegistryName, *deleteOptions,
+				context.Background(), defaults.ImageRegistryName, deleteOptions,
 			)
 		},
 	); err != nil {

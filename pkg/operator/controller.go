@@ -42,10 +42,9 @@ import (
 )
 
 const (
-	openshiftConfigNamespace = "openshift-config"
-	kubeSystemNamespace      = "kube-system"
-	workqueueKey             = "changes"
-	defaultResyncDuration    = 10 * time.Minute
+	kubeSystemNamespace   = "kube-system"
+	workqueueKey          = "changes"
+	defaultResyncDuration = 10 * time.Minute
 )
 
 type permanentError struct {
@@ -361,7 +360,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 
 	configInformerFactory := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
-	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(openshiftConfigNamespace))
+	openshiftConfigKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.OpenShiftConfigNamespace))
 	kubeSystemKubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
 	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
 	routeInformerFactory := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
@@ -415,7 +414,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		},
 		func() cache.SharedIndexInformer {
 			informer := openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps()
-			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(openshiftConfigNamespace)
+			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
@@ -477,6 +476,14 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		c.kubeconfig, c.clients, c.listers,
 	)
 
+	imageRegistryCertificatesController := NewImageRegistryCertificatesController(
+		c.clients.Core,
+		kubeInformerFactory.Core().V1().ConfigMaps(),
+		kubeInformerFactory.Core().V1().Services(),
+		configInformerFactory.Config().V1().Images(),
+		openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps(),
+	)
+
 	nodeCADaemonController := NewNodeCADaemonController(
 		c.clients.Apps,
 		kubeInformerFactory.Apps().V1().DaemonSets(),
@@ -490,9 +497,10 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
 
-	// TODO(dmage):This controller should be started from main.
+	// TODO(dmage): these controllers should be started from main.
 	go clusterOperatorStatusController.Run(stopCh)
 	go nodeCADaemonController.Run(stopCh)
+	go imageRegistryCertificatesController.Run(stopCh)
 
 	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
