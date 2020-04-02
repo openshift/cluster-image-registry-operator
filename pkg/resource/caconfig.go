@@ -79,7 +79,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	serviceCA, err := gcac.lister.Get(gcac.serviceCAName)
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the service CA configmap: %s", err)
+		klog.V(1).Infof("missing the service CA configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
@@ -102,7 +102,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	imageConfig, err := gcac.imageConfigLister.Get(gcac.imageConfigName)
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the image config: %s", err)
+		klog.V(1).Infof("missing the image config: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Name; caConfigName != "" {
@@ -121,7 +121,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	cp_ca, err := gcac.openshiftConfigLister.Get("cloud-provider-config")
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the cloud-provider-config configmap: %s", err)
+		klog.V(1).Infof("missing the cloud-provider-config configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
