@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -189,7 +191,7 @@ func TestDefaultPVC(t *testing.T) {
 }
 
 func TestCustomRWXPVC(t *testing.T) {
-	claimName := "test-custom-rwx-pvc"
+	claimName := "test-custom-rwx-" + uuid.New().String()
 
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
@@ -213,7 +215,7 @@ func TestCustomRWXPVC(t *testing.T) {
 }
 
 func TestCustomRWOPVC(t *testing.T) {
-	claimName := "test-custom-rwo-pvc"
+	claimName := "test-custom-rwo-" + uuid.New().String()
 
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
