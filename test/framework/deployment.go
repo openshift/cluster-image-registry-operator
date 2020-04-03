@@ -12,6 +12,33 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
+func isDeploymentRolledOut(deploy *kappsapiv1.Deployment) bool {
+	replicas := int32(1)
+	if deploy.Spec.Replicas != nil {
+		replicas = *(deploy.Spec.Replicas)
+	}
+	return deploy.Status.UpdatedReplicas == replicas &&
+		deploy.Status.Replicas == replicas &&
+		deploy.Status.AvailableReplicas == replicas &&
+		deploy.Status.ObservedGeneration >= deploy.Generation
+}
+
+func WaitUntilDeploymentIsRolledOut(te TestEnv, namespace, name string) {
+	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+		deploy, err := te.Client().Deployments(namespace).Get(
+			context.Background(), name, metav1.GetOptions{},
+		)
+		if err != nil {
+			return false, err
+		}
+
+		return isDeploymentRolledOut(deploy), nil
+	})
+	if err != nil {
+		te.Fatalf("failed to wait until deployment %s/%s is rolled out: %v", namespace, name, err)
+	}
+}
+
 func WaitForRegistryDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
@@ -35,45 +62,6 @@ func WaitForNewRegistryDeployment(client *Clientset, currentGeneration int64) (*
 	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(
 			context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
-		)
-		if err == nil {
-			return true, nil
-		}
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		if deployment.Status.ObservedGeneration == currentGeneration {
-			return false, nil
-		}
-		return false, err
-	})
-
-	return deployment, err
-}
-
-func WaitForRegistryOperatorDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
-	var deployment *kappsapiv1.Deployment
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(
-			context.Background(), OperatorDeploymentName, metav1.GetOptions{},
-		)
-		if err == nil {
-			return true, nil
-		}
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	})
-
-	return deployment, err
-}
-
-func WaitForNewRegistryOperatorDeployment(client *Clientset, currentGeneration int64) (*kappsapiv1.Deployment, error) {
-	var deployment *kappsapiv1.Deployment
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(OperatorDeploymentNamespace).Get(
-			context.Background(), OperatorDeploymentName, metav1.GetOptions{},
 		)
 		if err == nil {
 			return true, nil

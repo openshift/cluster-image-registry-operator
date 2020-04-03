@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,16 +9,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-func startOperator(client *Clientset) error {
-	if _, err := client.Deployments(OperatorDeploymentNamespace).Patch(
+func startOperator(te TestEnv) {
+	if _, err := te.Client().Deployments(OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		OperatorDeploymentName,
 		types.MergePatchType, []byte(`{"spec": {"replicas": 1}}`),
 		metav1.PatchOptions{},
 	); err != nil {
-		return err
+		te.Fatalf("unable to start the operator: %s", err)
 	}
-	return nil
+
+	WaitUntilDeploymentIsRolledOut(te, OperatorDeploymentNamespace, OperatorDeploymentName)
 }
 
 func DumpOperatorDeployment(te TestEnv) {
@@ -32,35 +32,26 @@ func DumpOperatorDeployment(te TestEnv) {
 	DumpYAML(te, "the operator deployment", deployment)
 }
 
-func StopDeployment(logger Logger, client *Clientset, operatorDeploymentName, operatorDeploymentNamespace string) error {
-	var err error
+func StopDeployment(te TestEnv, namespace, name string) {
 	var realErr error
-	err = wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
-		if _, realErr = client.Deployments(operatorDeploymentNamespace).Patch(
+	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
+		if _, realErr = te.Client().Deployments(namespace).Patch(
 			context.Background(),
-			operatorDeploymentName,
+			name,
 			types.MergePatchType,
 			[]byte(`{"spec": {"replicas": 0}}`),
 			metav1.PatchOptions{},
 		); realErr != nil {
-			logger.Logf("failed to patch operator to zero replicas: %v", realErr)
+			te.Logf("failed to patch delpoyment %s/%s to zero replicas: %v", namespace, name, realErr)
 			return false, nil
 		}
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("unable to patch operator to zero replicas: %v", err)
+		te.Fatalf("unable to patch deployment %s/%s to zero replicas: %v (last error: %v)", namespace, name, err, realErr)
 	}
 
-	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deploy, err := client.Deployments(operatorDeploymentNamespace).Get(
-			context.Background(), operatorDeploymentName, metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, err
-		}
-		return deploy.Status.Replicas == 0, nil
-	})
+	WaitUntilDeploymentIsRolledOut(te, namespace, name)
 }
 
 func GetOperatorLogs(client *Clientset) (PodSetLogs, error) {

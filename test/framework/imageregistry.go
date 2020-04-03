@@ -168,9 +168,7 @@ func RemoveImageRegistry(te TestEnv) {
 	te.Logf("uninstalling the image registry...")
 	ensureImageRegistryToBeRemoved(te)
 	te.Logf("stopping the operator...")
-	if err := StopDeployment(te, te.Client(), OperatorDeploymentName, OperatorDeploymentNamespace); err != nil {
-		te.Fatalf("unable to stop the operator: %s", err)
-	}
+	StopDeployment(te, OperatorDeploymentNamespace, OperatorDeploymentName)
 	te.Logf("deleting the image registry resource...")
 	deleteImageRegistryResource(te)
 }
@@ -192,9 +190,7 @@ func DeployImageRegistry(te TestEnv, spec *imageregistryapiv1.ImageRegistrySpec)
 	}
 
 	te.Logf("starting the operator...")
-	if err := startOperator(te.Client()); err != nil {
-		te.Fatalf("unable to start the operator: %s", err)
-	}
+	startOperator(te)
 }
 
 func DumpImageRegistryResource(te TestEnv) {

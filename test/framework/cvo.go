@@ -78,10 +78,6 @@ func DisableCVOForOperator(te TestEnv) {
 		}
 	}
 
-	if err := StopDeployment(te, te.Client(), "kube-apiserver-operator", "openshift-kube-apiserver-operator"); err != nil {
-		te.Fatalf("unable to stop kube apiserver operator: %v", err)
-	}
-	if err := StopDeployment(te, te.Client(), "openshift-apiserver-operator", "openshift-apiserver-operator"); err != nil {
-		te.Fatalf("unable to stop openshift apiserver operator: %v", err)
-	}
+	StopDeployment(te, "openshift-kube-apiserver-operator", "kube-apiserver-operator")
+	StopDeployment(te, "openshift-apiserver-operator", "openshift-apiserver-operator")
 }
