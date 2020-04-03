@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,19 +101,18 @@ func DumpPodLogs(logger Logger, podLogs PodSetLogs) {
 	}
 }
 
-// MustFollowPodLog attaches to the pod log stream, reads it until the pod is
-// dead or an error happens while reading.
+// FollowPodLog attaches to the pod log stream, reads it until the pod is dead
+// or an error happens while reading.
 //
-// If an error happens when fetching pod's Stream() this function calls t.Fatal
-// while if a failure happens during pods log read the error is sent back to
-// the caller through an error channel.
-func MustFollowPodLog(t *testing.T, pod corev1.Pod) (<-chan string, <-chan error) {
-	client := MustNewClientset(t, nil)
+// If an error happens when fetching pod's Stream() this function returns
+// immediately. If a failure happens during pods log read the error is sent back
+// to the caller through an error channel.
+func FollowPodLog(client *Clientset, pod corev1.Pod) (<-chan string, <-chan error, error) {
 	ls, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 		Follow: true,
 	}).Stream(context.Background())
 	if err != nil {
-		t.Fatal(err)
+		return nil, nil, err
 	}
 
 	logch := make(chan string, 100)
@@ -138,5 +136,5 @@ func MustFollowPodLog(t *testing.T, pod corev1.Pod) (<-chan string, <-chan error
 			}
 		}
 	}()
-	return logch, errch
+	return logch, errch, nil
 }

@@ -26,10 +26,7 @@ func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 			context.Background(), "node-ca", metav1.GetOptions{},
 		)
 		if err == nil {
-			if ds.Status.NumberAvailable > 0 {
-				return true, nil
-			}
-			return false, nil
+			return ds.Status.NumberAvailable > 0, nil
 		}
 		if errors.IsNotFound(err) {
 			return false, nil
