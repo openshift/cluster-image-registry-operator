@@ -172,10 +172,8 @@ func TestPodAffinityConfiguration(t *testing.T) {
 		Replicas: 1,
 		Affinity: affinity,
 	})
-	deployment, err := framework.WaitForRegistryDeployment(te.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+
+	deployment := framework.GetImageRegistryDeployment(te)
 
 	if !reflect.DeepEqual(affinity, deployment.Spec.Template.Spec.Affinity) {
 		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", affinity, deployment.Spec.Template.Spec.Affinity)
@@ -318,8 +316,8 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	defer framework.ResetClusterProxyConfig(te)
 	defer func() {
 		if t.Failed() {
-			framework.DumpClusterProxyResource(t, te.Client())
-			framework.DumpImageRegistryDeployment(t, te.Client())
+			framework.DumpClusterProxyResource(te)
+			framework.DumpImageRegistryDeployment(te)
 		}
 	}()
 
@@ -346,11 +344,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		{Name: "HTTPS_PROXY", Value: clusterProxyConfig.HTTPSProxy},
 	}
 
-	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err := framework.WaitForRegistryDeployment(te.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	registryDeployment := framework.GetImageRegistryDeployment(te)
 
 	// Check that the default deployment does not contain any proxy settings
 	framework.CheckEnvVarsAreNotSet(
@@ -363,10 +357,8 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	framework.SetClusterProxyConfig(te, clusterProxyConfig)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	registryDeployment = framework.GetImageRegistryDeployment(te)
 
 	// Check that the new deployment contains the cluster proxy settings
 	framework.CheckEnvVars(te, clusterVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
@@ -375,10 +367,8 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	framework.SetResourceProxyConfig(te, resourceProxyConfig)
 
 	t.Logf("waiting for the operator to recreate the deployment...")
-	registryDeployment, err = framework.WaitForNewRegistryDeployment(te.Client(), registryDeployment.Status.ObservedGeneration)
-	if err != nil {
-		t.Fatal(err)
-	}
+	framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	registryDeployment = framework.GetImageRegistryDeployment(te)
 
 	// Check that the new deployment contains the resource proxy settings (overriding the cluster proxy config)
 	framework.CheckEnvVars(te, resourceVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)

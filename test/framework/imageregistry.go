@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -269,15 +270,25 @@ func DumpImageRegistryResource(te TestEnv) {
 	DumpYAML(te, "the image registry resource", cr)
 }
 
-func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
-	d, err := client.Deployments(OperatorDeploymentNamespace).Get(
+func GetImageRegistryDeployment(te TestEnv) *appsv1.Deployment {
+	d, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(
 		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
 	)
 	if err != nil {
-		logger.Logf("unable to dump the image registry deployment: %s", err)
+		te.Fatalf("unable to get the image registry deployment: %v", err)
+	}
+	return d
+}
+
+func DumpImageRegistryDeployment(te TestEnv) {
+	d, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
+	if err != nil {
+		te.Logf("unable to dump the image registry deployment: %s", err)
 		return
 	}
-	DumpYAML(logger, "the image registry deployment", d)
+	DumpYAML(te, "the image registry deployment", d)
 }
 
 func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Config {
