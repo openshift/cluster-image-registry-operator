@@ -36,6 +36,10 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
+	if len(pods.Items) == 0 {
+		t.Fatalf("no node-ca pods found")
+	}
+
 	var pod *corev1.Pod
 	var logch <-chan string
 	var errch <-chan error
@@ -103,6 +107,10 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("unable to list pods: %v", err)
+	}
+
+	if len(pods.Items) == 0 {
+		t.Fatalf("no image-registry pods found")
 	}
 
 	var pod *corev1.Pod
