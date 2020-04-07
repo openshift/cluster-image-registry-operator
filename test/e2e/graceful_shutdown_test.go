@@ -36,8 +36,6 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	client := framework.MustNewClientset(t, nil)
-
 	var pod *corev1.Pod
 	var logch <-chan string
 	var errch <-chan error
@@ -47,7 +45,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 			continue
 		}
 
-		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+		if logch, errch, err = framework.FollowPodLog(te.Client(), p); err != nil {
 			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
 			continue
 		}
@@ -107,8 +105,6 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	client := framework.MustNewClientset(t, nil)
-
 	var pod *corev1.Pod
 	var logch <-chan string
 	var errch <-chan error
@@ -118,7 +114,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 			continue
 		}
 
-		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+		if logch, errch, err = framework.FollowPodLog(te.Client(), p); err != nil {
 			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
 			continue
 		}
