@@ -121,10 +121,7 @@ func GetConfig(listers *regopclient.Listers) (*Azure, error) {
 // Account. Storage account names must be between 3 and 24 characters in
 // length and use numbers and lower-case letters only.
 func generateAccountName(infrastructureName string) string {
-	prefix := storageAccountInvalidCharRe.ReplaceAllString(infrastructureName, "")
-	if prefix == "" {
-		prefix = "imageregistry"
-	}
+	prefix := "imageregistry" + storageAccountInvalidCharRe.ReplaceAllString(infrastructureName, "")
 	if len(prefix) > 24-5 {
 		prefix = prefix[:24-5]
 	}
