@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -128,7 +129,7 @@ func ensureImageRegistryToBeRemoved(te TestEnv) {
 	}
 }
 
-func deleteImageRegistryResource(te TestEnv) {
+func deleteImageRegistryConfig(te TestEnv) {
 	// TODO(dmage): the finalizer should be removed by the operator
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		cr, err := te.Client().Configs().Get(
@@ -154,14 +155,77 @@ func deleteImageRegistryResource(te TestEnv) {
 				context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 			)
 		},
-		func(deleteOptions *metav1.DeleteOptions) error {
+		func(deleteOptions metav1.DeleteOptions) error {
 			return te.Client().Configs().Delete(
-				context.Background(), defaults.ImageRegistryResourceName, *deleteOptions,
+				context.Background(), defaults.ImageRegistryResourceName, deleteOptions,
 			)
 		},
-	); err != nil && !errors.IsNotFound(err) {
+	); err != nil {
 		te.Fatalf("unable to delete the image registry resource: %s", err)
 	}
+}
+
+func deleteNodeCADaemonSet(te TestEnv) {
+	ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(),
+		"node-ca",
+		metav1.GetOptions{},
+	)
+	if errors.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		te.Fatalf("unable to get the current state of daemonset/node-ca: %s", err)
+	}
+
+	policy := metav1.DeletePropagationBackground
+	err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Delete(
+		context.Background(),
+		"node-ca",
+		metav1.DeleteOptions{
+			PropagationPolicy: &policy,
+		},
+	)
+	if errors.IsNotFound(err) {
+		return
+	}
+	if err != nil && !errors.IsNotFound(err) {
+		te.Fatalf("unable to delete daemonset/node-ca: %s", err)
+	}
+
+	err = WaitUntilFinalized(
+		ds,
+		func() (metav1.Object, error) {
+			return te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				context.Background(),
+				"node-ca",
+				metav1.GetOptions{},
+			)
+		},
+	)
+	if err != nil {
+		DumpNodeCADaemonSet(te)
+		te.Fatalf("unable to finalize daemonset/node-ca: %s", err)
+	}
+}
+
+func deleteImageRegistryCertificates(te TestEnv) {
+	err := te.Client().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Delete(
+		context.Background(),
+		defaults.ImageRegistryCertificatesName,
+		metav1.DeleteOptions{},
+	)
+	if errors.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		te.Fatalf("unable to delete the image registry certificates config map: %s", err)
+	}
+}
+
+func deleteImageRegistryAlwaysPresentResources(te TestEnv) {
+	defer deleteImageRegistryCertificates(te)
+	defer deleteNodeCADaemonSet(te)
 }
 
 func RemoveImageRegistry(te TestEnv) {
@@ -169,8 +233,10 @@ func RemoveImageRegistry(te TestEnv) {
 	ensureImageRegistryToBeRemoved(te)
 	te.Logf("stopping the operator...")
 	StopDeployment(te, OperatorDeploymentNamespace, OperatorDeploymentName)
-	te.Logf("deleting the image registry resource...")
-	deleteImageRegistryResource(te)
+	te.Logf("deleting the image registry config...")
+	deleteImageRegistryConfig(te)
+	te.Logf("deleting always-present resources...")
+	deleteImageRegistryAlwaysPresentResources(te)
 }
 
 func DeployImageRegistry(te TestEnv, spec *imageregistryapiv1.ImageRegistrySpec) {
@@ -204,15 +270,25 @@ func DumpImageRegistryResource(te TestEnv) {
 	DumpYAML(te, "the image registry resource", cr)
 }
 
-func DumpImageRegistryDeployment(logger Logger, client *Clientset) {
-	d, err := client.Deployments(OperatorDeploymentNamespace).Get(
+func GetImageRegistryDeployment(te TestEnv) *appsv1.Deployment {
+	d, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(
 		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
 	)
 	if err != nil {
-		logger.Logf("unable to dump the image registry deployment: %s", err)
+		te.Fatalf("unable to get the image registry deployment: %v", err)
+	}
+	return d
+}
+
+func DumpImageRegistryDeployment(te TestEnv) {
+	d, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(
+		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+	)
+	if err != nil {
+		te.Logf("unable to dump the image registry deployment: %s", err)
 		return
 	}
-	DumpYAML(logger, "the image registry deployment", d)
+	DumpYAML(te, "the image registry deployment", d)
 }
 
 func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Config {

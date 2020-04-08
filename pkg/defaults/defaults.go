@@ -102,6 +102,9 @@ const (
 
 	ServiceCAName = "serviceca"
 	TrustedCAName = "trusted-ca"
+
+	// OpenShiftConfigNamespace is a namespace with global configuration resources.
+	OpenShiftConfigNamespace = "openshift-config"
 )
 
 var (

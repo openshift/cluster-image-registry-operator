@@ -70,15 +70,15 @@ func ResetClusterProxyConfig(te TestEnv) {
 }
 
 // DumpClusterProxyResource prints out the cluster proxy configuration
-func DumpClusterProxyResource(logger Logger, client *Clientset) {
-	cr, err := client.Proxies().Get(
+func DumpClusterProxyResource(te TestEnv) {
+	cr, err := te.Client().Proxies().Get(
 		context.Background(),
 		defaults.ClusterProxyResourceName,
 		metav1.GetOptions{},
 	)
 	if err != nil {
-		logger.Logf("unable to dump the cluster proxy resource: %s", err)
+		te.Logf("unable to dump the cluster proxy resource: %s", err)
 		return
 	}
-	DumpYAML(logger, "the cluster proxy resource", cr)
+	DumpYAML(te, "the cluster proxy resource", cr)
 }

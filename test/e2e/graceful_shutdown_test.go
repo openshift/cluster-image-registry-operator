@@ -9,6 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
@@ -16,6 +19,12 @@ import (
 func TestNodeCAGracefulShutdown(t *testing.T) {
 	te := framework.Setup(t)
 
+	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Removed,
+	})
+	defer framework.TeardownImageRegistry(te)
+
+	framework.WaitUntilImageRegistryIsAvailable(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
@@ -27,17 +36,20 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	client := framework.MustNewClientset(t, nil)
+	if len(pods.Items) == 0 {
+		t.Fatalf("no node-ca pods found")
+	}
 
 	var pod *corev1.Pod
 	var logch <-chan string
 	var errch <-chan error
 	for _, p := range pods.Items {
 		if p.Status.Phase != "Running" {
+			t.Logf("skipping pod %s: phase=%s", p.Name, p.Status.Phase)
 			continue
 		}
 
-		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+		if logch, errch, err = framework.FollowPodLog(te.Client(), p); err != nil {
 			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
 			continue
 		}
@@ -97,17 +109,20 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 		t.Fatalf("unable to list pods: %v", err)
 	}
 
-	client := framework.MustNewClientset(t, nil)
+	if len(pods.Items) == 0 {
+		t.Fatalf("no image-registry pods found")
+	}
 
 	var pod *corev1.Pod
 	var logch <-chan string
 	var errch <-chan error
 	for _, p := range pods.Items {
 		if p.Status.Phase != "Running" {
+			t.Logf("skipping pod %s: phase=%s", p.Name, p.Status.Phase)
 			continue
 		}
 
-		if logch, errch, err = framework.FollowPodLog(client, p); err != nil {
+		if logch, errch, err = framework.FollowPodLog(te.Client(), p); err != nil {
 			t.Logf("unable to follow log on pod %s: %v", p.Name, err)
 			continue
 		}

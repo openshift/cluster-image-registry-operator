@@ -40,9 +40,9 @@ func NewNodeCADaemonController(
 	}
 
 	daemonSetInformer.Informer().AddEventHandler(c.eventHandler())
-	serviceInformer.Informer().AddEventHandler(c.eventHandler())
-
 	c.cachesToSync = append(c.cachesToSync, daemonSetInformer.Informer().HasSynced)
+
+	serviceInformer.Informer().AddEventHandler(c.eventHandler())
 	c.cachesToSync = append(c.cachesToSync, serviceInformer.Informer().HasSynced)
 
 	return c

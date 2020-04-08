@@ -35,3 +35,13 @@ func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 	})
 	return ds, err
 }
+
+func DumpNodeCADaemonSet(te TestEnv) {
+	ds, err := te.Client().DaemonSets(OperatorDeploymentNamespace).Get(
+		context.Background(), "node-ca", metav1.GetOptions{},
+	)
+	if err != nil {
+		te.Logf("failed to get the node-ca daemonset: %v", err)
+	}
+	DumpYAML(te, "the node-ca daemonset", ds)
+}

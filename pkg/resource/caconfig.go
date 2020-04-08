@@ -25,25 +25,15 @@ type generatorCAConfig struct {
 	openshiftConfigLister corelisters.ConfigMapNamespaceLister
 	serviceLister         corelisters.ServiceNamespaceLister
 	client                coreset.CoreV1Interface
-	imageConfigName       string
-	serviceCAName         string
-	serviceName           string
-	name                  string
-	namespace             string
 }
 
-func newGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface) *generatorCAConfig {
+func NewGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface) Mutator {
 	return &generatorCAConfig{
 		lister:                lister,
 		imageConfigLister:     imageConfigLister,
 		openshiftConfigLister: openshiftConfigLister,
 		serviceLister:         serviceLister,
 		client:                client,
-		imageConfigName:       defaults.ImageConfigName,
-		serviceCAName:         defaults.ServiceCAName,
-		serviceName:           defaults.ServiceName,
-		name:                  defaults.ImageRegistryCertificatesName,
-		namespace:             defaults.ImageRegistryOperatorNamespace,
 	}
 }
 
@@ -60,11 +50,11 @@ func (gcac *generatorCAConfig) GetResource() string {
 }
 
 func (gcac *generatorCAConfig) GetNamespace() string {
-	return gcac.namespace
+	return defaults.ImageRegistryOperatorNamespace
 }
 
 func (gcac *generatorCAConfig) GetName() string {
-	return gcac.name
+	return defaults.ImageRegistryCertificatesName
 }
 
 func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
@@ -77,14 +67,14 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		BinaryData: map[string][]byte{},
 	}
 
-	serviceCA, err := gcac.lister.Get(gcac.serviceCAName)
+	serviceCA, err := gcac.lister.Get(defaults.ServiceCAName)
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the service CA configmap: %s", err)
+		klog.V(1).Infof("missing the service CA configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
 		if cert, ok := serviceCA.Data["service-ca.crt"]; ok {
-			internalHostnames, err := getServiceHostnames(gcac.serviceLister, gcac.serviceName)
+			internalHostnames, err := getServiceHostnames(gcac.serviceLister, defaults.ServiceName)
 			if err != nil {
 				return cm, err
 			}
@@ -100,9 +90,9 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
-	imageConfig, err := gcac.imageConfigLister.Get(gcac.imageConfigName)
+	imageConfig, err := gcac.imageConfigLister.Get(defaults.ImageConfigName)
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the image config: %s", err)
+		klog.V(1).Infof("missing the image config: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Name; caConfigName != "" {
@@ -121,7 +111,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	cp_ca, err := gcac.openshiftConfigLister.Get("cloud-provider-config")
 	if errors.IsNotFound(err) {
-		klog.Infof("missing the cloud-provider-config configmap: %s", err)
+		klog.V(1).Infof("missing the cloud-provider-config configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
