@@ -105,7 +105,7 @@ func newDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
 	drv, err := newDriver(cfg, kubeconfig, listers)
 	if err == ErrStorageNotConfigured {
-		*cfg, err = GetPlatformStorage(listers)
+		*cfg, _, err = GetPlatformStorage(listers)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
@@ -115,8 +115,9 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 }
 
 // GetPlatformStorage returns the storage configuration that should be used
-// based on the cloudplatform we are running on, as determined from the
-// infrastructure configuration.
+// based on the cloud platform we are running on, as determined from the
+// infrastructure configuration. Also it returns the recommend number of
+// replicas for this platform.
 //
 // Following rules apply:
 // - If it is a known platform for which we have a backend implementation (e.g.
@@ -127,12 +128,13 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 //   This is useful as it easily allows other teams to experiment with OpenShift
 //   in new platforms, if it is LibVirt platform we also return EmptyDir for
 //   historical reasons.
-func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, error) {
+func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
+	replicas := int32(1)
 
 	infra, err := util.GetInfrastructure(listers)
 	if err != nil {
-		return imageregistryv1.ImageRegistryConfigStorage{}, err
+		return imageregistryv1.ImageRegistryConfigStorage{}, replicas, err
 	}
 
 	switch infra.Status.PlatformStatus.Type {
@@ -149,20 +151,24 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	// for them.
 	case configapiv1.AWSPlatformType:
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
+		replicas = 2
 	case configapiv1.AzurePlatformType:
 		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
+		replicas = 2
 	case configapiv1.GCPPlatformType:
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
+		replicas = 2
 	case configapiv1.OpenStackPlatformType:
 		cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
-
+		replicas = 2
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.
 	case configapiv1.LibvirtPlatformType:
 		fallthrough
 	default:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
+		replicas = 1
 	}
 
-	return cfg, nil
+	return cfg, replicas, nil
 }

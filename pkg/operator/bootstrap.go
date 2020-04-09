@@ -45,7 +45,7 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
 	}
 
-	platformStorage, err := storage.GetPlatformStorage(c.listers)
+	platformStorage, replicas, err := storage.GetPlatformStorage(c.listers)
 	if err != nil {
 		return err
 	}
@@ -70,8 +70,8 @@ func (c *Controller) Bootstrap() error {
 		Spec: imageregistryv1.ImageRegistrySpec{
 			ManagementState: mgmtState,
 			LogLevel:        2,
-			Storage:         imageregistryv1.ImageRegistryConfigStorage{},
-			Replicas:        1,
+			Storage:         platformStorage,
+			Replicas:        replicas,
 			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),
 		},
 		Status: imageregistryv1.ImageRegistryStatus{},
