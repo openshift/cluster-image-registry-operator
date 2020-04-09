@@ -4,12 +4,15 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -162,5 +165,85 @@ func TestSwapStorage(t *testing.T) {
 	}
 	if config.Status.Storage != expected {
 		t.Errorf("multi storage config found: %+v", config.Status.Storage)
+	}
+}
+
+func TestImageConfigWhenRemoved(t *testing.T) {
+	hostname := "test.example.com"
+
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
+		ManagementState: operatorapi.Managed,
+		Storage: imageregistryv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas:     1,
+		DefaultRoute: true,
+		Routes: []imageregistryv1.ImageRegistryConfigRoute{
+			{
+				Name:     "testroute",
+				Hostname: hostname,
+			},
+		},
+	})
+	defer framework.TeardownImageRegistry(te)
+
+	framework.EnsureDefaultExternalRegistryHostnameIsSet(te)
+	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+
+	if _, err := te.Client().Configs().Patch(
+		context.Background(),
+		defaults.ImageRegistryResourceName,
+		types.JSONPatchType,
+		framework.MarshalJSON([]framework.JSONPatch{
+			{
+				Op:    "replace",
+				Path:  "/spec/managementState",
+				Value: operatorapi.Removed,
+			},
+		}),
+		metav1.PatchOptions{},
+	); err != nil {
+		t.Fatalf("unable to switch to removed state: %s", err)
+	}
+
+	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
+		if err != nil {
+			return false, err
+		}
+
+		conds := framework.GetImageRegistryConditions(cr)
+		t.Logf("image registry: %s", conds)
+		return conds.Available.IsTrue() && conds.Available.Reason() == "Removed" &&
+			conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Removed" &&
+			conds.Degraded.IsFalse() &&
+			conds.Removed.IsTrue(), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var imgcfg *configv1.Image
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
+		var err error
+		imgcfg, err = te.Client().Images().Get(
+			context.Background(), "cluster", metav1.GetOptions{},
+		)
+		if errors.IsNotFound(err) {
+			te.Logf("waiting for the image config resource: the resource does not exist")
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+
+		noExternalRoutes := len(imgcfg.Status.ExternalRegistryHostnames) == 0
+		noInternalRoute := imgcfg.Status.InternalRegistryHostname == ""
+		return noExternalRoutes && noInternalRoute, nil
+	})
+	if err != nil {
+		te.Fatalf("cluster image config resource was not updated: %+v, err: %v", imgcfg, err)
 	}
 }
