@@ -286,7 +286,7 @@ func (c *ImagePrunerController) eventProcessor() {
 
 			if err := c.sync(); err != nil {
 				c.workqueue.AddRateLimited(imagePrunerWorkQueueKey)
-				klog.Errorf("(imaeg pruner) unable to sync: %s, requeuing", err)
+				klog.Errorf("(image pruner) unable to sync: %s, requeuing", err)
 			} else {
 				c.workqueue.Forget(obj)
 				klog.Infof("event from image pruner workqueue successfully processed")
