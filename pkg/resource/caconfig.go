@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -151,4 +152,23 @@ func (gcac *generatorCAConfig) Delete(opts metav1.DeleteOptions) error {
 
 func (g *generatorCAConfig) Owned() bool {
 	return true
+}
+
+func getServiceHostnames(serviceLister corelisters.ServiceNamespaceLister, serviceName string) ([]string, error) {
+	svc, err := serviceLister.Get(serviceName)
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	port := ""
+	if svc.Spec.Ports[0].Port != 443 {
+		port = fmt.Sprintf(":%d", svc.Spec.Ports[0].Port)
+	}
+	return []string{
+		fmt.Sprintf("%s.%s.svc%s", svc.Name, svc.Namespace, port),
+		fmt.Sprintf("%s.%s.svc.cluster.local%s", svc.Name, svc.Namespace, port),
+	}, nil
 }

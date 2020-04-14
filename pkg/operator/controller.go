@@ -468,6 +468,12 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		informers = append(informers, informer)
 	}
 
+	imageConfigStatusController := NewImageConfigController(
+		c.clients.Config,
+		routeInformerFactory.Route().V1().Routes(),
+		kubeInformerFactory.Core().V1().Services(),
+	)
+
 	clusterOperatorStatusController := NewClusterOperatorStatusController(
 		c.clients.Config,
 		configInformerFactory.Config().V1().ClusterOperators(),
@@ -501,6 +507,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	go clusterOperatorStatusController.Run(stopCh)
 	go nodeCADaemonController.Run(stopCh)
 	go imageRegistryCertificatesController.Run(stopCh)
+	go imageConfigStatusController.Run(stopCh)
 
 	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
