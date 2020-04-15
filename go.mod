@@ -39,7 +39,7 @@ require (
 	github.com/openshift/api v0.0.0-20200414121628-3c144822923e
 	github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 	github.com/openshift/crd-schema-gen v1.0.0
-	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410 // indirect
+	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410
 	github.com/openshift/library-go v0.0.0-20200127110935-527e40ed17d9
 	github.com/prometheus/client_golang v1.1.0
 	github.com/prometheus/client_model v0.0.0-20191202183732-d1d2010b5bee
