@@ -23,6 +23,7 @@ require (
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.6 // indirect
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
+	github.com/google/go-cmp v0.3.1
 	github.com/google/uuid v1.1.1
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
@@ -35,7 +36,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/jteeuwen/go-bindata v3.0.8-0.20151023091102-a0ff2567cfb7+incompatible
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v0.0.0-20200326160804-ecb9283fe820
+	github.com/openshift/api v0.0.0-20200413201024-c6e8c9b6eb9a
 	github.com/openshift/build-machinery-go v0.0.0-20200211121458-5e3d6e570160
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
 	github.com/openshift/crd-schema-gen v1.0.0
