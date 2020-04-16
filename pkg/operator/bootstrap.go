@@ -15,7 +15,6 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -97,7 +96,6 @@ func (c *Controller) Bootstrap() error {
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       defaults.ImageRegistryResourceName,
-			Namespace:  defaults.ImageRegistryOperatorNamespace,
 			Finalizers: []string{defaults.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
@@ -111,12 +109,7 @@ func (c *Controller) Bootstrap() error {
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
 
-	client, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	if _, err = client.Configs().Create(
+	if _, err = c.clients.RegOp.ImageregistryV1().Configs().Create(
 		context.TODO(), cr, metav1.CreateOptions{},
 	); err != nil {
 		return err

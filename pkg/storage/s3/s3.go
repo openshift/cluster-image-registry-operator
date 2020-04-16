@@ -31,10 +31,11 @@ import (
 )
 
 type S3 struct {
-	AccessKey string
-	SecretKey string
-	Bucket    string
-	Region    string
+	AccessKey      string
+	SecretKey      string
+	Bucket         string
+	Region         string
+	RegionEndpoint string
 }
 
 type driver struct {
@@ -64,6 +65,13 @@ func GetConfig(listers *regopclient.Listers) (*S3, error) {
 
 	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.AWSPlatformType {
 		cfg.Region = infra.Status.PlatformStatus.AWS.Region
+
+		for _, ep := range infra.Status.PlatformStatus.AWS.ServiceEndpoints {
+			if ep.Name == "s3" {
+				cfg.RegionEndpoint = ep.URL
+				break
+			}
+		}
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
@@ -116,6 +124,11 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		d.Config.Region = cfg.Region
 	}
 
+	if len(d.Config.RegionEndpoint) == 0 {
+		d.Config.RegionEndpoint = cfg.RegionEndpoint
+		d.Config.VirtualHostedStyle = true
+	}
+
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
 	awsConfig := &aws.Config{
@@ -131,7 +144,9 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	}
 	awsConfig.WithUseDualStack(true)
 	if d.Config.RegionEndpoint != "" {
-		awsConfig.WithS3ForcePathStyle(true)
+		if !d.Config.VirtualHostedStyle {
+			awsConfig.WithS3ForcePathStyle(true)
+		}
 		awsConfig.WithEndpoint(d.Config.RegionEndpoint)
 	}
 	sess, err := session.NewSession(awsConfig)
@@ -144,7 +159,6 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	})
 
 	return s3.New(sess), nil
-
 }
 
 func isBucketNotFound(err interface{}) bool {
@@ -190,6 +204,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: cfg.AccessKey, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: cfg.SecretKey, Secret: true},

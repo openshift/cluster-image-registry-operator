@@ -17,7 +17,7 @@ type Clients struct {
 	Kube   *kubeset.Clientset
 	Route  *routeset.RouteV1Client
 	Config *configset.ConfigV1Client
-	RegOp  *regopset.Clientset
+	RegOp  regopset.Interface
 	Core   *coreset.CoreV1Client
 	Apps   *appsset.AppsV1Client
 	RBAC   *rbacset.RbacV1Client
