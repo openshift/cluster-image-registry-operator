@@ -61,6 +61,13 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 			},
 			{
 				Verbs:     []string{"get"},
+				APIGroups: []string{""},
+				Resources: []string{
+					"namespaces",
+				},
+			},
+			{
+				Verbs:     []string{"get"},
 				APIGroups: []string{ /* "", */ "image.openshift.io"},
 				Resources: []string{
 					"imagestreamimages",
