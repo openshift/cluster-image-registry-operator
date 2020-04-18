@@ -15,8 +15,9 @@ import (
 	configapi "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+
 	"github.com/openshift/cluster-image-registry-operator/defaults"
 )
 
@@ -27,13 +28,13 @@ type generatorClusterOperator struct {
 	cr           *imageregistryv1.Config
 	deployLister appslisters.DeploymentNamespaceLister
 	configLister configlisters.ClusterOperatorLister
-	configClient configset.ConfigV1Interface
+	configClient configv1client.ClusterOperatorsGetter
 }
 
-func newGeneratorClusterOperator(
+func NewGeneratorClusterOperator(
 	deployLister appslisters.DeploymentNamespaceLister,
 	configLister configlisters.ClusterOperatorLister,
-	configClient configset.ConfigV1Interface,
+	configClient configv1client.ClusterOperatorsGetter,
 	cr *imageregistryv1.Config,
 	mutators []Mutator,
 ) *generatorClusterOperator {
@@ -113,7 +114,7 @@ func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, b
 }
 
 func (gco *generatorClusterOperator) Delete(opts *metav1.DeleteOptions) error {
-	return gco.configClient.Images().Delete(gco.GetName(), opts)
+	return gco.configClient.ClusterOperators().Delete(gco.GetName(), opts)
 }
 
 func (gco *generatorClusterOperator) Owned() bool {

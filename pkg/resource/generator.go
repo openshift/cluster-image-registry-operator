@@ -22,6 +22,46 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
+func ApplyMutator(gen Mutator) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		o, err := gen.Get()
+		if err != nil {
+			if !errors.IsNotFound(err) {
+				return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
+			}
+
+			n, err := gen.Create()
+			if err != nil {
+				return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
+			}
+
+			str, err := object.DumpString(n)
+			if err != nil {
+				klog.Errorf("unable to dump object: %s", err)
+			}
+
+			klog.Infof("object %s created: %s", Name(gen), str)
+			return nil
+		}
+
+		n, updated, err := gen.Update(o.DeepCopyObject())
+		if err != nil {
+			if errors.IsConflict(err) {
+				return err
+			}
+			return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
+		}
+		if updated {
+			difference, err := object.DiffString(o, n)
+			if err != nil {
+				klog.Errorf("unable to calculate difference: %s", err)
+			}
+			klog.Infof("object %s updated: %s", Name(gen), difference)
+		}
+		return nil
+	})
+}
+
 func NewGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers, params *parameters.Globals) *Generator {
 	return &Generator{
 		kubeconfig: kubeconfig,
@@ -51,7 +91,7 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 	return mutators
 }
 
-func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
+func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, g.listers)
 	if err != nil {
 		return nil, err
@@ -69,9 +109,6 @@ func (g *Generator) list(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core, g.params, cr))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, g.params, cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
-
-	// This generator must be the last because he uses other generators.
-	mutators = append(mutators, newGeneratorClusterOperator(g.listers.Deployments, g.listers.ClusterOperators, g.clients.Config, cr, mutators))
 
 	return mutators, nil
 }
@@ -191,49 +228,13 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 
-	generators, err := g.list(cr)
+	generators, err := g.List(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
 	}
 
 	for _, gen := range generators {
-		err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-			o, err := gen.Get()
-			if err != nil {
-				if !errors.IsNotFound(err) {
-					return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
-				}
-
-				n, err := gen.Create()
-				if err != nil {
-					return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
-				}
-
-				str, err := object.DumpString(n)
-				if err != nil {
-					klog.Errorf("unable to dump object: %s", err)
-				}
-
-				klog.Infof("object %s created: %s", Name(gen), str)
-				return nil
-			}
-
-			n, updated, err := gen.Update(o.DeepCopyObject())
-			if err != nil {
-				if errors.IsConflict(err) {
-					return err
-				}
-				return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
-			}
-			if updated {
-				difference, err := object.DiffString(o, n)
-				if err != nil {
-					klog.Errorf("unable to calculate difference: %s", err)
-				}
-				klog.Infof("object %s updated: %s", Name(gen), difference)
-			}
-			return nil
-		})
+		err = ApplyMutator(gen)
 		if err != nil {
 			return fmt.Errorf("unable to apply objects: %s", err)
 		}
@@ -248,7 +249,7 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 }
 
 func (g *Generator) Remove(cr *imageregistryv1.Config) error {
-	generators, err := g.list(cr)
+	generators, err := g.List(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
 	}
@@ -291,59 +292,6 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 	})
 	if err != nil {
 		return fmt.Errorf("unable to remove storage: %s, %s", err, derr)
-	}
-
-	return nil
-}
-
-func (g *Generator) ApplyClusterOperator(cr *imageregistryv1.Config) error {
-	gen := newGeneratorClusterOperator(
-		g.listers.Deployments,
-		g.listers.ClusterOperators,
-		g.clients.Config,
-		cr,
-		nil,
-	)
-
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		o, err := gen.Get()
-		if err != nil {
-			if !errors.IsNotFound(err) {
-				return fmt.Errorf("failed to get object %s: %s", Name(gen), err)
-			}
-
-			n, err := gen.Create()
-			if err != nil {
-				return fmt.Errorf("failed to create object %s: %s", Name(gen), err)
-			}
-
-			str, err := object.DumpString(n)
-			if err != nil {
-				klog.Errorf("unable to dump object: %s", err)
-			}
-
-			klog.Infof("object %s created: %s", Name(gen), str)
-			return nil
-		}
-
-		n, updated, err := gen.Update(o.DeepCopyObject())
-		if err != nil {
-			if errors.IsConflict(err) {
-				return err
-			}
-			return fmt.Errorf("failed to update object %s: %s", Name(gen), err)
-		}
-		if updated {
-			difference, err := object.DiffString(o, n)
-			if err != nil {
-				klog.Errorf("unable to calculate difference: %s", err)
-			}
-			klog.Infof("object %s updated: %s", Name(gen), difference)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("unable to apply objects: %s", err)
 	}
 
 	return nil

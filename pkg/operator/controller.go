@@ -63,17 +63,8 @@ func (e permanentError) Error() string {
 	return e.Err.Error()
 }
 
-// NewController returns a controller for openshift image registry objects.
-//
-// This controller keeps track of resources needed in order to have openshift
-// internal registry working.
-func NewController(kubeconfig *restclient.Config) (*Controller, error) {
-	namespace, err := regopclient.GetWatchNamespace()
-	if err != nil {
-		klog.Fatalf("failed to get watch namespace: %s", err)
-	}
-
-	p := parameters.Globals{}
+func Parameters(namespace string) *parameters.Globals {
+	p := &parameters.Globals{}
 
 	p.Deployment.Namespace = namespace
 	p.Deployment.Labels = map[string]string{"docker-registry": "default"}
@@ -90,12 +81,27 @@ func NewController(kubeconfig *restclient.Config) (*Controller, error) {
 	p.ServiceCA.Name = "serviceca"
 	p.TrustedCA.Name = "trusted-ca"
 
+	return p
+}
+
+// NewController returns a controller for openshift image registry objects.
+//
+// This controller keeps track of resources needed in order to have openshift
+// internal registry working.
+func NewController(kubeconfig *restclient.Config) (*Controller, error) {
+	namespace, err := regopclient.GetWatchNamespace()
+	if err != nil {
+		klog.Fatalf("failed to get watch namespace: %s", err)
+	}
+
+	p := Parameters(namespace)
+
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
 	c := &Controller{
 		kubeconfig: kubeconfig,
-		params:     p,
-		generator:  resource.NewGenerator(kubeconfig, clients, listers, &p),
+		params:     *p,
+		generator:  resource.NewGenerator(kubeconfig, clients, listers, p),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:    listers,
 		clients:    clients,
@@ -148,11 +154,6 @@ func (c *Controller) sync() error {
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
 		err = c.finalizeResources(cr)
-
-		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			klog.Errorf("unable to apply cluster operator: %s", genErr)
-		}
-
 		return err
 	}
 
@@ -190,10 +191,6 @@ func (c *Controller) sync() error {
 		}
 		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
 
-		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			klog.Errorf("unable to apply cluster operator: %s", genErr)
-		}
-
 		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(cr)
 		if err != nil {
 			if !errors.IsConflict(err) {
@@ -215,10 +212,6 @@ func (c *Controller) sync() error {
 			klog.Errorf("unable to calculate difference in %s: %s", utilObjectInfo(cr), err)
 		}
 		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
-
-		if genErr := c.generator.ApplyClusterOperator(cr); genErr != nil {
-			klog.Errorf("unable to apply cluster operator (cr status=%t): %s", statusChanged, genErr)
-		}
 
 		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(cr)
 		if err != nil {
@@ -483,12 +476,23 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 		informers = append(informers, informer)
 	}
 
+	clusterOperatorStatusController := NewClusterOperatorStatusController(
+		c.clients.Config,
+		configInformerFactory.Config().V1().ClusterOperators(),
+		regopInformerFactory.Imageregistry().V1().Configs(),
+		kubeInformerFactory.Apps().V1().Deployments(),
+		c.kubeconfig, c.clients, c.listers,
+	)
+
 	configInformerFactory.Start(stopCh)
 	kubeInformerFactory.Start(stopCh)
 	openshiftConfigKubeInformerFactory.Start(stopCh)
 	kubeSystemKubeInformerFactory.Start(stopCh)
 	regopInformerFactory.Start(stopCh)
 	routeInformerFactory.Start(stopCh)
+
+	// TODO(dmage): This controller should be started from main.
+	go clusterOperatorStatusController.Run(stopCh)
 
 	klog.Info("waiting for informer caches to sync")
 	for _, informer := range informers {
