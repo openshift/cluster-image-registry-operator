@@ -402,7 +402,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return err
 	}
-	infra, err := d.Listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return err
 	}

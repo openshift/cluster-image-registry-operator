@@ -75,7 +75,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 			}
 
 			var cloudName string
-			cloudInfra, err := listers.Infrastructures.Get("cluster")
+			cloudInfra, err := util.GetInfrastructure(listers)
 			if err != nil {
 				if !errors.IsNotFound(err) {
 					return nil, fmt.Errorf("failed to get cluster infrastructure info: %v", err)
@@ -386,7 +386,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	infra, err := d.Listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return fmt.Errorf("failed to get cluster infrastructure info: %v", err)
 	}

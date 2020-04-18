@@ -16,6 +16,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 var (
@@ -129,7 +130,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 
-	infra, err := listers.Infrastructures.Get("cluster")
+	infra, err := util.GetInfrastructure(listers)
 	if err != nil {
 		return imageregistryv1.ImageRegistryConfigStorage{}, err
 	}

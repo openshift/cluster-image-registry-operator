@@ -216,6 +216,7 @@ func (f *FixturesBuilder) BuildListers() *client.Listers {
 		ImageConfigs:        configv1listers.NewImageLister(f.imageConfigsIndexer),
 		ClusterOperators:    configv1listers.NewClusterOperatorLister(f.clusterOperatorsIndexer),
 		RegistryConfigs:     regopv1listers.NewConfigLister(f.registryConfigsIndexer),
+		InstallerConfigMaps: corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("kube-system"),
 		ProxyConfigs:        configv1listers.NewProxyLister(f.proxyConfigsIndexer),
 		Infrastructures:     configv1listers.NewInfrastructureLister(f.infraIndexer),
 	}
