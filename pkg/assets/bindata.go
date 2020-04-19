@@ -64,6 +64,7 @@ spec:
       priorityClassName: system-cluster-critical
       tolerations:
       - operator: Exists
+      hostNetwork: true # run as host network to tolerate unready networks
       serviceAccountName: node-ca
       containers:
       - name: node-ca
