@@ -42,7 +42,7 @@ const (
 )
 
 var (
-	defaultPrunerSuspend                    = false
+	defaultPrunerSuspend                    = true
 	defaultPrunerKeepTagRevisions           = 3
 	defaultPrunerSuccessfulJobsHistoryLimit = int32(3)
 	defaultPrunerFailedJobsHistoryLimit     = int32(3)
