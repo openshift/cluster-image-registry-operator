@@ -39,6 +39,7 @@ var (
 	}
 )
 
+// Refactor the GCS Tests
 // TestGCSMinimal is a test to verify that GCS credentials
 // provided as part of the Day 2 experience will be propagated to the
 // image-registry deployment
