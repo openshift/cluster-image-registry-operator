@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,34 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
+
+func EnsureRoutesAnnotation(te TestEnv, expectedKey, expectedValue string) {
+	if err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (bool, error) {
+		routes, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).List(
+			context.Background(), metav1.ListOptions{},
+		)
+		if err != nil {
+			return false, err
+		}
+		if routes == nil || len(routes.Items) == 0 {
+			te.Logf("insuffient routes found: %#v", routes)
+			return false, nil
+		}
+
+		for _, r := range routes.Items {
+			val, ok := r.Annotations[expectedKey]
+			if !ok {
+				return false, fmt.Errorf("annotation %q not found", expectedKey)
+			}
+			if val != expectedValue {
+				return false, fmt.Errorf("wrong value for %q, expected %q found %q", expectedKey, expectedValue, val)
+			}
+		}
+		return true, nil
+	}); err != nil {
+		te.Errorf("error validating annotation, err: %v", err)
+	}
+}
 
 func EnsureDefaultExternalRouteExists(te TestEnv) {
 	var err error

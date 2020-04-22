@@ -204,6 +204,7 @@ func TestRouteConfiguration(t *testing.T) {
 	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 	framework.EnsureDefaultExternalRouteExists(te)
 	framework.EnsureExternalRoutesExist(t, te.Client(), []string{hostname})
+	framework.EnsureRoutesAnnotation(te, "haproxy.router.openshift.io/timeout", "30s")
 }
 
 func TestOperatorProxyConfiguration(t *testing.T) {
