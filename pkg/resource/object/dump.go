@@ -3,7 +3,19 @@ package object
 import (
 	"fmt"
 	"sort"
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
 )
+
+func printValue(obj interface{}, key string, value string) string {
+	if _, ok := obj.(*corev1.Secret); ok {
+		if value != "" && (strings.HasPrefix(key, "data.") || strings.HasPrefix(key, "stringData.")) {
+			return "<REDACTED>"
+		}
+	}
+	return fmt.Sprintf("%q", value)
+}
 
 func DumpString(o interface{}) (string, error) {
 	res, err := convertToMap(o)
@@ -23,7 +35,7 @@ func DumpString(o interface{}) (string, error) {
 	s := ""
 
 	for _, k := range keys {
-		s += fmt.Sprintf("%s%s=%q", sep, k, res[k])
+		s += fmt.Sprintf("%s%s=%s", sep, k, printValue(o, k, res[k]))
 		sep = ", "
 	}
 
