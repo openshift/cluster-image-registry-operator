@@ -181,7 +181,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Bucket does not exist", err.Error())
 		return false, nil
 	} else if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred 1", err.Error())
 		return false, err
 	}
 
@@ -218,11 +218,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					// If the bucket doesn't exist that's ok, we'll try to create it
 					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
 				default:
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred 2", err.Error())
 					return err
 				}
 			} else {
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred 3", err.Error())
 				return err
 			}
 		} else {
@@ -253,7 +253,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
 				return err
 			} else {
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unknown Error Occurred 4", err.Error())
 				return err
 			}
 		}
@@ -288,7 +288,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "InvalidStorageConfiguration", gerr.Error())
 					return err
 				} else {
-					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
+					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred 5", err.Error())
 				}
 			} else {
 				util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
