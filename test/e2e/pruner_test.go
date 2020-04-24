@@ -132,7 +132,7 @@ func TestPruner(t *testing.T) {
 	}
 
 	// Check that the Scheduled condition is set for the cronjob
-	errs = framework.PrunerConditionExistsWithStatusAndReason(client, "Scheduled", operatorapi.ConditionTrue, "Scheduled")
+	errs = framework.PrunerConditionExistsWithStatusAndReason(client, "Scheduled", operatorapi.ConditionFalse, "Suspended")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -151,8 +151,8 @@ func TestPruner(t *testing.T) {
 
 	// Check that making changes to the pruner custom resource trickle down to the cronjob
 	// and that the conditions get updated correctly
-	truePtr := true
-	cr.Spec.Suspend = &truePtr
+	falsePtr := false
+	cr.Spec.Suspend = &falsePtr
 	cr.Spec.Schedule = "10 10 * * *"
 	cr, err = client.ImagePruners().Update(cr)
 	if errors.IsNotFound(err) {
@@ -162,7 +162,7 @@ func TestPruner(t *testing.T) {
 	}
 
 	// Check that the Scheduled condition is set for the cronjob
-	errs = framework.PrunerConditionExistsWithStatusAndReason(client, "Scheduled", operatorapi.ConditionFalse, "Suspended")
+	errs = framework.PrunerConditionExistsWithStatusAndReason(client, "Scheduled", operatorapi.ConditionTrue, "Scheduled")
 	if len(errs) != 0 {
 		for _, err := range errs {
 			t.Errorf("%#v", err)
@@ -177,8 +177,8 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if *cronjob.Spec.Suspend != true {
-		t.Errorf("The cronjob Spec.Suspend field should have been true, but was %v instead", *cronjob.Spec.Suspend)
+	if *cronjob.Spec.Suspend != false {
+		t.Errorf("The cronjob Spec.Suspend field should have been false, but was %v instead", *cronjob.Spec.Suspend)
 	}
 
 	if cronjob.Spec.Schedule != "10 10 * * *" {
@@ -193,8 +193,8 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	falsePtr := false
-	cr.Spec.Suspend = &falsePtr
+	truePtr := true
+	cr.Spec.Suspend = &truePtr
 	cr.Spec.Schedule = ""
 	cr, err = client.ImagePruners().Update(cr)
 	if errors.IsNotFound(err) {
