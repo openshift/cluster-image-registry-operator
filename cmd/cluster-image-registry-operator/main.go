@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"math/rand"
 	"os"
@@ -67,19 +68,14 @@ func runOperator(cmd *cobra.Command, args []string) {
 
 	go metrics.RunServer(metricsPort, stopCh)
 
-	imagePrunerController, err := operator.NewImagePrunerController(cfg)
-	if err != nil {
-		klog.Fatal(err)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		<-stopCh
+		klog.Infof("Received SIGTERM or SIGINT signal, shutting down the operator.")
+	}()
 
-	go imagePrunerController.Run(stopCh)
-
-	controller, err := operator.NewController(cfg)
-	if err != nil {
-		klog.Fatal(err)
-	}
-
-	err = controller.Run(stopCh)
+	err = operator.RunOperator(ctx, cfg)
 	if err != nil {
 		klog.Fatal(err)
 	}

@@ -14,13 +14,13 @@ import (
 )
 
 type Clients struct {
-	Kube   *kubeset.Clientset
-	Route  *routeset.RouteV1Client
-	Config *configset.ConfigV1Client
+	Kube   kubeset.Interface
+	Route  routeset.RouteV1Interface
+	Config configset.ConfigV1Interface
 	RegOp  regopset.Interface
-	Core   *coreset.CoreV1Client
-	Apps   *appsset.AppsV1Client
-	RBAC   *rbacset.RbacV1Client
-	Batch  *batchset.BatchV1beta1Client
-	Job    *jobset.BatchV1Client
+	Core   coreset.CoreV1Interface
+	Apps   appsset.AppsV1Interface
+	RBAC   rbacset.RbacV1Interface
+	Batch  batchset.BatchV1beta1Interface
+	Job    jobset.BatchV1Interface
 }

@@ -14,21 +14,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
-	kubeset "k8s.io/client-go/kubernetes"
-	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
-	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
-	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
-	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
-	restclient "k8s.io/client-go/rest"
+	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	regopset "github.com/openshift/client-go/imageregistry/clientset/versioned"
-	regopinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
+	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -49,62 +45,83 @@ var (
 )
 
 // NewImagePrunerController returns a controller for openshift image pruner.
-func NewImagePrunerController(kubeconfig *restclient.Config) (*ImagePrunerController, error) {
+func NewImagePrunerController(
+	kubeClient kubeclient.Interface,
+	imageregistryClient imageregistryclient.Interface,
+	kubeInformerFactory kubeinformers.SharedInformerFactory,
+	regopInformerFactory imageregistryinformers.SharedInformerFactory,
+) *ImagePrunerController {
 	listers := &regopclient.ImagePrunerControllerListers{}
 	clients := &regopclient.Clients{}
 	c := &ImagePrunerController{
-		kubeconfig: kubeconfig,
-		generator:  resource.NewImagePrunerGenerator(kubeconfig, clients, listers),
-		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), imagePrunerWorkQueueKey),
-		listers:    listers,
-		clients:    clients,
+		generator: resource.NewImagePrunerGenerator(clients, listers),
+		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), imagePrunerWorkQueueKey),
+		listers:   listers,
+		clients:   clients,
 	}
 
 	// Initial event to bootstrap the pruner if it doesn't exist.
 	c.workqueue.AddRateLimited(imagePrunerWorkQueueKey)
 
-	var err error
+	c.clients.Core = kubeClient.CoreV1()
+	c.clients.Apps = kubeClient.AppsV1()
+	c.clients.RBAC = kubeClient.RbacV1()
+	c.clients.Kube = kubeClient
+	c.clients.RegOp = imageregistryClient
+	c.clients.Batch = kubeClient.BatchV1beta1()
 
-	c.clients.Core, err = coreset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
+	for _, ctor := range []func() cache.SharedIndexInformer{
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
+			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Rbac().V1().ClusterRoles()
+			c.listers.ClusterRoles = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Rbac().V1().ClusterRoleBindings()
+			c.listers.ClusterRoleBindings = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := regopInformerFactory.Imageregistry().V1().Configs()
+			c.listers.RegistryConfigs = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := regopInformerFactory.Imageregistry().V1().ImagePruners()
+			c.listers.ImagePrunerConfigs = informer.Lister()
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
+			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Batch().V1().Jobs()
+			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+	} {
+		informer := ctor()
+		informer.AddEventHandler(c.handler())
+		c.cachesToSync = append(c.cachesToSync, informer.HasSynced)
 	}
 
-	c.clients.Apps, err = appsset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
-	}
-
-	c.clients.RBAC, err = rbacset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
-	}
-
-	c.clients.Kube, err = kubeset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
-	}
-
-	c.clients.RegOp, err = regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
-	}
-
-	c.clients.Batch, err = batchset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return c, err
-	}
-
-	return c, nil
+	return c
 }
 
 // ImagePrunerController keeps track of openshift image pruner components.
 type ImagePrunerController struct {
-	kubeconfig *restclient.Config
-	generator  *resource.ImagePrunerGenerator
-	workqueue  workqueue.RateLimitingInterface
-	listers    *regopclient.ImagePrunerControllerListers
-	clients    *regopclient.Clients
+	generator    *resource.ImagePrunerGenerator
+	workqueue    workqueue.RateLimitingInterface
+	listers      *regopclient.ImagePrunerControllerListers
+	clients      *regopclient.Clients
+	cachesToSync []cache.InformerSynced
 }
 
 func (c *ImagePrunerController) createOrUpdateResources(cr *imageregistryv1.ImagePruner) error {
@@ -156,12 +173,7 @@ func (c *ImagePrunerController) Bootstrap() error {
 		Status: imageregistryv1.ImagePrunerStatus{},
 	}
 
-	client, err := regopset.NewForConfig(c.kubeconfig)
-	if err != nil {
-		return err
-	}
-
-	_, err = client.ImageregistryV1().ImagePruners().Create(
+	_, err = c.clients.RegOp.ImageregistryV1().ImagePruners().Create(
 		context.TODO(), cr, metav1.CreateOptions{},
 	)
 	if err != nil {
@@ -343,67 +355,16 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 
 // Run starts the ImagePrunerController.
 func (c *ImagePrunerController) Run(stopCh <-chan struct{}) {
+	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	kubeInformerFactory := kubeinformers.NewSharedInformerFactoryWithOptions(c.clients.Kube, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
-	regopInformerFactory := regopinformers.NewSharedInformerFactory(c.clients.RegOp, defaultResyncDuration)
-
-	var informers []cache.SharedIndexInformer
-	for _, ctor := range []func() cache.SharedIndexInformer{
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Core().V1().ServiceAccounts()
-			c.listers.ServiceAccounts = informer.Lister().ServiceAccounts(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Rbac().V1().ClusterRoles()
-			c.listers.ClusterRoles = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Rbac().V1().ClusterRoleBindings()
-			c.listers.ClusterRoleBindings = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().Configs()
-			c.listers.RegistryConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().ImagePruners()
-			c.listers.ImagePrunerConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
-			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1().Jobs()
-			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-	} {
-		informer := ctor()
-		informer.AddEventHandler(c.handler())
-		informers = append(informers, informer)
+	if !cache.WaitForCacheSync(stopCh, c.cachesToSync...) {
+		return
 	}
 
-	kubeInformerFactory.Start(stopCh)
-	regopInformerFactory.Start(stopCh)
-
-	klog.Info("waiting for informer caches to sync")
-	for _, informer := range informers {
-		if !cache.WaitForCacheSync(stopCh, informer.HasSynced) {
-			return
-		}
-	}
-
+	klog.Infof("Starting ImagePrunerController")
 	go wait.Until(c.eventProcessor, time.Second, stopCh)
 
-	klog.Info("started image pruner events processor")
 	<-stopCh
-	klog.Info("shutting down image pruner events processor")
+	klog.Infof("Shutting down ImagePrunerController ...")
 }
