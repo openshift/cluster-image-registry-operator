@@ -161,6 +161,6 @@ func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string)
 		}
 	}
 
-	return name, nil
+	return strings.ToLower(name), nil
 
 }
