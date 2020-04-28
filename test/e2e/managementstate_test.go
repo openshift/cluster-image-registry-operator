@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -141,11 +142,20 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	}
 
 	t.Log("updating ManagementState to Managed with no storage config")
-	cr.Spec.ManagementState = operatorapi.Managed
-	cr.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{}
-	if _, err = te.Client().Configs().Update(
-		context.Background(), cr, metav1.UpdateOptions{},
-	); err != nil {
+	err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		if cr, err = te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		); err != nil {
+			return err
+		}
+
+		cr.Spec.ManagementState = operatorapi.Managed
+		cr.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{}
+
+		_, err = te.Client().Configs().Update(context.Background(), cr, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 
