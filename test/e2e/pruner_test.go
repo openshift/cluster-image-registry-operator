@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -31,18 +30,14 @@ func TestPruneRegistryFlag(t *testing.T) {
 	cr, err := te.Client().Configs().Get(
 		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image registry custom resource: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 	// Check that the cronjob was created
 	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image pruner cronjob: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +57,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 	if _, err := te.Client().Configs().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	); err != nil {
-		t.Errorf("unable to update image registry custom resource: %s", err)
+		t.Fatalf("unable to update image registry custom resource: %s", err)
 	}
 
 	var errs []error
@@ -95,7 +90,6 @@ func TestPruneRegistryFlag(t *testing.T) {
 			t.Errorf("%#v", err)
 		}
 	}
-
 }
 
 // TestPruner verifies that the pruner controller installs the cronjob and sets it's
@@ -120,9 +114,7 @@ func TestPruner(t *testing.T) {
 	cr, err := te.Client().ImagePruners().Get(
 		context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image pruner custom resource: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,9 +122,7 @@ func TestPruner(t *testing.T) {
 	_, err = te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image pruner cronjob: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,9 +143,7 @@ func TestPruner(t *testing.T) {
 	_, err = te.Client().ImagePruners().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image registry pruner custom resource: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -165,9 +153,7 @@ func TestPruner(t *testing.T) {
 	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image pruner cronjob: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -183,9 +169,7 @@ func TestPruner(t *testing.T) {
 	cr, err = te.Client().ImagePruners().Get(
 		context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image registry pruner custom resource: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -195,9 +179,7 @@ func TestPruner(t *testing.T) {
 	_, err = te.Client().ImagePruners().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	)
-	if errors.IsNotFound(err) {
-		t.Errorf("unable to get the image registry pruner custom resource: %s", err)
-	} else if err != nil {
+	if err != nil {
 		t.Fatal(err)
 	}
 }
