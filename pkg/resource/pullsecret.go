@@ -30,14 +30,6 @@ func (gs *generatorPullSecret) Type() runtime.Object {
 	return &corev1.Secret{}
 }
 
-func (gs *generatorPullSecret) GetGroup() string {
-	return corev1.GroupName
-}
-
-func (gs *generatorPullSecret) GetResource() string {
-	return "secrets"
-}
-
 func (gs *generatorPullSecret) GetNamespace() string {
 	return gs.namespace
 }

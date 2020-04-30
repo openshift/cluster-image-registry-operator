@@ -13,7 +13,7 @@ import (
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog"
 
-	configapi "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -25,11 +25,11 @@ import (
 var _ Mutator = &generatorClusterOperator{}
 
 type generatorClusterOperator struct {
-	mutators     []Mutator
-	cr           *imageregistryv1.Config
-	deployLister appslisters.DeploymentNamespaceLister
-	configLister configlisters.ClusterOperatorLister
-	configClient configv1client.ClusterOperatorsGetter
+	relatedObjects []configv1.ObjectReference
+	cr             *imageregistryv1.Config
+	deployLister   appslisters.DeploymentNamespaceLister
+	configLister   configlisters.ClusterOperatorLister
+	configClient   configv1client.ClusterOperatorsGetter
 }
 
 func NewGeneratorClusterOperator(
@@ -37,27 +37,19 @@ func NewGeneratorClusterOperator(
 	configLister configlisters.ClusterOperatorLister,
 	configClient configv1client.ClusterOperatorsGetter,
 	cr *imageregistryv1.Config,
-	mutators []Mutator,
+	relatedObjects []configv1.ObjectReference,
 ) *generatorClusterOperator {
 	return &generatorClusterOperator{
-		deployLister: deployLister,
-		configLister: configLister,
-		configClient: configClient,
-		cr:           cr,
-		mutators:     mutators,
+		deployLister:   deployLister,
+		configLister:   configLister,
+		configClient:   configClient,
+		cr:             cr,
+		relatedObjects: relatedObjects,
 	}
 }
 
 func (gco *generatorClusterOperator) Type() runtime.Object {
-	return &configapi.ClusterOperator{}
-}
-
-func (gco *generatorClusterOperator) GetGroup() string {
-	return configapi.GroupName
-}
-
-func (gco *generatorClusterOperator) GetResource() string {
-	return "clusteroperators"
+	return &configv1.ClusterOperator{}
 }
 
 func (gco *generatorClusterOperator) GetNamespace() string {
@@ -73,7 +65,7 @@ func (gco *generatorClusterOperator) Get() (runtime.Object, error) {
 }
 
 func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
-	co := &configapi.ClusterOperator{
+	co := &configv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: gco.GetName(),
 		},
@@ -93,7 +85,7 @@ func (gco *generatorClusterOperator) Create() (runtime.Object, error) {
 }
 
 func (gco *generatorClusterOperator) Update(o runtime.Object) (runtime.Object, bool, error) {
-	co := o.(*configapi.ClusterOperator)
+	co := o.(*configv1.ClusterOperator)
 
 	modified, err := gco.syncVersions(co)
 	if err != nil {
@@ -129,33 +121,33 @@ func (gco *generatorClusterOperator) Owned() bool {
 	return false
 }
 
-func convertOperatorStatus(status operatorapi.ConditionStatus) (configapi.ConditionStatus, error) {
+func convertOperatorStatus(status operatorapi.ConditionStatus) (configv1.ConditionStatus, error) {
 	switch status {
 	case operatorapi.ConditionTrue:
-		return configapi.ConditionTrue, nil
+		return configv1.ConditionTrue, nil
 	case operatorapi.ConditionFalse:
-		return configapi.ConditionFalse, nil
+		return configv1.ConditionFalse, nil
 	case operatorapi.ConditionUnknown:
-		return configapi.ConditionUnknown, nil
+		return configv1.ConditionUnknown, nil
 	}
-	return configapi.ConditionUnknown, fmt.Errorf("unexpected condition status: %s", status)
+	return configv1.ConditionUnknown, fmt.Errorf("unexpected condition status: %s", status)
 }
 
-func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperator) (modified bool) {
-	conditions := []configapi.ClusterOperatorStatusCondition{}
+func (gco *generatorClusterOperator) syncConditions(op *configv1.ClusterOperator) (modified bool) {
+	conditions := []configv1.ClusterOperatorStatusCondition{}
 
 	for _, resourceCondition := range gco.cr.Status.Conditions {
 		found := false
 
-		var conditionType configapi.ClusterStatusConditionType
+		var conditionType configv1.ClusterStatusConditionType
 
 		switch resourceCondition.Type {
 		case operatorapi.OperatorStatusTypeAvailable:
-			conditionType = configapi.OperatorAvailable
+			conditionType = configv1.OperatorAvailable
 		case operatorapi.OperatorStatusTypeProgressing:
-			conditionType = configapi.OperatorProgressing
+			conditionType = configv1.OperatorProgressing
 		case operatorapi.OperatorStatusTypeDegraded:
-			conditionType = configapi.OperatorDegraded
+			conditionType = configv1.OperatorDegraded
 		default:
 			continue
 		}
@@ -199,7 +191,7 @@ func (gco *generatorClusterOperator) syncConditions(op *configapi.ClusterOperato
 				klog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
 				continue
 			}
-			conditions = append(conditions, configapi.ClusterOperatorStatusCondition{
+			conditions = append(conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               conditionType,
 				Status:             conditionStatus,
 				LastTransitionTime: resourceCondition.LastTransitionTime,
@@ -231,7 +223,7 @@ func isDeploymentStatusAvailableAndUpdated(deploy *appsapi.Deployment) bool {
 //
 // If in "Managed" state we use the version stored as a annotation on registry'
 // Deployment, if not we use RELEASE_VERSION environment variable.
-func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator) (bool, error) {
+func (gco *generatorClusterOperator) syncVersions(op *configv1.ClusterOperator) (bool, error) {
 	if gco.cr == nil {
 		return false, fmt.Errorf("invalid nil configuration provided")
 	}
@@ -257,7 +249,7 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 		return false, nil
 	}
 
-	newVersions := []configapi.OperandVersion{
+	newVersions := []configv1.OperandVersion{
 		{
 			Name:    "operator",
 			Version: version,
@@ -272,41 +264,9 @@ func (gco *generatorClusterOperator) syncVersions(op *configapi.ClusterOperator)
 	return true, nil
 }
 
-func (gco *generatorClusterOperator) syncRelatedObjects(op *configapi.ClusterOperator) (modified bool) {
-	var relatedObjects []configapi.ObjectReference
-
-	// Add the main configuration resource
-	relatedObjects = append(relatedObjects, configapi.ObjectReference{
-		Group:    "imageregistry.operator.openshift.io",
-		Resource: "configs",
-		Name:     "cluster",
-	})
-
-	// Always sync the openshift-image-registry namespace
-	relatedObjects = append(relatedObjects, configapi.ObjectReference{
-		Resource: "namespaces",
-		Name:     defaults.ImageRegistryOperatorNamespace,
-	})
-
-	// The controller for the node-ca daemonset is always enabled
-	relatedObjects = append(relatedObjects, configapi.ObjectReference{
-		Group:     "apps",
-		Resource:  "daemonsets",
-		Namespace: defaults.ImageRegistryOperatorNamespace,
-		Name:      "node-ca",
-	})
-
-	for _, gen := range gco.mutators {
-		relatedObjects = append(relatedObjects, configapi.ObjectReference{
-			Group:     gen.GetGroup(),
-			Resource:  gen.GetResource(),
-			Namespace: gen.GetNamespace(),
-			Name:      gen.GetName(),
-		})
-	}
-
-	if !reflect.DeepEqual(op.Status.RelatedObjects, relatedObjects) {
-		op.Status.RelatedObjects = relatedObjects
+func (gco *generatorClusterOperator) syncRelatedObjects(op *configv1.ClusterOperator) (modified bool) {
+	if !reflect.DeepEqual(op.Status.RelatedObjects, gco.relatedObjects) {
+		op.Status.RelatedObjects = gco.relatedObjects
 		modified = true
 	}
 

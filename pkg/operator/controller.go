@@ -22,6 +22,7 @@ import (
 	"k8s.io/klog"
 
 	configapiv1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned"
@@ -475,11 +476,18 @@ func (c *Controller) Run(stopCh <-chan struct{}) error {
 	)
 
 	clusterOperatorStatusController := NewClusterOperatorStatusController(
+		[]configv1.ObjectReference{
+			{Group: "imageregistry.operator.openshift.io", Resource: "configs", Name: "cluster"},
+			{Group: "imageregistry.operator.openshift.io", Resource: "imagepruners", Name: "cluster"},
+			{Group: "rbac.authorization.k8s.io", Resource: "clusterroles", Name: "system:registry"},
+			{Group: "rbac.authorization.k8s.io", Resource: "clusterrolebindings", Name: "registry-registry-role"},
+			{Group: "rbac.authorization.k8s.io", Resource: "clusterrolebindings", Name: "openshift-image-registry-pruner"},
+			{Resource: "namespaces", Name: defaults.ImageRegistryOperatorNamespace},
+		},
 		c.clients.Config,
 		configInformerFactory.Config().V1().ClusterOperators(),
 		regopInformerFactory.Imageregistry().V1().Configs(),
 		kubeInformerFactory.Apps().V1().Deployments(),
-		c.kubeconfig, c.clients, c.listers,
 	)
 
 	imageRegistryCertificatesController := NewImageRegistryCertificatesController(

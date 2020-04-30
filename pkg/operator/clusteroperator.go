@@ -7,24 +7,24 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 type ClusterOperatorStatusController struct {
+	relatedObjects []configv1.ObjectReference
+
 	clusterOperatorClient     configv1client.ClusterOperatorsGetter
 	clusterOperatorLister     configv1listers.ClusterOperatorLister
 	imageRegistryConfigLister imageregistryv1listers.ConfigLister
@@ -32,29 +32,22 @@ type ClusterOperatorStatusController struct {
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
-
-	// These fields should be used only for NewGenerator
-	kubeconfig *rest.Config
-	clients    *client.Clients
-	listers    *client.Listers
 }
 
 func NewClusterOperatorStatusController(
+	relatedObjects []configv1.ObjectReference,
 	configClient configv1client.ConfigV1Interface,
 	clusterOperatorInformer configv1informers.ClusterOperatorInformer,
 	imageRegistryConfigInformer imageregistryv1informers.ConfigInformer,
 	deploymentInformer appsv1informers.DeploymentInformer,
-	kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers,
 ) *ClusterOperatorStatusController {
 	c := &ClusterOperatorStatusController{
+		relatedObjects:            relatedObjects,
 		clusterOperatorClient:     configClient,
 		clusterOperatorLister:     clusterOperatorInformer.Lister(),
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
 		deploymentLister:          deploymentInformer.Lister().Deployments(defaults.ImageRegistryOperatorNamespace),
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ClusterOperatorStatusController"),
-		kubeconfig:                kubeconfig,
-		clients:                   clients,
-		listers:                   listers,
 	}
 
 	clusterOperatorInformer.Informer().AddEventHandler(c.eventHandler())
@@ -107,18 +100,12 @@ func (c *ClusterOperatorStatusController) sync() error {
 	}
 	cr = cr.DeepCopy()
 
-	gen := resource.NewGenerator(c.kubeconfig, c.clients, c.listers)
-	resources, err := gen.List(cr)
-	if err != nil && err != storage.ErrStorageNotConfigured {
-		return err
-	}
-
 	mut := resource.NewGeneratorClusterOperator(
 		c.deploymentLister,
 		c.clusterOperatorLister,
 		c.clusterOperatorClient,
 		cr,
-		resources,
+		c.relatedObjects,
 	)
 
 	return resource.ApplyMutator(mut)

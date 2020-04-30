@@ -42,14 +42,6 @@ func (gcac *generatorCAConfig) Type() runtime.Object {
 	return &corev1.ConfigMap{}
 }
 
-func (gcr *generatorCAConfig) GetGroup() string {
-	return corev1.GroupName
-}
-
-func (gcac *generatorCAConfig) GetResource() string {
-	return "configmaps"
-}
-
 func (gcac *generatorCAConfig) GetNamespace() string {
 	return defaults.ImageRegistryOperatorNamespace
 }
