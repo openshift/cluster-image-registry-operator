@@ -114,11 +114,11 @@ func DiffString(old_o, new_o interface{}) (string, error) {
 	printDiff(res0, res1, func(key, typ, oldv, newv string) {
 		switch typ {
 		case "n":
-			s += fmt.Sprintf("%sadded:%s=%q", sep, key, newv)
+			s += fmt.Sprintf("%sadded:%s=%s", sep, key, printValue(new_o, key, newv))
 		case "o":
-			s += fmt.Sprintf("%sremoved:%s=%q", sep, key, oldv)
+			s += fmt.Sprintf("%sremoved:%s=%s", sep, key, printValue(old_o, key, oldv))
 		case "c":
-			s += fmt.Sprintf("%schanged:%s={%q -> %q}", sep, key, oldv, newv)
+			s += fmt.Sprintf("%schanged:%s={%s -> %s}", sep, key, printValue(old_o, key, oldv), printValue(new_o, key, newv))
 		}
 		sep = ", "
 	})
