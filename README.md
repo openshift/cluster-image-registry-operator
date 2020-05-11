@@ -1,3 +1,4 @@
+test
 # Image Registry Operator
 
 [![GoDoc](https://godoc.org/github.com/openshift/cluster-image-registry-operator?status.png)](https://godoc.org/github.com/openshift/cluster-image-registry-operator)
