@@ -336,13 +336,21 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		}
 	}
 
+	nodeSelectors := map[string]string{}
+	for k, v := range cr.Spec.NodeSelector {
+		nodeSelectors[k] = v
+	}
+	if _, ok := nodeSelectors["kubernetes.io/os"]; !ok {
+		nodeSelectors["kubernetes.io/os"] = "linux"
+	}
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: defaults.DeploymentLabels,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations:       cr.Spec.Tolerations,
-			NodeSelector:      cr.Spec.NodeSelector,
+			NodeSelector:      nodeSelectors,
 			PriorityClassName: "system-cluster-critical",
 			Containers: []corev1.Container{
 				{
