@@ -1,5 +1,7 @@
 # Image Registry Operator
 
+**IGNORE ME - DEBUGGING AZURE**
+
 [![GoDoc](https://godoc.org/github.com/openshift/cluster-image-registry-operator?status.png)](https://godoc.org/github.com/openshift/cluster-image-registry-operator)
 [![Licensed under Apache License version 2.0](https://img.shields.io/github/license/openshift/cluster-image-registry-operator.svg?maxAge=2592000)](https://www.apache.org/licenses/LICENSE-2.0)
 
