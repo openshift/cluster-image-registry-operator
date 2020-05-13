@@ -328,7 +328,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	if len(d.Config.Bucket) != 0 {
 		err = d.bucketExists(d.Config.Bucket)
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
+			if aerr, ok := err.(awserr.RequestFailure); ok {
+				err = fmt.Errorf("Error requesting endpoint. Code: %s StatusCode: %d", aerr.Code(), aerr.StatusCode())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Error requesting endpoint", err.Error())
+				return err
+			} else if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
 				case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
 					// If the bucket doesn't exist that's ok, we'll try to create it
