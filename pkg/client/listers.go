@@ -42,4 +42,5 @@ type ImagePrunerControllerListers struct {
 	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
 	RegistryConfigs     regoplisters.ConfigLister
 	ImagePrunerConfigs  regoplisters.ImagePrunerLister
+	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
 }

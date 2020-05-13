@@ -102,6 +102,18 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 							Affinity:           gcj.getAffinity(cr),
 							NodeSelector:       gcj.getNodeSelector(cr),
 							Tolerations:        gcj.getTolerations(cr),
+							Volumes: []kcorev1.Volume{
+								{
+									Name: "serviceca",
+									VolumeSource: kcorev1.VolumeSource{
+										ConfigMap: &kcorev1.ConfigMapVolumeSource{
+											LocalObjectReference: kcorev1.LocalObjectReference{
+												Name: "serviceca",
+											},
+										},
+									},
+								},
+							},
 							Containers: []kcorev1.Container{
 								{
 									Image:                    os.Getenv("IMAGE_PRUNER"),
@@ -113,11 +125,18 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 										"adm",
 										"prune",
 										"images",
-										"--certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt",
+										"--certificate-authority=/var/run/configmaps/serviceca/service-ca.crt",
 										fmt.Sprintf("--keep-tag-revisions=%d", gcj.getKeepTagRevisions(cr)),
 										fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
 										fmt.Sprintf("--prune-registry=%t", gcj.getPruneRegistry(rcr)),
 										"--confirm=true",
+									},
+									VolumeMounts: []kcorev1.VolumeMount{
+										{
+											Name:      "serviceca",
+											MountPath: "/var/run/configmaps/serviceca/service-ca.crt",
+											ReadOnly:  true,
+										},
 									},
 								},
 							},

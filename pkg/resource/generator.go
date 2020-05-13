@@ -102,7 +102,6 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorClusterRole(g.listers.ClusterRoles, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
-	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core))
 	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core))
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
