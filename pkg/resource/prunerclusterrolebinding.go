@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 var _ Mutator = &generatorPrunerClusterRoleBinding{}
@@ -28,16 +30,8 @@ func (gcrb *generatorPrunerClusterRoleBinding) Type() runtime.Object {
 	return &rbacapi.ClusterRoleBinding{}
 }
 
-func (gcrb *generatorPrunerClusterRoleBinding) GetGroup() string {
-	return rbacapi.GroupName
-}
-
-func (gcrb *generatorPrunerClusterRoleBinding) GetResource() string {
-	return "clusterrolebindings"
-}
-
 func (gcrb *generatorPrunerClusterRoleBinding) GetNamespace() string {
-	return "openshift-image-registry"
+	return ""
 }
 
 func (gcrb *generatorPrunerClusterRoleBinding) GetName() string {
@@ -57,7 +51,7 @@ func (gcrb *generatorPrunerClusterRoleBinding) expected() (runtime.Object, error
 			{
 				Kind:      "ServiceAccount",
 				Name:      "pruner",
-				Namespace: gcrb.GetNamespace(),
+				Namespace: defaults.ImageRegistryOperatorNamespace,
 			},
 		},
 		RoleRef: rbacapi.RoleRef{

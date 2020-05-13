@@ -62,14 +62,6 @@ func (gcj *generatorPrunerCronJob) Type() runtime.Object {
 	return &batchapi.CronJob{}
 }
 
-func (gcj *generatorPrunerCronJob) GetGroup() string {
-	return batchapi.GroupName
-}
-
-func (gcj *generatorPrunerCronJob) GetResource() string {
-	return "batches"
-}
-
 func (gcj *generatorPrunerCronJob) GetNamespace() string {
 	return defaults.ImageRegistryOperatorNamespace
 }

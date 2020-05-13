@@ -28,14 +28,6 @@ func (gsa *generatorPrunerServiceAccount) Type() runtime.Object {
 	return &corev1.ServiceAccount{}
 }
 
-func (gsa *generatorPrunerServiceAccount) GetGroup() string {
-	return corev1.GroupName
-}
-
-func (gsa *generatorPrunerServiceAccount) GetResource() string {
-	return "serviceaccounts"
-}
-
 func (gsa *generatorPrunerServiceAccount) GetNamespace() string {
 	return "openshift-image-registry"
 }

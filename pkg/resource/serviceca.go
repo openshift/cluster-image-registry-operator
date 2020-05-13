@@ -35,14 +35,6 @@ func (g *generatorServiceCA) Type() runtime.Object {
 	return &corev1.ConfigMap{}
 }
 
-func (g *generatorServiceCA) GetGroup() string {
-	return corev1.GroupName
-}
-
-func (g *generatorServiceCA) GetResource() string {
-	return "configmaps"
-}
-
 func (g *generatorServiceCA) GetNamespace() string {
 	return g.namespace
 }

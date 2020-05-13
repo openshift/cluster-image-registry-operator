@@ -5,7 +5,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -13,18 +12,16 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
-func NewImagePrunerGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.ImagePrunerControllerListers) *ImagePrunerGenerator {
+func NewImagePrunerGenerator(clients *client.Clients, listers *client.ImagePrunerControllerListers) *ImagePrunerGenerator {
 	return &ImagePrunerGenerator{
-		kubeconfig: kubeconfig,
-		listers:    listers,
-		clients:    clients,
+		listers: listers,
+		clients: clients,
 	}
 }
 
 type ImagePrunerGenerator struct {
-	kubeconfig *rest.Config
-	listers    *client.ImagePrunerControllerListers
-	clients    *client.Clients
+	listers *client.ImagePrunerControllerListers
+	clients *client.Clients
 }
 
 func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator, error) {
