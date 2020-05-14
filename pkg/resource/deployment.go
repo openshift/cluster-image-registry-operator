@@ -139,7 +139,7 @@ func (gd *generatorDeployment) Create() (runtime.Object, error) {
 	}
 
 	dep, _, err := resourceapply.ApplyDeployment(
-		gd.client, gd.recorder, exp.(*appsapi.Deployment), -1, false,
+		gd.client, gd.recorder, exp.(*appsapi.Deployment), -1,
 	)
 	if err != nil {
 		return nil, err
@@ -156,7 +156,7 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 	}
 
 	dep, updated, err := resourceapply.ApplyDeployment(
-		gd.client, gd.recorder, exp.(*appsapi.Deployment), gd.LastGeneration(), false,
+		gd.client, gd.recorder, exp.(*appsapi.Deployment), gd.LastGeneration(),
 	)
 	if err != nil {
 		return o, false, err
