@@ -7,7 +7,7 @@ package tools
 
 import (
 	// Makefile
-	"github.com/jteeuwen/go-bindata/go-bindata"
+	"github.com/go-bindata/go-bindata/go-bindata"
 	"github.com/openshift/build-machinery-go/make/targets/openshift"
 
 	// required by hack/codegen/update-generated.sh
