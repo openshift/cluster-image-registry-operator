@@ -18,7 +18,8 @@ func ConditionExistsWithStatusAndReason(te TestEnv, conditionType string, condit
 	var errs []error
 
 	// Wait for the image registry resource to have an updated condition
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	//err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err := wait.Poll(1*time.Second, time.Minute, func() (stop bool, err error) {
 		errs = nil
 		conditionExists := false
 
@@ -37,10 +38,10 @@ func ConditionExistsWithStatusAndReason(te TestEnv, conditionType string, condit
 			if condition.Type == conditionType {
 				conditionExists = true
 				if condition.Status != conditionStatus {
-					errs = append(errs, fmt.Errorf("condition %s status should be \"%v\" but was %v instead", conditionType, conditionStatus, condition.Status))
+					errs = append(errs, fmt.Errorf("condition %s status should be \"%v\" but was %v instead. message: %q", conditionType, conditionStatus, condition.Status, condition.Message))
 				}
 				if len(conditionReason) != 0 && condition.Reason != conditionReason {
-					errs = append(errs, fmt.Errorf("condition %s reason should have been \"%s\" but was %s instead", conditionType, conditionReason, condition.Reason))
+					errs = append(errs, fmt.Errorf("condition %s reason should have been \"%s\" but was %s instead. message: %q", conditionType, conditionReason, condition.Reason, condition.Message))
 				}
 			}
 		}

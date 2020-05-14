@@ -423,7 +423,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
-	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionFalse, "InvalidAccessKeyId")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapi.ConditionUnknown, "Error requesting endpoint instead")
 
 	// Remove the image-registry-private-configuration-user secret
 	err = te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Delete(

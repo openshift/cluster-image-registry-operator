@@ -330,7 +330,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		if err != nil {
 			if aerr, ok := err.(awserr.RequestFailure); ok {
 				err = fmt.Errorf("Error requesting endpoint. Code: %s StatusCode: %d", aerr.Code(), aerr.StatusCode())
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Error requesting endpoint", err.Error())
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, aerr.Code(), err.Error())
 				return err
 			} else if aerr, ok := err.(awserr.Error); ok {
 				switch aerr.Code() {
