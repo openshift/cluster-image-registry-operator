@@ -28,6 +28,7 @@ func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator,
 	var mutators []Mutator
 	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
+	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core))
 	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.listers.RegistryConfigs))
 
 	return mutators, nil

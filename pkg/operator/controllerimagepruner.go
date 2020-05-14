@@ -106,6 +106,11 @@ func NewImagePrunerController(
 			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.ConfigMaps = informer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
 	} {
 		informer := ctor()
 		informer.AddEventHandler(c.handler())
