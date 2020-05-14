@@ -29,7 +29,7 @@ test-e2e:
 	./hack/test-go.sh -count 1 -timeout 30m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
-verify: verify-crd verify-fmt verify-sec
+verify: verify-crd verify-fmt
 .PHONY: verify
 
 verify-crd:
@@ -39,11 +39,6 @@ verify-crd:
 verify-fmt:
 	./hack/verify-gofmt.sh
 .PHONY: verify-gofmt
-
-verify-sec:
-	go get -u github.com/securego/gosec/cmd/gosec
-	gosec -severity medium -confidence medium -exclude G304 -quiet ./...
-.PHONY: verify-sec
 
 clean:
 	rm -rf tmp
