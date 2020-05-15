@@ -205,7 +205,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorAvailable.Reason = "Unmanaged"
 	} else if deploy == nil {
 		if e, ok := applyError.(permanentError); ok {
-			operatorAvailable.Message = applyError.Error()
+			operatorAvailable.Message = fmt.Sprintf("Error: %s", applyError)
 			operatorAvailable.Reason = e.Reason
 		} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 			operatorAvailable.Status = operatorapiv1.ConditionTrue
@@ -284,7 +284,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 		operatorDegraded.Reason = "Unmanaged"
 	} else if e, ok := applyError.(permanentError); ok {
 		operatorDegraded.Status = operatorapiv1.ConditionTrue
-		operatorDegraded.Message = applyError.Error()
+		operatorDegraded.Message = fmt.Sprintf("Error: %s", applyError)
 		operatorDegraded.Reason = e.Reason
 	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 		operatorDegraded.Message = "The registry is removed"
