@@ -1,9 +1,18 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	gstorage "cloud.google.com/go/storage"
+	"github.com/google/uuid"
+	goauth2 "golang.org/x/oauth2/google"
+	goption "google.golang.org/api/option"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,34 +24,15 @@ import (
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
-var (
-	// Invalid GCS credentials data
-	fakeGCSKeyfile = `{
-  "type": "service_account",
-  "project_id": "openshift-test-project",
-  "private_key_id": "aabbccddeeffgghhiijjkkllmmnnooppqqrrssttuuvvwwxxyyzz",
-  "private_key": "-----BEGIN PRIVATE KEY-----\n556B58703273357638792F423F4528482B4D6251655468566D597133743677397A24432646294A404E635266556A586E5A7234753778214125442A472D4B6150645367566B59703373357638792F423F4528482B4D6251655468576D5A7134743777397A24432646294A404E635266556A586E3272357538782F4125442A472D==\n-----END PRIVATE KEY-----\n",
-  "client_email": "image-registy-testing@openshift-test-project.iam.gserviceaccount.com",
-  "client_id": "123456789101112131415",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/image-registy-testing%40openshift-test-project.iam.gserviceaccount.com"
-}`
-	fakeGCSCredsData = map[string]string{
-		"REGISTRY_STORAGE_GCS_KEYFILE": fakeGCSKeyfile,
-	}
-)
+func TestGCSDay2(t *testing.T) {
+	ctx := context.Background()
 
-// TestGCSMinimal is a test to verify that GCS credentials
-// provided as part of the Day 2 experience will be propagated to the
-// image-registry deployment
-func TestGCSMinimal(t *testing.T) {
 	kcfg, err := regopclient.GetConfig()
 	if err != nil {
 		t.Fatalf("Error building kubeconfig: %s", err)
@@ -67,12 +57,65 @@ func TestGCSMinimal(t *testing.T) {
 		t.Skip("skipping on non-GCP platform")
 	}
 
+	gcscfg, err := gcs.GetConfig(mockLister)
+	if err != nil {
+		t.Fatalf("error reading gcs config: %v", err)
+	}
+
+	authConfig := make(map[string]string)
+	if err := json.Unmarshal([]byte(gcscfg.KeyfileData), &authConfig); err != nil {
+		t.Fatal("unable to unmarshal gcp auth config")
+	}
+
+	// by adding some salt in here we can check later on if the information
+	// got propagated from ImageRegistryPrivateConfigurationUser and into
+	// ImageRegistryPrivateConfiguration.
+	authConfig["tainted"] = "some extra salt"
+
+	taintedAuth, err := json.Marshal(authConfig)
+	if err != nil {
+		t.Fatal("unable to marshal gcp auth config")
+	}
+
+	// create a GCS bucket manually here so we can configure later on the
+	// registry to use it.
+	credentials, err := goauth2.CredentialsFromJSON(ctx, []byte(gcscfg.KeyfileData), gstorage.ScopeFullControl)
+	if err != nil {
+		t.Fatalf("error creating gcs credentials: %v", err)
+	}
+
+	gcli, err := gstorage.NewClient(ctx, goption.WithCredentials(credentials))
+	if err != nil {
+		t.Fatalf("error creating gcs client: %v", err)
+	}
+
+	randomString := strings.ReplaceAll(uuid.New().String(), "-", "")
+	bucketName := fmt.Sprintf("%s-test%s", infra.Status.InfrastructureName, randomString)
+	if len(bucketName) > 63 {
+		bucketName = bucketName[0:63]
+	}
+	if err := gcli.Bucket(bucketName).Create(ctx, gcscfg.ProjectID, &gstorage.BucketAttrs{Location: gcscfg.Region}); err != nil {
+		t.Fatalf("error creating bucket: %v", err)
+	}
+	defer func() {
+		if err := gcli.Bucket(bucketName).Delete(ctx); err != nil {
+			t.Errorf("error deleting bucket: %v", err)
+		}
+	}()
+
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
-	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := framework.CreateOrUpdateSecret(defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeGCSCredsData); err != nil {
+	// Create the image-registry-private-configuration-user secret containing
+	// our tainted credentials.
+	err = wait.PollImmediate(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		if _, err := framework.CreateOrUpdateSecret(
+			defaults.ImageRegistryPrivateConfigurationUser,
+			defaults.ImageRegistryOperatorNamespace,
+			map[string]string{
+				"REGISTRY_STORAGE_GCS_KEYFILE": string(taintedAuth),
+			},
+		); err != nil {
 			t.Logf("unable to create secret: %s", err)
 			return false, nil
 		}
@@ -81,8 +124,14 @@ func TestGCSMinimal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	const bucketName = "openshift-test-bucket"
+	defer func() {
+		err = te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Delete(
+			ctx, defaults.ImageRegistryPrivateConfigurationUser, metav1.DeleteOptions{},
+		)
+		if err != nil {
+			t.Fatalf("error removing user secret: %v", err)
+		}
+	}()
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
 		ManagementState: operatorapi.Managed,
@@ -99,20 +148,21 @@ func TestGCSMinimal(t *testing.T) {
 	framework.EnsureOperatorIsNotHotLooping(te)
 
 	// Check that the image-registry-private-configuration secret exists and
-	// contains the correct information synced from the image-registry-private-configuration-user secret
+	// contains the correct information synced from the image-registry-private-configuration-user
+	// secret
 	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
-		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
+		ctx, defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
 	)
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
 	keyfileData := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_GCS_KEYFILE"]
-	if string(keyfileData) != fakeGCSKeyfile {
+	if !bytes.Equal(keyfileData, taintedAuth) {
 		t.Errorf("secret %s/%s contains incorrect gcs credentials", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
 	}
 
 	registryDeployment, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
-		context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
+		ctx, defaults.ImageRegistryName, metav1.GetOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +181,7 @@ func TestGCSMinimal(t *testing.T) {
 
 	// Get a fresh version of the image registry resource
 	_, err = te.Client().Configs().Get(
-		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{},
 	)
 	if err != nil {
 		t.Errorf("%s", err)
