@@ -164,7 +164,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 func isBucketNotFound(err interface{}) bool {
 	switch s3Err := err.(type) {
 	case awserr.Error:
-		if s3Err.Code() == "NoSuchBucket" {
+		if s3Err.Code() == s3.ErrCodeNoSuchBucket {
 			return true
 		}
 		origErr := s3Err.OrigErr()
@@ -369,7 +369,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				Bucket: aws.String(d.Config.Bucket),
 			})
 			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
+				if aerr, ok := err.(awserr.RequestFailure); ok {
+					err := fmt.Errorf("error requesting endpoint: %s(%d)", aerr.Code(), aerr.StatusCode())
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, aerr.Code(), err.Error())
+					return err
+				} else if aerr, ok := err.(awserr.Error); ok {
 					switch aerr.Code() {
 					case s3.ErrCodeBucketAlreadyExists:
 						if d.Config.Bucket != "" && !generatedName {
