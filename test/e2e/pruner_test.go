@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -80,7 +81,6 @@ func TestPruneRegistryFlag(t *testing.T) {
 		}
 
 		return true, nil
-
 	})
 	if err != nil {
 		errs = append(errs, err)
@@ -146,6 +146,25 @@ func TestPruner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		// Reset the CR
+		cr, err := te.Client().ImagePruners().Get(
+			context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		falsePtr := false
+		cr.Spec.Suspend = &falsePtr
+		cr.Spec.Schedule = ""
+		_, err = te.Client().ImagePruners().Update(
+			context.Background(), cr, metav1.UpdateOptions{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionFalse, "Suspended")
@@ -164,21 +183,61 @@ func TestPruner(t *testing.T) {
 	if cronjob.Spec.Schedule != "10 10 * * *" {
 		t.Errorf("The cronjob Spec.Schedule field should have been '10 10 * * *' but was %v instead", cronjob.Spec.Schedule)
 	}
+}
 
-	// Reset the CR
-	cr, err = te.Client().ImagePruners().Get(
-		context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
-	)
+func TestPrunerPodCompletes(t *testing.T) {
+	ctx := context.Background()
+	te := framework.SetupAvailableImageRegistry(t, nil)
+	defer framework.TeardownImageRegistry(te)
+
+	cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	falsePtr := false
-	cr.Spec.Suspend = &falsePtr
-	cr.Spec.Schedule = ""
+	origSpec := cr.Spec.DeepCopy()
+
+	suspend := false
+	cr.Spec.Suspend = &suspend
+	cr.Spec.Schedule = "* * * * *"
 	_, err = te.Client().ImagePruners().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cr.Spec = *origSpec
+
+		_, err = te.Client().ImagePruners().Update(ctx, cr, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	t.Logf("waiting the pruner to succeed...")
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, pod := range pods.Items {
+			if !strings.HasPrefix(pod.Name, "image-pruner-") {
+				continue
+			}
+			t.Logf("%s: %s", pod.Name, pod.Status.Phase)
+			if pod.Status.Phase == "Succeeded" {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
