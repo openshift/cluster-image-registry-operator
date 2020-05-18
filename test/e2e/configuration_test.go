@@ -221,6 +221,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	}
 
 	// Set the proxy env vars
+	t.Logf("setting fake proxy environment variables on the operator deployment...")
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		framework.OperatorDeploymentName,
@@ -231,6 +232,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 		t.Fatalf("failed to patch operator env vars: %v", err)
 	}
 	defer func() {
+		t.Logf("resetting proxy environment variables of the operator deployment...")
 		if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
 			context.Background(),
 			framework.OperatorDeploymentName,
@@ -267,8 +269,9 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
-	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "Unknown Error Occurred")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "")
 
+	t.Logf("resetting proxy environment variables of the operator deployment...")
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		framework.OperatorDeploymentName,

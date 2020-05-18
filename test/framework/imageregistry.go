@@ -305,6 +305,11 @@ func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Con
 			return false, err
 		}
 
+		if cr.Status.ObservedGeneration < cr.Generation {
+			te.Logf("waiting for the registry: generation=%d, observedGeneration=%d", cr.Generation, cr.Status.ObservedGeneration)
+			return false, nil
+		}
+
 		conds := GetImageRegistryConditions(cr)
 		te.Logf("waiting for the registry: %s", conds)
 		return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Degraded.IsTrue(), nil

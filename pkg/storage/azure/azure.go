@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-04-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -135,7 +136,8 @@ func (d *driver) accountExists(storageAccountsClient storage.AccountsClient, acc
 		storage.AccountCheckNameAvailabilityParameters{
 			Name: to.StringPtr(accountName),
 			Type: to.StringPtr("Microsoft.Storage/storageAccounts"),
-		})
+		},
+	)
 }
 
 func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
@@ -253,6 +255,9 @@ func (d *driver) storageAccountsClient(cfg *Azure) (storage.AccountsClient, erro
 
 	storageAccountsClient := storage.NewAccountsClient(cfg.SubscriptionID)
 	storageAccountsClient.Authorizer = auth
+	storageAccountsClient.PollingDelay = 10 * time.Second
+	storageAccountsClient.PollingDuration = 3 * time.Minute
+	storageAccountsClient.RetryAttempts = 1
 	_ = storageAccountsClient.AddToUserAgent(defaults.UserAgent)
 
 	return storageAccountsClient, nil
@@ -298,7 +303,6 @@ func (d *driver) VolumeSecrets() (map[string]string, error) {
 
 // containerExists determines whether or not an azure container exists
 func (d *driver) containerExists(containerName string) (bool, error) {
-
 	if d.Config.AccountName == "" || d.Config.Container == "" {
 		return false, nil
 	}
@@ -360,7 +364,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 	exists, err := d.containerExists(d.Config.Container)
 	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
 		return false, err
 	}
 	if !exists {
