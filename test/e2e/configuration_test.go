@@ -173,7 +173,10 @@ func TestPodAffinityConfiguration(t *testing.T) {
 		Affinity: affinity,
 	})
 
-	deployment := framework.GetImageRegistryDeployment(te)
+	deployment, err := framework.WaitForRegistryDeployment(te.Client())
+	if err != nil {
+		t.Fatalf("error deploying image registry: %v", err)
+	}
 
 	if !reflect.DeepEqual(affinity, deployment.Spec.Template.Spec.Affinity) {
 		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", affinity, deployment.Spec.Template.Spec.Affinity)
