@@ -134,7 +134,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 									VolumeMounts: []kcorev1.VolumeMount{
 										{
 											Name:      "serviceca",
-											MountPath: "/var/run/configmaps/serviceca/service-ca.crt",
+											MountPath: "/var/run/configmaps/serviceca",
 											ReadOnly:  true,
 										},
 									},
