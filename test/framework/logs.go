@@ -61,32 +61,55 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 
 	podLogs := make(PodSetLogs)
 	for _, pod := range podList.Items {
-		podLog := make(PodLog)
-		for _, container := range pod.Spec.Containers {
-			var containerLog ContainerLog
-			log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
-				Container: container.Name,
-			}).Stream(context.Background())
-			if err != nil {
-				return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
-			}
-			r := bufio.NewReader(log)
-			for {
-				line, readErr := r.ReadString('\n')
-				if len(line) > 0 || readErr == nil {
-					containerLog = append(containerLog, line)
-				}
-				if readErr == io.EOF {
-					break
-				} else if readErr != nil {
-					return nil, fmt.Errorf("failed to read log for pod %s: %s", pod.Name, readErr)
-				}
-			}
-			podLog[container.Name] = containerLog
+		podLog, err := readPodLogs(client, &pod)
+		if err != nil {
+			return nil, err
 		}
 		podLogs[pod.Name] = podLog
 	}
 	return podLogs, nil
+}
+
+func GetLogsForPod(client *Clientset, namespace string, podName string) (PodSetLogs, error) {
+	ctx := context.Background()
+	pod, err := client.Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	podLogs, err := readPodLogs(client, pod)
+	if err != nil {
+		return nil, err
+	}
+	podSetLogs := make(PodSetLogs)
+	podSetLogs[pod.Name] = podLogs
+	return podSetLogs, nil
+}
+
+func readPodLogs(client *Clientset, pod *corev1.Pod) (PodLog, error) {
+	podLog := make(PodLog)
+	for _, container := range pod.Spec.Containers {
+		var containerLog ContainerLog
+		log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
+			Container: container.Name,
+		}).Stream(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
+		}
+		r := bufio.NewReader(log)
+		for {
+			line, readErr := r.ReadString('\n')
+			if len(line) > 0 || readErr == nil {
+				containerLog = append(containerLog, line)
+			}
+			if readErr == io.EOF {
+				break
+			} else if readErr != nil {
+				return nil, fmt.Errorf("failed to read log for pod %s: %s", pod.Name, readErr)
+			}
+		}
+		podLog[container.Name] = containerLog
+	}
+	return podLog, nil
 }
 
 func DumpPodLogs(logger Logger, podLogs PodSetLogs) {

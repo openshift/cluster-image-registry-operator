@@ -11,7 +11,9 @@ import (
 	clientstoragev1 "k8s.io/client-go/kubernetes/typed/storage/v1"
 	restclient "k8s.io/client-go/rest"
 
+	buildv1 "github.com/openshift/client-go/build/clientset/versioned/typed/build/v1"
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	imagev1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 	clientimageregistryv1 "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	clientroutev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
@@ -28,6 +30,8 @@ type Clientset struct {
 	clientstoragev1.StorageV1Interface
 	clientbatchv1beta1.BatchV1beta1Interface
 	clientbatchv1.BatchV1Interface
+	ImageInterface imagev1.ImageV1Interface
+	BuildInterface buildv1.BuildV1Interface
 }
 
 // NewClientset creates a set of Kubernetes clients. The default kubeconfig is
@@ -70,6 +74,14 @@ func NewClientset(kubeconfig *restclient.Config) (clientset *Clientset, err erro
 		return
 	}
 	clientset.StorageV1Interface, err = clientstoragev1.NewForConfig(kubeconfig)
+	if err != nil {
+		return
+	}
+	clientset.BuildInterface, err = buildv1.NewForConfig(kubeconfig)
+	if err != nil {
+		return
+	}
+	clientset.ImageInterface, err = imagev1.NewForConfig(kubeconfig)
 	if err != nil {
 		return
 	}

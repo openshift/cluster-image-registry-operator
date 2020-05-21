@@ -9,11 +9,13 @@ import (
 	gstorage "cloud.google.com/go/storage"
 	goauth2 "golang.org/x/oauth2/google"
 	gapi "google.golang.org/api/googleapi"
+	"google.golang.org/api/iterator"
 	goption "google.golang.org/api/option"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -316,6 +318,19 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	gclient, err := d.getGCSClient()
 	if err != nil {
 		return false, err
+	}
+
+	itr := gclient.Bucket(d.Config.Bucket).Objects(d.Context, nil)
+	klog.V(5).Infof("deleting all objects in bucket %s", d.Config.Bucket)
+	for attr, err := itr.Next(); err == nil || err != iterator.Done; {
+		if err != nil {
+			return false, err
+		}
+		klog.V(5).Infof("deleting object %s", attr.Name)
+		deleteErr := gclient.Bucket(attr.Bucket).Object(attr.Name).Delete(d.Context)
+		if deleteErr != nil {
+			return false, deleteErr
+		}
 	}
 
 	if err = gclient.Bucket(d.Config.Bucket).Delete(d.Context); err != nil {
