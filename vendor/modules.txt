@@ -289,6 +289,7 @@ github.com/openshift/installer/pkg/types/openstack
 github.com/openshift/installer/pkg/types/vsphere
 # github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
 github.com/openshift/library-go/pkg/config/client
+github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/controller/fileobserver
 github.com/openshift/library-go/pkg/operator/events
 github.com/openshift/library-go/pkg/operator/resource/resourceapply
