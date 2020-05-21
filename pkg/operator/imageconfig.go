@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1informers "k8s.io/client-go/informers/core/v1"
@@ -20,9 +21,11 @@ import (
 	"k8s.io/klog"
 
 	configapi "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	routev1informers "github.com/openshift/client-go/route/informers/externalversions/route/v1"
 	routev1lister "github.com/openshift/client-go/route/listers/route/v1"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
@@ -33,23 +36,26 @@ import (
 // Watches for changes on image registry routes and services, updating
 // the resource status appropriately.
 type ImageConfigController struct {
-	configClient  configset.ConfigV1Interface
-	routeLister   routev1lister.RouteNamespaceLister
-	serviceLister corev1listers.ServiceNamespaceLister
-	cachesToSync  []cache.InformerSynced
-	queue         workqueue.RateLimitingInterface
+	configClient   configset.ConfigV1Interface
+	operatorClient v1helpers.OperatorClient
+	routeLister    routev1lister.RouteNamespaceLister
+	serviceLister  corev1listers.ServiceNamespaceLister
+	cachesToSync   []cache.InformerSynced
+	queue          workqueue.RateLimitingInterface
 }
 
 func NewImageConfigController(
 	configClient configset.ConfigV1Interface,
+	operatorClient v1helpers.OperatorClient,
 	routeInformer routev1informers.RouteInformer,
 	serviceInformer corev1informers.ServiceInformer,
 ) *ImageConfigController {
 	icc := &ImageConfigController{
-		configClient:  configClient,
-		routeLister:   routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
-		serviceLister: serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
-		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
+		configClient:   configClient,
+		operatorClient: operatorClient,
+		routeLister:    routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
+		serviceLister:  serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
 	}
 
 	serviceInformer.Informer().AddEventHandler(icc.eventHandler())
@@ -110,7 +116,7 @@ func (icc *ImageConfigController) processNextWorkItem() bool {
 }
 
 // sync keeps image.config.openshift.io/cluster status updated.
-func (icc *ImageConfigController) sync() error {
+func (icc *ImageConfigController) syncImageStatus() error {
 	cfg, err := icc.configClient.Images().Get(context.TODO(), defaults.ImageConfigName, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		return err
@@ -157,6 +163,26 @@ func (icc *ImageConfigController) sync() error {
 	}
 
 	return nil
+}
+
+func (icc *ImageConfigController) sync() error {
+	err := icc.syncImageStatus()
+	if err != nil {
+		_, _, updateError := v1helpers.UpdateStatus(icc.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:    "ImageConfigControllerDegraded",
+			Status:  operatorv1.ConditionTrue,
+			Reason:  "Error",
+			Message: err.Error(),
+		}))
+		return utilerrors.NewAggregate([]error{err, updateError})
+	}
+
+	_, _, err = v1helpers.UpdateStatus(icc.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+		Type:   "ImageConfigControllerDegraded",
+		Status: operatorv1.ConditionFalse,
+		Reason: "AsExpected",
+	}))
+	return err
 }
 
 // getServiceHostname returns the image registry internal service url if it

@@ -13,10 +13,7 @@ import (
 )
 
 type Listers struct {
-	Jobs                kjoblisters.JobNamespaceLister
-	CronJobs            kbatchlisters.CronJobNamespaceLister
 	Deployments         kappslisters.DeploymentNamespaceLister
-	DaemonSets          kappslisters.DaemonSetNamespaceLister
 	Services            kcorelisters.ServiceNamespaceLister
 	Secrets             kcorelisters.SecretNamespaceLister
 	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
@@ -25,10 +22,7 @@ type Listers struct {
 	ClusterRoles        krbaclisters.ClusterRoleLister
 	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
 	OpenShiftConfig     kcorelisters.ConfigMapNamespaceLister
-	ImageConfigs        configlisters.ImageLister
-	ClusterOperators    configlisters.ClusterOperatorLister
 	RegistryConfigs     regoplisters.ConfigLister
-	ImagePrunerConfigs  regoplisters.ImagePrunerLister
 	InstallerConfigMaps kcorelisters.ConfigMapNamespaceLister
 	ProxyConfigs        configlisters.ProxyLister
 	Infrastructures     configlisters.InfrastructureLister

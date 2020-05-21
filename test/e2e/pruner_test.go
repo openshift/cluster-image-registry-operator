@@ -127,7 +127,7 @@ func TestPruner(t *testing.T) {
 	}
 
 	// Check that the Available condition is set for the pruner
-	framework.PrunerConditionExistsWithStatusAndReason(te, "Available", operatorapi.ConditionTrue, "Ready")
+	framework.PrunerConditionExistsWithStatusAndReason(te, "Available", operatorapi.ConditionTrue, "AsExpected")
 
 	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionTrue, "Scheduled")

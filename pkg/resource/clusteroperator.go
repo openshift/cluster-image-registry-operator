@@ -5,28 +5,117 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
+	"strings"
 
 	appsapi "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	appslisters "k8s.io/client-go/listers/apps/v1"
-	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	configv1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
+
+func prefixConditions(conditions []operatorv1.OperatorCondition, prefix string) []operatorv1.OperatorCondition {
+	out := make([]operatorv1.OperatorCondition, len(conditions))
+	copy(out, conditions)
+	for i := range out {
+		out[i].Type = prefix + out[i].Type
+	}
+	return out
+}
+
+func unionStatus(normalStatus operatorv1.ConditionStatus, conditions []operatorv1.OperatorCondition) operatorv1.ConditionStatus {
+	unknown := false
+	for _, condition := range conditions {
+		if condition.Status == operatorv1.ConditionUnknown {
+			unknown = true
+		} else if condition.Status != normalStatus {
+			return condition.Status
+		}
+	}
+	if unknown {
+		return operatorv1.ConditionUnknown
+	}
+	return normalStatus
+}
+
+func latestTransitionTime(conditions []operatorv1.OperatorCondition) metav1.Time {
+	latestTransitionTime := metav1.Time{}
+	for _, condition := range conditions {
+		if latestTransitionTime.Before(&condition.LastTransitionTime) {
+			latestTransitionTime = condition.LastTransitionTime
+		}
+	}
+	return latestTransitionTime
+}
+
+func unionReason(unionConditionType string, conditions []operatorv1.OperatorCondition) string {
+	typeReasons := []string{}
+	for _, condition := range conditions {
+		if condition.Reason == "" || condition.Reason == "AsExpected" {
+			continue
+		}
+		conditionType := condition.Type[:len(condition.Type)-len(unionConditionType)]
+		typeReasons = append(typeReasons, conditionType+condition.Reason)
+	}
+	if len(typeReasons) == 0 {
+		return ""
+	}
+	sort.Strings(typeReasons)
+	return strings.Join(typeReasons, "::")
+}
+
+func unionMessage(conditions []operatorv1.OperatorCondition) string {
+	messages := []string{}
+	for _, condition := range conditions {
+		if len(condition.Message) == 0 {
+			continue
+		}
+		for _, message := range strings.Split(condition.Message, "\n") {
+			messages = append(messages, fmt.Sprintf("%s: %s", condition.Type, message))
+		}
+	}
+	return strings.Join(messages, "\n")
+}
+
+func unionCondition(unionConditionType string, normalStatus operatorv1.ConditionStatus, conditions []operatorv1.OperatorCondition) configv1.ClusterOperatorStatusCondition {
+	var interestingConditions []operatorv1.OperatorCondition
+	for _, condition := range conditions {
+		if strings.HasSuffix(condition.Type, unionConditionType) {
+			interestingConditions = append(interestingConditions, condition)
+		}
+	}
+
+	unionCondition := configv1.ClusterOperatorStatusCondition{
+		Type:               configv1.ClusterStatusConditionType(unionConditionType),
+		Status:             configv1.ConditionStatus(unionStatus(normalStatus, interestingConditions)),
+		LastTransitionTime: latestTransitionTime(interestingConditions),
+		Reason:             unionReason(unionConditionType, interestingConditions),
+		Message:            unionMessage(interestingConditions),
+	}
+	if unionCondition.Status == configv1.ConditionStatus(normalStatus) && unionCondition.Reason == "" {
+		unionCondition.Reason = "AsExpected"
+	}
+	return unionCondition
+}
 
 var _ Mutator = &generatorClusterOperator{}
 
 type generatorClusterOperator struct {
 	relatedObjects []configv1.ObjectReference
 	cr             *imageregistryv1.Config
+	imagePruner    *imageregistryv1.ImagePruner
 	deployLister   appslisters.DeploymentNamespaceLister
 	configLister   configlisters.ClusterOperatorLister
 	configClient   configv1client.ClusterOperatorsGetter
@@ -37,6 +126,7 @@ func NewGeneratorClusterOperator(
 	configLister configlisters.ClusterOperatorLister,
 	configClient configv1client.ClusterOperatorsGetter,
 	cr *imageregistryv1.Config,
+	imagePruner *imageregistryv1.ImagePruner,
 	relatedObjects []configv1.ObjectReference,
 ) *generatorClusterOperator {
 	return &generatorClusterOperator{
@@ -44,6 +134,7 @@ func NewGeneratorClusterOperator(
 		configLister:   configLister,
 		configClient:   configClient,
 		cr:             cr,
+		imagePruner:    imagePruner,
 		relatedObjects: relatedObjects,
 	}
 }
@@ -121,92 +212,17 @@ func (gco *generatorClusterOperator) Owned() bool {
 	return false
 }
 
-func convertOperatorStatus(status operatorapi.ConditionStatus) (configv1.ConditionStatus, error) {
-	switch status {
-	case operatorapi.ConditionTrue:
-		return configv1.ConditionTrue, nil
-	case operatorapi.ConditionFalse:
-		return configv1.ConditionFalse, nil
-	case operatorapi.ConditionUnknown:
-		return configv1.ConditionUnknown, nil
-	}
-	return configv1.ConditionUnknown, fmt.Errorf("unexpected condition status: %s", status)
-}
-
 func (gco *generatorClusterOperator) syncConditions(op *configv1.ClusterOperator) (modified bool) {
-	conditions := []configv1.ClusterOperatorStatusCondition{}
-
-	for _, resourceCondition := range gco.cr.Status.Conditions {
-		found := false
-
-		var conditionType configv1.ClusterStatusConditionType
-
-		switch resourceCondition.Type {
-		case operatorapi.OperatorStatusTypeAvailable:
-			conditionType = configv1.OperatorAvailable
-		case operatorapi.OperatorStatusTypeProgressing:
-			conditionType = configv1.OperatorProgressing
-		case operatorapi.OperatorStatusTypeDegraded:
-			conditionType = configv1.OperatorDegraded
-		default:
-			continue
-		}
-
-		for i, clusterOperatorCondition := range op.Status.Conditions {
-			if conditionType != clusterOperatorCondition.Type {
-				continue
-			}
-			found = true
-
-			newStatus, err := convertOperatorStatus(resourceCondition.Status)
-			if err != nil {
-				klog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
-				continue
-			}
-
-			if clusterOperatorCondition.Status != newStatus {
-				op.Status.Conditions[i].Status = newStatus
-				modified = true
-			}
-
-			if op.Status.Conditions[i].LastTransitionTime != resourceCondition.LastTransitionTime {
-				op.Status.Conditions[i].LastTransitionTime = resourceCondition.LastTransitionTime
-				modified = true
-			}
-
-			if op.Status.Conditions[i].Reason != resourceCondition.Reason {
-				op.Status.Conditions[i].Reason = resourceCondition.Reason
-				modified = true
-			}
-
-			if op.Status.Conditions[i].Message != resourceCondition.Message {
-				op.Status.Conditions[i].Message = resourceCondition.Message
-				modified = true
-			}
-		}
-
-		if !found {
-			conditionStatus, err := convertOperatorStatus(resourceCondition.Status)
-			if err != nil {
-				klog.Errorf("ignore condition of %s custom resource: %s", gco.cr.Name, err)
-				continue
-			}
-			conditions = append(conditions, configv1.ClusterOperatorStatusCondition{
-				Type:               conditionType,
-				Status:             conditionStatus,
-				LastTransitionTime: resourceCondition.LastTransitionTime,
-				Reason:             resourceCondition.Reason,
-				Message:            resourceCondition.Message,
-			})
-			modified = true
-		}
+	conditions := gco.cr.Status.Conditions
+	if gco.imagePruner != nil {
+		conditions = append(conditions, prefixConditions(gco.imagePruner.Status.Conditions, "ImagePruner")...)
 	}
 
-	for i := range conditions {
-		op.Status.Conditions = append(op.Status.Conditions, conditions[i])
-	}
-
-	return
+	oldStatus := op.Status.DeepCopy()
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions))
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions))
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions))
+	return !equality.Semantic.DeepEqual(oldStatus, &op.Status)
 }
 
 // isDeploymentStatusAvailableAndUpdated returns true when at least one

@@ -130,7 +130,7 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
-func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, applyError error, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
 	if prunerJob == nil {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
@@ -143,22 +143,23 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
 			Message: "Pruner CronJob has been created",
-			Reason:  "Ready",
+			Reason:  "AsExpected",
 		}
 		updatePrunerCondition(cr, operatorapiv1.OperatorStatusTypeAvailable, prunerAvailable)
 	}
 
 	var foundFailed bool
+	var failedMessage string
 	for _, condition := range lastJobConditions {
 		if condition.Type == batchv1.JobFailed {
 			foundFailed = true
+			failedMessage = condition.Message
 			prunerLastJobStatus := operatorapiv1.OperatorCondition{
 				Status:  operatorapiv1.ConditionTrue,
 				Message: condition.Message,
 				Reason:  condition.Reason,
 			}
 			updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
-
 		}
 	}
 	if !foundFailed {
@@ -190,6 +191,25 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 		if prunerJob != nil {
 			metrics.ImagePrunerInstallStatus(true, true)
 		}
+	}
+
+	if applyError != nil {
+		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Reason:  "SyncError",
+			Message: fmt.Sprintf("Error: %v", applyError),
+		})
+	} else if foundFailed {
+		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
+			Status:  operatorapiv1.ConditionTrue,
+			Reason:  "JobFailed",
+			Message: failedMessage,
+		})
+	} else {
+		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
+			Status: operatorapiv1.ConditionFalse,
+			Reason: "AsExpected",
+		})
 	}
 }
 
