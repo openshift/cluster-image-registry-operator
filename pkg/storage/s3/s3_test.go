@@ -159,11 +159,21 @@ func TestConfigEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := findEnvVar(envvars, "REGISTRY_STORAGE_S3_USEDUALSTACK")
-	if e == nil {
-		t.Fatalf("envvar REGISTRY_STORAGE_S3_USEDUALSTACK not found, %v", envvars)
+	expectedVars := map[string]interface{}{
+		"REGISTRY_STORAGE":                       "s3",
+		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
+		"REGISTRY_STORAGE_S3_REGION":             "us-east-1",
+		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
 	}
-	if e.Value != true {
-		t.Fatalf("USEDUALSTACK: got %#+v, want %#+v", e.Value, true)
+	for key, value := range expectedVars {
+		e := findEnvVar(envvars, key)
+		if e == nil {
+			t.Fatalf("envvar %s not found, %v", key, envvars)
+		}
+		if e.Value != value {
+			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
+		}
 	}
 }
