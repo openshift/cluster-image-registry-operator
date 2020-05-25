@@ -99,8 +99,11 @@ func (c *Controller) Bootstrap() error {
 			Finalizers: []string{defaults.ImageRegistryOperatorResourceFinalizer},
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
+			OperatorSpec: operatorapi.OperatorSpec{
+				LogLevel:         operatorapi.Normal,
+				OperatorLogLevel: operatorapi.Normal,
+			},
 			ManagementState: mgmtState,
-			LogLevel:        2,
 			Storage:         platformStorage,
 			Replicas:        replicas,
 			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),

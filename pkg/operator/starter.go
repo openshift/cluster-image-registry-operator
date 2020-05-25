@@ -14,6 +14,8 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/loglevel"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -109,6 +111,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryInformers,
 	)
 
+	loggingController := loglevel.NewClusterOperatorLoggingController(
+		configOperatorClient,
+		events.NewLoggingEventRecorder("image-registry"),
+	)
+
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
 	kubeInformersForKubeSystem.Start(ctx.Done())
@@ -117,6 +124,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	routeInformers.Start(ctx.Done())
 
 	go controller.Run(ctx.Done())
+	go loggingController.Run(ctx, 1)
 	go clusterOperatorStatusController.Run(ctx.Done())
 	go nodeCADaemonController.Run(ctx.Done())
 	go imageRegistryCertificatesController.Run(ctx.Done())

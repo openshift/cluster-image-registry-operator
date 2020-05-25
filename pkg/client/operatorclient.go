@@ -39,8 +39,7 @@ func (c *ConfigOperatorClient) GetOperatorState() (spec *operatorv1.OperatorSpec
 		return nil, nil, "", err
 	}
 
-	// TODO(dmage): this should be updated when we add OperatorSpec to the config object
-	return &operatorv1.OperatorSpec{}, &config.Status.OperatorStatus, config.ResourceVersion, nil
+	return &config.Spec.OperatorSpec, &config.Status.OperatorStatus, config.ResourceVersion, nil
 }
 
 func (c *ConfigOperatorClient) UpdateOperatorSpec(oldResourceVersion string, in *operatorv1.OperatorSpec) (out *operatorv1.OperatorSpec, newResourceVersion string, err error) {
