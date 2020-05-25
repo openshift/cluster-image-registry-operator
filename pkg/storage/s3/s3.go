@@ -105,34 +105,42 @@ func GetConfig(listers *regopclient.Listers) (*S3, error) {
 			cfg.SecretKey = string(v)
 		} else {
 			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
-
 		}
 	}
 
 	return cfg, nil
 }
 
-// getS3Service returns a client that allows us to interact
-// with the aws S3 service
-func (d *driver) getS3Service() (*s3.S3, error) {
+func (d *driver) updateConfigAndGetCredentials() (accessKey, secretKey string, err error) {
 	cfg, err := GetConfig(d.Listers)
 	if err != nil {
-		return nil, err
+		return "", "", err
 	}
 
 	if len(d.Config.Region) == 0 {
 		d.Config.Region = cfg.Region
 	}
 
-	if len(d.Config.RegionEndpoint) == 0 {
+	if len(d.Config.RegionEndpoint) == 0 && len(cfg.RegionEndpoint) != 0 {
 		d.Config.RegionEndpoint = cfg.RegionEndpoint
 		d.Config.VirtualHostedStyle = true
+	}
+
+	return cfg.AccessKey, cfg.SecretKey, nil
+}
+
+// getS3Service returns a client that allows us to interact
+// with the aws S3 service
+func (d *driver) getS3Service() (*s3.S3, error) {
+	accessKey, secretKey, err := d.updateConfigAndGetCredentials()
+	if err != nil {
+		return nil, err
 	}
 
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
 	awsConfig := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
+		Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
 		Region:      &d.Config.Region,
 		HTTPClient: &http.Client{
 			Transport: &http.Transport{
@@ -186,7 +194,7 @@ func isBucketNotFound(err interface{}) bool {
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	cfg, err := GetConfig(d.Listers)
+	accessKey, secretKey, err := d.updateConfigAndGetCredentials()
 	if err != nil {
 		return nil, err
 	}
@@ -206,8 +214,8 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: cfg.AccessKey, Secret: true},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: cfg.SecretKey, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: accessKey, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: secretKey, Secret: true},
 	)
 
 	if d.Config.CloudFront != nil {
