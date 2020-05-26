@@ -177,3 +177,72 @@ func TestConfigEnv(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceEndpointCanBeOverwritten(t *testing.T) {
+	ctx := context.Background()
+
+	config := &imageregistryv1.ImageRegistryConfigStorageS3{
+		Region: "us-west-1",
+	}
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: "hidden",
+					ServiceEndpoints: []configv1.AWSServiceEndpoint{
+						{
+							Name: "s3",
+							URL:  "https://s3.example.com",
+						},
+					},
+				},
+			},
+		},
+	})
+	testBuilder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access"),
+			"aws_secret_access_key": []byte("secret"),
+		},
+	})
+	listers := testBuilder.BuildListers()
+
+	d := NewDriver(ctx, config, listers)
+	envvars, err := d.ConfigEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedVars := map[string]interface{}{
+		"REGISTRY_STORAGE":                       "s3",
+		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
+		"REGISTRY_STORAGE_S3_REGION":             "us-west-1",
+		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
+	}
+	for key, value := range expectedVars {
+		e := findEnvVar(envvars, key)
+		if e == nil {
+			t.Fatalf("envvar %s not found, %v", key, envvars)
+		}
+		if e.Value != value {
+			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
+		}
+	}
+
+	e := findEnvVar(envvars, "REGISTRY_STORAGE_S3_REGIONENDPOINT")
+	if e != nil {
+		t.Errorf("REGISTRY_STORAGE_S3_REGIONENDPOINT is expected to be unset, but got %v", e)
+	}
+}
