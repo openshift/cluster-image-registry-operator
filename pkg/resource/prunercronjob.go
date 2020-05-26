@@ -223,6 +223,9 @@ func (gcj *generatorPrunerCronJob) getKeepTagRevisions(cr *imageregistryapiv1.Im
 }
 
 func (gcj *generatorPrunerCronJob) getKeepYoungerThan(cr *imageregistryapiv1.ImagePruner) string {
+	if cr.Spec.KeepYoungerThanDuration != nil {
+		return cr.Spec.KeepYoungerThanDuration.Duration.String()
+	}
 	if cr.Spec.KeepYoungerThan != nil {
 		return cr.Spec.KeepYoungerThan.String()
 	}
