@@ -380,6 +380,8 @@ github.com/opencontainers/runc v0.0.0-20191031171055-b133feaeeb2e/go.mod h1:qT5X
 github.com/openshift/api v0.0.0-20191213091414-3fbf6bcf78e8/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/api v0.0.0-20191217141120-791af96035a5 h1:iNT2RyvG4HrDU95JH1/6l+oALMmzgLL/Tp3AXAje0ic=
 github.com/openshift/api v0.0.0-20191217141120-791af96035a5/go.mod h1:dOo9oLY4lehI1ZZvNtMKwRVZTqG0y+z8564y1cf1ZOw=
+github.com/openshift/api v0.0.0-20200527184302-a843dc3262a0 h1:ANjZW6uA4ZmqT7fgHdK+Yqum2qil9hrGUPOUZQJpqS0=
+github.com/openshift/api v0.0.0-20200527184302-a843dc3262a0/go.mod h1:dh9o4Fs58gpFXGSYfnVxGR9PnV53I8TW84pQaJDdGiY=
 github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e h1:l+fwEFa4Voy9u+6pVOJI33sxwddz1oJ6rbVYpDfGytY=
 github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e/go.mod h1:nLJaHFCQ5Mavh98g2ejEnWYFWBMGVdphrKNjLErOn/w=
 github.com/openshift/crd-schema-gen v1.0.0 h1:s/6kG236Z0aqOBUlIZrlykdsXLzvDl3ylHJIME17ZRg=
