@@ -117,13 +117,12 @@ func (d *driver) updateConfigAndGetCredentials() (accessKey, secretKey string, e
 		return "", "", err
 	}
 
-	if len(d.Config.Region) == 0 {
+	if len(d.Config.Region) == 0 && len(d.Config.RegionEndpoint) == 0 {
 		d.Config.Region = cfg.Region
-	}
-
-	if len(d.Config.RegionEndpoint) == 0 && len(cfg.RegionEndpoint) != 0 {
 		d.Config.RegionEndpoint = cfg.RegionEndpoint
-		d.Config.VirtualHostedStyle = true
+		if len(cfg.RegionEndpoint) != 0 {
+			d.Config.VirtualHostedStyle = true
+		}
 	}
 
 	return cfg.AccessKey, cfg.SecretKey, nil
