@@ -3,6 +3,7 @@ package operator
 import (
 	"time"
 
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1informers "k8s.io/client-go/informers/core/v1"
@@ -12,8 +13,10 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
@@ -21,6 +24,7 @@ import (
 
 type ImageRegistryCertificatesController struct {
 	coreClient            corev1client.CoreV1Interface
+	operatorClient        v1helpers.OperatorClient
 	configMapLister       corev1listers.ConfigMapNamespaceLister
 	serviceLister         corev1listers.ServiceNamespaceLister
 	imageConfigLister     configv1listers.ImageLister
@@ -32,6 +36,7 @@ type ImageRegistryCertificatesController struct {
 
 func NewImageRegistryCertificatesController(
 	coreClient corev1client.CoreV1Interface,
+	operatorClient v1helpers.OperatorClient,
 	configMapInformer corev1informers.ConfigMapInformer,
 	serviceInformer corev1informers.ServiceInformer,
 	imageConfigInformer configv1informers.ImageInformer,
@@ -39,6 +44,7 @@ func NewImageRegistryCertificatesController(
 ) *ImageRegistryCertificatesController {
 	c := &ImageRegistryCertificatesController{
 		coreClient:            coreClient,
+		operatorClient:        operatorClient,
 		configMapLister:       configMapInformer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace),
 		serviceLister:         serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
 		imageConfigLister:     imageConfigInformer.Lister(),
@@ -95,7 +101,23 @@ func (c *ImageRegistryCertificatesController) processNextWorkItem() bool {
 
 func (c *ImageRegistryCertificatesController) sync() error {
 	g := resource.NewGeneratorCAConfig(c.configMapLister, c.imageConfigLister, c.openshiftConfigLister, c.serviceLister, c.coreClient)
-	return resource.ApplyMutator(g)
+	err := resource.ApplyMutator(g)
+	if err != nil {
+		_, _, updateError := v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:    "ImageRegistryCertificatesControllerDegraded",
+			Status:  operatorv1.ConditionTrue,
+			Reason:  "Error",
+			Message: err.Error(),
+		}))
+		return utilerrors.NewAggregate([]error{err, updateError})
+	}
+
+	_, _, err = v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+		Type:   "ImageRegistryCertificatesControllerDegraded",
+		Status: operatorv1.ConditionFalse,
+		Reason: "AsExpected",
+	}))
+	return err
 }
 
 func (c *ImageRegistryCertificatesController) Run(stopCh <-chan struct{}) {

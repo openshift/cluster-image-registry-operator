@@ -133,18 +133,18 @@ func (c *ImagePrunerController) createOrUpdateResources(cr *imageregistryv1.Imag
 	return c.generator.Apply(cr)
 }
 
-type ByCreationTimestamp []*batchv1.Job
+type byCreationTimestamp []*batchv1.Job
 
-func (b ByCreationTimestamp) Len() int {
+func (b byCreationTimestamp) Len() int {
 	return len(b)
 }
 
-func (b ByCreationTimestamp) Swap(i, j int) {
+func (b byCreationTimestamp) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func (b ByCreationTimestamp) Less(i, j int) bool {
-	return !b[j].CreationTimestamp.Time.After(b[i].CreationTimestamp.Time)
+func (b byCreationTimestamp) Less(i, j int) bool {
+	return b[i].CreationTimestamp.Time.Before(b[j].CreationTimestamp.Time)
 }
 
 // Bootstrap creates the initial configuration for the Image Pruner.
@@ -225,11 +225,11 @@ func (c *ImagePrunerController) sync() error {
 
 	lastPrunerJobConditions := []batchv1.JobCondition{}
 	if len(prunerJobs) > 0 {
-		sort.Sort(ByCreationTimestamp(prunerJobs))
+		sort.Sort(byCreationTimestamp(prunerJobs))
 		lastPrunerJobConditions = prunerJobs[len(prunerJobs)-1].Status.Conditions
 	}
 
-	c.syncPrunerStatus(pcr, prunerCronJob, lastPrunerJobConditions)
+	c.syncPrunerStatus(pcr, applyError, prunerCronJob, lastPrunerJobConditions)
 
 	metadataChanged := strategy.Metadata(&prevPCR.ObjectMeta, &pcr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevPCR.Spec, pcr.Spec)

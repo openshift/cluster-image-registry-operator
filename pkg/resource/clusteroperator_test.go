@@ -249,7 +249,7 @@ func TestSyncVersions(t *testing.T) {
 
 			lister.deploys, lister.failOnGet = tt.deploys, tt.failOnGet
 			gen := NewGeneratorClusterOperator(
-				lister, nil, nil, tt.config, nil,
+				lister, nil, nil, tt.config, nil, nil,
 			)
 
 			modified, err := gen.syncVersions(co)

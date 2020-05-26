@@ -24,7 +24,6 @@ import (
 // FixturesBuilder helps create an in-memory version of client.Listers.
 type FixturesBuilder struct {
 	deploymentIndexer          cache.Indexer
-	dsIndexer                  cache.Indexer
 	servicesIndexer            cache.Indexer
 	secretsIndexer             cache.Indexer
 	configMapsIndexer          cache.Indexer
@@ -32,8 +31,6 @@ type FixturesBuilder struct {
 	routesIndexer              cache.Indexer
 	clusterRolesIndexer        cache.Indexer
 	clusterRoleBindingsIndexer cache.Indexer
-	imageConfigsIndexer        cache.Indexer
-	clusterOperatorsIndexer    cache.Indexer
 	registryConfigsIndexer     cache.Indexer
 	proxyConfigsIndexer        cache.Indexer
 	infraIndexer               cache.Indexer
@@ -52,7 +49,6 @@ type Fixtures struct {
 func NewFixturesBuilder() *FixturesBuilder {
 	factory := &FixturesBuilder{
 		deploymentIndexer:          cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
-		dsIndexer:                  cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		servicesIndexer:            cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		secretsIndexer:             cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		configMapsIndexer:          cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
@@ -60,26 +56,12 @@ func NewFixturesBuilder() *FixturesBuilder {
 		routesIndexer:              cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		clusterRolesIndexer:        cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		clusterRoleBindingsIndexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
-		imageConfigsIndexer:        cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
-		clusterOperatorsIndexer:    cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		registryConfigsIndexer:     cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		proxyConfigsIndexer:        cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		infraIndexer:               cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		kClientSet:                 []runtime.Object{},
 	}
 	return factory
-}
-
-// AddDaemonSets adds appsv1.DaemonSets to the lister cache
-func (f *FixturesBuilder) AddDaemonSets(objs ...*appsv1.DaemonSet) *FixturesBuilder {
-	for _, v := range objs {
-		err := f.dsIndexer.Add(v)
-		if err != nil {
-			panic(err)
-		}
-		f.kClientSet = append(f.kClientSet, v)
-	}
-	return f
 }
 
 // AddDeployments adds appsv1.Deployments to the lister cache
@@ -186,26 +168,6 @@ func (f *FixturesBuilder) AddClusterRoleBindings(objs ...*rbacv1.ClusterRoleBind
 	return f
 }
 
-// AddImageConfig adds cluster-wide config.openshift.io/v1 Image to the lister cache
-func (f *FixturesBuilder) AddImageConfig(config *configv1.Image) *FixturesBuilder {
-	err := f.imageConfigsIndexer.Add(config)
-	if err != nil {
-		panic(err)
-	}
-	return f
-}
-
-// AddClusterOperators adds config.openshift.io/v1 ClusterOperators to the lister cache
-func (f *FixturesBuilder) AddClusterOperators(objs ...*configv1.ClusterOperator) *FixturesBuilder {
-	for _, v := range objs {
-		err := f.clusterOperatorsIndexer.Add(v)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return f
-}
-
 // AddRegistryOperatorConfig adds imageregistry.operator.openshift.io/v1 Config to the lister cache
 func (f *FixturesBuilder) AddRegistryOperatorConfig(config *regopv1.Config) *FixturesBuilder {
 	err := f.registryConfigsIndexer.Add(config)
@@ -246,7 +208,6 @@ func (f *FixturesBuilder) Build() *Fixtures {
 func (f *FixturesBuilder) BuildListers() *client.Listers {
 	listers := &client.Listers{
 		Deployments:         appsv1listers.NewDeploymentLister(f.deploymentIndexer).Deployments("openshift-image-registry"),
-		DaemonSets:          appsv1listers.NewDaemonSetLister(f.dsIndexer).DaemonSets("openshift-image-registry"),
 		Services:            corev1listers.NewServiceLister(f.servicesIndexer).Services("openshift-image-registry"),
 		Secrets:             corev1listers.NewSecretLister(f.secretsIndexer).Secrets("openshift-image-registry"),
 		ConfigMaps:          corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-image-registry"),
@@ -255,8 +216,6 @@ func (f *FixturesBuilder) BuildListers() *client.Listers {
 		ClusterRoles:        rbacv1listers.NewClusterRoleLister(f.clusterRolesIndexer),
 		ClusterRoleBindings: rbacv1listers.NewClusterRoleBindingLister(f.clusterRoleBindingsIndexer),
 		OpenShiftConfig:     corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config"),
-		ImageConfigs:        configv1listers.NewImageLister(f.imageConfigsIndexer),
-		ClusterOperators:    configv1listers.NewClusterOperatorLister(f.clusterOperatorsIndexer),
 		RegistryConfigs:     regopv1listers.NewConfigLister(f.registryConfigsIndexer),
 		InstallerConfigMaps: corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("kube-system"),
 		ProxyConfigs:        configv1listers.NewProxyLister(f.proxyConfigsIndexer),

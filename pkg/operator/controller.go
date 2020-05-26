@@ -18,7 +18,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
-	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
@@ -104,11 +103,6 @@ func NewController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Apps().V1().DaemonSets()
-			c.listers.DaemonSets = informer.Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Core().V1().Services()
 			c.listers.Services = informer.Lister().Services(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
@@ -149,16 +143,6 @@ func NewController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := configInformerFactory.Config().V1().Images()
-			c.listers.ImageConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := configInformerFactory.Config().V1().ClusterOperators()
-			c.listers.ClusterOperators = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Proxies()
 			c.listers.ProxyConfigs = informer.Lister()
 			return informer.Informer()
@@ -169,11 +153,6 @@ func NewController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := regopInformerFactory.Imageregistry().V1().ImagePruners()
-			c.listers.ImagePrunerConfigs = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
 			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
 			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
 			return informer.Informer()
@@ -181,16 +160,6 @@ func NewController(
 		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Infrastructures()
 			c.listers.Infrastructures = informer.Lister()
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
-			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1().Jobs()
-			c.listers.Jobs = informer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 	} {
@@ -351,11 +320,6 @@ func (c *Controller) eventProcessor() {
 func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
-			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
-					return
-				}
-			}
 			obj := o.(metaapi.Object)
 			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
 				return
@@ -379,11 +343,6 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				// Two different versions of the same resource will always have different RVs.
 				return
 			}
-			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
-					return
-				}
-			}
 			obj := o.(metaapi.Object)
 			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
 				return
@@ -405,11 +364,6 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 					return
 				}
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
-			}
-			if clusterOperator, ok := o.(*configapiv1.ClusterOperator); ok {
-				if clusterOperator.GetName() != defaults.ImageRegistryClusterOperatorResourceName {
-					return
-				}
 			}
 			obj := o.(metaapi.Object)
 			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {

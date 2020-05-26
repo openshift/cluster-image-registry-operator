@@ -3,6 +3,7 @@ package operator
 import (
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
@@ -28,6 +29,7 @@ type ClusterOperatorStatusController struct {
 	clusterOperatorClient     configv1client.ClusterOperatorsGetter
 	clusterOperatorLister     configv1listers.ClusterOperatorLister
 	imageRegistryConfigLister imageregistryv1listers.ConfigLister
+	imagePrunerLister         imageregistryv1listers.ImagePrunerLister
 	deploymentLister          appsv1listers.DeploymentNamespaceLister
 
 	cachesToSync []cache.InformerSynced
@@ -39,6 +41,7 @@ func NewClusterOperatorStatusController(
 	configClient configv1client.ConfigV1Interface,
 	clusterOperatorInformer configv1informers.ClusterOperatorInformer,
 	imageRegistryConfigInformer imageregistryv1informers.ConfigInformer,
+	imagePrunerInformer imageregistryv1informers.ImagePrunerInformer,
 	deploymentInformer appsv1informers.DeploymentInformer,
 ) *ClusterOperatorStatusController {
 	c := &ClusterOperatorStatusController{
@@ -46,16 +49,21 @@ func NewClusterOperatorStatusController(
 		clusterOperatorClient:     configClient,
 		clusterOperatorLister:     clusterOperatorInformer.Lister(),
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
+		imagePrunerLister:         imagePrunerInformer.Lister(),
 		deploymentLister:          deploymentInformer.Lister().Deployments(defaults.ImageRegistryOperatorNamespace),
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ClusterOperatorStatusController"),
 	}
 
 	clusterOperatorInformer.Informer().AddEventHandler(c.eventHandler())
-	imageRegistryConfigInformer.Informer().AddEventHandler(c.eventHandler())
-	deploymentInformer.Informer().AddEventHandler(c.eventHandler())
-
 	c.cachesToSync = append(c.cachesToSync, clusterOperatorInformer.Informer().HasSynced)
+
+	imageRegistryConfigInformer.Informer().AddEventHandler(c.eventHandler())
 	c.cachesToSync = append(c.cachesToSync, imageRegistryConfigInformer.Informer().HasSynced)
+
+	imagePrunerInformer.Informer().AddEventHandler(c.eventHandler())
+	c.cachesToSync = append(c.cachesToSync, imagePrunerInformer.Informer().HasSynced)
+
+	deploymentInformer.Informer().AddEventHandler(c.eventHandler())
 	c.cachesToSync = append(c.cachesToSync, deploymentInformer.Informer().HasSynced)
 
 	return c
@@ -100,11 +108,20 @@ func (c *ClusterOperatorStatusController) sync() error {
 	}
 	cr = cr.DeepCopy()
 
+	imagepruner, err := c.imagePrunerLister.Get("cluster")
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			klog.Warningf("unable to get imagepruner: %v", err)
+		}
+		imagepruner = nil
+	}
+
 	mut := resource.NewGeneratorClusterOperator(
 		c.deploymentLister,
 		c.clusterOperatorLister,
 		c.clusterOperatorClient,
 		cr,
+		imagepruner,
 		c.relatedObjects,
 	)
 

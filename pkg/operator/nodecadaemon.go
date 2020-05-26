@@ -3,6 +3,7 @@ package operator
 import (
 	"time"
 
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
@@ -14,12 +15,16 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
 type NodeCADaemonController struct {
 	appsClient      appsv1client.AppsV1Interface
+	operatorClient  v1helpers.OperatorClient
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
 	serviceLister   corev1listers.ServiceNamespaceLister
 
@@ -29,11 +34,13 @@ type NodeCADaemonController struct {
 
 func NewNodeCADaemonController(
 	appsClient appsv1client.AppsV1Interface,
+	operatorClient v1helpers.OperatorClient,
 	daemonSetInformer appsv1informers.DaemonSetInformer,
 	serviceInformer corev1informers.ServiceInformer,
 ) *NodeCADaemonController {
 	c := &NodeCADaemonController{
 		appsClient:      appsClient,
+		operatorClient:  operatorClient,
 		daemonSetLister: daemonSetInformer.Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace),
 		serviceLister:   serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeCADaemonController"),
@@ -82,7 +89,23 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 
 func (c *NodeCADaemonController) sync() error {
 	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient)
-	return resource.ApplyMutator(gen)
+	err := resource.ApplyMutator(gen)
+	if err != nil {
+		_, _, updateError := v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:    "NodeCADaemonControllerDegraded",
+			Status:  operatorv1.ConditionTrue,
+			Reason:  "Error",
+			Message: err.Error(),
+		}))
+		return utilerrors.NewAggregate([]error{err, updateError})
+	}
+
+	_, _, err = v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+		Type:   "NodeCADaemonControllerDegraded",
+		Status: operatorv1.ConditionFalse,
+		Reason: "AsExpected",
+	}))
+	return err
 }
 
 func (c *NodeCADaemonController) Run(stopCh <-chan struct{}) {

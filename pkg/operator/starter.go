@@ -15,6 +15,7 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
@@ -43,6 +44,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	imageregistryInformers := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, defaultResyncDuration)
 	routeInformers := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 
+	configOperatorClient := client.NewConfigOperatorClient(
+		imageregistryClient.ImageregistryV1().Configs(),
+		imageregistryInformers.Imageregistry().V1().Configs(),
+	)
+
 	controller := NewController(
 		kubeconfig,
 		kubeClient,
@@ -59,6 +65,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	imageConfigStatusController := NewImageConfigController(
 		configClient.ConfigV1(),
+		configOperatorClient,
 		routeInformers.Route().V1().Routes(),
 		kubeInformers.Core().V1().Services(),
 	)
@@ -75,11 +82,13 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configClient.ConfigV1(),
 		configInformers.Config().V1().ClusterOperators(),
 		imageregistryInformers.Imageregistry().V1().Configs(),
+		imageregistryInformers.Imageregistry().V1().ImagePruners(),
 		kubeInformers.Apps().V1().Deployments(),
 	)
 
 	imageRegistryCertificatesController := NewImageRegistryCertificatesController(
 		kubeClient.CoreV1(),
+		configOperatorClient,
 		kubeInformers.Core().V1().ConfigMaps(),
 		kubeInformers.Core().V1().Services(),
 		configInformers.Config().V1().Images(),
@@ -88,6 +97,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	nodeCADaemonController := NewNodeCADaemonController(
 		kubeClient.AppsV1(),
+		configOperatorClient,
 		kubeInformers.Apps().V1().DaemonSets(),
 		kubeInformers.Core().V1().Services(),
 	)
