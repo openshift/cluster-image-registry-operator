@@ -133,6 +133,7 @@ func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 
 	if driver.StorageChanged(cr) {
 		runCreate = true
+		cr.Status.StorageManaged = false
 	} else {
 		exists, err := driver.StorageExists(cr)
 		if err != nil {
