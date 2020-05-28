@@ -35,7 +35,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.10.3 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v0.0.0-20191217141120-791af96035a5
+	github.com/openshift/api v0.0.0-20200527184302-a843dc3262a0
 	github.com/openshift/client-go v0.0.0-20191216194936-57f413491e9e
 	github.com/openshift/crd-schema-gen v1.0.0
 	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410

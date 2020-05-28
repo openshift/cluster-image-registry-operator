@@ -378,7 +378,7 @@ func (ImageLabel) SwaggerDoc() map[string]string {
 
 var map_ClusterOperator = map[string]string{
 	"":       "ClusterOperator is the Custom Resource object which holds the current state of an operator. This object is used by operators to convey their state to the rest of the cluster.",
-	"spec":   "spec holds configuration that could apply to any operator.",
+	"spec":   "spec hold the intent of how this operator should behave.",
 	"status": "status holds the information about the state of an operator.  It is consistent with status information across the Kubernetes ecosystem.",
 }
 
@@ -714,6 +714,17 @@ var map_GCPPlatformStatus = map[string]string{
 
 func (GCPPlatformStatus) SwaggerDoc() map[string]string {
 	return map_GCPPlatformStatus
+}
+
+var map_IBMCloudPlatformStatus = map[string]string{
+	"":                  "IBMCloudPlatformStatus holds the current status of the IBMCloud infrastructure provider.",
+	"location":          "Location is where the cluster has been deployed",
+	"resourceGroupName": "ResourceGroupName is the Resource Group for new IBMCloud resources created for the cluster.",
+	"providerType":      "ProviderType indicates the type of cluster that was created",
+}
+
+func (IBMCloudPlatformStatus) SwaggerDoc() map[string]string {
+	return map_IBMCloudPlatformStatus
 }
 
 var map_Infrastructure = map[string]string{
