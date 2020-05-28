@@ -24,7 +24,7 @@ import (
 var (
 	defaultSuspend                          = false
 	defaultSchedule                         = "0 0 * * *"
-	defaultStartingDeadlineSeconds    int64 = 60
+	defaultStartingDeadlineSeconds    int64 = 3600
 	defaultFailedJobsHistoryLimit     int32 = 3
 	defaultSuccessfulJobsHistoryLimit int32 = 3
 	defaultKeepTagRevisions                 = 3
