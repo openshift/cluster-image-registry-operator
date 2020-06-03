@@ -1,11 +1,8 @@
 reviewers:
-- dmage
-- gabemontero
-- adambkaplan
-- coreydaley
 approvers:
 - smarterclayton
 - bparees
 - dmage
 - adambkaplan
+- ricardomaraschini
 component: "Image Registry"
