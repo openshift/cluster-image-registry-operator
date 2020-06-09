@@ -1,6 +1,7 @@
 package swift
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -288,12 +289,62 @@ func TestSwiftCreateStorageNativeSecret(t *testing.T) {
 	th.AssertEquals(t, container, installConfig.Status.Storage.Swift.Container)
 }
 
+func TestSwiftRemoveStorageWithContent(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+	handleAuthentication(t, "container")
+
+	var containerContentListed bool
+	var containerContentDeleted bool
+	var containerDeleted bool
+	th.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			objects := []string{"obj0", "obj1"}
+			if containerContentListed {
+				objects = []string{}
+			}
+			containerContentListed = true
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(objects)
+		case http.MethodPost:
+			if containerContentDeleted {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			containerContentDeleted = true
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("{}"))
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+			containerDeleted = true
+		}
+	})
+
+	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockUPISecretNamespaceLister{})
+
+	_, err := d.RemoveStorage(&installConfig)
+
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, "StorageExists", installConfig.Status.Conditions[0].Type)
+	th.AssertEquals(t, operatorapi.ConditionFalse, installConfig.Status.Conditions[0].Status)
+	th.AssertEquals(t, "Swift Container Deleted", installConfig.Status.Conditions[0].Reason)
+	th.AssertEquals(t, "", installConfig.Status.Storage.Swift.Container)
+	th.AssertEquals(t, true, containerContentListed)
+	th.AssertEquals(t, true, containerContentDeleted)
+	th.AssertEquals(t, true, containerDeleted)
+}
+
 func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
 	handleAuthentication(t, "container")
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		th.TestMethod(t, r, "DELETE")
 		th.TestHeader(t, r, "Accept", "application/json")
 		w.WriteHeader(http.StatusNoContent)
@@ -466,6 +517,10 @@ func TestSwiftRemoveStorageCloudConfig(t *testing.T) {
 	}
 
 	th.Mux.HandleFunc("/"+container, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		th.TestMethod(t, r, "DELETE")
 		th.TestHeader(t, r, "Accept", "application/json")
 		w.WriteHeader(http.StatusNoContent)
