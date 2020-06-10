@@ -1,7 +1,6 @@
 package util
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -83,6 +82,11 @@ func TestGenerateStorageName(t *testing.T) {
 			infraName:      "invalid-infra-name---",
 			additionalInfo: []string{"test1", "test2"},
 		},
+		{
+			name:           "upper case on infra name",
+			infraName:      "MY-INFRA",
+			additionalInfo: []string{"test1", "test2"},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			l := regopclient.Listers{Infrastructures: MockInfrastructureLister{
@@ -94,7 +98,7 @@ func TestGenerateStorageName(t *testing.T) {
 				t.Errorf("%v", err)
 			}
 
-			rawPrefix := fmt.Sprintf("%s-%s", tt.infraName, defaults.ImageRegistryName)
+			rawPrefix := strings.ToLower(tt.infraName + "-" + defaults.ImageRegistryName)
 			wantedPrefix := replaceMultiDash.ReplaceAllString(rawPrefix, "-")
 			if len(wantedPrefix) > 62 {
 				wantedPrefix = wantedPrefix[0:62]
@@ -113,6 +117,10 @@ func TestGenerateStorageName(t *testing.T) {
 			// Name should not have multiple dashes together
 			if multiDash.MatchString(n) {
 				t.Errorf("name should not include a double dash: %s", n)
+			}
+
+			if n != strings.ToLower(n) {
+				t.Errorf("name should not contain upper case: %s", n)
 			}
 		})
 	}
