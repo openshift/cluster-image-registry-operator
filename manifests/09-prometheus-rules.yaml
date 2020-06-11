@@ -17,18 +17,3 @@ spec:
         message: |
           Image Registry Storage configuration has changed in the last 30
           minutes. This change may have caused data loss.
-  - name: ImagePruner
-    rules:
-    - alert: ImagePruningDisabled
-      expr: image_registry_operator_image_pruner_install_status < 2
-      labels:
-        severity: warning
-      annotations:
-        message: |
-          Automatic image pruning is not enabled. Regular pruning of images
-          no longer referenced by ImageStreams is strongly recommended to
-          ensure your cluster remains healthy.
-          
-          To remove this warning, install the image pruner by creating an
-          imagepruner.imageregistry.operator.openshift.io resource with the
-          name `cluster`. Ensure that the `suspend` field is set to `false`.
