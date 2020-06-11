@@ -21,13 +21,13 @@ func FlagExistsWithValue(args []string, flag string, value string) error {
 }
 
 func CheckEnvVarsAreNotSet(te TestEnv, got []corev1.EnvVar, names []string) {
-	blacklist := map[string]bool{}
+	denylist := map[string]bool{}
 	for _, name := range names {
-		blacklist[name] = true
+		denylist[name] = true
 	}
 
 	for _, e := range got {
-		if blacklist[e.Name] {
+		if denylist[e.Name] {
 			te.Errorf("got the environment variable %s with the value %q, but want it to be absent", e.Name, e.Value)
 		}
 	}
