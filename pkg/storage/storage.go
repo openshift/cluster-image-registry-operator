@@ -150,20 +150,15 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 		replicas = 2
 	case configapiv1.OpenStackPlatformType:
-		isSwiftEnabled, err := swift.IsSwiftEnabled(listers)
-		if err != nil {
-			return imageregistryv1.ImageRegistryConfigStorage{}, replicas, err
-		}
-		if !isSwiftEnabled {
-			cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
-				Claim: defaults.PVCImageRegistryName,
-			}
-			replicas = 1
-		} else {
+		if swift.IsSwiftEnabled(listers) {
 			cfg.Swift = &imageregistryv1.ImageRegistryConfigStorageSwift{}
 			replicas = 2
+			break
 		}
-
+		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
+			Claim: defaults.PVCImageRegistryName,
+		}
+		replicas = 1
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.
 	case configapiv1.LibvirtPlatformType:
