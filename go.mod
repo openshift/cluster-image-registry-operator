@@ -28,7 +28,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
-	github.com/gophercloud/gophercloud v0.2.1-0.20190725225357-73bf16e49026
+	github.com/gophercloud/gophercloud v0.11.1-0.20200607170258-326e5f9d72d8
 	github.com/gophercloud/utils v0.0.0-20190527093828-25f1b77b8c03
 	github.com/gorilla/websocket v1.4.1 // indirect
 	github.com/goware/urlx v0.3.1
@@ -58,7 +58,6 @@ require (
 	google.golang.org/api v0.7.0
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20191206224255-0243a4be9c8f // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v2 v2.2.8
 	k8s.io/api v0.18.3
 	k8s.io/apimachinery v0.18.3

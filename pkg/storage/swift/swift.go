@@ -12,6 +12,8 @@ import (
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
+	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
+	"github.com/gophercloud/gophercloud/pagination"
 	"github.com/gophercloud/utils/openstack/clientconfig"
 	"github.com/goware/urlx"
 	yamlv2 "gopkg.in/yaml.v2"
@@ -454,7 +456,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 }
 
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
-	if !cr.Status.StorageManaged {
+	if !cr.Status.StorageManaged || cr.Spec.Storage.Swift.Container == "" {
 		return false, nil
 	}
 
@@ -463,10 +465,32 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		return false, err
 	}
 
+	pager := objects.List(client, cr.Spec.Storage.Swift.Container, &objects.ListOpts{
+		Limit: 50,
+	})
+	if err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		objectsOnPage, err := objects.ExtractNames(page)
+		if err != nil {
+			return false, err
+		}
+		if _, err := objects.BulkDelete(
+			client, cr.Spec.Storage.Swift.Container, objectsOnPage,
+		).Extract(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}); err != nil {
+		if _, ok := err.(gophercloud.ErrDefault404); !ok {
+			return false, err
+		}
+	}
+
 	_, err = containers.Delete(client, cr.Spec.Storage.Swift.Container).Extract()
 	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, err.Error(), err.Error())
-		return false, err
+		if _, ok := err.(gophercloud.ErrDefault404); !ok {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, err.Error(), err.Error())
+			return false, err
+		}
 	}
 
 	cr.Spec.Storage.Swift.Container = ""
