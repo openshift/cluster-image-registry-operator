@@ -17,3 +17,21 @@ spec:
         message: |
           Image Registry Storage configuration has changed in the last 30
           minutes. This change may have caused data loss.
+    - alert: ImportImageUsingV1Protocol
+      expr: |
+        (
+            sum(
+                max_over_time(apiserver_v1_image_imports_total[15m]) or apiserver_v1_image_imports_total * 0
+            ) by (repository)
+            -
+            sum(
+                max_over_time(apiserver_v1_image_imports_total[15m] offset 15m) or apiserver_v1_image_imports_total * 0
+            ) by (repository)
+        ) > 0
+      labels:
+        severity: warning
+      annotations:
+        message: |
+          Registry repository {{ $labels.repository }} was imported using deprecated registry
+          protocol v1. Support for protocol v1 will be deprecated, it is recommended to use an
+          image registry that supports the newer v2 protocol.
