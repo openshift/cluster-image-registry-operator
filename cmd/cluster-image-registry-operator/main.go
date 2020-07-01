@@ -10,12 +10,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/klog"
 
 	"github.com/openshift/library-go/pkg/operator/watchdog"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
@@ -75,8 +79,47 @@ func runOperator(cmd *cobra.Command, args []string) {
 		klog.Infof("Received SIGTERM or SIGINT signal, shutting down the operator.")
 	}()
 
-	err = operator.RunOperator(ctx, cfg)
+	workerID, err := os.Hostname()
 	if err != nil {
-		klog.Fatal(err)
+		klog.Fatalf("Error getting hostname: %s", err)
 	}
+
+	kubeClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		klog.Fatalf("Error creating clientset: %s", err)
+	}
+
+	lock, err := resourcelock.New(
+		resourcelock.ConfigMapsResourceLock,
+		defaults.ImageRegistryOperatorNamespace,
+		defaults.LeaderLockConfigMapName,
+		kubeClient.CoreV1(),
+		kubeClient.CoordinationV1(),
+		resourcelock.ResourceLockConfig{
+			Identity: workerID,
+		},
+	)
+	if err != nil {
+		klog.Fatalf("Error creating resource lock: %v", err)
+	}
+
+	leaderelection.RunOrDie(
+		ctx,
+		leaderelection.LeaderElectionConfig{
+			Lock:          lock,
+			LeaseDuration: 15 * time.Second,
+			RenewDeadline: 10 * time.Second,
+			RetryPeriod:   2 * time.Second,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: func(ctx context.Context) {
+					if err = operator.RunOperator(ctx, cfg); err != nil {
+						klog.Fatal(err)
+					}
+				},
+				OnStoppedLeading: func() {
+					klog.Fatalf("leaderelection lost")
+				},
+			},
+		},
+	)
 }

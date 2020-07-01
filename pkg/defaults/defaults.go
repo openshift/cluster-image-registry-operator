@@ -105,6 +105,9 @@ const (
 
 	// OpenShiftConfigNamespace is a namespace with global configuration resources.
 	OpenShiftConfigNamespace = "openshift-config"
+
+	// LeaderLockConfigMapName is ConfigMap name used for leader election.
+	LeaderLockConfigMapName = "openshift-master-controllers"
 )
 
 var (
