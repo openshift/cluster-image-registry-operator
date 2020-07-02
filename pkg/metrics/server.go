@@ -1,10 +1,8 @@
 package metrics
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -17,7 +15,7 @@ var (
 )
 
 // RunServer starts the metrics server.
-func RunServer(port int, stopCh <-chan struct{}) {
+func RunServer(port int) {
 	if port <= 0 {
 		klog.Error("invalid port for metric server")
 		return
@@ -38,20 +36,8 @@ func RunServer(port int, stopCh <-chan struct{}) {
 		Handler: router,
 	}
 
-	go func() {
-		err := srv.ListenAndServeTLS(tlsCRT, tlsKey)
-		if err != nil && err != http.ErrServerClosed {
-			klog.Errorf("error starting metrics server: %v", err)
-		}
-	}()
-
-	<-stopCh
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		klog.Errorf("error closing metrics server: %v", err)
+	if err := srv.ListenAndServeTLS(tlsCRT, tlsKey); err != nil {
+		klog.Errorf("error starting metrics server: %v", err)
 	}
 }
 
