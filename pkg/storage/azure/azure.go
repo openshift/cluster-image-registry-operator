@@ -177,6 +177,11 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 }
 
 func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName string) (string, error) {
+	sinceLastListKeys := time.Since(d.storageAccountKeysLastList)
+	if d.storageAccountKey != "" && sinceLastListKeys < time.Minute {
+		return d.storageAccountKey, nil
+	}
+
 	keysResponse, err := storageAccountsClient.ListKeys(d.Context, resourceGroupName, accountName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("failed to get keys for the storage account %s: %s", accountName, err)
@@ -188,7 +193,13 @@ func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClie
 		return "", wrappedErr
 	}
 
-	return *(*keysResponse.Keys)[0].Value, nil
+	if len(*keysResponse.Keys) == 0 {
+		return "", fmt.Errorf("no keys found for storage account")
+	}
+
+	d.storageAccountKey = *(*keysResponse.Keys)[0].Value
+	d.storageAccountKeysLastList = time.Now()
+	return d.storageAccountKey, nil
 }
 
 func getStorageContainer(accountName, key, containerName string) (azblob.ContainerURL, error) {
@@ -235,6 +246,9 @@ type driver struct {
 	Config     *imageregistryv1.ImageRegistryConfigStorageAzure
 	KubeConfig *rest.Config
 	Listers    *regopclient.Listers
+
+	storageAccountKey          string
+	storageAccountKeysLastList time.Time
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
