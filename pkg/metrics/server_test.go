@@ -32,8 +32,7 @@ func TestMain(m *testing.M) {
 		InsecureSkipVerify: true,
 	}
 
-	ch := make(chan struct{})
-	go RunServer(5000, ch)
+	go RunServer(5000)
 
 	// give http handlers/server some time to process certificates and
 	// get online before running tests.
@@ -48,7 +47,6 @@ func TestMain(m *testing.M) {
 	if crtErr != nil {
 		log.Fatal(crtErr)
 	}
-	close(ch)
 	os.Exit(code)
 }
 

@@ -35,6 +35,12 @@ spec:
         tolerationSeconds: 120
       containers:
         - name: cluster-image-registry-operator
+          command:
+          - cluster-image-registry-operator
+          args:
+          - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
+          - --files=/etc/secrets/tls.crt
+          - --files=/etc/secrets/tls.key
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           ports:
           - containerPort: 60000
@@ -61,33 +67,6 @@ spec:
               mountPath: /var/run/configmaps/trusted-ca/
             - name: image-registry-operator-tls
               mountPath: /etc/secrets
-        - name: cluster-image-registry-operator-watch
-          image: docker.io/openshift/origin-cluster-image-registry-operator:latest
-          command:
-          - cluster-image-registry-operator-watch
-          args:
-          - file-watcher-watchdog
-          - --namespace=$(POD_NAMESPACE)
-          - --process-name=cluster-image-registry-operator
-          - --termination-grace-period=30s
-          - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
-          - --files=/etc/secrets/tls.crt
-          - --files=/etc/secrets/tls.key
-          imagePullPolicy: IfNotPresent
-          resources:
-            requests:
-              cpu: 10m
-          env:
-          - name: POD_NAME
-            valueFrom:
-              fieldRef:
-                apiVersion: v1
-                fieldPath: metadata.name
-          - name: POD_NAMESPACE
-            valueFrom:
-              fieldRef:
-                apiVersion: v1
-                fieldPath: metadata.namespace
       volumes:
         - name: image-registry-operator-tls
           secret:
