@@ -19,6 +19,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/rand"
+	kcorelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
@@ -54,6 +55,7 @@ var (
 	storageAccountInvalidCharRe = regexp.MustCompile(`[^0-9A-Za-z]`)
 )
 
+// Azure holds configuration used to reach Azure's endpoints.
 type Azure struct {
 	// IPI
 	SubscriptionID string
@@ -75,47 +77,47 @@ func (e *errDoesNotExist) Error() string {
 	return e.Err.Error()
 }
 
-func getAzureConfigFromCloudSecret(creds *corev1.Secret) (*Azure, error) {
-	cfg := &Azure{}
-	cfg.SubscriptionID = string(creds.Data["azure_subscription_id"])
-	cfg.ClientID = string(creds.Data["azure_client_id"])
-	cfg.ClientSecret = string(creds.Data["azure_client_secret"])
-	cfg.TenantID = string(creds.Data["azure_tenant_id"])
-	cfg.ResourceGroup = string(creds.Data["azure_resourcegroup"])
-	cfg.Region = string(creds.Data["azure_region"])
-	return cfg, nil
-}
-
-func getAzureConfigFromUserSecret(sec *corev1.Secret) (*Azure, error) {
-	cfg := &Azure{}
-	var err error
-
-	cfg.AccountKey, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_AZURE_ACCOUNTKEY")
-	if err != nil {
-		return nil, err
-	}
-	if cfg.AccountKey == "" {
-		return nil, fmt.Errorf("the secret %s/%s has an empty value for REGISTRY_STORAGE_AZURE_ACCOUNTKEY; the secret should be removed so that the operator can use cluster-wide secrets or it should contain a valid storage account access key", sec.Namespace, sec.Name)
-	}
-
-	return cfg, nil
-}
-
-// GetConfig reads configuration for the Azure cloud platform services.
-func GetConfig(listers *regopclient.Listers) (*Azure, error) {
-	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
+// GetConfig reads configuration for the Azure cloud platform services. It first attempts to
+// load credentials from ImageRegistryPrivateConfigurationUser secret, if this secret is not
+// present this function loads credentials from cluster wide config present on secret
+// CloudCredentialsName.
+func GetConfig(secLister kcorelisters.SecretNamespaceLister) (*Azure, error) {
+	sec, err := secLister.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, fmt.Errorf("unable to get user provided secrets: %s", err)
 		}
 
-		creds, err := listers.Secrets.Get(defaults.CloudCredentialsName)
-		if err != nil {
+		// loads cluster wide configuration.
+		if sec, err = secLister.Get(defaults.CloudCredentialsName); err != nil {
 			return nil, fmt.Errorf("unable to get cluster minted credentials: %s", err)
 		}
-		return getAzureConfigFromCloudSecret(creds)
+
+		return &Azure{
+			SubscriptionID: string(sec.Data["azure_subscription_id"]),
+			ClientID:       string(sec.Data["azure_client_id"]),
+			ClientSecret:   string(sec.Data["azure_client_secret"]),
+			TenantID:       string(sec.Data["azure_tenant_id"]),
+			ResourceGroup:  string(sec.Data["azure_resourcegroup"]),
+			Region:         string(sec.Data["azure_region"]),
+		}, nil
 	}
-	return getAzureConfigFromUserSecret(sec)
+
+	// loads user provided account key.
+	key, err := util.GetValueFromSecret(sec, "REGISTRY_STORAGE_AZURE_ACCOUNTKEY")
+	if err != nil {
+		return nil, err
+	} else if key == "" {
+		return nil, fmt.Errorf("the secret %s/%s has an empty value for "+
+			"REGISTRY_STORAGE_AZURE_ACCOUNTKEY; the secret should be removed so that "+
+			"the operator can use cluster-wide secrets or it should contain a valid "+
+			"storage account access key", sec.Namespace, sec.Name,
+		)
+	}
+
+	return &Azure{
+		AccountKey: key,
+	}, nil
 }
 
 // generateAccountName returns a name that can be used for an Azure Storage
@@ -266,7 +268,7 @@ func (d *driver) storageAccountsClient(cfg *Azure) (storage.AccountsClient, erro
 // ConfigEnv configures the environment variables that will be used in the
 // image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	cfg, err := GetConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers.Secrets)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +309,7 @@ func (d *driver) containerExists(containerName string) (bool, error) {
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers.Secrets)
 	if err != nil {
 		return false, err
 	}
@@ -383,7 +385,7 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 
 // CreateStorage attempts to create a storage account and a storage container.
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	cfg, err := GetConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers.Secrets)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return err
@@ -537,7 +539,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers)
+	cfg, err := GetConfig(d.Listers.Secrets)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
