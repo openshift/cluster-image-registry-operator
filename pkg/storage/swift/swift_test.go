@@ -750,9 +750,7 @@ func TestSwiftIsAvailable(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	res, err := IsSwiftEnabled(listers)
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, true, res)
+	th.AssertEquals(t, true, IsSwiftEnabled(listers))
 }
 
 func TestSwiftIsNotAvailable(t *testing.T) {
@@ -804,9 +802,7 @@ func TestSwiftIsNotAvailable(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	res, err := IsSwiftEnabled(listers)
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, false, res)
+	th.AssertEquals(t, false, IsSwiftEnabled(listers))
 }
 
 func TestNoPermissionsKeystone(t *testing.T) {
@@ -856,9 +852,7 @@ func TestNoPermissionsKeystone(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	res, err := IsSwiftEnabled(listers)
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, false, res)
+	th.AssertEquals(t, false, IsSwiftEnabled(listers))
 }
 
 func TestNoPermissionsSwauth(t *testing.T) {
@@ -908,7 +902,5 @@ func TestNoPermissionsSwauth(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	res, err := IsSwiftEnabled(listers)
-	th.AssertNoErr(t, err)
-	th.AssertEquals(t, false, res)
+	th.AssertEquals(t, false, IsSwiftEnabled(listers))
 }
