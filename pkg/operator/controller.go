@@ -26,6 +26,7 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -271,14 +272,40 @@ func (c *Controller) sync() error {
 		}
 		klog.Infof("object changed: %s (status=%t): %s", utilObjectInfo(cr), statusChanged, difference)
 
-		_, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(
+		if _, err = c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(
 			context.TODO(), cr, metaapi.UpdateOptions{},
-		)
-		if err != nil {
+		); err != nil {
 			if !errors.IsConflict(err) {
 				klog.Errorf("unable to update status %s: %s", utilObjectInfo(cr), err)
+				return err
 			}
-			return err
+
+			// XXX We have multiple controllers concurrently updating the config,
+			// this should be fixed. This is a workaround, a best effort attempt
+			// into updating the config with the current status.
+			if err := wait.PollImmediate(time.Second, time.Minute, func() (bool, error) {
+				updatedConfig, err := c.clients.RegOp.ImageregistryV1().Configs().Get(
+					context.TODO(), "cluster", metaapi.GetOptions{},
+				)
+				if err != nil {
+					klog.Infof("error fetching updated config: %s", err)
+					return false, nil
+				}
+
+				for _, c := range cr.Status.Conditions {
+					v1helpers.SetOperatorCondition(&updatedConfig.Status.Conditions, c)
+				}
+
+				if _, err := c.clients.RegOp.ImageregistryV1().Configs().UpdateStatus(
+					context.TODO(), updatedConfig, metaapi.UpdateOptions{},
+				); err != nil {
+					klog.Errorf("unable to update status %s: %s", utilObjectInfo(updatedConfig), err)
+					return false, nil
+				}
+				return true, nil
+			}); err != nil {
+				return err
+			}
 		}
 	}
 
