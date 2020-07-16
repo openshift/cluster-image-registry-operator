@@ -1,9 +1,14 @@
 package azure
 
 import (
+	"context"
 	"reflect"
 	"regexp"
 	"testing"
+
+	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/go-autorest/autorest/mocks"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +16,12 @@ import (
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	configv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+
+	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -177,6 +187,140 @@ func TestGenerateAccountName(t *testing.T) {
 		t.Logf("infrastructureName=%q, accountName=%q", infrastructureName, accountName)
 		if !re.MatchString(accountName) {
 			t.Errorf("infrastructureName=%q: generated invalid account name: %q", infrastructureName, accountName)
+		}
+	}
+}
+
+func findEnvVar(envvars envvar.List, name string) *envvar.EnvVar {
+	for i, e := range envvars {
+		if e.Name == name {
+			return &envvars[i]
+		}
+	}
+	return nil
+}
+
+func TestConfigEnv(t *testing.T) {
+	ctx := context.Background()
+
+	cr := &imageregistryv1.Config{}
+	config := &imageregistryv1.ImageRegistryConfigStorageAzure{}
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AzurePlatformType,
+				Azure: &configv1.AzurePlatformStatus{
+					ResourceGroupName: "resourcegroup",
+					CloudName:         configv1.AzureUSGovernmentCloud,
+				},
+			},
+		},
+	})
+	testBuilder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"azure_subscription_id": []byte("subscription_id"),
+			"azure_client_id":       []byte("client_id"),
+			"azure_client_secret":   []byte("client_secret"),
+			"azure_resourcegroup":   []byte("resourcegroup"),
+		},
+	})
+
+	listers := testBuilder.BuildListers()
+
+	authorizer := autorest.NullAuthorizer{}
+	sender := mocks.NewSender()
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`?`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+
+	httpSender := pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
+		return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
+			return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
+		}
+	})
+
+	d := NewDriver(ctx, config, listers)
+	d.authorizer = authorizer
+	d.sender = sender
+	d.httpSender = httpSender
+	err := d.CreateStorage(cr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envvars, err := d.ConfigEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedVars := map[string]interface{}{
+		"REGISTRY_STORAGE":                  "azure",
+		"REGISTRY_STORAGE_AZURE_ACCOUNTKEY": "firstKey",
+		"REGISTRY_STORAGE_AZURE_REALM":      "core.usgovcloudapi.net",
+	}
+	for key, value := range expectedVars {
+		e := findEnvVar(envvars, key)
+		if e == nil {
+			t.Fatalf("envvar %s not found, %v", key, envvars)
+		}
+		if e.Value != value {
+			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
+		}
+	}
+}
+
+func TestConfigEnvWithUserKey(t *testing.T) {
+	ctx := context.Background()
+
+	config := &imageregistryv1.ImageRegistryConfigStorageAzure{
+		AccountName: "account",
+		Container:   "container",
+		CloudName:   "AzureUSGovernmentCloud",
+	}
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.ImageRegistryPrivateConfigurationUser,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"REGISTRY_STORAGE_AZURE_ACCOUNTKEY": []byte("key"),
+		},
+	})
+
+	listers := testBuilder.BuildListers()
+
+	d := NewDriver(ctx, config, listers)
+	envvars, err := d.ConfigEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedVars := map[string]interface{}{
+		"REGISTRY_STORAGE":                   "azure",
+		"REGISTRY_STORAGE_AZURE_CONTAINER":   "container",
+		"REGISTRY_STORAGE_AZURE_ACCOUNTNAME": "account",
+		"REGISTRY_STORAGE_AZURE_ACCOUNTKEY":  "key",
+		"REGISTRY_STORAGE_AZURE_REALM":       "core.usgovcloudapi.net",
+	}
+	for key, value := range expectedVars {
+		e := findEnvVar(envvars, key)
+		if e == nil {
+			t.Fatalf("envvar %s not found, %v", key, envvars)
+		}
+		if e.Value != value {
+			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
 		}
 	}
 }

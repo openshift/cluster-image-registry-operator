@@ -66,6 +66,9 @@ For S3 storage it is expected to contain two keys whose values are the AWS acces
 For GCS storage it is expected to contain one key whose value is the contents of a credentials file provided by GCP:
 * REGISTRY_STORAGE_GCS_KEYFILE
 
+For Azure storage it is expected to contain one key whose value is an account key:
+* REGISTRY_STORAGE_AZURE_ACCOUNTKEY
+
 # Troubleshooting
 
 The registry operator reports status in two places:
