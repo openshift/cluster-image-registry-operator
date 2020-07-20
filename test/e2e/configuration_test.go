@@ -173,7 +173,13 @@ func TestPodAffinityConfiguration(t *testing.T) {
 		Affinity: affinity,
 	})
 
-	deployment := framework.GetImageRegistryDeployment(te)
+	// The operator won't become available because of affinity settings. So
+	// instead of waiting for the operator, we'll just hope that everything is
+	// fine and the delpoyment will eventually be created.
+	deployment, err := framework.WaitForRegistryDeployment(te.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !reflect.DeepEqual(affinity, deployment.Spec.Template.Spec.Affinity) {
 		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", affinity, deployment.Spec.Template.Spec.Affinity)
