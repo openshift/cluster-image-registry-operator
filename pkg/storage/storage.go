@@ -92,7 +92,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.Azure != nil {
 		names = append(names, "Azure")
 		ctx := context.Background()
-		drivers = append(drivers, azure.NewDriver(ctx, cfg.Azure, kubeconfig, listers))
+		drivers = append(drivers, azure.NewDriver(ctx, cfg.Azure, listers))
 	}
 
 	switch len(drivers) {
