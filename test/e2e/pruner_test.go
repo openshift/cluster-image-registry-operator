@@ -15,6 +15,15 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
+func containsString(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
+}
+
 // TestPruneRegistry ensures that the value for the --prune-registry flag
 // is set correctly based on the image registry's custom resources
 // Spec.ManagementState field
@@ -118,8 +127,12 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if !cr.Spec.IgnoreInvalidImageReferences {
+		t.Errorf("the default pruner config should have spec.ignoreInvalidImageReferences set to true, but it doesn't")
+	}
+
 	// Check that the cronjob was created
-	_, err = te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
 	if err != nil {
@@ -135,11 +148,17 @@ func TestPruner(t *testing.T) {
 	// Check that the Failed condition is set correctly for the last job run
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Failed", operatorapi.ConditionFalse, "Complete")
 
+	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
+		defer framework.DumpYAML(t, "cronjob", cronjob)
+		t.Fatalf("flag --ignore-invalid-refs=true is not found")
+	}
+
 	// Check that making changes to the pruner custom resource trickle down to the cronjob
 	// and that the conditions get updated correctly
 	truePtr := true
 	cr.Spec.Suspend = &truePtr
 	cr.Spec.Schedule = "10 10 * * *"
+	cr.Spec.IgnoreInvalidImageReferences = false
 	_, err = te.Client().ImagePruners().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	)
@@ -169,7 +188,7 @@ func TestPruner(t *testing.T) {
 	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionFalse, "Suspended")
 
-	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+	cronjob, err = te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
 	if err != nil {
@@ -182,6 +201,10 @@ func TestPruner(t *testing.T) {
 
 	if cronjob.Spec.Schedule != "10 10 * * *" {
 		t.Errorf("The cronjob Spec.Schedule field should have been '10 10 * * *' but was %v instead", cronjob.Spec.Schedule)
+	}
+
+	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--ignore-invalid-refs=false") {
+		t.Fatalf("The cronjob container arguments should contain --ignore-invalid-refs=false, but arguments are %v", cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args)
 	}
 }
 
@@ -229,6 +252,93 @@ func TestPrunerPodCompletes(t *testing.T) {
 
 		for _, pod := range pods.Items {
 			if !strings.HasPrefix(pod.Name, "image-pruner-") {
+				continue
+			}
+			t.Logf("%s: %s", pod.Name, pod.Status.Phase)
+			if pod.Status.Phase == "Succeeded" {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
+	ctx := context.Background()
+	te := framework.SetupAvailableImageRegistry(t, nil)
+	defer framework.TeardownImageRegistry(te)
+
+	cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	origSpec := cr.Spec.DeepCopy()
+
+	suspend := false
+	cr.Spec.Suspend = &suspend
+	cr.Spec.Schedule = "* * * * *"
+	cr.Spec.IgnoreInvalidImageReferences = true
+	_, err = te.Client().ImagePruners().Update(
+		context.Background(), cr, metav1.UpdateOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		cr.Spec = *origSpec
+
+		_, err = te.Client().ImagePruners().Update(ctx, cr, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	t.Logf("waiting the pruner config to be observed...")
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		return cr.Status.ObservedGeneration == cr.Generation, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cronjob, err := te.Client().CronJobs("openshift-image-registry").Get(ctx, "image-pruner", metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
+		defer framework.DumpYAML(t, "cronjob", cronjob)
+		t.Fatalf("flag --ignore-invalid-refs=true is not found")
+	}
+
+	t.Logf("waiting the pruner to succeed...")
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		for _, pod := range pods.Items {
+			if !strings.HasPrefix(pod.Name, "image-pruner-") {
+				continue
+			}
+			if !containsString(pod.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
+				// pod from another test?
+				t.Logf("pod %s has wrong arguments", pod.Name)
 				continue
 			}
 			t.Logf("%s: %s", pod.Name, pod.Status.Phase)
