@@ -33,6 +33,15 @@ func (c *ConfigOperatorClient) Informer() cache.SharedIndexInformer {
 	return c.informer.Informer()
 }
 
+func (c *ConfigOperatorClient) GetObjectMeta() (meta *metav1.ObjectMeta, err error) {
+	config, err := c.informer.Lister().Get("cluster")
+	if err != nil {
+		return nil, err
+	}
+
+	return &config.ObjectMeta, nil
+}
+
 func (c *ConfigOperatorClient) GetOperatorState() (spec *operatorv1.OperatorSpec, status *operatorv1.OperatorStatus, resourceVersion string, err error) {
 	config, err := c.informer.Lister().Get("cluster")
 	if err != nil {
