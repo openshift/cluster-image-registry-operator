@@ -133,7 +133,6 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	// These are the platforms we don't configure any backend for, on these
 	// we should bootstrap the image registry as "Removed".
 	case configapiv1.BareMetalPlatformType,
-		configapiv1.OvirtPlatformType,
 		configapiv1.VSpherePlatformType,
 		configapiv1.NonePlatformType:
 		break
@@ -155,6 +154,11 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 			replicas = 2
 			break
 		}
+		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
+			Claim: defaults.PVCImageRegistryName,
+		}
+		replicas = 1
+	case configapiv1.OvirtPlatformType:
 		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
 			Claim: defaults.PVCImageRegistryName,
 		}
