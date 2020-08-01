@@ -128,6 +128,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 										"--certificate-authority=/var/run/configmaps/serviceca/service-ca.crt",
 										fmt.Sprintf("--keep-tag-revisions=%d", gcj.getKeepTagRevisions(cr)),
 										fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
+										fmt.Sprintf("--ignore-invalid-refs=%t", cr.Spec.IgnoreInvalidImageReferences),
 										fmt.Sprintf("--prune-registry=%t", gcj.getPruneRegistry(rcr)),
 										"--confirm=true",
 									},

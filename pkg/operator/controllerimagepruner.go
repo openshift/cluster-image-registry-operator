@@ -170,10 +170,11 @@ func (c *ImagePrunerController) Bootstrap() error {
 			Namespace: defaults.ImageRegistryOperatorNamespace,
 		},
 		Spec: imageregistryv1.ImagePrunerSpec{
-			Suspend:                    &defaultPrunerSuspend,
-			KeepTagRevisions:           &defaultPrunerKeepTagRevisions,
-			SuccessfulJobsHistoryLimit: &defaultPrunerSuccessfulJobsHistoryLimit,
-			FailedJobsHistoryLimit:     &defaultPrunerFailedJobsHistoryLimit,
+			Suspend:                      &defaultPrunerSuspend,
+			KeepTagRevisions:             &defaultPrunerKeepTagRevisions,
+			SuccessfulJobsHistoryLimit:   &defaultPrunerSuccessfulJobsHistoryLimit,
+			FailedJobsHistoryLimit:       &defaultPrunerFailedJobsHistoryLimit,
+			IgnoreInvalidImageReferences: true,
 		},
 		Status: imageregistryv1.ImagePrunerStatus{},
 	}
