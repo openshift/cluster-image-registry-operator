@@ -17,7 +17,6 @@ spec:
         name: cluster-image-registry-operator
     spec:
       serviceAccountName: cluster-image-registry-operator
-      shareProcessNamespace: true
       priorityClassName: system-cluster-critical
       nodeSelector:
         node-role.kubernetes.io/master: ""
