@@ -12,12 +12,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
+	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -107,6 +109,13 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode, cla
 
 	// "standard" is the default StorageClass name, that was provisioned by the cloud provider
 	storageClassName := "standard"
+
+	// This is a Workaround for Bug#1862991 Tracker for removel on Bug#1866240
+	if infra, err := util.GetInfrastructure(c.listers); err != nil {
+		return err
+	} else if infra.Status.PlatformStatus.Type == configapiv1.OvirtPlatformType {
+		storageClassName = "ovirt-csi-sc"
+	}
 
 	claim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
