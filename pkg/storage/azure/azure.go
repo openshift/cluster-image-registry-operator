@@ -36,7 +36,6 @@ import (
 
 const (
 	storageExistsReasonNotConfigured     = "StorageNotConfigured"
-	storageExistsReasonPermissionDenied  = "StoragePermissionDenied"
 	storageExistsReasonConfigError       = "ConfigError"
 	storageExistsReasonUserManaged       = "UserManaged"
 	storageExistsReasonAzureError        = "AzureError"
@@ -454,162 +453,228 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return !reflect.DeepEqual(cr.Status.Storage.Azure, cr.Spec.Storage.Azure)
 }
 
+// assureStorageAccount makes sure there is a storage account in place. If no storage account name
+// is provided it attempts to generate one. Returns the account name (either the one provided or
+// the one generated), if the account was created or was already there and an error.
+func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure) (string, bool, error) {
+	environment, err := getEnvironmentByName(d.Config.CloudName)
+	if err != nil {
+		return "", false, err
+	}
+
+	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+	if err != nil {
+		return "", false, err
+	}
+
+	var accountNameGenerated bool
+	accountName := d.Config.AccountName
+	if accountName == "" {
+		accountNameGenerated = true
+		accountName = generateAccountName(infra.Status.InfrastructureName)
+	}
+
+	result, err := d.accountExists(storageAccountsClient, accountName)
+	if err != nil {
+		return "", false, err
+	}
+
+	// if the generated storage account is not available we return an error.
+	if accountNameGenerated && !*result.NameAvailable {
+		return "", false, fmt.Errorf("create storage account failed, name not available")
+	}
+
+	// regardless if the storage account name was provided by the user or we generated it,
+	// if it is available, we do attempt to create it.
+	var storageAccountCreated bool
+	if *result.NameAvailable {
+		storageAccountCreated = true
+		if err := d.createStorageAccount(
+			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region,
+		); err != nil {
+			return "", false, err
+		}
+	}
+
+	return accountName, storageAccountCreated, nil
+}
+
+// assureContainer makes sure we have a container in place. Container name may be provided or
+// generated automatically. Returns the container name (the provided one or the automatically
+// generated), if the container was created or was already there and an error.
+func (d *driver) assureContainer(cfg *Azure) (string, bool, error) {
+	environment, err := getEnvironmentByName(d.Config.CloudName)
+	if err != nil {
+		return "", false, err
+	}
+
+	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+	if err != nil {
+		return "", false, err
+	}
+
+	key, err := d.getAccountPrimaryKey(
+		storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName,
+	)
+	if err != nil {
+		return "", false, err
+	}
+
+	if d.Config.Container == "" {
+		containerName, err := util.GenerateStorageName(d.Listers, "")
+		if err != nil {
+			return "", false, err
+		}
+
+		if err = d.createStorageContainer(
+			environment, d.Config.AccountName, key, containerName,
+		); err != nil {
+			return "", false, err
+		}
+
+		return containerName, true, nil
+	}
+
+	if exists, err := d.containerExists(
+		d.Context, environment, d.Config.AccountName, key, d.Config.Container,
+	); err != nil {
+		return "", false, err
+	} else if exists {
+		return d.Config.Container, false, nil
+	}
+
+	if err = d.createStorageContainer(
+		environment, d.Config.AccountName, key, d.Config.Container,
+	); err != nil {
+		return "", false, err
+	}
+	return d.Config.Container, true, nil
+}
+
+// verifyUPIConfig verifies if AccountName and Container are present on our configuration.
+func (d *driver) verifyUPIConfig(cr *imageregistryv1.Config) {
+	if d.Config.AccountName == "" {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionFalse,
+			storageExistsReasonNotConfigured,
+			"Storage account key is provided, but account name is not specified",
+		)
+		return
+	}
+
+	if d.Config.Container == "" {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionFalse,
+			storageExistsReasonNotConfigured,
+			"Storage account is provided, but container is not specified",
+		)
+		return
+	}
+
+	cr.Status.StorageManaged = false
+	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+		Azure: d.Config.DeepCopy(),
+	}
+
+	util.UpdateCondition(
+		cr,
+		defaults.StorageExists,
+		operatorapiv1.ConditionTrue,
+		storageExistsReasonUserManaged,
+		"Storage is managed by the user",
+	)
+}
+
 // CreateStorage attempts to create a storage account and a storage container.
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	cfg, err := GetConfig(d.Listers.Secrets)
 	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionUnknown,
+			storageExistsReasonConfigError,
+			fmt.Sprintf("Unable to get configuration: %s", err),
+		)
 		return err
 	}
+
+	// if AccountKey is present in our configuration it means it was provided by the user
+	// so we only verify if everything we need is in place.
+	if cfg.AccountKey != "" {
+		d.verifyUPIConfig(cr)
+		return nil
+	}
+
 	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionUnknown,
+			storageExistsReasonConfigError,
+			fmt.Sprintf("Unable to get infrastructure: %s", err),
+		)
 		return err
 	}
-	key := cfg.AccountKey
-	if key != "" {
-		// UPI
-		if d.Config.AccountName == "" {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account key is provided, but account name is not specified")
-			return nil
-		}
 
-		if d.Config.Container == "" {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonNotConfigured, "Storage account is provided, but container is not specified")
-			return nil
-		}
-
-		cr.Status.StorageManaged = false
-		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-			Azure: d.Config.DeepCopy(),
-		}
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonUserManaged, "Storage is managed by the user")
-	} else {
-		// IPI
-		if d.Config.CloudName == "" && d.Config.AccountName == "" {
-			platformStatus := infra.Status.PlatformStatus
-			if platformStatus != nil && platformStatus.Type == configv1.AzurePlatformType && platformStatus.Azure != nil {
-				d.Config.CloudName = string(platformStatus.Azure.CloudName)
-			}
-		}
-
-		environment, err := getEnvironmentByName(d.Config.CloudName)
-		if err != nil {
-			return err
-		}
-
-		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
-		if err != nil {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
-			return err
-		}
-
-		if d.Config.AccountName == "" {
-			const maxAttempts = 10
-			var lastErr error
-			for i := 0; i < maxAttempts; i++ {
-				accountName := generateAccountName(infra.Status.InfrastructureName)
-				result, err := d.accountExists(storageAccountsClient, accountName)
-				if err != nil {
-					return err
-				}
-				if *result.NameAvailable {
-					if err := d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region); err != nil {
-						return err
-					}
-					d.Config.AccountName = accountName
-					cr.Status.StorageManaged = true
-					cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-						Azure: d.Config.DeepCopy(),
-					}
-					cr.Spec.Storage.Azure = d.Config.DeepCopy()
-					break
-				}
-			}
-			if d.Config.AccountName == "" {
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", lastErr))
-				return fmt.Errorf("attmpts to create storage account failed, last error: %s", lastErr)
-			}
-		} else {
-			// TODO: do we need to create a storage account if we are provided with its name?
-			result, err := d.accountExists(storageAccountsClient, d.Config.AccountName)
-			if err != nil {
-				return err
-			}
-			if *result.NameAvailable {
-				if err = d.createStorageAccount(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName, cfg.Region); err != nil {
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage account: %s", err))
-					return err
-				}
-				cr.Status.StorageManaged = true
-				cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-					Azure: d.Config.DeepCopy(),
-				}
-			}
-		}
-
-		key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
-		if err != nil {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary key: %s", err))
-			return err
-		}
-
-		var exists bool
-		if len(d.Config.Container) != 0 {
-			if exists, err = d.containerExists(d.Context, environment, d.Config.AccountName, key, d.Config.Container); err != nil {
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
-			}
-		}
-
-		if len(d.Config.Container) != 0 && exists {
-			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-				Azure: d.Config.DeepCopy(),
-			}
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Azure container exists")
-			return nil
-		}
-
-		var generatedName bool
-		const numRetries = 5000
-		for i := 0; i < numRetries; i++ {
-			// If the bucket name is blank, let's generate one
-			if len(d.Config.Container) == 0 {
-				// Container name must be between 3 and 63 characters long
-				if d.Config.Container, err = util.GenerateStorageName(d.Listers, ""); err != nil {
-					return err
-				}
-				generatedName = true
-			}
-
-			err = d.createStorageContainer(environment, d.Config.AccountName, key, d.Config.Container)
-			if err != nil {
-				if e, ok := err.(azblob.StorageError); ok {
-					switch e.ServiceCode() {
-					case azblob.ServiceCodeContainerAlreadyExists:
-						if len(d.Config.Container) != 0 && !generatedName {
-							util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonPermissionDenied, "The container exists but we do not have permission to access it")
-							break
-						}
-						d.Config.Container = ""
-						continue
-					default:
-						util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
-						return err
-					}
-				} else {
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage container: %s", err))
-					return err
-				}
-			}
-			cr.Status.StorageManaged = true
-			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-				Azure: d.Config.DeepCopy(),
-			}
-			cr.Spec.Storage.Azure = d.Config.DeepCopy()
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
-
-			break
+	if d.Config.CloudName == "" && d.Config.AccountName == "" {
+		platformStatus := infra.Status.PlatformStatus
+		if platformStatus != nil &&
+			platformStatus.Type == configv1.AzurePlatformType &&
+			platformStatus.Azure != nil {
+			d.Config.CloudName = string(platformStatus.Azure.CloudName)
 		}
 	}
+
+	storageAccountName, storageAccountCreated, err := d.assureStorageAccount(cfg, infra)
+	if err != nil {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionUnknown,
+			storageExistsReasonAzureError,
+			fmt.Sprintf("Unable to process storage account: %s", err),
+		)
+		return err
+	}
+	d.Config.AccountName = storageAccountName
+
+	containerName, containerCreated, err := d.assureContainer(cfg)
+	if err != nil {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionUnknown,
+			storageExistsReasonAzureError,
+			fmt.Sprintf("Unable to process storage container: %s", err),
+		)
+		return err
+	}
+	d.Config.Container = containerName
+
+	cr.Spec.Storage.Azure = d.Config.DeepCopy()
+	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+		Azure: d.Config.DeepCopy(),
+	}
+
+	if storageAccountCreated && containerCreated {
+		cr.Status.StorageManaged = true
+	} else {
+		cr.Status.StorageManaged = false
+	}
+
+	util.UpdateCondition(
+		cr,
+		defaults.StorageExists,
+		operatorapiv1.ConditionTrue,
+		storageExistsReasonContainerExists,
+		"Storage container exists",
+	)
 	return nil
 }
 
