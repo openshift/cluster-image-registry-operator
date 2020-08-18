@@ -212,25 +212,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	var bucket *gstorage.BucketHandle
 	var bucketExists bool
 	if len(d.Config.Bucket) != 0 {
-		err = d.bucketExists(d.Config.Bucket)
-		if err != nil {
-			if gerr, ok := err.(*gapi.Error); ok {
-				switch err {
-				case gstorage.ErrBucketNotExist:
-					// If the bucket doesn't exist that's ok, we'll try to create it
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
-				default:
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
-					return err
-				}
-			} else {
-				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
-				return err
-			}
-		} else {
+		if err := d.bucketExists(d.Config.Bucket); err == nil {
 			bucketExists = true
+		} else if err != gstorage.ErrBucketNotExist {
+			util.UpdateCondition(
+				cr,
+				defaults.StorageExists,
+				operatorapi.ConditionUnknown,
+				"Unknown Error Occurred",
+				err.Error(),
+			)
+			return err
 		}
-
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		bucket = gclient.Bucket(d.Config.Bucket)
@@ -266,11 +259,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		cr.Spec.Storage.GCS = d.Config.DeepCopy()
 
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
-
-		if len(d.Config.Bucket) == 0 {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "")
-			return fmt.Errorf("unable to generate a unique GCS bucket name")
-		}
 	}
 
 	// TODO: Wait until the bucket exists
