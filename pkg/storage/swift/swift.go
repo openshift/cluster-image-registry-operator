@@ -20,6 +20,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8sutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -458,11 +459,22 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if _, err := objects.BulkDelete(
-			client, cr.Spec.Storage.Swift.Container, objectsOnPage,
-		).Extract(); err != nil {
+		resp, err := objects.BulkDelete(client, cr.Spec.Storage.Swift.Container, objectsOnPage).Extract()
+		if err != nil {
 			return false, err
 		}
+		if len(resp.Errors) > 0 {
+			// Convert resp.Errors to golang errors.
+			// Each error is represented by a list of 2 strings, where the first one
+			// is the object name, and the second one contains an error message.
+			errs := make([]error, len(resp.Errors))
+			for i, objectError := range resp.Errors {
+				errs[i] = fmt.Errorf("cannot delete object %v: %v", objectError[0], objectError[1])
+			}
+
+			return false, fmt.Errorf("errors occured during bulk deleting of container %v objects: %v", cr.Spec.Storage.Swift.Container, k8sutilerrors.NewAggregate(errs))
+		}
+
 		return true, nil
 	}); err != nil {
 		if _, ok := err.(gophercloud.ErrDefault404); !ok {
