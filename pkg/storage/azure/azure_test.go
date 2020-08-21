@@ -453,7 +453,7 @@ func Test_assureStorageAccount(t *testing.T) {
 	}
 }
 
-func Test_verifyUPI(t *testing.T) {
+func Test_processUPI(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		registryConfig *imageregistryv1.Config
@@ -531,7 +531,7 @@ func Test_verifyUPI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			NewDriver(
 				context.Background(), tt.registryConfig.Spec.Storage.Azure, nil,
-			).verifyUPIConfig(tt.registryConfig)
+			).processUPI(tt.registryConfig)
 
 			if tt.registryConfig.Status.StorageManaged {
 				t.Errorf("expected StorageManaged to be false, true instead")

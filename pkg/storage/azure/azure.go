@@ -551,8 +551,9 @@ func (d *driver) assureContainer(cfg *Azure) (string, bool, error) {
 	return d.Config.Container, true, nil
 }
 
-// verifyUPIConfig verifies if AccountName and Container are present on our configuration.
-func (d *driver) verifyUPIConfig(cr *imageregistryv1.Config) {
+// processUPI verifies if user provided configuration is complete and updates conditions
+// and status appropriately.
+func (d *driver) processUPI(cr *imageregistryv1.Config) {
 	if d.Config.AccountName == "" {
 		util.UpdateCondition(
 			cr,
@@ -606,7 +607,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// if AccountKey is present in our configuration it means it was provided by the user
 	// so we only verify if everything we need is in place.
 	if cfg.AccountKey != "" {
-		d.verifyUPIConfig(cr)
+		d.processUPI(cr)
 		return nil
 	}
 
