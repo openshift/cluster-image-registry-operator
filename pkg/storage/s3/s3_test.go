@@ -1,7 +1,10 @@
 package s3
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
+	"net/http"
 	"reflect"
 	"testing"
 
@@ -244,5 +247,170 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	e := findEnvVar(envvars, "REGISTRY_STORAGE_S3_REGIONENDPOINT")
 	if e != nil {
 		t.Errorf("REGISTRY_STORAGE_S3_REGIONENDPOINT is expected to be unset, but got %v", e)
+	}
+}
+
+type tripper struct {
+	req           int
+	responseCodes []int
+}
+
+func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer func() {
+		r.req++
+	}()
+
+	code := http.StatusOK
+	if r.req < len(r.responseCodes) {
+		code = r.responseCodes[r.req]
+	}
+
+	return &http.Response{
+		StatusCode: code,
+		Body:       ioutil.NopCloser(bytes.NewBufferString("{}")),
+	}, nil
+}
+
+func (r *tripper) AddResponse(code int) {
+	r.responseCodes = append(r.responseCodes, code)
+}
+
+func TestStorageManagementState(t *testing.T) {
+	builder := cirofake.NewFixturesBuilder()
+	builder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: "us-west-1",
+				},
+			},
+		},
+	})
+	builder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access_key_id"),
+			"aws_secret_access_key": []byte("secret_access_key"),
+		},
+	})
+	listers := builder.BuildListers()
+
+	for _, tt := range []struct {
+		name                    string
+		config                  *imageregistryv1.Config
+		responseCodes           []int
+		expectedManagementState string
+	}{
+		{
+			name:                    "empty config",
+			expectedManagementState: imageregistryv1.StorageManagementStateManaged,
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{},
+					},
+				},
+			},
+		},
+		{
+			name:                    "empty config (management set)",
+			expectedManagementState: "foo",
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "foo",
+						S3:              &imageregistryv1.ImageRegistryConfigStorageS3{},
+					},
+				},
+			},
+		},
+		{
+			name:                    "existing bucket provided",
+			expectedManagementState: imageregistryv1.StorageManagementStateUnmanaged,
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+							Bucket: "a-bucket",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                    "existing bucket provided (management set)",
+			expectedManagementState: "foo",
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "foo",
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+							Bucket: "another-bucket",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:                    "non-existing bucket provided",
+			expectedManagementState: imageregistryv1.StorageManagementStateManaged,
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+							Bucket: "yet-another-bucket",
+						},
+					},
+				},
+			},
+			responseCodes: []int{http.StatusNotFound},
+		},
+		{
+			name:                    "non-existing bucket provided (management set)",
+			expectedManagementState: "bar",
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "bar",
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+							Bucket: "another-bucket",
+						},
+					},
+				},
+			},
+			responseCodes: []int{http.StatusNotFound},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rt := &tripper{}
+			if len(tt.responseCodes) > 0 {
+				for _, code := range tt.responseCodes {
+					rt.AddResponse(code)
+				}
+			}
+
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
+			drv.roundTripper = rt
+
+			if err := drv.CreateStorage(tt.config); err != nil {
+				t.Errorf("unexpected err %q", err)
+				return
+			}
+
+			if tt.config.Spec.Storage.ManagementState != tt.expectedManagementState {
+				t.Errorf(
+					"expecting state to be %q, %q instead",
+					tt.expectedManagementState,
+					tt.config.Spec.Storage.ManagementState,
+				)
+			}
+		})
 	}
 }
