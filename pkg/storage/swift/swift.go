@@ -403,6 +403,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// If we were supplied a container name and it exists
 		// we can skip the create
 		if !generatedName && err == nil {
+			if cr.Spec.Storage.ManagementState == "" {
+				cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+			}
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
 			break
 		}
@@ -423,13 +426,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
 		if err != nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
-			cr.Status.StorageManaged = false
 			return err
 		}
 
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Swift Container Created", "")
 
-		cr.Status.StorageManaged = true
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+		}
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			Swift: d.Config.DeepCopy(),
 		}
@@ -442,7 +446,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 }
 
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
-	if !cr.Status.StorageManaged || cr.Spec.Storage.Swift.Container == "" {
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged ||
+		cr.Spec.Storage.Swift.Container == "" {
 		return false, nil
 	}
 
