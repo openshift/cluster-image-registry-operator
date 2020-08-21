@@ -663,7 +663,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		Azure: d.Config.DeepCopy(),
 	}
 
-	if storageAccountCreated && containerCreated {
+	if storageAccountCreated || containerCreated {
 		cr.Status.StorageManaged = true
 	} else {
 		cr.Status.StorageManaged = false
