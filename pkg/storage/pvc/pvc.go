@@ -30,7 +30,7 @@ const (
 type driver struct {
 	Namespace string
 	Config    *imageregistryv1.ImageRegistryConfigStoragePVC
-	Client    *coreset.CoreV1Client
+	Client    coreset.CoreV1Interface
 }
 
 func NewDriver(c *imageregistryv1.ImageRegistryConfigStoragePVC, kubeconfig *rest.Config) (*driver, error) {
@@ -181,17 +181,17 @@ func (d *driver) createPVC(cr *imageregistryv1.Config) (*corev1.PersistentVolume
 
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	var (
-		err            error
-		claim          *corev1.PersistentVolumeClaim
-		storageManaged bool
+		err   error
+		claim *corev1.PersistentVolumeClaim
 	)
 
+	managementState := imageregistryv1.StorageManagementStateUnmanaged
 	if len(d.Config.Claim) == 0 {
 		d.Config.Claim = defaults.PVCImageRegistryName
 
 		// If there is no name and there is no PVC, then we will create a PVC.
 		// If PVC is there and it was created by us, then just start using it again.
-		storageManaged = true
+		managementState = imageregistryv1.StorageManagementStateManaged
 
 		claim, err = d.Client.PersistentVolumeClaims(d.Namespace).Get(
 			context.TODO(), d.Config.Claim, metav1.GetOptions{},
@@ -221,7 +221,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	cr.Status.StorageManaged = storageManaged
+	if cr.Spec.Storage.ManagementState == "" {
+		cr.Spec.Storage.ManagementState = managementState
+	}
+
 	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 		PVC: d.Config.DeepCopy(),
 	}
@@ -231,7 +234,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 }
 
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retriable bool, err error) {
-	if !cr.Status.StorageManaged || len(d.Config.Claim) == 0 {
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged ||
+		len(d.Config.Claim) == 0 {
 		return false, nil
 	}
 
