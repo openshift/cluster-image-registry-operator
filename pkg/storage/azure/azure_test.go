@@ -455,9 +455,10 @@ func Test_assureStorageAccount(t *testing.T) {
 
 func Test_processUPI(t *testing.T) {
 	for _, tt := range []struct {
-		name           string
-		registryConfig *imageregistryv1.Config
-		status         operatorapiv1.ConditionStatus
+		name            string
+		registryConfig  *imageregistryv1.Config
+		managementState string
+		status          operatorapiv1.ConditionStatus
 	}{
 		{
 			name:   "empty account and container name",
@@ -497,8 +498,9 @@ func Test_processUPI(t *testing.T) {
 			},
 		},
 		{
-			name:   "success",
-			status: operatorapiv1.ConditionTrue,
+			name:            "success",
+			status:          operatorapiv1.ConditionTrue,
+			managementState: imageregistryv1.StorageManagementStateUnmanaged,
 			registryConfig: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					Storage: imageregistryv1.ImageRegistryConfigStorage{
@@ -511,19 +513,18 @@ func Test_processUPI(t *testing.T) {
 			},
 		},
 		{
-			name:   "success with storage managed as true",
-			status: operatorapiv1.ConditionTrue,
+			name:            "success with storage management state already set",
+			status:          operatorapiv1.ConditionTrue,
+			managementState: "foo",
 			registryConfig: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "foo",
 						Azure: &imageregistryv1.ImageRegistryConfigStorageAzure{
 							AccountName: "this_is_an_account_name",
 							Container:   "this_is_a_container_name",
 						},
 					},
-				},
-				Status: imageregistryv1.ImageRegistryStatus{
-					StorageManaged: true,
 				},
 			},
 		},
@@ -533,8 +534,12 @@ func Test_processUPI(t *testing.T) {
 				context.Background(), tt.registryConfig.Spec.Storage.Azure, nil,
 			).processUPI(tt.registryConfig)
 
-			if tt.registryConfig.Status.StorageManaged {
-				t.Errorf("expected StorageManaged to be false, true instead")
+			if tt.registryConfig.Spec.Storage.ManagementState != tt.managementState {
+				t.Errorf(
+					"expected storage management to be %q, %q instead",
+					tt.managementState,
+					tt.registryConfig.Spec.Storage.ManagementState,
+				)
 			}
 
 			for _, cond := range tt.registryConfig.Status.Conditions {
@@ -879,6 +884,249 @@ func Test_containerExists(t *testing.T) {
 			if exists != tt.exists {
 				t.Errorf("expected result to be %v, received %v", tt.exists, exists)
 			}
+		})
+	}
+}
+
+func Test_storageManagementState(t *testing.T) {
+	builder := cirofake.NewFixturesBuilder()
+	builder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AzurePlatformType,
+				Azure: &configv1.AzurePlatformStatus{
+					ResourceGroupName: "resourcegroup",
+					CloudName:         configv1.AzureUSGovernmentCloud,
+				},
+			},
+		},
+	})
+	builder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"azure_subscription_id": []byte("subscription_id"),
+			"azure_client_id":       []byte("client_id"),
+			"azure_client_secret":   []byte("client_secret"),
+			"azure_resourcegroup":   []byte("resourcegroup"),
+		},
+	})
+	listers := builder.BuildListers()
+
+	for _, tt := range []struct {
+		name           string
+		registryConfig *imageregistryv1.Config
+		mockResponses  []*http.Response
+		httpSender     func(int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error)
+		err            string
+		checkFn        func(*imageregistryv1.Config)
+	}{
+		{
+			name:           "no config provided",
+			registryConfig: &imageregistryv1.Config{},
+			checkFn: func(cr *imageregistryv1.Config) {
+				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
+					t.Errorf("expected to be managed, %q instead", cr.Spec.Storage.ManagementState)
+				}
+				if cr.Spec.Storage.Azure.AccountName == "" {
+					t.Error("unexpected empty account name")
+				}
+				if cr.Spec.Storage.Azure.Container == "" {
+					t.Error("unexpected empty container")
+				}
+			},
+		},
+		{
+			name: "user providing container and account name (both already exist)",
+			mockResponses: []*http.Response{
+				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
+				mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`),
+			},
+			registryConfig: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						Azure: &imageregistryv1.ImageRegistryConfigStorageAzure{
+							AccountName: "foo_account",
+							Container:   "foo_container",
+						},
+					},
+				},
+			},
+			checkFn: func(cr *imageregistryv1.Config) {
+				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged {
+					t.Errorf("expected to be unmanaged, %q instead", cr.Spec.Storage.ManagementState)
+				}
+				if cr.Spec.Storage.Azure.AccountName != "foo_account" {
+					t.Errorf("account name has changed to %s", cr.Spec.Storage.Azure.AccountName)
+				}
+				if cr.Spec.Storage.Azure.Container != "foo_container" {
+					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
+				}
+			},
+		},
+		{
+			name: "user providing container and account name (both don't exist)",
+			registryConfig: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						Azure: &imageregistryv1.ImageRegistryConfigStorageAzure{
+							AccountName: "foo_account",
+							Container:   "foo_container",
+						},
+					},
+				},
+			},
+			httpSender: func(req int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+				if req == 0 {
+					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+						r := mocks.NewResponseWithStatus("", http.StatusNotFound)
+						r.Header = map[string][]string{}
+						r.Header.Add("x-ms-error-code", "ContainerNotFound")
+						return pipeline.NewHTTPResponse(r), nil
+					}
+				}
+				return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+					return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
+				}
+			},
+			checkFn: func(cr *imageregistryv1.Config) {
+				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
+					t.Errorf("expected to be managed, %q instead", cr.Spec.Storage.ManagementState)
+				}
+				if cr.Spec.Storage.Azure.AccountName != "foo_account" {
+					t.Errorf("account name has changed to %s", cr.Spec.Storage.Azure.AccountName)
+				}
+				if cr.Spec.Storage.Azure.Container != "foo_container" {
+					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
+				}
+			},
+		},
+		{
+			name: "user providing container and account name (only account name exists)",
+			registryConfig: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						Azure: &imageregistryv1.ImageRegistryConfigStorageAzure{
+							AccountName: "foobar123",
+							Container:   "foobar321",
+						},
+					},
+				},
+			},
+			checkFn: func(cr *imageregistryv1.Config) {
+				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
+					t.Errorf("expected to be managed, %q instead", cr.Spec.Storage.ManagementState)
+				}
+				if cr.Spec.Storage.Azure.AccountName != "foobar123" {
+					t.Errorf("account name has changed to %s", cr.Spec.Storage.Azure.AccountName)
+				}
+				if cr.Spec.Storage.Azure.Container != "foobar321" {
+					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
+				}
+			},
+			httpSender: func(req int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+				if req == 0 {
+					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+						r := mocks.NewResponseWithStatus("", http.StatusNotFound)
+						r.Header = map[string][]string{}
+						r.Header.Add("x-ms-error-code", "ContainerNotFound")
+						return pipeline.NewHTTPResponse(r), nil
+					}
+				}
+				return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+					return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
+				}
+			},
+			mockResponses: []*http.Response{
+				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
+				mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`),
+			},
+		},
+		{
+			name: "do not overwrite management state already set by user",
+			registryConfig: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: imageregistryv1.StorageManagementStateUnmanaged,
+					},
+				},
+			},
+			checkFn: func(cr *imageregistryv1.Config) {
+				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged {
+					t.Errorf("expected to be unmanaged, %q instead", cr.Spec.Storage.ManagementState)
+				}
+				if cr.Spec.Storage.Azure.AccountName == "" {
+					t.Error("unexpected empty account name")
+				}
+				if cr.Spec.Storage.Azure.Container == "" {
+					t.Error("unexpected empty container")
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocks.NewSender()
+			if len(tt.mockResponses) > 0 {
+				for _, resp := range tt.mockResponses {
+					sender.AppendResponse(resp)
+				}
+			} else {
+				sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
+				sender.AppendResponse(mocks.NewResponseWithContent(`?`))
+				sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
+				sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+			}
+
+			storageConfig := tt.registryConfig.Spec.Storage.Azure
+			if tt.registryConfig.Spec.Storage.Azure == nil {
+				storageConfig = &imageregistryv1.ImageRegistryConfigStorageAzure{}
+			}
+
+			drv := NewDriver(
+				context.Background(),
+				storageConfig,
+				listers,
+			)
+			drv.authorizer = autorest.NullAuthorizer{}
+			drv.sender = sender
+
+			var requestCounter int
+			drv.httpSender = pipeline.FactoryFunc(
+				func(_ pipeline.Policy, _ *pipeline.PolicyOptions) pipeline.PolicyFunc {
+					defer func() {
+						requestCounter++
+					}()
+
+					if tt.httpSender != nil {
+						return tt.httpSender(requestCounter)
+					}
+
+					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
+						return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
+					}
+				},
+			)
+
+			if err := drv.CreateStorage(tt.registryConfig); err != nil {
+				if len(tt.err) == 0 {
+					t.Errorf("unexpected error: %v", err)
+				} else if !strings.Contains(err.Error(), tt.err) {
+					t.Errorf(
+						"expected error to be %q, %v received instead",
+						tt.err,
+						err,
+					)
+				}
+			} else if len(tt.err) > 0 {
+				t.Errorf("expected error %q, nil received instead", tt.err)
+			}
+
+			tt.checkFn(tt.registryConfig)
 		})
 	}
 }
