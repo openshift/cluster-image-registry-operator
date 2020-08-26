@@ -222,6 +222,22 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
 	}
 
+	// XXX https://bugzilla.redhat.com/show_bug.cgi?id=1833109
+	// Migrates the old Status.StorageChanged into the new customizable
+	// Spec.Storage.ManagementState if the storage did not do it already.
+	// During the loop we also attempt to update Status.StorageManaged
+	// to reflect the current Spec.Storage.ManagementState. This all
+	// should go away.
+	if cr.Spec.Storage.ManagementState == "" {
+		if cr.Status.StorageManaged {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+		} else {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+		}
+	}
+	cr.Status.StorageManaged = cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged
+	cr.Status.Storage.ManagementState = cr.Spec.Storage.ManagementState
+
 	generators, err := g.List(cr)
 	if err != nil {
 		return fmt.Errorf("unable to get generators: %s", err)
