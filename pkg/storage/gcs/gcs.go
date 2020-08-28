@@ -3,6 +3,7 @@ package gcs
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strconv"
 
@@ -38,6 +39,9 @@ type driver struct {
 	Config     *imageregistryv1.ImageRegistryConfigStorageGCS
 	KubeConfig *rest.Config
 	Listers    *regopclient.Listers
+
+	// httpClient is used only during tests.
+	httpClient *http.Client
 }
 
 func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
@@ -67,7 +71,12 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		return nil, err
 	}
 
-	gcsClient, err := gstorage.NewClient(d.Context, goption.WithCredentials(credentials))
+	opts := []goption.ClientOption{goption.WithCredentials(credentials)}
+	if d.httpClient != nil {
+		opts = append(opts, goption.WithHTTPClient(d.httpClient))
+	}
+
+	gcsClient, err := gstorage.NewClient(d.Context, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -211,6 +220,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// just update the config
 	var bucket *gstorage.BucketHandle
 	var bucketExists bool
+	var bucketCreated bool
 	if len(d.Config.Bucket) != 0 {
 		if err := d.bucketExists(d.Config.Bucket); err == nil {
 			bucketExists = true
@@ -227,11 +237,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		bucket = gclient.Bucket(d.Config.Bucket)
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+		}
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			GCS: d.Config.DeepCopy(),
 		}
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "GCS Bucket Exists", "User supplied GCS bucket exists and is accessible")
-
 	} else {
 		// If the bucket name is blank, let's generate one
 		if len(d.Config.Bucket) == 0 {
@@ -252,7 +264,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				return err
 			}
 		}
-		cr.Status.StorageManaged = true
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+		}
+		bucketCreated = true
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			GCS: d.Config.DeepCopy(),
 		}
@@ -265,7 +280,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Set KMS Key ID for encryption on the bucket (if specified)
 	// Data is encrypted by default on GCS: https://cloud.google.com/storage/docs/encryption/
-	if cr.Status.StorageManaged {
+	if bucketCreated {
 		if len(d.Config.KeyID) != 0 {
 			_, err := bucket.Update(d.Context, gstorage.BucketAttrsToUpdate{
 				Encryption: &gstorage.BucketEncryption{
@@ -300,7 +315,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 }
 
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
-	if !cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
 		return false, nil
 	}
 	gclient, err := d.getGCSClient()

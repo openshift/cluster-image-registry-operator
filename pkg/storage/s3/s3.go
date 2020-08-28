@@ -42,6 +42,9 @@ type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
 	Listers *regopclient.Listers
+
+	// roundTripper is used only during tests.
+	roundTripper http.RoundTripper
 }
 
 // NewDriver creates a new s3 storage driver
@@ -149,6 +152,11 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 			},
 		},
 	}
+
+	if d.roundTripper != nil {
+		awsConfig.HTTPClient.Transport = d.roundTripper
+	}
+
 	awsConfig.WithUseDualStack(true)
 	if d.Config.RegionEndpoint != "" {
 		if !d.Config.VirtualHostedStyle {
@@ -354,6 +362,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+		}
+
 		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 			S3: d.Config.DeepCopy(),
 		}
@@ -391,7 +403,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					}
 				}
 			}
-			cr.Status.StorageManaged = true
+			if cr.Spec.Storage.ManagementState == "" {
+				cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+			}
 			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 				S3: d.Config.DeepCopy(),
 			}
@@ -420,7 +434,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Block public access to the s3 bucket and its objects by default
-	if cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
 		_, err := svc.PutPublicAccessBlockWithContext(d.Context, &s3.PutPublicAccessBlockInput{
 			Bucket: aws.String(d.Config.Bucket),
 			PublicAccessBlockConfiguration: &s3.PublicAccessBlockConfiguration{
@@ -448,7 +462,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
-	if cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
 		_, err := svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
 			Tagging: &s3.Tagging{
@@ -477,7 +491,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Enable default encryption on the bucket
-	if cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
 		var encryption *s3.ServerSideEncryptionByDefault
 		var encryptionType string
 
@@ -527,7 +541,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Enable default incomplete multipart upload cleanup after one (1) day
-	if cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
 		_, err = svc.PutBucketLifecycleConfigurationWithContext(d.Context, &s3.PutBucketLifecycleConfigurationInput{
 			Bucket: aws.String(d.Config.Bucket),
 			LifecycleConfiguration: &s3.BucketLifecycleConfiguration{
@@ -562,7 +576,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 // RemoveStorage deletes the storage medium that we created
 // The s3 bucket must be empty before it can be removed
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
-	if !cr.Status.StorageManaged || len(d.Config.Bucket) == 0 {
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged ||
+		len(d.Config.Bucket) == 0 {
 		return false, nil
 	}
 

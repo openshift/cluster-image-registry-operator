@@ -161,7 +161,8 @@ func TestSwapStorage(t *testing.T) {
 	}
 
 	expected := imageregistryv1.ImageRegistryConfigStorage{
-		EmptyDir: config.Status.Storage.EmptyDir,
+		ManagementState: imageregistryv1.StorageManagementStateManaged,
+		EmptyDir:        config.Status.Storage.EmptyDir,
 	}
 	if config.Status.Storage != expected {
 		t.Errorf("multi storage config found: %+v", config.Status.Storage)

@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -113,8 +114,8 @@ func TestAWSDefaults(t *testing.T) {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName)
 		}
 
-		if !cr.Status.StorageManaged {
-			t.Errorf("custom resource %s/%s contains incorrect data. Status.StorageManaged was %v but should have been \"true\"", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, cr.Status.StorageManaged)
+		if cr.Spec.Storage.ManagementState != imageregistryapiv1.StorageManagementStateManaged {
+			t.Errorf("custom resource %s/%s contains incorrect data. Spec.Storage.ManagementState was %v but should have been 'Managed'", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, cr.Spec.Storage.ManagementState)
 		}
 	}
 

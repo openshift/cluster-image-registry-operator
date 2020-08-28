@@ -164,3 +164,64 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
+
+func TestStorageManagementState(t *testing.T) {
+	te := framework.SetupAvailableImageRegistry(t, nil)
+	defer framework.TeardownImageRegistry(te)
+
+	cr, err := te.Client().Configs().Get(
+		context.Background(), "cluster", metav1.GetOptions{},
+	)
+	if err != nil {
+		t.Fatalf("error getting config: %v", err)
+	}
+
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
+		t.Errorf(
+			"Spec.Storage.ManagementState not 'Managed', %q instead",
+			cr.Spec.Storage.ManagementState,
+		)
+	}
+	if cr.Status.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
+		t.Errorf(
+			"Status.Storage.ManagementState not 'Managed', %q instead",
+			cr.Status.Storage.ManagementState,
+		)
+	}
+	if !cr.Status.StorageManaged {
+		t.Errorf("Status.StorageManaged not set")
+	}
+
+	cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+	if _, err := te.Client().Configs().Update(
+		context.Background(), cr, metav1.UpdateOptions{},
+	); err != nil {
+		t.Errorf("error updating config: %v", err)
+	}
+
+	framework.WaitUntilImageRegistryIsAvailable(te)
+	framework.EnsureClusterOperatorStatusIsNormal(te)
+
+	cr, err = te.Client().Configs().Get(
+		context.Background(), "cluster", metav1.GetOptions{},
+	)
+	if err != nil {
+		t.Errorf("error getting config: %v", err)
+	}
+
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged {
+		t.Errorf(
+			"Spec.Storage.ManagementState not 'Unmanaged', %q instead",
+			cr.Spec.Storage.ManagementState,
+		)
+	}
+	if cr.Status.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged {
+		t.Errorf(
+			"Status.Storage.ManagementState not 'Unmanaged', %q instead",
+			cr.Status.Storage.ManagementState,
+		)
+	}
+	if cr.Status.StorageManaged {
+		t.Errorf("Status.StorageManaged set")
+	}
+}

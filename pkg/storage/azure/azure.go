@@ -576,7 +576,11 @@ func (d *driver) processUPI(cr *imageregistryv1.Config) {
 		return
 	}
 
-	cr.Status.StorageManaged = false
+	// We only set the storage management if it is not already set.
+	if cr.Spec.Storage.ManagementState == "" {
+		cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+	}
+
 	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 		Azure: d.Config.DeepCopy(),
 	}
@@ -658,15 +662,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 	d.Config.Container = containerName
 
+	// We only set the storage management if it is not already set.
+	if cr.Spec.Storage.ManagementState == "" {
+		if storageAccountCreated || containerCreated {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+		} else {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
+		}
+	}
+
 	cr.Spec.Storage.Azure = d.Config.DeepCopy()
 	cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 		Azure: d.Config.DeepCopy(),
-	}
-
-	if storageAccountCreated || containerCreated {
-		cr.Status.StorageManaged = true
-	} else {
-		cr.Status.StorageManaged = false
 	}
 
 	util.UpdateCondition(
@@ -681,7 +688,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 // RemoveStorage deletes the storage medium that was created.
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err error) {
-	if !cr.Status.StorageManaged {
+	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
 		return false, nil
 	}
 	if d.Config.AccountName == "" {
