@@ -12,6 +12,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configfakeclient "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	imageregistryfakeclient "github.com/openshift/client-go/imageregistry/clientset/versioned/fake"
@@ -77,8 +78,11 @@ func TestBootstrapAWS(t *testing.T) {
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			S3: &imageregistryv1.ImageRegistryConfigStorageS3{},
 		},
+		OperatorSpec: operatorv1.OperatorSpec{
+			LogLevel:         operatorv1.Normal,
+			OperatorLogLevel: operatorv1.Normal,
+		},
 		Replicas:        2,
-		LogLevel:        2,
 		RolloutStrategy: "RollingUpdate",
 	}
 	if !reflect.DeepEqual(config.Spec, expected) {
