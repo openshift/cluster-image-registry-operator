@@ -32,7 +32,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
-	github.com/openshift/api v0.0.0-20200824151745-288e45a0adde
+	github.com/openshift/api v0.0.0-20200829102639-8a3a835f1acf
 	github.com/openshift/build-machinery-go v0.0.0-20200819073603-48aa266c95f7
 	github.com/openshift/client-go v0.0.0-20200729195840-c2b1adc6bed6
 	github.com/openshift/crd-schema-gen v1.0.0
