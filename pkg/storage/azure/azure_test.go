@@ -722,6 +722,7 @@ func Test_assureContainer(t *testing.T) {
 			drv := NewDriver(context.Background(), storageConfig, listers)
 			drv.authorizer = autorest.NullAuthorizer{}
 			drv.sender = sender
+			primaryKey = cachedKey{}
 
 			var requestCounter int
 			drv.httpSender = pipeline.FactoryFunc(

@@ -190,7 +190,7 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 }
 
 func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName string) (string, error) {
-	keysResponse, err := storageAccountsClient.ListKeys(d.Context, resourceGroupName, accountName)
+	key, err := primaryKey.get(d.Context, storageAccountsClient, resourceGroupName, accountName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("failed to get keys for the storage account %s: %s", accountName, err)
 		if e, ok := err.(autorest.DetailedError); ok {
@@ -201,7 +201,7 @@ func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClie
 		return "", wrappedErr
 	}
 
-	return *(*keysResponse.Keys)[0].Value, nil
+	return key, nil
 }
 
 func (d *driver) getStorageContainer(environment autorestazure.Environment, accountName, key, containerName string) (azblob.ContainerURL, error) {
