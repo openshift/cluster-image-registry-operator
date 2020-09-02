@@ -434,6 +434,51 @@ func TestSwiftRemoveStorageWithContent(t *testing.T) {
 	th.AssertEquals(t, true, containerDeleted)
 }
 
+func TestSwiftRemoveStorageWithContentFailure(t *testing.T) {
+	th.SetupHTTP()
+	defer th.TeardownHTTP()
+	handleAuthentication(t, "container")
+
+	var containerContentListed bool
+	var containerContentDeleted bool
+	var containerDeleted bool
+	th.Mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			objects := []string{"obj0", "obj1"}
+			if containerContentListed {
+				objects = []string{}
+			}
+			containerContentListed = true
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(objects)
+		case http.MethodPost:
+			if containerContentDeleted {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			containerContentDeleted = false
+			w.WriteHeader(http.StatusOK)
+			respBody := `{"Number Not Found": 0, "Response Status": "200 OK", "Errors": [["obj0", "Internal Error"]], "Number Deleted": 1, "Response Body": ""}`
+			_, _ = w.Write([]byte(respBody))
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+			containerDeleted = true
+		}
+	})
+
+	d, installConfig := mockConfig(true, th.Endpoint()+"v3", MockUPISecretNamespaceLister{}, true)
+
+	_, err := d.RemoveStorage(&installConfig)
+
+	th.AssertErr(t, err)
+	th.AssertEquals(t, "errors occured during bulk deleting of container registry objects: cannot delete object obj0: Internal Error", err.Error())
+	th.AssertEquals(t, "registry", installConfig.Status.Storage.Swift.Container)
+	th.AssertEquals(t, true, containerContentListed)
+	th.AssertEquals(t, false, containerContentDeleted)
+	th.AssertEquals(t, false, containerDeleted)
+}
+
 func TestSwiftRemoveStorageNativeSecret(t *testing.T) {
 	th.SetupHTTP()
 	defer th.TeardownHTTP()
