@@ -34,13 +34,13 @@ func (k *cachedKey) get(
 		metrics.AzureKeyCacheHit()
 		return k.value, nil
 	}
+	metrics.AzureKeyCacheMiss()
 
 	keysResponse, err := cli.ListKeys(ctx, resourceGroup, account)
 	if err != nil {
 		return "", err
 	}
 
-	metrics.AzureKeyCacheMiss()
 	k.resourceGroup = resourceGroup
 	k.account = account
 	k.value = *(*keysResponse.Keys)[0].Value
