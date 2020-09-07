@@ -59,3 +59,13 @@ func ImagePrunerInstallStatus(installed bool, enabled bool) {
 	}
 	imagePrunerInstallStatus.Set(2)
 }
+
+// AzureKeyCacheHit registers a hit on Azure key cache.
+func AzureKeyCacheHit() {
+	azurePrimaryKeyCache.With(map[string]string{"result": "hit"}).Inc()
+}
+
+// AzureKeyCacheMiss registers a miss on Azure key cache.
+func AzureKeyCacheMiss() {
+	azurePrimaryKeyCache.With(map[string]string{"result": "miss"}).Inc()
+}
