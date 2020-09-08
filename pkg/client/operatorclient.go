@@ -47,6 +47,7 @@ func (c *ConfigOperatorClient) GetOperatorState() (spec *operatorv1.OperatorSpec
 	if err != nil {
 		return nil, nil, "", err
 	}
+	config = config.DeepCopy()
 
 	// TODO(dmage): this should be updated when we add OperatorSpec to the config object
 	return &operatorv1.OperatorSpec{}, &config.Status.OperatorStatus, config.ResourceVersion, nil
