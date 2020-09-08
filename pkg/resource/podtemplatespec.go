@@ -16,19 +16,25 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
+// generateLogLevel returns the appropriate operand log level according to user
+// provided configuration.
 func generateLogLevel(cr *v1.Config) string {
 	switch cr.Spec.LogLevel {
-	case 0:
-		return "error"
+	case operatorapiv1.Debug, operatorapiv1.Trace, operatorapiv1.TraceAll:
+		return "debug"
+	}
+
+	switch cr.Spec.Logging {
 	case 1:
 		return "warn"
-	case 2, 3:
+	case 0, 2, 3:
 		return "info"
 	}
 	return "debug"
