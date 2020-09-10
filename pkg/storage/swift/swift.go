@@ -21,7 +21,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8sutilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -61,18 +60,8 @@ func replaceEmpty(a string, b string) string {
 
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
 func IsSwiftEnabled(listers *regopclient.Listers) bool {
-	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
-	conn, err := driver.getSwiftClient()
-	if err != nil {
-		klog.Errorf("swift storage inaccessible: %v", err)
-		return false
-	}
-	// Try to list containers to make sure the user has required permissions to do that
-	if _, err = containers.List(conn, containers.ListOpts{}).AllPages(); err != nil {
-		klog.Errorf("error listing swift containers: %v", err)
-		return false
-	}
-	return true
+	// Disable Swift to deploy with Cinder backend.
+	return false
 }
 
 // GetConfig reads credentials
