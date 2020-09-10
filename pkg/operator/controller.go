@@ -190,6 +190,11 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 		return newPermanentError("VerificationFailed", fmt.Errorf("unable to complete resource: %s", err))
 	}
 
+	err = applyDefaults(cr)
+	if err != nil {
+		return err
+	}
+
 	err = c.generator.Apply(cr)
 	if err == storage.ErrStorageNotConfigured {
 		return newPermanentError("StorageNotConfigured", err)
