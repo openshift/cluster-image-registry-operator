@@ -2,7 +2,6 @@ package operator
 
 import (
 	"context"
-	"crypto/rand"
 	"fmt"
 
 	appsapi "k8s.io/api/apps/v1"
@@ -22,10 +21,6 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
-// randomSecretSize is the number of random bytes to generate
-// for the http secret
-const randomSecretSize = 64
-
 // Bootstrap registers this operator with OpenShift by creating an appropriate
 // ClusterOperator custom resource. This function also creates the initial
 // configuration for the Image Registry.
@@ -42,11 +37,6 @@ func (c *Controller) Bootstrap() error {
 
 	// If no registry resource exists, let's create one with sane defaults
 	klog.Infof("generating registry custom resource")
-
-	var secretBytes [randomSecretSize]byte
-	if _, err := rand.Read(secretBytes[:]); err != nil {
-		return fmt.Errorf("could not generate random bytes for HTTP secret: %s", err)
-	}
 
 	platformStorage, replicas, err := storage.GetPlatformStorage(c.listers)
 	if err != nil {
@@ -85,7 +75,6 @@ func (c *Controller) Bootstrap() error {
 			ManagementState: mgmtState,
 			Storage:         platformStorage,
 			Replicas:        replicas,
-			HTTPSecret:      fmt.Sprintf("%x", string(secretBytes[:])),
 			RolloutStrategy: string(rolloutStrategy),
 		},
 		Status: imageregistryv1.ImageRegistryStatus{},
