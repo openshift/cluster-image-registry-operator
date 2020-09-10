@@ -68,11 +68,6 @@ func TestBootstrapAWS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if config.Spec.HTTPSecret == "" {
-		t.Errorf("got empty spec.httpSecrets, want random string")
-	}
-	config.Spec.HTTPSecret = ""
-
 	expected := imageregistryv1.ImageRegistrySpec{
 		ManagementState: "Managed",
 		Storage: imageregistryv1.ImageRegistryConfigStorage{

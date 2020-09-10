@@ -29,6 +29,52 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
+func TestHTTPSecretDefaulter(t *testing.T) {
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 1,
+	})
+	defer framework.TeardownImageRegistry(te)
+
+	cr, err := te.Client().Configs().Get(context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if cr.Spec.HTTPSecret == "" {
+		t.Errorf("got empty spec.httpSecrets, want random string")
+	}
+
+	firstSecret := cr.Spec.HTTPSecret
+
+	if _, err := te.Client().Configs().Patch(
+		context.Background(),
+		defaults.ImageRegistryResourceName,
+		types.JSONPatchType,
+		framework.MarshalJSON([]framework.JSONPatch{
+			{
+				Op:    "replace",
+				Path:  "/spec/httpSecret",
+				Value: "",
+			},
+		}),
+		metav1.PatchOptions{},
+	); err != nil {
+		t.Fatalf("unable to reset httpSecret: %s", err)
+	}
+
+	cr = framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	if cr.Spec.HTTPSecret == "" {
+		t.Errorf("got empty spec.httpSecrets, want it to be regenerated")
+	}
+	if cr.Spec.HTTPSecret == firstSecret {
+		t.Errorf("regenerated spec.httpSecrets %q is the same, want it to be randomized", cr.Spec.HTTPSecret)
+	}
+}
+
 func TestPodResourceConfiguration(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		ManagementState: operatorapiv1.Managed,
