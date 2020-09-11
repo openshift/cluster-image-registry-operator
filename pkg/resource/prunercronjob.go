@@ -90,6 +90,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 		return nil, err
 	}
 
+	backoffLimit := int32(0)
 	cj := &batchapi.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcj.GetName(),
@@ -104,9 +105,10 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 			StartingDeadlineSeconds:    &defaultStartingDeadlineSeconds,
 			JobTemplate: batchapi.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
+					BackoffLimit: &backoffLimit,
 					Template: kcorev1.PodTemplateSpec{
 						Spec: kcorev1.PodSpec{
-							RestartPolicy:      kcorev1.RestartPolicyOnFailure,
+							RestartPolicy:      kcorev1.RestartPolicyNever,
 							ServiceAccountName: "pruner",
 							Affinity:           gcj.getAffinity(cr),
 							NodeSelector:       gcj.getNodeSelector(cr),

@@ -183,8 +183,15 @@ func (c *ImagePrunerController) sync() error {
 
 	lastPrunerJobConditions := []batchv1.JobCondition{}
 	if len(prunerJobs) > 0 {
-		sort.Sort(ByCreationTimestamp(prunerJobs))
-		lastPrunerJobConditions = prunerJobs[len(prunerJobs)-1].Status.Conditions
+		sort.Sort(sort.Reverse(ByCreationTimestamp(prunerJobs)))
+		for _, job := range prunerJobs {
+			// skip not finished jobs.
+			if len(job.Status.Conditions) == 0 {
+				continue
+			}
+			lastPrunerJobConditions = job.Status.Conditions
+			break
+		}
 	}
 
 	c.syncPrunerStatus(pcr, prunerCronJob, lastPrunerJobConditions)
