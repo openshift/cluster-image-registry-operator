@@ -15,6 +15,7 @@ import (
 	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
@@ -252,14 +253,27 @@ func (c *Controller) sync() error {
 		}
 		klog.Infof("object changed: %s (metadata=%t, spec=%t): %s", utilObjectInfo(cr), metadataChanged, specChanged, difference)
 
-		updatedCR, err := c.clients.RegOp.ImageregistryV1().Configs().Update(
-			context.TODO(), cr, metaapi.UpdateOptions{},
-		)
-		if err != nil {
-			if !errors.IsConflict(err) {
-				klog.Errorf("unable to update %s: %s", utilObjectInfo(cr), err)
+		var updatedCR *imageregistryv1.Config
+		if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+			updatedCR, err = c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
+			if err != nil {
+				return err
 			}
+			updatedCR = updatedCR.DeepCopy()
+
+			if metadataChanged {
+				updatedCR.ObjectMeta = cr.ObjectMeta
+			}
+			if specChanged {
+				updatedCR.Spec = cr.Spec
+			}
+
+			updatedCR, err = c.clients.RegOp.ImageregistryV1().Configs().Update(
+				context.TODO(), updatedCR, metaapi.UpdateOptions{},
+			)
 			return err
+		}); err != nil {
+			return fmt.Errorf("unable to update config spec: %s", err)
 		}
 
 		// If we updated the Status field too, we'll make one more call and we
