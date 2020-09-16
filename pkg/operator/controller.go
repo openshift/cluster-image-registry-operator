@@ -384,8 +384,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				}
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
-			obj := o.(metaapi.Object)
-			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+			if object.GetNamespace() == "kube-system" && object.GetName() != "cluster-config-v1" {
 				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
