@@ -17,6 +17,7 @@ import (
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/loglevel"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
@@ -132,6 +133,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 										fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
 										fmt.Sprintf("--ignore-invalid-refs=%t", cr.Spec.IgnoreInvalidImageReferences),
 										fmt.Sprintf("--prune-registry=%t", gcj.getPruneRegistry(rcr)),
+										fmt.Sprintf("--loglevel=%d", gcj.getLogLevel(cr)),
 										"--confirm=true",
 									},
 									VolumeMounts: []kcorev1.VolumeMount{
@@ -233,6 +235,10 @@ func (gcj *generatorPrunerCronJob) getKeepYoungerThan(cr *imageregistryapiv1.Ima
 		return cr.Spec.KeepYoungerThan.String()
 	}
 	return defaultKeepYoungerThan
+}
+
+func (gcj *generatorPrunerCronJob) getLogLevel(cr *imageregistryapiv1.ImagePruner) int {
+	return loglevel.LogLevelToVerbosity(cr.Spec.LogLevel)
 }
 
 func (gcj *generatorPrunerCronJob) Get() (runtime.Object, error) {
