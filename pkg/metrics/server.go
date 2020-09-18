@@ -73,3 +73,12 @@ func ImagePrunerInstallStatus(installed bool, enabled bool) {
 	}
 	imagePrunerInstallStatus.Set(2)
 }
+
+// ImagePrunerJobStatus reports if the pruning job is working or failing.
+func ImagePrunerJobStatus(failed bool) {
+	if failed {
+		imagePrunerJobStatus.Set(1)
+		return
+	}
+	imagePrunerJobStatus.Set(0)
+}

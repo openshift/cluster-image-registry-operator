@@ -17,3 +17,12 @@ spec:
         message: |
           Image Registry Storage configuration has changed in the last 30
           minutes. This change may have caused data loss.
+  - name: ImagePruner
+    rules:
+    - alert: ImagePrunerIsFailing
+      expr: image_registry_operator_image_pruner_job_status == 1
+      labels:
+        severity: warning
+      annotations:
+        message: |
+          Image Pruner job is failing, please check job output log.
