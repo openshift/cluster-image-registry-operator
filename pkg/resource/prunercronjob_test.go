@@ -61,3 +61,32 @@ func TestGetKeepYoungerThan(t *testing.T) {
 		}
 	}
 }
+
+func TestLogLevel(t *testing.T) {
+	testCases := []struct {
+		imagePruner *imageregistryv1.ImagePruner
+		want        int
+	}{
+		{
+			imagePruner: &imageregistryv1.ImagePruner{
+				Spec: imageregistryv1.ImagePrunerSpec{},
+			},
+			want: 2,
+		},
+		{
+			imagePruner: &imageregistryv1.ImagePruner{
+				Spec: imageregistryv1.ImagePrunerSpec{
+					LogLevel: "Debug",
+				},
+			},
+			want: 4,
+		},
+	}
+	for _, tc := range testCases {
+		g := generatorPrunerCronJob{}
+		got := g.getLogLevel(tc.imagePruner)
+		if got != tc.want {
+			t.Errorf("got %v, want %v (%#+v)", got, tc.want, tc.imagePruner)
+		}
+	}
+}
