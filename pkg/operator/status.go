@@ -149,11 +149,9 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	}
 
 	var foundFailed bool
-	var failedMessage string
 	for _, condition := range lastJobConditions {
 		if condition.Type == batchv1.JobFailed {
 			foundFailed = true
-			failedMessage = condition.Message
 			prunerLastJobStatus := operatorapiv1.OperatorCondition{
 				Status:  operatorapiv1.ConditionTrue,
 				Message: condition.Message,
@@ -199,18 +197,14 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 			Reason:  "SyncError",
 			Message: fmt.Sprintf("Error: %v", applyError),
 		})
-	} else if foundFailed {
-		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
-			Status:  operatorapiv1.ConditionTrue,
-			Reason:  "JobFailed",
-			Message: failedMessage,
-		})
 	} else {
 		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
 			Status: operatorapiv1.ConditionFalse,
 			Reason: "AsExpected",
 		})
 	}
+
+	metrics.ImagePrunerJobStatus(foundFailed)
 }
 
 func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error) {
