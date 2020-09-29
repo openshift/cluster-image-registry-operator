@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 func printDiff(oldv, newv map[string]string, printer func(key, typ, oldv, newv string)) {
