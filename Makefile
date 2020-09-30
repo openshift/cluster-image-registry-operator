@@ -6,10 +6,6 @@ GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
 GOLANGCI_LINT_VERSION = v1.24
 
-include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
-    targets/openshift/bindata.mk \
-)
-
 $(call add-bindata,assets,./bindata/...,./bindata/,assets,pkg/assets/bindata.go)
 
 all: build build-image verify
