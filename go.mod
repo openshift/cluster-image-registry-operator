@@ -19,7 +19,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emicklei/go-restful v2.11.1+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/go-openapi/spec v0.19.5 // indirect
 	github.com/go-openapi/swag v0.19.6 // indirect
 	github.com/google/go-cmp v0.4.0
@@ -33,9 +32,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/gomega v1.7.1 // indirect
 	github.com/openshift/api v0.0.0-20200929125329-c3027fc03b92
-	github.com/openshift/build-machinery-go v0.0.0-20200819073603-48aa266c95f7
 	github.com/openshift/client-go v0.0.0-20200729195840-c2b1adc6bed6
-	github.com/openshift/crd-schema-gen v1.0.0
 	github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410
 	github.com/openshift/library-go v0.0.0-20200731053141-ff55255233e3
 	github.com/prometheus/client_golang v1.7.1
@@ -53,7 +50,5 @@ require (
 	k8s.io/apimachinery v0.19.0
 	k8s.io/apiserver v0.19.0 // indirect
 	k8s.io/client-go v0.19.0
-	k8s.io/code-generator v0.19.0
 	k8s.io/klog v1.0.0
-	sigs.k8s.io/controller-tools v0.2.1 // indirect
 )
