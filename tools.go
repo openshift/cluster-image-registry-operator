@@ -9,15 +9,4 @@ import (
 	// Makefile
 	"github.com/go-bindata/go-bindata/go-bindata"
 	"github.com/openshift/build-machinery-go/make/targets/openshift"
-
-	// required by hack/codegen/update-generated.sh
-	_ "k8s.io/code-generator"
-	_ "k8s.io/code-generator/cmd/client-gen"
-	_ "k8s.io/code-generator/cmd/deepcopy-gen"
-	_ "k8s.io/code-generator/cmd/defaulter-gen"
-	_ "k8s.io/code-generator/cmd/informer-gen"
-	_ "k8s.io/code-generator/cmd/lister-gen"
-
-	// required by hack/codegen/update-crd.sh
-	_ "github.com/openshift/crd-schema-gen/cmd/crd-schema-gen"
 )
