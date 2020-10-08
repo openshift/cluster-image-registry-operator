@@ -98,7 +98,8 @@ const (
 	HealthzRoute          = "/healthz"
 	HealthzTimeoutSeconds = 5
 
-	ImageConfigName = "cluster"
+	ImageConfigName   = "cluster"
+	ClusterConfigName = "cluster-config-v1"
 
 	ServiceCAName = "serviceca"
 	TrustedCAName = "trusted-ca"

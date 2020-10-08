@@ -340,7 +340,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
 			obj := o.(metaapi.Object)
-			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
@@ -363,7 +363,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				return
 			}
 			obj := o.(metaapi.Object)
-			if obj.GetNamespace() == "kube-system" && obj.GetName() != "cluster-config-v1" {
+			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
@@ -384,7 +384,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 				}
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
-			if object.GetNamespace() == "kube-system" && object.GetName() != "cluster-config-v1" {
+			if object.GetNamespace() == kubeSystemNamespace && object.GetName() != defaults.ClusterConfigName {
 				return
 			}
 			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))

@@ -82,7 +82,7 @@ func GetInfrastructure(listers *regopclient.Listers) (*configv1.Infrastructure, 
 		// TODO: Eventually we should be able to remove our dependency on the install config
 		// but it is needed for now since platformStatus doesn't get set on upgrade
 		// from 4.1 -> 4.2
-		ic, err := listers.InstallerConfigMaps.Get("cluster-config-v1")
+		ic, err := listers.InstallerConfigMaps.Get(defaults.ClusterConfigName)
 		if err != nil {
 			return nil, err
 		}
