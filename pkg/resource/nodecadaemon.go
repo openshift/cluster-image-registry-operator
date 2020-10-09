@@ -11,7 +11,12 @@ import (
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/assets"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -20,16 +25,20 @@ import (
 var _ Mutator = &generatorNodeCADaemonSet{}
 
 type generatorNodeCADaemonSet struct {
+	recorder        events.Recorder
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
 	serviceLister   corev1listers.ServiceNamespaceLister
 	client          appsv1client.AppsV1Interface
+	operatorClient  v1helpers.OperatorClient
 }
 
-func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface) Mutator {
+func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface, operatorClient v1helpers.OperatorClient) Mutator {
 	return &generatorNodeCADaemonSet{
+		recorder:        events.NewLoggingEventRecorder("image-registry-operator"),
 		daemonSetLister: daemonSetLister,
 		serviceLister:   serviceLister,
 		client:          client,
+		operatorClient:  operatorClient,
 	}
 }
 
@@ -49,34 +58,51 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 	return ds.daemonSetLister.Get(ds.GetName())
 }
 
-func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
+func (ds *generatorNodeCADaemonSet) expected() *appsv1.DaemonSet {
 	daemonSet := resourceread.ReadDaemonSetV1OrDie(assets.MustAsset("nodecadaemon.yaml"))
 	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
+	return daemonSet
+}
 
-	return ds.client.DaemonSets(ds.GetNamespace()).Create(
-		context.TODO(), daemonSet, metav1.CreateOptions{},
-	)
+func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
+	dep, _, err := ds.Update(nil)
+	return dep, err
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
-	daemonSet := o.(*appsv1.DaemonSet)
-	modified := false
+	daemonSet := ds.expected()
 
-	newImage := os.Getenv("IMAGE")
-	oldImage := daemonSet.Spec.Template.Spec.Containers[0].Image
-	if newImage != oldImage {
-		daemonSet.Spec.Template.Spec.Containers[0].Image = newImage
-		modified = true
+	_, opStatus, _, err := ds.operatorClient.GetOperatorState()
+	if err != nil {
+		return nil, false, err
 	}
 
-	if !modified {
-		return o, false, nil
-	}
-
-	n, err := ds.client.DaemonSets(ds.GetNamespace()).Update(
-		context.TODO(), daemonSet, metav1.UpdateOptions{},
+	dep, updated, err := resourceapply.ApplyDaemonSet(
+		ds.client,
+		ds.recorder,
+		daemonSet,
+		resourcemerge.ExpectedDaemonSetGeneration(daemonSet, opStatus.Generations),
 	)
-	return n, err == nil, err
+	if err != nil {
+		return o, updated, err
+	}
+
+	if updated {
+		updateStatusFn := func(newStatus *operatorv1.OperatorStatus) error {
+			resourcemerge.SetDaemonSetGeneration(&newStatus.Generations, daemonSet)
+			return nil
+		}
+
+		_, _, err = v1helpers.UpdateStatus(
+			ds.operatorClient,
+			updateStatusFn,
+		)
+		if err != nil {
+			return dep, updated, err
+		}
+	}
+
+	return dep, updated, nil
 }
 
 func (ds *generatorNodeCADaemonSet) Delete(opts metav1.DeleteOptions) error {
