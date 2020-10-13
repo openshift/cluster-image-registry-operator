@@ -153,6 +153,11 @@ func TestPruner(t *testing.T) {
 		t.Fatalf("flag --ignore-invalid-refs=true is not found")
 	}
 
+	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--registry-url=https://image-registry.openshift-image-registry.svc:5000") {
+		defer framework.DumpYAML(t, "cronjob", cronjob)
+		t.Fatalf("flag --registry-url is not found")
+	}
+
 	// Check that making changes to the pruner custom resource trickle down to the cronjob
 	// and that the conditions get updated correctly
 	truePtr := true

@@ -109,6 +109,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryClient,
 		kubeInformers,
 		imageregistryInformers,
+		configInformers.Config().V1().Images(),
 	)
 
 	loggingController := loglevel.NewClusterOperatorLoggingController(
