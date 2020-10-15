@@ -510,7 +510,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 						return err
 					}
 				} else {
-					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, string(e.ServiceCode()), fmt.Sprintf("Unable to create storage container: %s", err))
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create storage container: %s", err))
 					return err
 				}
 			}
