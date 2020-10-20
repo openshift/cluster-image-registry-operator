@@ -49,6 +49,7 @@ spec:
           resources:
             requests:
               cpu: 10m
+              memory: 50Mi
           env:
             - name: RELEASE_VERSION
               value: "0.0.1-snapshot"
