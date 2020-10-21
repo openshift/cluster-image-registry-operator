@@ -88,7 +88,7 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 }
 
 func (c *NodeCADaemonController) sync() error {
-	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient)
+	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient, c.operatorClient)
 	err := resource.ApplyMutator(gen)
 	if err != nil {
 		_, _, updateError := v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
