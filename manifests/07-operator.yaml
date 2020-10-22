@@ -5,7 +5,8 @@ metadata:
   name: cluster-image-registry-operator
   namespace: openshift-image-registry
   annotations:
-    config.openshift.io/inject-proxy: cluster-image-registry-operator 
+    config.openshift.io/inject-proxy: cluster-image-registry-operator
+    include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   replicas: 1
   selector:

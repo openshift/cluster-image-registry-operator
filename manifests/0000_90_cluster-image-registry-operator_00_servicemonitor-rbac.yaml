@@ -3,6 +3,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: registry-monitoring
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 rules:
 - apiGroups:
   - image.openshift.io
@@ -15,6 +17,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: registry-monitoring
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 subjects:
 - kind: ServiceAccount
   name: prometheus-k8s
@@ -30,6 +34,8 @@ metadata:
   # TODO this should be a clusterrole
   name: prometheus-k8s
   namespace: openshift-image-registry
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 rules:
 - apiGroups:
   - ""
@@ -47,6 +53,8 @@ kind: RoleBinding
 metadata:
   name: prometheus-k8s
   namespace: openshift-image-registry
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
