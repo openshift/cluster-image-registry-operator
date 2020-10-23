@@ -20,15 +20,8 @@ import (
 // imported or pushed to it.
 // Some cloud providers do not allow storage buckets to be removed unless the bucket is empty.
 func TestImageRegistryRemovedWithImages(t *testing.T) {
-	te := framework.Setup(t)
+	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
-
-	// Deploy the image registry using platform defaults
-	framework.DeployImageRegistry(te, nil)
-	framework.WaitUntilImageRegistryIsAvailable(te)
-	framework.EnsureInternalRegistryHostnameIsSet(te)
-	framework.EnsureClusterOperatorStatusIsNormal(te)
-	framework.EnsureOperatorIsNotHotLooping(te)
 
 	ctx := context.Background()
 
