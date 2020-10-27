@@ -3,6 +3,8 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: cluster-image-registry-operator
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 rules:
 - apiGroups:
   - imageregistry.operator.openshift.io
@@ -120,6 +122,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: default-account-cluster-image-registry-operator
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 subjects:
 - kind: ServiceAccount
   name: cluster-image-registry-operator
