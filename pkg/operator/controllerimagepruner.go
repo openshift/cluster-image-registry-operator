@@ -23,6 +23,7 @@ import (
 	"k8s.io/klog/v2"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 
@@ -50,6 +51,7 @@ func NewImagePrunerController(
 	imageregistryClient imageregistryclient.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
+	imageConfigInformer configv1informers.ImageInformer,
 ) *ImagePrunerController {
 	listers := &regopclient.ImagePrunerControllerListers{}
 	clients := &regopclient.Clients{}
@@ -110,6 +112,10 @@ func NewImagePrunerController(
 			informer := kubeInformerFactory.Core().V1().ConfigMaps()
 			c.listers.ConfigMaps = informer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			c.listers.ImageConfigs = imageConfigInformer.Lister()
+			return imageConfigInformer.Informer()
 		},
 	} {
 		informer := ctor()
