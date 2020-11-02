@@ -5,6 +5,8 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -48,15 +50,19 @@ func TestGetConfig(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	config, err := GetConfig(listers)
+	s3Driver := &driver{
+		Listers: listers,
+	}
+
+	config, err := s3Driver.GetConfig()
+	defer os.Remove(config.SharedCredentialsFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expected := &S3{
-		AccessKey: "access",
-		SecretKey: "secret",
-		Region:    "us-east-1",
+		Region:                "us-east-1",
+		SharedCredentialsFile: config.SharedCredentialsFile,
 	}
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
@@ -100,16 +106,19 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	config, err := GetConfig(listers)
+	s3Driver := &driver{
+		Listers: listers,
+	}
+	config, err := s3Driver.GetConfig()
+	defer os.Remove(config.SharedCredentialsFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expected := &S3{
-		AccessKey:      "access",
-		SecretKey:      "secret",
-		Region:         "example",
-		RegionEndpoint: "https://s3.example.com",
+		Region:                "example",
+		RegionEndpoint:        "https://s3.example.com",
+		SharedCredentialsFile: config.SharedCredentialsFile,
 	}
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
@@ -157,18 +166,26 @@ func TestConfigEnv(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
+	defer func() {
+		conf, err := d.GetConfig()
+		if err != nil {
+			t.Errorf("failed to get config to clean up temp files: %s", err)
+		} else {
+			os.Remove(conf.SharedCredentialsFile)
+		}
+	}()
+
 	envvars, err := d.ConfigEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expectedVars := map[string]interface{}{
-		"REGISTRY_STORAGE":                       "s3",
-		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
-		"REGISTRY_STORAGE_S3_REGION":             "us-east-1",
-		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
-		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
+		"REGISTRY_STORAGE":                          "s3",
+		"REGISTRY_STORAGE_S3_REGION":                "us-east-1",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
 		e := findEnvVar(envvars, key)
@@ -221,18 +238,26 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
+	defer func() {
+		conf, err := d.GetConfig()
+		if err != nil {
+			t.Errorf("failed to get config to clean up temp files: %s", err)
+		} else {
+			os.Remove(conf.SharedCredentialsFile)
+		}
+	}()
+
 	envvars, err := d.ConfigEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expectedVars := map[string]interface{}{
-		"REGISTRY_STORAGE":                       "s3",
-		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
-		"REGISTRY_STORAGE_S3_REGION":             "us-west-1",
-		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
-		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
+		"REGISTRY_STORAGE":                          "s3",
+		"REGISTRY_STORAGE_S3_REGION":                "us-west-1",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
 		e := findEnvVar(envvars, key)
@@ -397,6 +422,15 @@ func TestStorageManagementState(t *testing.T) {
 			}
 
 			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
+			defer func() {
+				conf, err := drv.GetConfig()
+				if err != nil {
+					t.Errorf("failed to get config to clean up temp files: %s", err)
+				} else {
+					os.Remove(conf.SharedCredentialsFile)
+				}
+			}()
+
 			drv.roundTripper = rt
 
 			if err := drv.CreateStorage(tt.config); err != nil {

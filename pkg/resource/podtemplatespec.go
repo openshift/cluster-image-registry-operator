@@ -130,6 +130,17 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		}
 	}
 
+	// If the storage driver is asking for specific volumes to be mounted in,
+	// then ensure we redeploy on a change.
+	for _, vol := range volumes {
+		if vol.Secret != nil {
+			deps.AddSecret(vol.Secret.SecretName)
+		}
+		if vol.ConfigMap != nil {
+			deps.AddConfigMap(vol.ConfigMap.Name)
+		}
+	}
+
 	clusterProxy, err := proxyLister.Get(defaults.ClusterProxyResourceName)
 	if errors.IsNotFound(err) {
 		clusterProxy = &configapiv1.Proxy{}
@@ -317,6 +328,32 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		},
 	)
 	deps.AddSecret(defaults.InstallationPullSecret)
+
+	// Project the ServiceAccount token into the Pod (for Pod-identity authentication cases).
+	saVol := corev1.Volume{
+		Name: "bound-sa-token",
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Audience: "openshift",
+							Path:     "token",
+						},
+					},
+				},
+			},
+		},
+	}
+	volumes = append(volumes, saVol)
+
+	saMount := corev1.VolumeMount{
+		Name: saVol.Name,
+		// Default (by convention) location for mounting projected ServiceAccounts
+		MountPath: "/var/run/secrets/openshift/serviceaccount",
+		ReadOnly:  true,
+	}
+	mounts = append(mounts, saMount)
 
 	image := os.Getenv("IMAGE")
 

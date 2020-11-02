@@ -3,13 +3,15 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
@@ -76,24 +78,28 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
-	cfg, err := storages3.GetConfig(mockLister)
+	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
+	cfg, err := s3Driver.GetConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
+	defer os.Remove(cfg.SharedCredentialsFile)
 
 	// Check that the image-registry-private-configuration secret exists and
-	// contains the correct information
+	// contains the correct information (by using it for our AWS client).
 	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
 	)
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
-	if string(accessKey) != cfg.AccessKey || string(secretKey) != cfg.SecretKey {
-		t.Errorf("secret %s/%s contains incorrect aws credentials (AccessKey or SecretKey)", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration)
+
+	awsConfigData := imageRegistryPrivateConfiguration.Data["credentials"]
+	awsConfigTempFile, err := createAWSConfigFile(awsConfigData)
+	if err != nil {
+		t.Fatalf("failed to create AWS config file for AWS client: %s", err)
 	}
+	defer os.Remove(awsConfigTempFile)
 
 	// Check that the image registry resource exists
 	// and contains the correct region and a non-empty bucket name
@@ -127,9 +133,12 @@ func TestAWSDefaults(t *testing.T) {
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StoragePublicAccessBlocked, operatorapi.ConditionTrue, "Public Access Block Successful")
 
 	// Check that the S3 bucket that we created exists and is accessible
-	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(string(accessKey), string(secretKey), ""),
-		Region:      &cr.Spec.Storage.S3.Region,
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{
+			Region: &cr.Spec.Storage.S3.Region,
+		},
+		SharedConfigState: session.SharedConfigEnable,
+		SharedConfigFiles: []string{awsConfigTempFile},
 	})
 	if err != nil {
 		t.Errorf("unable to create new session with supplied AWS credentials")
@@ -150,21 +159,22 @@ func TestAWSDefaults(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("unable to get public access block information for s3 bucket: %#v", err)
-	}
+	} else {
 
-	gp := getPublicAccessBlockResult.PublicAccessBlockConfiguration
+		gp := getPublicAccessBlockResult.PublicAccessBlockConfiguration
 
-	if gp.BlockPublicAcls == nil || !*gp.BlockPublicAcls {
-		t.Errorf("PublicAccessBlock.BlockPublicAcls should have been true, but was %#v instead", *gp.BlockPublicAcls)
-	}
-	if gp.BlockPublicPolicy == nil || !*gp.BlockPublicPolicy {
-		t.Errorf("PublicAccessBlock.BlockPublicPolicy should have been true, but was %#v instead", *gp.BlockPublicPolicy)
-	}
-	if gp.IgnorePublicAcls == nil || !*gp.IgnorePublicAcls {
-		t.Errorf("PublicAccessBlock.IgnorePublicAcls should have been true, but was %#v instead", *gp.IgnorePublicAcls)
-	}
-	if gp.RestrictPublicBuckets == nil || !*gp.RestrictPublicBuckets {
-		t.Errorf("PublicAccessBlock.RestrictPublicBuckets should have been true, but was %#v instead", *gp.RestrictPublicBuckets)
+		if gp.BlockPublicAcls == nil || !*gp.BlockPublicAcls {
+			t.Errorf("PublicAccessBlock.BlockPublicAcls should have been true, but was %#v instead", *gp.BlockPublicAcls)
+		}
+		if gp.BlockPublicPolicy == nil || !*gp.BlockPublicPolicy {
+			t.Errorf("PublicAccessBlock.BlockPublicPolicy should have been true, but was %#v instead", *gp.BlockPublicPolicy)
+		}
+		if gp.IgnorePublicAcls == nil || !*gp.IgnorePublicAcls {
+			t.Errorf("PublicAccessBlock.IgnorePublicAcls should have been true, but was %#v instead", *gp.IgnorePublicAcls)
+		}
+		if gp.RestrictPublicBuckets == nil || !*gp.RestrictPublicBuckets {
+			t.Errorf("PublicAccessBlock.RestrictPublicBuckets should have been true, but was %#v instead", *gp.RestrictPublicBuckets)
+		}
 	}
 
 	// Check that the S3 bucket has the correct tags
@@ -206,28 +216,29 @@ func TestAWSDefaults(t *testing.T) {
 		} else {
 			t.Errorf("unknown error occurred getting encryption information for S3 bucket: %#v", err)
 		}
-	}
+	} else {
 
-	wantedBucketEncryption := &s3.ServerSideEncryptionConfiguration{
-		Rules: []*s3.ServerSideEncryptionRule{
-			{
-				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+		wantedBucketEncryption := &s3.ServerSideEncryptionConfiguration{
+			Rules: []*s3.ServerSideEncryptionRule{
+				{
+					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+						SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
+					},
 				},
 			},
-		},
-	}
-
-	for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
-		found := false
-		for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
-			if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
-				found = true
-				break
-			}
 		}
-		if !found {
-			t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedEncryptionRule, getBucketEncryptionResult)
+
+		for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
+			found := false
+			for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
+				if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("s3 encryption rule was either not found or was not correct: wanted \"%#v\": looked in %#v", wantedEncryptionRule, getBucketEncryptionResult)
+			}
 		}
 	}
 
@@ -283,20 +294,7 @@ func TestAWSDefaults(t *testing.T) {
 		{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: string(cr.Spec.Storage.S3.Bucket), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(cr.Spec.Storage.S3.Region), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt), ValueFrom: nil},
-		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
-			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "image-registry-private-configuration"},
-				Key: "REGISTRY_STORAGE_S3_ACCESSKEY"},
-		},
-		},
-		{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
-			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "image-registry-private-configuration"},
-				Key: "REGISTRY_STORAGE_S3_SECRETKEY"},
-		},
-		},
+		{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: "/var/run/secrets/cloud/credentials", ValueFrom: nil},
 	}
 
 	for _, val := range awsEnvVars {
@@ -415,12 +413,20 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Check that the user provided credentials override the system provided ones
-	cfgUser, err := storages3.GetConfig(mockLister)
+	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
+	cfgUser, err := s3Driver.GetConfig()
 	if err != nil {
 		t.Errorf("unable to get aws configuration: %#v", err)
 	}
-	if fakeAWSCredsData["REGISTRY_STORAGE_S3_ACCESSKEY"] != cfgUser.AccessKey || fakeAWSCredsData["REGISTRY_STORAGE_S3_SECRETKEY"] != cfgUser.SecretKey {
-		t.Errorf("expected system configuration to be overridden by the user configuration but it wasn't.")
+	defer os.Remove(cfgUser.SharedCredentialsFile)
+
+	credsBytes, err := ioutil.ReadFile(cfgUser.SharedCredentialsFile)
+	if err != nil {
+		t.Fatalf("failed to read in S3 driver's AWS configuratin file: %s", err)
+	}
+	creds := string(credsBytes)
+	if !strings.Contains(creds, fakeAWSCredsData["REGISTRY_STORAGE_S3_ACCESSKEY"]) || !strings.Contains(creds, fakeAWSCredsData["REGISTRY_STORAGE_S3_SECRETKEY"]) {
+		t.Errorf("S3 driver's generated AWS doesn't contain expected credentials (AccessKey or SecretKey)")
 	}
 
 	// Wait for the image registry resource to have an updated StorageExists condition
@@ -490,16 +496,24 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
-	accessKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]
-	secretKey := imageRegistryPrivateConfiguration.Data["REGISTRY_STORAGE_S3_SECRETKEY"]
+
+	awsConfigData := imageRegistryPrivateConfiguration.Data["credentials"]
+	awsConfigTempFile, err := createAWSConfigFile(awsConfigData)
+	if err != nil {
+		t.Fatalf("failed to create AWS config file for AWS client: %s", err)
+	}
+	defer os.Remove(awsConfigTempFile)
 
 	// Check that the S3 bucket that we created exists and is accessible
-	sess, err := session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(string(accessKey), string(secretKey), ""),
-		Region:      &cr.Spec.Storage.S3.Region,
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{
+			Region: &cr.Spec.Storage.S3.Region,
+		},
+		SharedConfigState: session.SharedConfigEnable,
+		SharedConfigFiles: []string{awsConfigTempFile},
 	})
 	if err != nil {
-		t.Errorf("unable to create new session with supplied AWS credentials")
+		t.Fatal("unable to create new session with supplied AWS credentials")
 	}
 
 	svc := s3.New(sess)
@@ -616,20 +630,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		{Name: "REGISTRY_STORAGE_S3_REGION", Value: string(cr.Spec.Storage.S3.Region), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: fmt.Sprintf("%v", cr.Spec.Storage.S3.Encrypt), ValueFrom: nil},
 		{Name: "REGISTRY_STORAGE_S3_KEYID", Value: "testKey", ValueFrom: nil},
-		{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
-			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "image-registry-private-configuration"},
-				Key: "REGISTRY_STORAGE_S3_ACCESSKEY"},
-		},
-		},
-		{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: "", ValueFrom: &corev1.EnvVarSource{
-			FieldRef: nil, ResourceFieldRef: nil, ConfigMapKeyRef: nil, SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "image-registry-private-configuration"},
-				Key: "REGISTRY_STORAGE_S3_SECRETKEY"},
-		},
-		},
+		{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: "/var/run/secrets/cloud/credentials", ValueFrom: nil},
 	}
 
 	for _, val := range awsEnvVars {
@@ -720,4 +721,22 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if exists {
 		t.Errorf("s3 bucket should have been deleted, but it wasn't")
 	}
+}
+
+// createAWSConfigFile takes config file data and stores it into a temporary
+// file (which must be delted by the caller).
+func createAWSConfigFile(configData []byte) (string, error) {
+	// FIXME: if/when we really stop using access/secret key, need an alternative way to make AWS API calls
+	// (perhaps fetch the ServiceAccount token directly to build an AWS client with).
+	awsConfigTempFile, err := ioutil.TempFile("", "cluster-image-registry-operator-test")
+	if err != nil {
+		return "", fmt.Errorf("failed to make temp file for AWS config: %s", err)
+	}
+	defer awsConfigTempFile.Close()
+
+	if _, err := awsConfigTempFile.Write(configData); err != nil {
+		return "", fmt.Errorf("failed to write AWS config to file: %s", err)
+	}
+
+	return awsConfigTempFile.Name(), nil
 }
