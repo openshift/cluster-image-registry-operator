@@ -35,8 +35,6 @@ spec:
         tolerationSeconds: 120
       containers:
         - name: cluster-image-registry-operator
-          command:
-          - cluster-image-registry-operator
           args:
           - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
           - --files=/etc/secrets/tls.crt

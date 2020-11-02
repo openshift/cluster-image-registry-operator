@@ -43,16 +43,16 @@ func TestBasicEmptyDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	badlogs := false
+	if !logs.Contains(regexp.MustCompile(`Overwriting root TLS certificate authority trust store`)) {
+		t.Error("error: the log doesn't contain message from the entrypoint script")
+	}
 	if !logs.Contains(regexp.MustCompile(`Cluster Image Registry Operator Version: .+`)) {
-		badlogs = true
 		t.Error("error: the log doesn't contain the operator's version")
 	}
-	if !logs.Contains(regexp.MustCompile(`object changed`)) {
-		badlogs = true
-		t.Error("error: the log doesn't contain changes")
+	if !logs.Contains(regexp.MustCompile(`Watching files \[/var/run/configmaps/trusted-ca/tls-ca-bundle\.pem /etc/secrets/tls\.crt /etc/secrets/tls\.key\]`)) {
+		t.Error("error: the log doesn't contain correct watch files")
 	}
-	if badlogs {
-		framework.DumpPodLogs(t, logs)
+	if !logs.Contains(regexp.MustCompile(`object changed`)) {
+		t.Error("error: the log doesn't contain changes")
 	}
 }
