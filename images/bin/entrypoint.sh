@@ -9,4 +9,4 @@ if [ -e "$trustedCA" ]; then
     cp -f "$trustedCA" /etc/pki/ca-trust/extracted/pem/
 fi
 
-exec /usr/bin/cluster-image-registry-operator
+exec /usr/bin/cluster-image-registry-operator "$@"
