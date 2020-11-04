@@ -65,6 +65,9 @@ func TestMakePodTemplateSpec(t *testing.T) {
 
 	// Verify volumes and mounts
 	expectedVolumes := map[string]*volumeMount{
+		"ca-trust-extracted": {
+			mountPath: "/etc/pki/ca-trust/extracted",
+		},
 		"registry-tls": {
 			refName:   defaults.ImageRegistryName + "-tls",
 			mountPath: "/etc/secrets",
