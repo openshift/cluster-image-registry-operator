@@ -18,6 +18,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -56,35 +57,19 @@ func replaceEmpty(a string, b string) string {
 }
 
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
-func IsSwiftEnabled(listers *regopclient.Listers) (bool, error) {
+func IsSwiftEnabled(listers *regopclient.Listers) bool {
 	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
 	conn, err := driver.getSwiftClient()
 	if err != nil {
-		// ErrEndpointNotFound means that Swift is not available
-		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
-			return false, nil
-		}
-		return false, err
+		klog.Errorf("swift storage inaccessible: %v", err)
+		return false
 	}
-
 	// Try to list containers to make sure the user has required permissions to do that
-	listOpts := containers.ListOpts{Full: false}
-	_, err = containers.List(conn, listOpts).AllPages()
-	if err != nil {
-		// If the user has no permissions, we consider that Swift is unavailable
-		// Depending on the configuration swift returns different error codes:
-		// 403 with Keystone and 401 with internal Swauth.
-		// It means we have to catch them both.
-		// More information about Swith auth: https://docs.openstack.org/swift/latest/overview_auth.html
-		if _, ok := err.(gophercloud.ErrDefault403); ok {
-			return false, nil
-		}
-		if _, ok := err.(gophercloud.ErrDefault401); ok {
-			return false, nil
-		}
-		return false, err
+	if _, err = containers.List(conn, containers.ListOpts{}).AllPages(); err != nil {
+		klog.Errorf("error listing swift containers: %v", err)
+		return false
 	}
-	return true, nil
+	return true
 }
 
 // GetConfig reads credentials

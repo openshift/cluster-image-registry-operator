@@ -12,15 +12,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
-	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 // randomSecretSize is the number of random bytes to generate
@@ -36,14 +33,12 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("unable to get the registry custom resources: %s", err)
 	}
 
-	// If the registry resource already exists,
-	// no bootstrapping is required
+	// If the registry resource already exists, no bootstrapping is required
 	if cr != nil {
 		return nil
 	}
 
-	// If no registry resource exists,
-	// let's create one with sane defaults
+	// If no registry resource exists, let's create one with sane defaults
 	klog.Infof("generating registry custom resource")
 
 	var secretBytes [randomSecretSize]byte
@@ -67,30 +62,12 @@ func (c *Controller) Bootstrap() error {
 		mgmtState = operatorapi.Removed
 	}
 
-	infra, err := util.GetInfrastructure(c.listers)
-	if err != nil {
-		return err
-	}
-
 	rolloutStrategy := appsapi.RollingUpdateDeploymentStrategyType
-
-	// If Swift service is not available for OpenStack, we have to start using
-	// Cinder with RWO PVC backend. It means that we need to create an RWO claim
-	// and set the rollout strategy to Recreate.
-	switch infra.Status.PlatformStatus.Type {
-	case configapiv1.OpenStackPlatformType:
-		isSwiftEnabled, err := swift.IsSwiftEnabled(c.listers)
-		if err != nil {
+	if platformStorage.PVC != nil {
+		if err = c.createPVC(corev1.ReadWriteOnce, platformStorage.PVC.Claim); err != nil {
 			return err
 		}
-		if !isSwiftEnabled {
-			err = c.createPVC(corev1.ReadWriteOnce)
-			if err != nil {
-				return err
-			}
-
-			rolloutStrategy = appsapi.RecreateDeploymentStrategyType
-		}
+		rolloutStrategy = appsapi.RecreateDeploymentStrategyType
 	}
 
 	cr = &imageregistryv1.Config{
@@ -118,49 +95,42 @@ func (c *Controller) Bootstrap() error {
 	return nil
 }
 
-func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode) error {
-	claimName := defaults.PVCImageRegistryName
-
+func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode, claimName string) error {
 	// Check that the claim does not exist before creating it
-	_, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(
+	if _, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Get(
 		context.TODO(), claimName, metav1.GetOptions{},
-	)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			return err
-		}
-
-		// "standard" is the default StorageClass name, that was provisioned by the cloud provider
-		storageClassName := "standard"
-
-		claim := &corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      claimName,
-				Namespace: defaults.ImageRegistryOperatorNamespace,
-				Annotations: map[string]string{
-					pvc.PVCOwnerAnnotation: "true",
-				},
-			},
-			Spec: corev1.PersistentVolumeClaimSpec{
-				AccessModes: []corev1.PersistentVolumeAccessMode{
-					accessMode,
-				},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("100Gi"),
-					},
-				},
-				StorageClassName: &storageClassName,
-			},
-		}
-
-		_, err = c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(
-			context.TODO(), claim, metav1.CreateOptions{},
-		)
-		if err != nil {
-			return err
-		}
+	); err == nil {
+		return nil
+	} else if !errors.IsNotFound(err) {
+		return err
 	}
 
-	return nil
+	// "standard" is the default StorageClass name, that was provisioned by the cloud provider
+	storageClassName := "standard"
+
+	claim := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      claimName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+			Annotations: map[string]string{
+				pvc.PVCOwnerAnnotation: "true",
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				accessMode,
+			},
+			Resources: corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("100Gi"),
+				},
+			},
+			StorageClassName: &storageClassName,
+		},
+	}
+
+	_, err := c.clients.Core.PersistentVolumeClaims(defaults.ImageRegistryOperatorNamespace).Create(
+		context.TODO(), claim, metav1.CreateOptions{},
+	)
+	return err
 }
