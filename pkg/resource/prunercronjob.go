@@ -239,7 +239,17 @@ func (gcj *generatorPrunerCronJob) getKeepYoungerThan(cr *imageregistryapiv1.Ima
 }
 
 func (gcj *generatorPrunerCronJob) getLogLevel(cr *imageregistryapiv1.ImagePruner) int {
-	return loglevel.LogLevelToVerbosity(cr.Spec.LogLevel)
+	level := loglevel.LogLevelToVerbosity(cr.Spec.LogLevel)
+	if level == 2 {
+		// The Normal log level is 2, but it causes `oc` to print stack traces
+		// for all goroutines in case of an error. It makes termination
+		// messages meaningless as they contain only few last lines of the log.
+		// The default value for `oc` is 0 (i.e. commands are usually run
+		// without -v), but let's pick a value closer to 2 that doesn't cause
+		// problems.
+		return 1
+	}
+	return level
 }
 
 func (gcj *generatorPrunerCronJob) Get() (runtime.Object, error) {
