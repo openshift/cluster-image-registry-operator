@@ -37,6 +37,7 @@ func (m *mockLister) GetListers() (*regopclient.Listers, error) {
 	m.listers.Secrets = MockSecretNamespaceLister{namespace: defaults.ImageRegistryOperatorNamespace, client: coreClient}
 	m.listers.InstallerConfigMaps = MockConfigMapNamespaceLister{namespace: installerConfigNamespace, client: coreClient}
 	m.listers.Infrastructures = MockInfrastructureLister{client: *configClient}
+	m.listers.OpenShiftConfigManaged = MockConfigMapNamespaceLister{namespace: defaults.OpenShiftConfigManagedNamespace, client: coreClient}
 
 	return &m.listers, err
 }

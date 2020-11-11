@@ -13,19 +13,20 @@ import (
 )
 
 type Listers struct {
-	Deployments         kappslisters.DeploymentNamespaceLister
-	Services            kcorelisters.ServiceNamespaceLister
-	Secrets             kcorelisters.SecretNamespaceLister
-	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
-	ServiceAccounts     kcorelisters.ServiceAccountNamespaceLister
-	Routes              routelisters.RouteNamespaceLister
-	ClusterRoles        krbaclisters.ClusterRoleLister
-	ClusterRoleBindings krbaclisters.ClusterRoleBindingLister
-	OpenShiftConfig     kcorelisters.ConfigMapNamespaceLister
-	RegistryConfigs     regoplisters.ConfigLister
-	InstallerConfigMaps kcorelisters.ConfigMapNamespaceLister
-	ProxyConfigs        configlisters.ProxyLister
-	Infrastructures     configlisters.InfrastructureLister
+	Deployments            kappslisters.DeploymentNamespaceLister
+	Services               kcorelisters.ServiceNamespaceLister
+	Secrets                kcorelisters.SecretNamespaceLister
+	ConfigMaps             kcorelisters.ConfigMapNamespaceLister
+	ServiceAccounts        kcorelisters.ServiceAccountNamespaceLister
+	Routes                 routelisters.RouteNamespaceLister
+	ClusterRoles           krbaclisters.ClusterRoleLister
+	ClusterRoleBindings    krbaclisters.ClusterRoleBindingLister
+	OpenShiftConfig        kcorelisters.ConfigMapNamespaceLister
+	OpenShiftConfigManaged kcorelisters.ConfigMapNamespaceLister
+	RegistryConfigs        regoplisters.ConfigLister
+	InstallerConfigMaps    kcorelisters.ConfigMapNamespaceLister
+	ProxyConfigs           configlisters.ProxyLister
+	Infrastructures        configlisters.InfrastructureLister
 }
 
 type ImagePrunerControllerListers struct {
