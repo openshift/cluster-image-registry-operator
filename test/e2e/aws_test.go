@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -26,11 +27,15 @@ import (
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 	storages3 "github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
+)
+
+const (
+	operatorServiceAccountName                = "cluster-image-registry-operator"
+	defaultBoundServiceAccountTokenMountpoint = "/var/run/secrets/openshift/serviceaccount/token"
 )
 
 var (
@@ -94,12 +99,19 @@ func TestAWSDefaults(t *testing.T) {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
 
-	awsConfigData := imageRegistryPrivateConfiguration.Data["credentials"]
-	awsConfigTempFile, err := createAWSConfigFile(awsConfigData)
+	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
-		t.Fatalf("failed to create AWS config file for AWS client: %s", err)
+		t.Errorf("failed to setup AWS client config file: %s", err)
+		t.FailNow()
 	}
-	defer os.Remove(awsConfigTempFile)
+	defer awsCleanupFunc()
+
+	fileData, err := ioutil.ReadFile(awsConfigTempFile)
+	if err != nil {
+		panic(err)
+	} else {
+		fmt.Printf("DATA: %+v\n", string(fileData))
+	}
 
 	// Check that the image registry resource exists
 	// and contains the correct region and a non-empty bucket name
@@ -497,12 +509,12 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
 	}
 
-	awsConfigData := imageRegistryPrivateConfiguration.Data["credentials"]
-	awsConfigTempFile, err := createAWSConfigFile(awsConfigData)
+	awsConfigTempFile, awsCleanup, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
-		t.Fatalf("failed to create AWS config file for AWS client: %s", err)
+		t.Errorf("failed to setup AWS client config file: %s", err)
+		t.FailNow()
 	}
-	defer os.Remove(awsConfigTempFile)
+	defer awsCleanup()
 
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSessionWithOptions(session.Options{
@@ -695,9 +707,26 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
-	driver, err := storage.NewDriver(&cr.Spec.Storage, kcfg, mockLister)
+
+	// Set up an AWS credentials config for the S3 driver
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
+	)
 	if err != nil {
-		t.Fatal("unable to create new s3 driver")
+		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
+	}
+
+	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
+	if err != nil {
+		t.Errorf("failed to setup AWS client config file: %s", err)
+		t.FailNow()
+	}
+	defer awsCleanupFunc()
+
+	// Create driver with custom AWS config for the e2e environment
+	driver := storages3.NewDriver(context.TODO(), cr.Spec.Storage.S3, mockLister)
+	driver.GetCloudCredentials = func(*regopclient.Listers) (string, error) {
+		return awsConfigTempFile, nil
 	}
 
 	var exists bool
@@ -723,20 +752,89 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 }
 
-// createAWSConfigFile takes config file data and stores it into a temporary
-// file (which must be delted by the caller).
-func createAWSConfigFile(configData []byte) (string, error) {
-	// FIXME: if/when we really stop using access/secret key, need an alternative way to make AWS API calls
-	// (perhaps fetch the ServiceAccount token directly to build an AWS client with).
-	awsConfigTempFile, err := ioutil.TempFile("", "cluster-image-registry-operator-test")
-	if err != nil {
-		return "", fmt.Errorf("failed to make temp file for AWS config: %s", err)
-	}
-	defer awsConfigTempFile.Close()
+// createAWSConfigFile creates an AWS credentials config based on the contents of the Secret
+// containing credentials info.
+// Caller is returned an cleanup function that will clean up the temporary files created.
+func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clientset) (awsConfigFilename string, cleanupFunc func(), err error) {
 
-	if _, err := awsConfigTempFile.Write(configData); err != nil {
-		return "", fmt.Errorf("failed to write AWS config to file: %s", err)
+	secretData, ok := awsSecret.Data["credentials"]
+	if !ok {
+		err = fmt.Errorf("Secret did not contain expected 'credentials' field")
+		return
+	}
+	var awsConfigTempFile *os.File
+
+	filesToCleanup := []string{}
+	cleanupFunc = func() {
+		for _, file := range filesToCleanup {
+			os.Remove(file)
+		}
 	}
 
-	return awsConfigTempFile.Name(), nil
+	if strings.Contains(string(secretData), "web_identity_token_file") {
+		// set up an STS-style AWS client
+		twoHoursAsSeconds := int64(60 * 60 * 2)
+
+		// get and store the serviceAccount token
+		var tokenRequest *authenticationv1.TokenRequest
+		tokenRequest, err = kubeClient.ServiceAccounts(defaults.ImageRegistryOperatorNamespace).CreateToken(context.TODO(), operatorServiceAccountName, &authenticationv1.TokenRequest{
+			ObjectMeta: metav1.ObjectMeta{},
+			Spec: authenticationv1.TokenRequestSpec{
+				Audiences: []string{"openshift"},
+				// Cheating a bit here as if the test takes too long, the token will not be
+				// auto-refreshed.
+				ExpirationSeconds: &twoHoursAsSeconds,
+			},
+		}, metav1.CreateOptions{})
+
+		if err != nil {
+			return
+		}
+
+		var tokenTempFile *os.File
+		if tokenTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-token"); err != nil {
+			return
+		}
+		defer tokenTempFile.Close()
+		filesToCleanup = append(filesToCleanup, tokenTempFile.Name())
+
+		if _, err = tokenTempFile.Write([]byte(tokenRequest.Status.Token)); err != nil {
+			cleanupFunc()
+			return
+		}
+
+		// create AWS config file pointing to token file
+		if awsConfigTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
+			return
+		}
+		defer awsConfigTempFile.Close()
+		filesToCleanup = append(filesToCleanup, awsConfigTempFile.Name())
+
+		awsConfigData := strings.ReplaceAll(string(secretData), defaultBoundServiceAccountTokenMountpoint, tokenTempFile.Name())
+
+		if _, err = awsConfigTempFile.Write([]byte(awsConfigData)); err != nil {
+			cleanupFunc()
+			return
+		}
+
+		awsConfigFilename = awsConfigTempFile.Name()
+
+	} else {
+		// just use the Secret contents as-is
+		if awsConfigTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
+			return
+		}
+		defer awsConfigTempFile.Close()
+		filesToCleanup = append(filesToCleanup, awsConfigTempFile.Name())
+
+		if _, err = awsConfigTempFile.Write(secretData); err != nil {
+			cleanupFunc()
+			return
+		}
+
+		awsConfigFilename = awsConfigTempFile.Name()
+
+	}
+
+	return
 }
