@@ -71,7 +71,7 @@ func TestLogLevel(t *testing.T) {
 			imagePruner: &imageregistryv1.ImagePruner{
 				Spec: imageregistryv1.ImagePrunerSpec{},
 			},
-			want: 2,
+			want: 1,
 		},
 		{
 			imagePruner: &imageregistryv1.ImagePruner{
