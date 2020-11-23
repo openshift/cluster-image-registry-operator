@@ -5,7 +5,6 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -52,18 +51,18 @@ func TestGetConfig(t *testing.T) {
 
 	s3Driver := &driver{
 		Listers: listers,
+		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
 
-	config, err := s3Driver.GetConfig()
-	defer os.Remove(config.SharedCredentialsFile)
+	config, err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &S3{
-		Region:                "us-east-1",
-		SharedCredentialsFile: config.SharedCredentialsFile,
+	expected := &imageregistryv1.ImageRegistryConfigStorageS3{
+		Region: "us-east-1",
 	}
+
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
 	}
@@ -108,17 +107,17 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 
 	s3Driver := &driver{
 		Listers: listers,
+		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
-	config, err := s3Driver.GetConfig()
-	defer os.Remove(config.SharedCredentialsFile)
+	config, err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &S3{
-		Region:                "example",
-		RegionEndpoint:        "https://s3.example.com",
-		SharedCredentialsFile: config.SharedCredentialsFile,
+	expected := &imageregistryv1.ImageRegistryConfigStorageS3{
+		Region:             "example",
+		RegionEndpoint:     "https://s3.example.com",
+		VirtualHostedStyle: true,
 	}
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
@@ -166,14 +165,6 @@ func TestConfigEnv(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
-	defer func() {
-		conf, err := d.GetConfig()
-		if err != nil {
-			t.Errorf("failed to get config to clean up temp files: %s", err)
-		} else {
-			os.Remove(conf.SharedCredentialsFile)
-		}
-	}()
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -238,14 +229,6 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
-	defer func() {
-		conf, err := d.GetConfig()
-		if err != nil {
-			t.Errorf("failed to get config to clean up temp files: %s", err)
-		} else {
-			os.Remove(conf.SharedCredentialsFile)
-		}
-	}()
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -422,14 +405,6 @@ func TestStorageManagementState(t *testing.T) {
 			}
 
 			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
-			defer func() {
-				conf, err := drv.GetConfig()
-				if err != nil {
-					t.Errorf("failed to get config to clean up temp files: %s", err)
-				} else {
-					os.Remove(conf.SharedCredentialsFile)
-				}
-			}()
 
 			drv.roundTripper = rt
 
