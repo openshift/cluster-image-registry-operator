@@ -101,8 +101,7 @@ func TestAWSDefaults(t *testing.T) {
 
 	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
-		t.Errorf("failed to setup AWS client config file: %s", err)
-		t.FailNow()
+		t.Fatalf("failed to setup AWS client config file: %s", err)
 	}
 	defer awsCleanupFunc()
 
@@ -511,8 +510,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 
 	awsConfigTempFile, awsCleanup, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
-		t.Errorf("failed to setup AWS client config file: %s", err)
-		t.FailNow()
+		t.Fatalf("failed to setup AWS client config file: %s", err)
 	}
 	defer awsCleanup()
 
@@ -708,7 +706,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		t.Errorf("unable to get image registry resource: %#v", err)
 	}
 
-	// Set up an AWS credentials config for the S3 driver
+	// Create an AWS config using the in-cluster credentials so that we can watch the S3 bucket
 	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
 	)
@@ -718,37 +716,43 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 
 	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
-		t.Errorf("failed to setup AWS client config file: %s", err)
-		t.FailNow()
+		t.Fatalf("failed to setup AWS client config file: %s", err)
 	}
 	defer awsCleanupFunc()
 
-	// Create driver with custom AWS config for the e2e environment
-	driver := storages3.NewDriver(context.TODO(), cr.Spec.Storage.S3, mockLister)
-	driver.GetCloudCredentials = func(*regopclient.Listers) (string, error) {
-		return awsConfigTempFile, nil
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{
+			Region: aws.String(cr.Status.Storage.S3.Region),
+		},
+		SharedConfigState: session.SharedConfigEnable,
+		SharedConfigFiles: []string{awsConfigTempFile},
+	})
+	if err != nil {
+		t.Fatalf("failed to build AWS session: %s", err)
 	}
+	s3Client := s3.New(sess)
+	exists := true
+	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
+		_, err = s3Client.HeadBucket(&s3.HeadBucketInput{
+			Bucket: aws.String(cr.Status.Storage.S3.Bucket),
+		})
 
-	var exists bool
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		exists, err := driver.StorageExists(cr)
 		if aerr, ok := err.(awserr.Error); ok {
-			t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
+				exists = false
+				return true, nil
+			}
 		}
-		if err != nil {
-			return true, err
-		}
-		if exists {
-			return false, nil
-		}
-		return true, nil
+
+		return false, err
 	})
 	if err != nil {
 		t.Errorf("an error occurred checking for s3 bucket existence: %#v", err)
 	}
 
 	if exists {
-		t.Errorf("s3 bucket should have been deleted, but it wasn't")
+		t.Errorf("s3 bucket should have been deleted, but it wasn't: %s", err)
 	}
 }
 

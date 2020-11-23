@@ -55,19 +55,15 @@ type driver struct {
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
-
-	// used during tests to insert custom credentials
-	GetCloudCredentials func(*regopclient.Listers) (string, error)
 }
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
 func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
 	return &driver{
-		Context:             ctx,
-		Config:              c,
-		Listers:             listers,
-		GetCloudCredentials: getCloudCredentials,
+		Context: ctx,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
@@ -92,55 +88,46 @@ func (d *driver) GetConfig() (*S3, error) {
 		}
 	}
 
-	sharedCredsFile, err := d.GetCloudCredentials(d.Listers)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.SharedCredentialsFile = sharedCredsFile
-
-	return cfg, nil
-}
-
-// getCloudCredentials will return a file containing an AWS credentials configuration
-func getCloudCredentials(listers *regopclient.Listers) (string, error) {
+	// Create the AWS shared credentials file
 	var sharedCredsFile string
 
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
+	sec, err := d.Listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		// Fall back to those provided by the credential minter if nothing is provided by the user
-		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
+		sec, err = d.Listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
-			return "", fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
+			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
 		}
 
 		sharedCredsFile, err = sharedCredentialsFileFromSecret(sec)
 		if err != nil {
-			return "", fmt.Errorf("failed to save shared secrets file: %v", err)
+			return nil, fmt.Errorf("failed to save shared secrets file: %v", err)
 		}
 	} else if err != nil {
-		return "", err
+		return nil, err
 	} else {
 		var accessKey, secretKey string
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
 			accessKey = string(v)
 		} else {
-			return "", fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
 		}
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
 			secretKey = string(v)
 		} else {
-			return "", fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
+			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
 		}
 
 		sharedCredsFile, err = sharedCredentialsFileFromStaticCreds(accessKey, secretKey)
 		if err != nil {
-			return "", fmt.Errorf("failed to save shared secrets file: %v", err)
+			return nil, fmt.Errorf("failed to save shared secrets file: %v", err)
 		}
 	}
 
-	return sharedCredsFile, nil
+	cfg.SharedCredentialsFile = sharedCredsFile
+
+	return cfg, nil
 }
 
 // updateConfigAndGetCredentialsLocation will return the location of an AWS

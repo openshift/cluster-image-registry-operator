@@ -95,10 +95,8 @@ func TestChecksum(t *testing.T) {
 			kubeInformer.Start(ctx.Done())
 			configInformer.Start(ctx.Done())
 
-			driver := &testDriver{}
-
 			gd := &generatorDeployment{
-				driver:          driver,
+				driver:          &testDriver{},
 				coreClient:      kubeClient.CoreV1(),
 				proxyLister:     proxyLister,
 				cr:              &imageregistryv1.Config{},
@@ -112,14 +110,12 @@ func TestChecksum(t *testing.T) {
 			// Generate a base deployment
 			obj, err := gd.expected()
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
-				t.FailNow()
+				t.Fatalf("unexpected error: %s", err)
 			}
 
 			generatedDeployment, ok := obj.(*appsapi.Deployment)
 			if !ok {
-				t.Errorf("failed to convert to Deployment")
-				t.FailNow()
+				t.Fatalf("failed to convert to Deployment")
 			}
 
 			origHash := generatedDeployment.Annotations[defaults.ChecksumOperatorAnnotation]
@@ -127,29 +123,25 @@ func TestChecksum(t *testing.T) {
 			if test.updatedSecret != nil {
 				_, err = kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Update(ctx, test.updatedSecret, metav1.UpdateOptions{})
 				if err != nil {
-					t.Errorf("failed to update secret: %s", err)
-					t.FailNow()
+					t.Fatalf("failed to update secret: %s", err)
 				}
 
 				cache.WaitForCacheSync(ctx.Done(), kubeInformer.Core().V1().Secrets().Informer().HasSynced)
 				// Fixme: why is this wait necessary?
 				if err := waitForUpdatedSecret(ctx, kubeClient, test.updatedSecret.Data); err != nil {
-					t.Errorf("failed waiting for secret update to become visible: %s", err)
-					t.FailNow()
+					t.Fatalf("failed waiting for secret update to become visible: %s", err)
 				}
 			}
 
 			// Check for expected changes in the deployment
 			obj, err = gd.expected()
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
-				t.FailNow()
+				t.Fatalf("unexpected error: %s", err)
 			}
 
 			regeneratedDeployment, ok := obj.(*appsapi.Deployment)
 			if !ok {
-				t.Errorf("failed to convert to Deployment")
-				t.FailNow()
+				t.Fatalf("failed to convert to Deployment")
 			}
 
 			test.validate(t, origHash, regeneratedDeployment)
