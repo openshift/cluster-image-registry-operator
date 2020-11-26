@@ -7,6 +7,7 @@ import (
 
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -43,7 +44,6 @@ func validateCondition(t *testing.T, expcond, cond operatorv1.OperatorCondition)
 
 func Test_syncStatus(t *testing.T) {
 	deployDeleteTimestamp := metav1.Now()
-	three := int32(3)
 
 	for _, tt := range []struct {
 		name               string
@@ -64,7 +64,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: &three,
+					Replicas: pointer.Int32Ptr(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
