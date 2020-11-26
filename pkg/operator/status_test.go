@@ -112,7 +112,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: &three,
+					Replicas: pointer.Int32Ptr(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
@@ -157,7 +157,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: &three,
+					Replicas: pointer.Int32Ptr(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -199,7 +199,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: &three,
+					Replicas: pointer.Int32Ptr(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -248,7 +248,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: &three,
+					Replicas: pointer.Int32Ptr(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -483,6 +483,52 @@ func Test_syncStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "Deployment not in place after one minute",
+			cfg: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					ManagementState: "Managed",
+				},
+				Status: imageregistryv1.ImageRegistryStatus{
+					OperatorStatus: operatorv1.OperatorStatus{
+						Conditions: []operatorv1.OperatorCondition{
+							{
+								Type:               "Available",
+								Status:             "False",
+								LastTransitionTime: metav1.NewTime(time.Now().Add(-1 * time.Minute)),
+							},
+						},
+					},
+				},
+			},
+			applyError: fmt.Errorf("error creating deployment"),
+			expectedConditions: []operatorv1.OperatorCondition{
+				{
+					Type:    "Available",
+					Status:  "False",
+					Reason:  "DeploymentNotFound",
+					Message: "The deployment does not exist",
+				},
+				{
+					Type:    "Progressing",
+					Status:  "True",
+					Reason:  "Error",
+					Message: "Unable to apply resources: error creating deployment",
+				},
+				{
+					Type:    "Degraded",
+					Status:  "True",
+					Reason:  "Unavailable",
+					Message: "The deployment does not exist",
+				},
+				{
+					Type:    "Removed",
+					Status:  "False",
+					Reason:  "",
+					Message: "",
+				},
+			},
+		},
+		{
 			name: "generic error without Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
@@ -505,9 +551,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Degraded",
-					Status:  "True",
-					Reason:  "DeploymentNotFound",
-					Message: "The deployment does not exist",
+					Status:  "False",
+					Reason:  "",
+					Message: "",
 				},
 				{
 					Type:    "Removed",
@@ -574,9 +620,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Degraded",
-					Status:  "True",
-					Reason:  "DeploymentNotFound",
-					Message: "The deployment does not exist",
+					Status:  "False",
+					Reason:  "",
+					Message: "",
 				},
 				{
 					Type:    "Removed",

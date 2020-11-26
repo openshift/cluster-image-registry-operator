@@ -311,10 +311,6 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 		operatorDegraded.Message = "The registry is removed"
 		operatorDegraded.Reason = "Removed"
-	} else if deploy == nil {
-		operatorDegraded.Status = operatorapiv1.ConditionTrue
-		operatorDegraded.Message = "The deployment does not exist"
-		operatorDegraded.Reason = "DeploymentNotFound"
 	} else if operatorAvailable.Status != operatorapiv1.ConditionTrue {
 		updatedAvailableCondition := v1helpers.FindOperatorCondition(cr.Status.Conditions, operatorapiv1.OperatorStatusTypeAvailable)
 		if updatedAvailableCondition != nil && time.Since(updatedAvailableCondition.LastTransitionTime.Time) > time.Minute {
