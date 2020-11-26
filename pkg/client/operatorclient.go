@@ -12,12 +12,14 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
+	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
 type ConfigOperatorClient struct {
 	client   imageregistryv1client.ConfigInterface
-	informer imageregistryv1informers.ConfigInformer
+	informer cache.SharedIndexInformer
+	lister   imageregistryv1listers.ConfigLister
 }
 
 var _ v1helpers.OperatorClient = &ConfigOperatorClient{}
@@ -25,16 +27,17 @@ var _ v1helpers.OperatorClient = &ConfigOperatorClient{}
 func NewConfigOperatorClient(client imageregistryv1client.ConfigInterface, informer imageregistryv1informers.ConfigInformer) *ConfigOperatorClient {
 	return &ConfigOperatorClient{
 		client:   client,
-		informer: informer,
+		informer: informer.Informer(),
+		lister:   informer.Lister(),
 	}
 }
 
 func (c *ConfigOperatorClient) Informer() cache.SharedIndexInformer {
-	return c.informer.Informer()
+	return c.informer
 }
 
 func (c *ConfigOperatorClient) GetObjectMeta() (meta *metav1.ObjectMeta, err error) {
-	config, err := c.informer.Lister().Get("cluster")
+	config, err := c.lister.Get("cluster")
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +46,7 @@ func (c *ConfigOperatorClient) GetObjectMeta() (meta *metav1.ObjectMeta, err err
 }
 
 func (c *ConfigOperatorClient) GetOperatorState() (spec *operatorv1.OperatorSpec, status *operatorv1.OperatorStatus, resourceVersion string, err error) {
-	config, err := c.informer.Lister().Get("cluster")
+	config, err := c.lister.Get("cluster")
 	if err != nil {
 		return nil, nil, "", err
 	}
@@ -57,7 +60,7 @@ func (c *ConfigOperatorClient) UpdateOperatorSpec(oldResourceVersion string, in 
 }
 
 func (c *ConfigOperatorClient) UpdateOperatorStatus(oldResourceVersion string, in *operatorv1.OperatorStatus) (out *operatorv1.OperatorStatus, err error) {
-	config, err := c.informer.Lister().Get("cluster")
+	config, err := c.lister.Get("cluster")
 	if err != nil {
 		return nil, err
 	}
