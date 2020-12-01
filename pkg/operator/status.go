@@ -2,6 +2,7 @@ package operator
 
 import (
 	"fmt"
+	"time"
 
 	appsapi "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -10,6 +11,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
@@ -309,6 +311,26 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
 		operatorDegraded.Message = "The registry is removed"
 		operatorDegraded.Reason = "Removed"
+	} else if operatorAvailable.Status != operatorapiv1.ConditionTrue {
+		updatedAvailableCondition := v1helpers.FindOperatorCondition(cr.Status.Conditions, operatorapiv1.OperatorStatusTypeAvailable)
+		if updatedAvailableCondition != nil && time.Since(updatedAvailableCondition.LastTransitionTime.Time) > time.Minute {
+			operatorDegraded.Status = operatorapiv1.ConditionTrue
+			operatorDegraded.Message = updatedAvailableCondition.Message
+			operatorDegraded.Reason = "Unavailable"
+		}
+	} else if !isDeploymentStatusComplete(deploy) {
+		for _, cond := range deploy.Status.Conditions {
+			if cond.Type != appsapi.DeploymentProgressing {
+				continue
+			}
+			if cond.Reason != "ProgressDeadlineExceeded" {
+				break
+			}
+			operatorDegraded.Status = operatorapiv1.ConditionTrue
+			operatorDegraded.Message = fmt.Sprintf("Registry deployment has timed out progressing: %s", cond.Message)
+			operatorDegraded.Reason = "ProgressDeadlineExceeded"
+			break
+		}
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
