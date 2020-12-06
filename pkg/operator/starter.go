@@ -41,6 +41,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	kubeInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	kubeInformersForOpenShiftConfig := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(defaults.OpenShiftConfigNamespace))
+	kubeInformersForOpenShiftConfigManaged := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(defaults.OpenShiftConfigManagedNamespace))
 	kubeInformersForKubeSystem := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(kubeSystemNamespace))
 	configInformers := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	imageregistryInformers := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, defaultResyncDuration)
@@ -59,6 +60,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		routeClient,
 		kubeInformers,
 		kubeInformersForOpenShiftConfig,
+		kubeInformersForOpenShiftConfigManaged,
 		kubeInformersForKubeSystem,
 		configInformers,
 		imageregistryInformers,
@@ -119,6 +121,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
+	kubeInformersForOpenShiftConfigManaged.Start(ctx.Done())
 	kubeInformersForKubeSystem.Start(ctx.Done())
 	configInformers.Start(ctx.Done())
 	imageregistryInformers.Start(ctx.Done())

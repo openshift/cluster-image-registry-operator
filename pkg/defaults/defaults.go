@@ -106,6 +106,15 @@ const (
 
 	// OpenShiftConfigNamespace is a namespace with global configuration resources.
 	OpenShiftConfigNamespace = "openshift-config"
+
+	// OpenShiftConfigManagedNamespace is a namespace with managed global configuration resources.
+	OpenShiftConfigManagedNamespace = "openshift-config-managed"
+
+	// KubeCloudConfigName is the name of the ConfigMap containing the kube cloud config.
+	KubeCloudConfigName = "kube-cloud-config"
+
+	// CloudCABundleKey is the name of the CA bundle to use when interacting with the cloud API.
+	CloudCABundleKey = "ca-bundle.pem"
 )
 
 var (

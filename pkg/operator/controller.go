@@ -70,6 +70,7 @@ func NewController(
 	routeClient routeclient.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	openshiftConfigKubeInformerFactory kubeinformers.SharedInformerFactory,
+	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
 	kubeSystemKubeInformerFactory kubeinformers.SharedInformerFactory,
 	configInformerFactory configinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
@@ -141,6 +142,11 @@ func NewController(
 		func() cache.SharedIndexInformer {
 			informer := openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps()
 			c.listers.OpenShiftConfig = informer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := openshiftConfigManagedKubeInformerFactory.Core().V1().ConfigMaps()
+			c.listers.OpenShiftConfigManaged = informer.Lister().ConfigMaps(defaults.OpenShiftConfigManagedNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {

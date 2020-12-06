@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -131,6 +132,24 @@ func (d *driver) updateConfigAndGetCredentials() (accessKey, secretKey string, e
 	return cfg.AccessKey, cfg.SecretKey, nil
 }
 
+// getCABundle gets the custom CA bundle for trusting communication with the AWS API
+func (d *driver) getCABundle() (string, error) {
+	cloudConfig, err := d.Listers.OpenShiftConfigManaged.Get(defaults.KubeCloudConfigName)
+	switch {
+	case errors.IsNotFound(err):
+		// No cloud config, so no custom CA bundle.
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("unable to get the kube cloud config: %w", err)
+	default:
+		caBundle, ok := cloudConfig.Data[defaults.CloudCABundleKey]
+		if !ok {
+			return "", nil
+		}
+		return caBundle, nil
+	}
+}
+
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
@@ -141,30 +160,40 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
-	awsConfig := &aws.Config{
-		Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
-		Region:      &d.Config.Region,
-		HTTPClient: &http.Client{
-			Transport: &http.Transport{
-				Proxy: func(req *http.Request) (*url.URL, error) {
-					return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+	awsOptions := session.Options{
+		Config: aws.Config{
+			Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+			Region:      &d.Config.Region,
+			HTTPClient: &http.Client{
+				Transport: &http.Transport{
+					Proxy: func(req *http.Request) (*url.URL, error) {
+						return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+					},
 				},
 			},
 		},
 	}
 
 	if d.roundTripper != nil {
-		awsConfig.HTTPClient.Transport = d.roundTripper
+		awsOptions.Config.HTTPClient.Transport = d.roundTripper
 	}
 
-	awsConfig.WithUseDualStack(true)
+	awsOptions.Config.WithUseDualStack(true)
 	if d.Config.RegionEndpoint != "" {
 		if !d.Config.VirtualHostedStyle {
-			awsConfig.WithS3ForcePathStyle(true)
+			awsOptions.Config.WithS3ForcePathStyle(true)
 		}
-		awsConfig.WithEndpoint(d.Config.RegionEndpoint)
+		awsOptions.Config.WithEndpoint(d.Config.RegionEndpoint)
 	}
-	sess, err := session.NewSession(awsConfig)
+
+	switch caBundle, err := d.getCABundle(); {
+	case err != nil:
+		return nil, err
+	case caBundle != "":
+		awsOptions.CustomCABundle = strings.NewReader(caBundle)
+	}
+
+	sess, err := session.NewSessionWithOptions(awsOptions)
 	if err != nil {
 		return nil, err
 	}
