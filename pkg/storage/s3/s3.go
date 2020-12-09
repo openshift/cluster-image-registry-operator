@@ -787,13 +787,9 @@ func sharedCredentialsDataFromSecret(secret *corev1.Secret) ([]byte, error) {
 
 func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte {
 	buf := &bytes.Buffer{}
-	// fmt.Fprint(buf, "[default]\n")
-	// fmt.Fprintf(buf, "aws_access_key_id = %s\n", accessKey)
-	// fmt.Fprintf(buf, "aws_secret_access_key = %s\n", accessSecret)
-	fmt.Fprintf(buf, `[default]
-aws_access_key_id = %s
-aws_secret_access_key = %s`, accessKey, accessSecret)
-	data := buf.Bytes()
+	fmt.Fprint(buf, "[default]\n")
+	fmt.Fprintf(buf, "aws_access_key_id = %s\n", accessKey)
+	fmt.Fprintf(buf, "aws_secret_access_key = %s\n", accessSecret)
 
-	return data
+	return buf.Bytes()
 }
