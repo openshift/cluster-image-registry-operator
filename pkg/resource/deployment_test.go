@@ -65,7 +65,23 @@ func TestChecksum(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			kubeClient := fake.NewSimpleClientset(test.origSecret)
+			annotatedNamespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: defaults.ImageRegistryOperatorNamespace,
+					Annotations: map[string]string{
+						defaults.SupplementalGroupsAnnotation: "1/2",
+					},
+				},
+			}
+
+			imageRegistryCertificatesConfigMap := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      defaults.ImageRegistryCertificatesName,
+					Namespace: defaults.ImageRegistryOperatorNamespace,
+				},
+			}
+
+			kubeClient := fake.NewSimpleClientset(test.origSecret, annotatedNamespace, imageRegistryCertificatesConfigMap)
 			kubeInformer := kubeinformers.NewSharedInformerFactory(kubeClient, 0)
 
 			configClient := fakeconfig.NewSimpleClientset()
@@ -78,30 +94,6 @@ func TestChecksum(t *testing.T) {
 
 			kubeInformer.Start(ctx.Done())
 			configInformer.Start(ctx.Done())
-
-			_, err := kubeClient.CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: defaults.ImageRegistryOperatorNamespace,
-					Annotations: map[string]string{
-						defaults.SupplementalGroupsAnnotation: "1/2",
-					},
-				},
-			}, metav1.CreateOptions{})
-			if err != nil {
-				t.Errorf("failed to create namespace for test: %s", err)
-				t.FailNow()
-			}
-
-			_, err = kubeClient.CoreV1().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Create(context.TODO(), &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      defaults.ImageRegistryCertificatesName,
-					Namespace: defaults.ImageRegistryOperatorNamespace,
-				},
-			}, metav1.CreateOptions{})
-			if err != nil {
-				t.Errorf("unable to create ConfigMap %s: %s", defaults.ImageRegistryCertificatesName, err)
-				t.FailNow()
-			}
 
 			driver := &testDriver{}
 
@@ -133,7 +125,7 @@ func TestChecksum(t *testing.T) {
 			origHash := generatedDeployment.Annotations[defaults.ChecksumOperatorAnnotation]
 
 			if test.updatedSecret != nil {
-				_, err = kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Update(context.TODO(), test.updatedSecret, metav1.UpdateOptions{})
+				_, err = kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Update(ctx, test.updatedSecret, metav1.UpdateOptions{})
 				if err != nil {
 					t.Errorf("failed to update secret: %s", err)
 					t.FailNow()
@@ -141,7 +133,7 @@ func TestChecksum(t *testing.T) {
 
 				cache.WaitForCacheSync(ctx.Done(), kubeInformer.Core().V1().Secrets().Informer().HasSynced)
 				// Fixme: why is this wait necessary?
-				if err := waitForUpdatedSecret(t, kubeClient, test.updatedSecret.Data); err != nil {
+				if err := waitForUpdatedSecret(ctx, kubeClient, test.updatedSecret.Data); err != nil {
 					t.Errorf("failed waiting for secret update to become visible: %s", err)
 					t.FailNow()
 				}
@@ -175,9 +167,9 @@ func testSecret(sData map[string][]byte) *corev1.Secret {
 	}
 }
 
-func waitForUpdatedSecret(t *testing.T, kubeClient kubeclient.Interface, expectedData map[string][]byte) error {
+func waitForUpdatedSecret(ctx context.Context, kubeClient kubeclient.Interface, expectedData map[string][]byte) error {
 	err := wait.Poll(time.Second, time.Minute, func() (stop bool, err error) {
-		sec, err := kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Get(context.TODO(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+		sec, err := kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Get(ctx, defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
 		if err != nil {
 			// Keep waiting
 			return false, nil
@@ -188,9 +180,6 @@ func waitForUpdatedSecret(t *testing.T, kubeClient kubeclient.Interface, expecte
 		// Keep trying
 		return false, nil
 	})
-	if err != nil {
-		t.Fatalf("failed to wait for the Secret to be updated: %s", err)
-	}
 	return err
 }
 
