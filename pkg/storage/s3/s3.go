@@ -89,7 +89,7 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 	}
 
 	// Use cluster defaults when custom config doesn't define values
-	if d.Config == nil || len(effectiveConfig.Region) == 0 {
+	if d.Config == nil || (len(effectiveConfig.Region) == 0 && len(effectiveConfig.RegionEndpoint) == 0) {
 		effectiveConfig.Region = clusterRegion
 		effectiveConfig.RegionEndpoint = clusterRegionEndpoint
 		if len(effectiveConfig.RegionEndpoint) != 0 {
