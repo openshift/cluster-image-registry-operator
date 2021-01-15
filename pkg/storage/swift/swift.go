@@ -401,6 +401,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// we can skip the create
 		if !generatedName && err == nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				Swift: d.Config.DeepCopy(),
+			}
 			break
 		}
 		// If we generated a container name and it exists

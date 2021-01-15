@@ -3,8 +3,10 @@ package swift
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	th "github.com/gophercloud/gophercloud/testhelper"
@@ -848,4 +850,49 @@ func TestNoPermissionsSwauth(t *testing.T) {
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
 	th.AssertEquals(t, false, IsSwiftEnabled(listers))
+}
+
+func TestConfigStatusUpdate(t *testing.T) {
+	th.SetupHTTP()
+	handleAuthentication(t, "container")
+
+	httpHandler := &handler{}
+	th.Mux.HandleFunc("/", httpHandler.request)
+	httpHandler.setResponses([]int{http.StatusOK, http.StatusOK})
+
+	drv, installConfig := mockConfig(
+		false, th.Endpoint()+"v3", MockUPISecretNamespaceLister{}, false,
+	)
+	installConfig.Spec.Storage.Swift.Container = "a-container"
+
+	err := drv.CreateStorage(&installConfig)
+	th.AssertNoErr(t, err)
+
+	spec := installConfig.Spec.Storage.Swift
+	status := installConfig.Status.Storage.Swift
+	if !reflect.DeepEqual(spec, status) {
+		t.Error("status does not reflect spec:")
+		spew.Dump(spec)
+		spew.Dump(status)
+	}
+
+	th.TeardownHTTP()
+
+	th.SetupHTTP()
+	handleAuthentication(t, "container")
+	th.Mux.HandleFunc("/", httpHandler.request)
+
+	// change the authentication url to a new endpoint
+	installConfig.Spec.Storage.Swift.AuthURL = th.Endpoint() + "v3"
+
+	err = drv.CreateStorage(&installConfig)
+	th.AssertNoErr(t, err)
+
+	spec = installConfig.Spec.Storage.Swift
+	status = installConfig.Status.Storage.Swift
+	if !reflect.DeepEqual(spec, status) {
+		t.Error("status does not reflect spec:")
+		spew.Dump(spec)
+		spew.Dump(status)
+	}
 }
