@@ -407,6 +407,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
 			}
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Container exists", "User supplied container already exists")
+			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+				Swift: d.Config.DeepCopy(),
+			}
 			break
 		}
 		// If we generated a container name and it exists
