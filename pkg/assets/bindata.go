@@ -79,6 +79,8 @@ spec:
       - name: node-ca
         securityContext:
           privileged: true
+          runAsUser: 1001
+          runAsGroup: 0
         image: docker.io/openshift/origin-cluster-image-registry-operator:latest
         resources:
           requests:
