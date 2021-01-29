@@ -104,8 +104,14 @@ func TestChecksum(t *testing.T) {
 				secretLister:    secretLister,
 			}
 
-			cache.WaitForCacheSync(ctx.Done(), kubeInformer.Core().V1().ConfigMaps().Informer().HasSynced)
-			cache.WaitForCacheSync(ctx.Done(), kubeInformer.Core().V1().Secrets().Informer().HasSynced)
+			waitCtx, waitCancel := context.WithTimeout(ctx, time.Minute)
+			if !cache.WaitForCacheSync(
+				waitCtx.Done(),
+				kubeInformer.Core().V1().ConfigMaps().Informer().HasSynced,
+				kubeInformer.Core().V1().Secrets().Informer().HasSynced) {
+				t.Fatal("caches not syncing")
+			}
+			defer waitCancel()
 
 			// Generate a base deployment
 			obj, err := gd.expected()
@@ -126,7 +132,6 @@ func TestChecksum(t *testing.T) {
 					t.Fatalf("failed to update secret: %s", err)
 				}
 
-				cache.WaitForCacheSync(ctx.Done(), kubeInformer.Core().V1().Secrets().Informer().HasSynced)
 				// Fixme: why is this wait necessary?
 				if err := waitForUpdatedSecret(ctx, kubeClient, test.updatedSecret.Data); err != nil {
 					t.Fatalf("failed waiting for secret update to become visible: %s", err)
