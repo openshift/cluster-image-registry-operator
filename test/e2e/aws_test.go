@@ -696,6 +696,15 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if err != nil {
 		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
+
+	// Save the credentials so we can verify that the S3 bucket was deleted later
+	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
+	)
+	if err != nil {
+		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
+	}
+
 	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it)
 	err = te.Client().Configs().Delete(
 		context.Background(), defaults.ImageRegistryResourceName, metav1.DeleteOptions{},
@@ -705,13 +714,6 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 
 	// Create an AWS config using the in-cluster credentials so that we can watch the S3 bucket
-	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
-		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
-	)
-	if err != nil {
-		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
-	}
-
 	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
 	if err != nil {
 		t.Fatalf("failed to setup AWS client config file: %s", err)
