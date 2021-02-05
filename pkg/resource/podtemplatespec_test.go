@@ -98,6 +98,9 @@ func TestMakePodTemplateSpec(t *testing.T) {
 				},
 			},
 		},
+		"bound-sa-token": {
+			mountPath: "/var/run/secrets/openshift/serviceaccount",
+		},
 	}
 	// emptyDir adds an additional volume
 	expectedVolumes["registry-storage"] = &volumeMount{

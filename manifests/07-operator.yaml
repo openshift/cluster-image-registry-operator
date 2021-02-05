@@ -69,6 +69,9 @@ spec:
               mountPath: /var/run/configmaps/trusted-ca/
             - name: image-registry-operator-tls
               mountPath: /etc/secrets
+            - name: bound-sa-token
+              mountPath: /var/run/secrets/openshift/serviceaccount
+              readOnly: true
       volumes:
         - name: image-registry-operator-tls
           secret:
@@ -80,3 +83,12 @@ spec:
             items:
             - key: ca-bundle.crt
               path: tls-ca-bundle.pem
+        # This service account token can be used to provide identity outside the cluster.
+        # For example, this token can be used with AssumeRoleWithWebIdentity to authenticate
+        # with AWS using an IAM OIDC provider and STS.
+        - name: bound-sa-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: token
+                audience: openshift

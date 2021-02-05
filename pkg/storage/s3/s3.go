@@ -1,18 +1,21 @@
 package s3
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -33,13 +36,10 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/version"
 )
 
-type S3 struct {
-	AccessKey      string
-	SecretKey      string
-	Bucket         string
-	Region         string
-	RegionEndpoint string
-}
+const (
+	imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
+	imageRegistrySecretDataKey    = "credentials"
+)
 
 type driver struct {
 	Context context.Context
@@ -60,78 +60,101 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 	}
 }
 
-// GetConfig reads configuration for the S3 cloud platform services.
-func GetConfig(listers *regopclient.Listers) (*S3, error) {
-	cfg := &S3{}
+// UpdateEffectiveConfig updates the driver's local effective ImageRegistryConfig and returns the effective image
+// registry configuration based on infrastructure settings and any custom overrides.
+func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigStorageS3, error) {
 
-	infra, err := util.GetInfrastructure(listers)
+	effectiveConfig := d.Config.DeepCopy()
+
+	if effectiveConfig == nil {
+		effectiveConfig = &imageregistryv1.ImageRegistryConfigStorageS3{}
+	}
+
+	// Load infrastructure values
+	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
+	var clusterRegion, clusterRegionEndpoint string
 	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.AWSPlatformType {
-		cfg.Region = infra.Status.PlatformStatus.AWS.Region
+		clusterRegion = infra.Status.PlatformStatus.AWS.Region
 
 		for _, ep := range infra.Status.PlatformStatus.AWS.ServiceEndpoints {
 			if ep.Name == "s3" {
-				cfg.RegionEndpoint = ep.URL
+				clusterRegionEndpoint = ep.URL
 				break
 			}
 		}
 	}
 
+	// Use cluster defaults when custom config doesn't define values
+	if d.Config == nil || (len(effectiveConfig.Region) == 0 && len(effectiveConfig.RegionEndpoint) == 0) {
+		effectiveConfig.Region = clusterRegion
+		effectiveConfig.RegionEndpoint = clusterRegionEndpoint
+		if len(effectiveConfig.RegionEndpoint) != 0 {
+			effectiveConfig.VirtualHostedStyle = true
+		}
+	}
+
+	d.Config = effectiveConfig.DeepCopy()
+
+	return effectiveConfig, nil
+}
+
+// GetCredentialsFile will create and return the location of an AWS config file that can
+// be used to create AWS clients with. Caller is responsible for cleaning up the file.
+// sharedCredentialsFile, err := d.GetCredentialsFile()
+// if err != nil {
+// 	// handle error
+// }
+// defer os.Remove(sharedCredentialsFile)
+// options := session.Options{
+// 	SharedConfigState: session.SharedConfigEnable,
+// 	SharedConfigFiles: []string{sharedCredentialsFile},
+// }
+// sess := session.Must(session.NewSessionWithOptions(options))
+func (d *driver) GetCredentialsFile() (string, error) {
+	data, err := d.getCredentialsConfigData()
+	if err != nil {
+		return "", err
+	}
+
+	return saveSharedCredentialsFile(data)
+}
+
+func (d *driver) getCredentialsConfigData() ([]byte, error) {
 	// Look for a user defined secret to get the AWS credentials from first
-	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
+	sec, err := d.Listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil && errors.IsNotFound(err) {
 		// Fall back to those provided by the credential minter if nothing is provided by the user
-		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
+		sec, err = d.Listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
 		}
 
-		if v, ok := sec.Data["aws_access_key_id"]; ok {
-			cfg.AccessKey = string(v)
-		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"aws_access_key_id\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
+		data, err := sharedCredentialsDataFromSecret(sec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate shared secrets data: %v", err)
 		}
-		if v, ok := sec.Data["aws_secret_access_key"]; ok {
-			cfg.SecretKey = string(v)
-		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"aws_secret_access_key\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
-		}
+		return data, nil
 	} else if err != nil {
 		return nil, err
 	} else {
+		var accessKey, secretKey string
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_ACCESSKEY"]; ok {
-			cfg.AccessKey = string(v)
+			accessKey = string(v)
 		} else {
 			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_ACCESSKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
 		}
 		if v, ok := sec.Data["REGISTRY_STORAGE_S3_SECRETKEY"]; ok {
-			cfg.SecretKey = string(v)
+			secretKey = string(v)
 		} else {
 			return nil, fmt.Errorf("secret %q does not contain required key \"REGISTRY_STORAGE_S3_SECRETKEY\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser))
 		}
+
+		return sharedCredentialsDataFromStaticCreds(accessKey, secretKey), nil
 	}
-
-	return cfg, nil
-}
-
-func (d *driver) updateConfigAndGetCredentials() (accessKey, secretKey string, err error) {
-	cfg, err := GetConfig(d.Listers)
-	if err != nil {
-		return "", "", err
-	}
-
-	if len(d.Config.Region) == 0 && len(d.Config.RegionEndpoint) == 0 {
-		d.Config.Region = cfg.Region
-		d.Config.RegionEndpoint = cfg.RegionEndpoint
-		if len(cfg.RegionEndpoint) != 0 {
-			d.Config.VirtualHostedStyle = true
-		}
-	}
-
-	return cfg.AccessKey, cfg.SecretKey, nil
 }
 
 // getCABundle gets the custom CA bundle for trusting communication with the AWS API
@@ -155,7 +178,13 @@ func (d *driver) getCABundle() (string, error) {
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
-	accessKey, secretKey, err := d.updateConfigAndGetCredentials()
+	credentialsFilename, err := d.GetCredentialsFile()
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(credentialsFilename)
+
+	_, err = d.UpdateEffectiveConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -164,8 +193,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	// uses a cache which won't let us update the proxy env vars
 	awsOptions := session.Options{
 		Config: aws.Config{
-			Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
-			Region:      &d.Config.Region,
+			Region: &d.Config.Region,
 			HTTPClient: &http.Client{
 				Transport: &http.Transport{
 					Proxy: func(req *http.Request) (*url.URL, error) {
@@ -184,6 +212,8 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 				},
 			},
 		},
+		SharedConfigState: session.SharedConfigEnable,
+		SharedConfigFiles: []string{credentialsFilename},
 	}
 
 	if d.roundTripper != nil {
@@ -240,11 +270,14 @@ func isBucketNotFound(err interface{}) bool {
 }
 
 // ConfigEnv configures the environment variables that will be
-// used in the image registry deployment
+// used in the image registry deployment, and returns an AWS credentials file
+// that can be used for setting up an AWS session/client.
+// Note: it is the callers responsiblity to make sure the returned file
+// location is cleaned up after it is no longer needed.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	accessKey, secretKey, err := d.updateConfigAndGetCredentials()
+	_, err = d.UpdateEffectiveConfig()
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	if len(d.Config.RegionEndpoint) != 0 {
@@ -262,8 +295,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ACCESSKEY", Value: accessKey, Secret: true},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_SECRETKEY", Value: secretKey, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey)},
 	)
 
 	if d.Config.CloudFront != nil {
@@ -279,36 +311,70 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 }
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
-	if d.Config.CloudFront == nil {
-		return nil, nil, nil
-	}
+	volumes := []corev1.Volume{}
+	volumeMounts := []corev1.VolumeMount{}
 
 	optional := false
 
-	vol := corev1.Volume{
-		Name: "registry-cloudfront",
+	// Mount the registry config secret containing the credentials file data
+	credsVolume := corev1.Volume{
+		Name: defaults.ImageRegistryPrivateConfiguration,
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
-				SecretName: d.Config.CloudFront.PrivateKey.Name,
-				Items: []corev1.KeyToPath{
-					{Key: d.Config.CloudFront.PrivateKey.Key, Path: "private.pem"},
-				},
-				Optional: &optional,
+				SecretName: defaults.ImageRegistryPrivateConfiguration,
+				Optional:   &optional,
 			},
 		},
 	}
 
-	mount := corev1.VolumeMount{
-		Name:      vol.Name,
-		MountPath: "/etc/docker/cloudfront",
+	credsVolumeMount := corev1.VolumeMount{
+		Name:      credsVolume.Name,
+		MountPath: imageRegistrySecretMountpoint,
 		ReadOnly:  true,
 	}
 
-	return []corev1.Volume{vol}, []corev1.VolumeMount{mount}, nil
+	volumes = append(volumes, credsVolume)
+	volumeMounts = append(volumeMounts, credsVolumeMount)
+
+	if d.Config.CloudFront != nil {
+		vol := corev1.Volume{
+			Name: "registry-cloudfront",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: d.Config.CloudFront.PrivateKey.Name,
+					Items: []corev1.KeyToPath{
+						{Key: d.Config.CloudFront.PrivateKey.Key, Path: "private.pem"},
+					},
+					Optional: &optional,
+				},
+			},
+		}
+
+		volumes = append(volumes, vol)
+
+		mount := corev1.VolumeMount{
+			Name:      vol.Name,
+			MountPath: "/etc/docker/cloudfront",
+			ReadOnly:  true,
+		}
+
+		volumeMounts = append(volumeMounts, mount)
+	}
+
+	return volumes, volumeMounts, nil
 }
 
 func (d *driver) VolumeSecrets() (map[string]string, error) {
-	return nil, nil
+	// Return the same credentials data that the image-registry-operator is using
+	// so that it can be stored in the image-registry Pod's Secret.
+	confData, err := d.getCredentialsConfigData()
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		imageRegistrySecretDataKey: string(confData),
+	}, nil
 }
 
 // bucketExists checks whether or not the s3 bucket exists
@@ -375,6 +441,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
+		return err
+	}
+
+	if _, err := d.UpdateEffectiveConfig(); err != nil {
 		return err
 	}
 
@@ -683,4 +753,43 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 // ID return the underlying storage identificator, on this case the bucket name.
 func (d *driver) ID() string {
 	return d.Config.Bucket
+}
+
+// saveSharedCredentialsFile will create a file with the provided data expected to be
+// an AWS ini-style credentials configuration file.
+// Caller is responsible for cleaning up the created file.
+func saveSharedCredentialsFile(data []byte) (string, error) {
+	f, err := ioutil.TempFile("", "aws-shared-credentials")
+	if err != nil {
+		return "", fmt.Errorf("failed to create file for shared credentials: %v", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(data); err != nil {
+		defer os.Remove(f.Name())
+		return "", fmt.Errorf("failed to write credentials to %s: %v", f.Name(), err)
+	}
+	return f.Name(), nil
+}
+
+func sharedCredentialsDataFromSecret(secret *corev1.Secret) ([]byte, error) {
+	switch {
+	case len(secret.Data["credentials"]) > 0:
+		return secret.Data["credentials"], nil
+	case len(secret.Data["aws_access_key_id"]) > 0 && len(secret.Data["aws_secret_access_key"]) > 0:
+		accessKey := string(secret.Data["aws_access_key_id"])
+		secretKey := string(secret.Data["aws_secret_access_key"])
+		return sharedCredentialsDataFromStaticCreds(accessKey, secretKey), nil
+	default:
+		return nil, fmt.Errorf("invalid secret for aws credentials")
+	}
+}
+
+func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte {
+	buf := &bytes.Buffer{}
+	fmt.Fprint(buf, "[default]\n")
+	fmt.Fprintf(buf, "aws_access_key_id = %s\n", accessKey)
+	fmt.Fprintf(buf, "aws_secret_access_key = %s\n", accessSecret)
+
+	return buf.Bytes()
 }

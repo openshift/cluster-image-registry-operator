@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -48,16 +49,20 @@ func TestGetConfig(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	config, err := GetConfig(listers)
+	s3Driver := &driver{
+		Listers: listers,
+		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
+	}
+
+	config, err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &S3{
-		AccessKey: "access",
-		SecretKey: "secret",
-		Region:    "us-east-1",
+	expected := &imageregistryv1.ImageRegistryConfigStorageS3{
+		Region: "us-east-1",
 	}
+
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
 	}
@@ -100,16 +105,19 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	config, err := GetConfig(listers)
+	s3Driver := &driver{
+		Listers: listers,
+		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
+	}
+	config, err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	expected := &S3{
-		AccessKey:      "access",
-		SecretKey:      "secret",
-		Region:         "example",
-		RegionEndpoint: "https://s3.example.com",
+	expected := &imageregistryv1.ImageRegistryConfigStorageS3{
+		Region:             "example",
+		RegionEndpoint:     "https://s3.example.com",
+		VirtualHostedStyle: true,
 	}
 	if !reflect.DeepEqual(config, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
@@ -157,18 +165,18 @@ func TestConfigEnv(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
+
 	envvars, err := d.ConfigEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expectedVars := map[string]interface{}{
-		"REGISTRY_STORAGE":                       "s3",
-		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
-		"REGISTRY_STORAGE_S3_REGION":             "us-east-1",
-		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
-		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
+		"REGISTRY_STORAGE":                          "s3",
+		"REGISTRY_STORAGE_S3_REGION":                "us-east-1",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
 		e := findEnvVar(envvars, key)
@@ -221,18 +229,18 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	d := NewDriver(ctx, config, listers)
+
 	envvars, err := d.ConfigEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	expectedVars := map[string]interface{}{
-		"REGISTRY_STORAGE":                       "s3",
-		"REGISTRY_STORAGE_S3_ACCESSKEY":          "access",
-		"REGISTRY_STORAGE_S3_REGION":             "us-west-1",
-		"REGISTRY_STORAGE_S3_SECRETKEY":          "secret",
-		"REGISTRY_STORAGE_S3_USEDUALSTACK":       true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE": false,
+		"REGISTRY_STORAGE":                          "s3",
+		"REGISTRY_STORAGE_S3_REGION":                "us-west-1",
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
 		e := findEnvVar(envvars, key)
@@ -397,6 +405,7 @@ func TestStorageManagementState(t *testing.T) {
 			}
 
 			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
+
 			drv.roundTripper = rt
 
 			if err := drv.CreateStorage(tt.config); err != nil {
