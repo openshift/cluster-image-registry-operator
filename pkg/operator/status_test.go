@@ -6,11 +6,13 @@ import (
 	"time"
 
 	appsapi "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 )
 
 func validateCondition(t *testing.T, expcond, cond operatorv1.OperatorCondition) {
@@ -51,6 +53,7 @@ func Test_syncStatus(t *testing.T) {
 		deploy             *appsapi.Deployment
 		applyError         error
 		expectedConditions []operatorv1.OperatorCondition
+		routes             []*routev1.Route
 	}{
 		{
 			name: "set as Removed but still with Deployment in place",
@@ -145,6 +148,46 @@ func Test_syncStatus(t *testing.T) {
 					Status:  "False",
 					Reason:  "",
 					Message: "",
+				},
+			},
+			routes: []*routev1.Route{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-route",
+					},
+					Status: routev1.RouteStatus{
+						Ingress: []routev1.RouteIngress{
+							{
+								RouterName: "default",
+								Host:       "registry-host.openshift",
+								Conditions: []routev1.RouteIngressCondition{
+									{
+										Type:   routev1.RouteAdmitted,
+										Status: corev1.ConditionTrue,
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "another-route",
+					},
+					Status: routev1.RouteStatus{
+						Ingress: []routev1.RouteIngress{
+							{
+								RouterName: "another-route",
+								Host:       "another-registry-host.openshift",
+								Conditions: []routev1.RouteIngressCondition{
+									{
+										Type:   routev1.RouteAdmitted,
+										Status: corev1.ConditionTrue,
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -632,10 +675,80 @@ func Test_syncStatus(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "a faulty route",
+			cfg: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					ManagementState: "Managed",
+				},
+			},
+			deploy: &appsapi.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Generation: 8,
+				},
+				Spec: appsapi.DeploymentSpec{
+					Replicas: pointer.Int32Ptr(3),
+				},
+				Status: appsapi.DeploymentStatus{
+					Replicas:           3,
+					UpdatedReplicas:    3,
+					AvailableReplicas:  3,
+					ObservedGeneration: 8,
+				},
+			},
+			expectedConditions: []operatorv1.OperatorCondition{
+				{
+					Type:    "Available",
+					Status:  "True",
+					Reason:  "Ready",
+					Message: "The registry is ready",
+				},
+				{
+					Type:    "Progressing",
+					Status:  "False",
+					Reason:  "Ready",
+					Message: "The registry is ready",
+				},
+				{
+					Type:    "Degraded",
+					Status:  "True",
+					Reason:  "RouteDegraded",
+					Message: "route my-route (host registry-host.openshift, router default) not admitted: not working",
+				},
+				{
+					Type:    "Removed",
+					Status:  "False",
+					Reason:  "",
+					Message: "",
+				},
+			},
+			routes: []*routev1.Route{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "my-route",
+					},
+					Status: routev1.RouteStatus{
+						Ingress: []routev1.RouteIngress{
+							{
+								RouterName: "default",
+								Host:       "registry-host.openshift",
+								Conditions: []routev1.RouteIngressCondition{
+									{
+										Type:    routev1.RouteAdmitted,
+										Status:  corev1.ConditionFalse,
+										Message: "not working",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := Controller{}
-			ctrl.syncStatus(tt.cfg, tt.deploy, tt.applyError)
+			ctrl.syncStatus(tt.cfg, tt.deploy, tt.routes, tt.applyError)
 			for _, expcond := range tt.expectedConditions {
 				found := false
 				for _, cond := range tt.cfg.Status.Conditions {

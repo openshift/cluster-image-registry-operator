@@ -2,15 +2,18 @@ package operator
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	appsapi "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchapi "k8s.io/api/batch/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -215,7 +218,44 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	}
 }
 
-func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Deployment, applyError error) {
+// checkRoutesStatus verifies the Admitted condition type for all provided routes,
+// returns an error if any of them was not admitted.
+func (c *Controller) checkRoutesStatus(routes []*routev1.Route) error {
+	var errors []string
+	for _, route := range routes {
+		for _, ingress := range route.Status.Ingress {
+			for _, condition := range ingress.Conditions {
+				if condition.Type != routev1.RouteAdmitted {
+					continue
+				}
+				if condition.Status == corev1.ConditionTrue {
+					continue
+				}
+				errors = append(
+					errors,
+					fmt.Sprintf(
+						"route %s (host %s, router %s) not admitted: %s",
+						route.Name,
+						ingress.Host,
+						ingress.RouterName,
+						condition.Message,
+					),
+				)
+			}
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf(strings.Join(errors, ","))
+	}
+	return nil
+}
+
+func (c *Controller) syncStatus(
+	cr *imageregistryv1.Config,
+	deploy *appsapi.Deployment,
+	routes []*routev1.Route,
+	applyError error,
+) {
 	operatorAvailable := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,
 		Message: "",
@@ -296,6 +336,7 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeProgressing, operatorProgressing)
 
+	rterr := c.checkRoutesStatus(routes)
 	operatorDegraded := operatorapiv1.OperatorCondition{
 		Status:  operatorapiv1.ConditionFalse,
 		Message: "",
@@ -331,6 +372,10 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 			operatorDegraded.Reason = "ProgressDeadlineExceeded"
 			break
 		}
+	} else if rterr != nil {
+		operatorDegraded.Status = operatorapiv1.ConditionTrue
+		operatorDegraded.Reason = "RouteDegraded"
+		operatorDegraded.Message = rterr.Error()
 	}
 
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
