@@ -347,4 +347,23 @@ func (c *Controller) syncStatus(cr *imageregistryv1.Config, deploy *appsapi.Depl
 	}
 
 	updateCondition(cr, defaults.OperatorStatusTypeRemoved, operatorRemoved)
+
+	operatorUpgradeable := operatorapiv1.OperatorCondition{
+		Status:  operatorapiv1.ConditionTrue,
+		Message: "",
+		Reason:  "AsExpected",
+	}
+	if cr.Spec.ManagementState == operatorapiv1.Unmanaged {
+		operatorUpgradeable.Message = "The registry configuration is set to unmanaged mode"
+		operatorUpgradeable.Reason = "Unmanaged"
+	} else if cr.Spec.ManagementState == operatorapiv1.Removed {
+		operatorUpgradeable.Message = "The registry is removed"
+		operatorUpgradeable.Reason = "Removed"
+	} else if cr.Spec.Storage.EmptyDir != nil {
+		operatorUpgradeable.Status = operatorapiv1.ConditionFalse
+		operatorUpgradeable.Message = "The registry is configured to use emptyDir. The registry will lose pushed images once a registry pod is restarted (for example, due to a configuration change, a node restart, or an upgrade)"
+		operatorUpgradeable.Reason = "EmptyDir"
+	}
+
+	updateCondition(cr, operatorapiv1.OperatorStatusTypeUpgradeable, operatorUpgradeable)
 }

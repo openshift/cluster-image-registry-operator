@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -106,5 +107,32 @@ func PrunerConditionExistsWithStatusAndReason(te TestEnv, conditionType string, 
 
 	for _, err := range errs {
 		te.Errorf("%#v", err)
+	}
+}
+
+type ClusterStatusConditionPredicate func(cond *configv1.ClusterOperatorStatusCondition, found bool) error
+
+func CheckClusterOperatorCondition(te TestEnv, operatorName string, typ configv1.ClusterStatusConditionType, predicate ClusterStatusConditionPredicate) {
+	ctx := context.TODO()
+
+	var lastErr error
+	err := wait.PollImmediate(time.Second, 10*time.Second, func() (stop bool, err error) {
+		co, err := te.Client().ClusterOperators().Get(ctx, operatorName, metav1.GetOptions{})
+		if err != nil {
+			lastErr = err
+			return false, nil
+		}
+		var condition *configv1.ClusterOperatorStatusCondition
+		for i, cond := range co.Status.Conditions {
+			if cond.Type == typ {
+				condition = &co.Status.Conditions[i]
+				break
+			}
+		}
+		lastErr = predicate(condition, condition != nil)
+		return lastErr == nil, nil
+	})
+	if err != nil {
+		te.Fatalf("failed check for clusteroperator/%s: condition %s: %s", operatorName, typ, lastErr)
 	}
 }
