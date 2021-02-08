@@ -132,9 +132,7 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 
 	// These are the platforms we don't configure any backend for, on these
 	// we should bootstrap the image registry as "Removed".
-	case configapiv1.BareMetalPlatformType,
-		configapiv1.VSpherePlatformType,
-		configapiv1.NonePlatformType:
+	case configapiv1.VSpherePlatformType, configapiv1.NonePlatformType:
 		break
 
 	// These are the supported platforms. We do have backend implementation
@@ -166,6 +164,8 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.
 	case configapiv1.LibvirtPlatformType:
+		fallthrough
+	case configapiv1.BareMetalPlatformType:
 		fallthrough
 	default:
 		cfg.EmptyDir = &imageregistryv1.ImageRegistryConfigStorageEmptyDir{}
