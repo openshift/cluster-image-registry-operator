@@ -21,6 +21,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
@@ -211,6 +212,29 @@ func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {
 	return nil
 }
 
+// getRoutes returns a list of all routes configured for the image registry, including
+// the default route if configured.
+func (c *Controller) getRoutes(cr *imageregistryv1.Config) ([]*routev1.Route, error) {
+	var routes []*routev1.Route
+	if cr.Spec.DefaultRoute {
+		if route, err := c.listers.Routes.Get(defaults.RouteName); err != nil {
+			klog.V(4).Infof("unable to get default route: %s", err)
+		} else {
+			routes = append(routes, route)
+		}
+	}
+
+	for _, rcfg := range cr.Spec.Routes {
+		route, err := c.listers.Routes.Get(rcfg.Name)
+		if err != nil {
+			klog.V(4).Infof("unable to get route: %s", err)
+			continue
+		}
+		routes = append(routes, route)
+	}
+	return routes, nil
+}
+
 func (c *Controller) sync() error {
 	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
@@ -248,7 +272,11 @@ func (c *Controller) sync() error {
 		deploy = deploy.DeepCopy() // make sure we won't corrupt the cached vesrion
 	}
 
-	c.syncStatus(cr, deploy, applyError)
+	routes, err := c.getRoutes(cr)
+	if err != nil {
+		return err
+	}
+	c.syncStatus(cr, deploy, routes, applyError)
 
 	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
