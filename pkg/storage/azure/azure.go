@@ -161,7 +161,7 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 		resourceGroupName,
 		accountName,
 		storage.AccountCreateParameters{
-			Kind:     storage.Storage,
+			Kind:     storage.StorageV2,
 			Location: to.StringPtr(location),
 			Sku: &storage.Sku{
 				Name: storage.StandardLRS,
