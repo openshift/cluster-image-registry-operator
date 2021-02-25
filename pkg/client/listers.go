@@ -37,4 +37,5 @@ type ImagePrunerControllerListers struct {
 	RegistryConfigs     regoplisters.ConfigLister
 	ImagePrunerConfigs  regoplisters.ImagePrunerLister
 	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
+	ImageConfigs        configlisters.ImageLister
 }

@@ -15,7 +15,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1beta1"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	"github.com/openshift/library-go/pkg/operator/loglevel"
 
@@ -44,18 +44,18 @@ var (
 var _ Mutator = &generatorPrunerCronJob{}
 
 type generatorPrunerCronJob struct {
-	lister       batchlisters.CronJobNamespaceLister
-	client       batchset.BatchV1beta1Interface
-	prunerLister imageregistryv1listers.ImagePrunerLister
-	configLister imageregistryv1listers.ConfigLister
+	lister            batchlisters.CronJobNamespaceLister
+	client            batchset.BatchV1beta1Interface
+	prunerLister      imageregistryv1listers.ImagePrunerLister
+	imageConfigLister configv1listers.ImageLister
 }
 
-func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, configLister imageregistryv1listers.ConfigLister) *generatorPrunerCronJob {
+func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, imageConfigLister configv1listers.ImageLister) *generatorPrunerCronJob {
 	return &generatorPrunerCronJob{
-		lister:       lister,
-		client:       client,
-		prunerLister: prunerLister,
-		configLister: configLister,
+		lister:            lister,
+		client:            client,
+		prunerLister:      prunerLister,
+		imageConfigLister: imageConfigLister,
 	}
 }
 
@@ -77,9 +77,30 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 		return nil, err
 	}
 
-	rcr, err := gcj.configLister.Get(defaults.ImageRegistryResourceName)
+	imageConfig, err := gcj.imageConfigLister.Get("cluster")
 	if err != nil {
 		return nil, err
+	}
+
+	args := []string{
+		"adm",
+		"prune",
+		"images",
+		"--confirm=true",
+		"--certificate-authority=/var/run/configmaps/serviceca/service-ca.crt",
+		fmt.Sprintf("--keep-tag-revisions=%d", gcj.getKeepTagRevisions(cr)),
+		fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
+		fmt.Sprintf("--ignore-invalid-refs=%t", cr.Spec.IgnoreInvalidImageReferences),
+		fmt.Sprintf("--loglevel=%d", gcj.getLogLevel(cr)),
+	}
+
+	if imageConfig.Status.InternalRegistryHostname != "" {
+		args = append(args,
+			"--prune-registry=true",
+			fmt.Sprintf("--registry-url=https://%s", imageConfig.Status.InternalRegistryHostname),
+		)
+	} else {
+		args = append(args, "--prune-registry=false")
 	}
 
 	backoffLimit := int32(0)
@@ -124,18 +145,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 									TerminationMessagePolicy: kcorev1.TerminationMessageFallbackToLogsOnError,
 									Name:                     gcj.GetName(),
 									Command:                  []string{"oc"},
-									Args: []string{
-										"adm",
-										"prune",
-										"images",
-										"--certificate-authority=/var/run/configmaps/serviceca/service-ca.crt",
-										fmt.Sprintf("--keep-tag-revisions=%d", gcj.getKeepTagRevisions(cr)),
-										fmt.Sprintf("--keep-younger-than=%s", gcj.getKeepYoungerThan(cr)),
-										fmt.Sprintf("--ignore-invalid-refs=%t", cr.Spec.IgnoreInvalidImageReferences),
-										fmt.Sprintf("--prune-registry=%t", gcj.getPruneRegistry(rcr)),
-										fmt.Sprintf("--loglevel=%d", gcj.getLogLevel(cr)),
-										"--confirm=true",
-									},
+									Args:                     args,
 									VolumeMounts: []kcorev1.VolumeMount{
 										{
 											Name:      "serviceca",
@@ -153,15 +163,6 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 	}
 	cj.Spec.JobTemplate.Labels = map[string]string{"created-by": gcj.GetName()}
 	return cj, nil
-}
-
-func (gcj *generatorPrunerCronJob) getPruneRegistry(cr *imageregistryapiv1.Config) bool {
-	switch cr.Spec.ManagementState {
-	case operatorapi.Managed:
-		return true
-	default:
-		return false
-	}
 }
 
 func (gcj *generatorPrunerCronJob) getSuspend(cr *imageregistryapiv1.ImagePruner) *bool {
