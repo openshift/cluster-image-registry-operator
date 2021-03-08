@@ -63,6 +63,10 @@ spec:
   selector:
     matchLabels:
       name: node-ca
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
   template:
     metadata:
       labels:
