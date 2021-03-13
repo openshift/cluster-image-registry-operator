@@ -1,8 +1,11 @@
 package operator
 
 import (
+	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -89,22 +92,57 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 
 func (c *NodeCADaemonController) sync() error {
 	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient, c.operatorClient)
-	err := resource.ApplyMutator(gen)
+
+	availableCondition := operatorv1.OperatorCondition{
+		Type:   "NodeCADaemonAvailable",
+		Status: operatorv1.ConditionUnknown,
+	}
+
+	dsObj, err := gen.Get()
+	if errors.IsNotFound(err) {
+		availableCondition.Status = operatorv1.ConditionFalse
+		availableCondition.Reason = "NotFound"
+		availableCondition.Message = "The daemon set node-ca does not exist"
+	} else if err != nil {
+		availableCondition.Reason = "Unknown"
+		availableCondition.Message = fmt.Sprintf("Unable to check daemon set availability: %s", err)
+	} else {
+		ds := dsObj.(*appsv1.DaemonSet)
+		if ds.Status.NumberAvailable > 0 {
+			availableCondition.Status = operatorv1.ConditionTrue
+			availableCondition.Reason = "AsExpected"
+			availableCondition.Message = "The daemon set node-ca has available replicas"
+		} else {
+			availableCondition.Status = operatorv1.ConditionFalse
+			availableCondition.Reason = "NoAvailableReplicas"
+			availableCondition.Message = "The daemon set node-ca does not have available replicas"
+		}
+	}
+
+	err = resource.ApplyMutator(gen)
 	if err != nil {
-		_, _, updateError := v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-			Type:    "NodeCADaemonControllerDegraded",
-			Status:  operatorv1.ConditionTrue,
-			Reason:  "Error",
-			Message: err.Error(),
-		}))
+		_, _, updateError := v1helpers.UpdateStatus(
+			c.operatorClient,
+			v1helpers.UpdateConditionFn(availableCondition),
+			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+				Type:    "NodeCADaemonControllerDegraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "Error",
+				Message: err.Error(),
+			}),
+		)
 		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
-	_, _, err = v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-		Type:   "NodeCADaemonControllerDegraded",
-		Status: operatorv1.ConditionFalse,
-		Reason: "AsExpected",
-	}))
+	_, _, err = v1helpers.UpdateStatus(
+		c.operatorClient,
+		v1helpers.UpdateConditionFn(availableCondition),
+		v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:   "NodeCADaemonControllerDegraded",
+			Status: operatorv1.ConditionFalse,
+			Reason: "AsExpected",
+		}),
+	)
 	return err
 }
 
