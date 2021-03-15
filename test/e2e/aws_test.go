@@ -112,6 +112,9 @@ func TestAWSDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
+	if cr.Status.ReadyReplicas != 2 {
+		t.Errorf("AWS installation is expected to have 2 replicas, got %d ready replicas", cr.Status.ReadyReplicas)
+	}
 	if cr.Spec.Storage.S3 == nil {
 		t.Fatalf("custom resource %s/%s is missing the S3 configuration", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName)
 	} else {
