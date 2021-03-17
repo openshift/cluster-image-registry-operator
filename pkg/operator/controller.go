@@ -126,6 +126,11 @@ func NewController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Policy().V1beta1().PodDisruptionBudgets()
+			c.listers.PodDisruptionBudgets = informer.Lister().PodDisruptionBudgets(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			informer := routeInformerFactory.Route().V1().Routes()
 			c.listers.Routes = informer.Lister().Routes(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
