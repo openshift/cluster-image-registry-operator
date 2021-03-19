@@ -31,7 +31,7 @@ func (gpdb *generatorPodDisruptionBudget) Type() runtime.Object {
 }
 
 func (gpdb *generatorPodDisruptionBudget) GetNamespace() string {
-	return "openshift-image-registry"
+	return defaults.ImageRegistryOperatorNamespace
 }
 
 func (gpdb *generatorPodDisruptionBudget) GetName() string {

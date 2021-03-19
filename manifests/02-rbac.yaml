@@ -47,29 +47,6 @@ rules:
   verbs:
   - "*"
 - apiGroups:
-  - batch
-  resources:
-  - cronjobs
-  - jobs
-  verbs:
-  - "*"
-- apiGroups:
-  - apps
-  resources:
-  - daemonsets
-  - deploymentconfigs
-  - deployments
-  - replicasets
-  - statefulsets
-  verbs:
-  - "*"
-- apiGroups:
-  - apps.openshift.io
-  resources:
-  - deploymentconfigs
-  verbs:
-  - "*"
-- apiGroups:
   - ""
   resources:
   - serviceaccounts
@@ -120,6 +97,39 @@ rules:
   - get
   - watch
 ---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-image-registry-operator
+  namespace: openshift-image-registry
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - "*"
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - "*"
+- apiGroups:
+  - policy
+  resources:
+  - poddisruptionbudgets
+  verbs:
+  - "*"
+---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -134,5 +144,22 @@ subjects:
   namespace: openshift-image-registry
 roleRef:
   kind: ClusterRole
+  name: cluster-image-registry-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: cluster-image-registry-operator
+  namespace: openshift-image-registry
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+subjects:
+- kind: ServiceAccount
+  name: cluster-image-registry-operator
+roleRef:
+  kind: Role
   name: cluster-image-registry-operator
   apiGroup: rbac.authorization.k8s.io
