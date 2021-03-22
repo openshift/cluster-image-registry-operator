@@ -235,6 +235,17 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
 	)
 
+	volumes = append(volumes, corev1.Volume{
+		Name: "ca-trust-extracted",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	mounts = append(mounts, corev1.VolumeMount{
+		Name:      "ca-trust-extracted",
+		MountPath: "/etc/pki/ca-trust/extracted",
+	})
+
 	// Registry certificate authorities - mount as high-priority trust source anchors
 	vol = corev1.Volume{
 		Name: "registry-certificates",
@@ -362,6 +373,11 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 				{
 					Name:  "registry",
 					Image: image,
+					Command: []string{
+						"/bin/sh",
+						"-c",
+						"mkdir /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && exec /usr/bin/dockerregistry",
+					},
 					Ports: []corev1.ContainerPort{
 						{
 							ContainerPort: int32(defaults.ContainerPort),
