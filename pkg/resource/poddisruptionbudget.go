@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,12 +18,14 @@ var _ Mutator = &generatorPodDisruptionBudget{}
 type generatorPodDisruptionBudget struct {
 	lister policylisters.PodDisruptionBudgetNamespaceLister
 	client policyclient.PolicyV1beta1Interface
+	cr     *imageregistryv1.Config
 }
 
-func newGeneratorPodDisruptionBudget(lister policylisters.PodDisruptionBudgetNamespaceLister, client policyclient.PolicyV1beta1Interface) *generatorPodDisruptionBudget {
+func newGeneratorPodDisruptionBudget(lister policylisters.PodDisruptionBudgetNamespaceLister, client policyclient.PolicyV1beta1Interface, cr *imageregistryv1.Config) *generatorPodDisruptionBudget {
 	return &generatorPodDisruptionBudget{
 		lister: lister,
 		client: client,
+		cr:     cr,
 	}
 }
 
@@ -40,6 +43,9 @@ func (gpdb *generatorPodDisruptionBudget) GetName() string {
 
 func (gpdb *generatorPodDisruptionBudget) expected() (runtime.Object, error) {
 	minAvailable := intstr.FromInt(1)
+	if gpdb.cr.Spec.Replicas <= 1 {
+		minAvailable = intstr.FromInt(0)
+	}
 
 	pdb := &policyv1beta1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
