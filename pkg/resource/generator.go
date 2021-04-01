@@ -106,7 +106,7 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
 	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
-	mutators = append(mutators, newGeneratorPodDisruptionBudget(g.listers.PodDisruptionBudgets, g.clients.Kube.PolicyV1beta1()))
+	mutators = append(mutators, newGeneratorPodDisruptionBudget(g.listers.PodDisruptionBudgets, g.clients.Kube.PolicyV1beta1(), cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
 
 	return mutators, nil
