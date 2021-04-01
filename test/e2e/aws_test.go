@@ -83,6 +83,16 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
+	framework.CheckClusterOperatorCondition(te, "image-registry", configapiv1.OperatorUpgradeable, func(cond *configapiv1.ClusterOperatorStatusCondition, found bool) error {
+		if !found {
+			return fmt.Errorf("condition is not set")
+		}
+		if cond.Status != configapiv1.ConditionTrue {
+			return fmt.Errorf("got %s, want %s", cond.Status, configapiv1.ConditionTrue)
+		}
+		return nil
+	})
+
 	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
 	cfg, err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
