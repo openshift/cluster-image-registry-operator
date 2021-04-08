@@ -392,4 +392,10 @@ func (c *Controller) syncStatus(
 	}
 
 	updateCondition(cr, defaults.OperatorStatusTypeRemoved, operatorRemoved)
+
+	if deploy == nil {
+		cr.Status.ReadyReplicas = 0
+	} else {
+		cr.Status.ReadyReplicas = deploy.Status.ReadyReplicas
+	}
 }
