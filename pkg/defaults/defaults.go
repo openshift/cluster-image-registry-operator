@@ -118,5 +118,8 @@ const (
 )
 
 var (
-	DeploymentLabels = map[string]string{"docker-registry": "default"}
+	DeploymentLabels      = map[string]string{"docker-registry": "default"}
+	DeploymentAnnotations = map[string]string{
+		"target.workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
+	}
 )
