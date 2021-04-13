@@ -376,7 +376,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					Command: []string{
 						"/bin/sh",
 						"-c",
-						"mkdir /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && exec /usr/bin/dockerregistry",
+						"mkdir -p /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && exec /usr/bin/dockerregistry",
 					},
 					Ports: []corev1.ContainerPort{
 						{
