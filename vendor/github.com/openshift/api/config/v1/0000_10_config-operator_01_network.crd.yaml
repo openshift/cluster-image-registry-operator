@@ -5,6 +5,7 @@ metadata:
   annotations:
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 spec:
   group: config.openshift.io
   names:
@@ -143,6 +144,17 @@ spec:
             clusterNetworkMTU:
               description: ClusterNetworkMTU is the MTU for inter-pod networking.
               type: integer
+            migration:
+              description: Migration contains the cluster network migration configuration.
+              type: object
+              properties:
+                networkType:
+                  description: 'NetworkType is the target plugin that is to be deployed.
+                    Currently supported values are: OpenShiftSDN, OVNKubernetes'
+                  type: string
+                  enum:
+                  - OpenShiftSDN
+                  - OVNKubernetes
             networkType:
               description: NetworkType is the plugin that is deployed (e.g. OpenShiftSDN).
               type: string
