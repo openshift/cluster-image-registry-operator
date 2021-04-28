@@ -24,6 +24,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -576,6 +577,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
+		klog.Info("setting aws bucket tags")
+
 		tagset := []*s3.Tag{
 			{
 				Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
@@ -591,13 +594,16 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// we only set user provided tags when we created the bucket.
 		hasAWSStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil
 		if bucketCreatedByOperator && hasAWSStatus {
+			klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
 			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
+				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
 				tagset = append(tagset, &s3.Tag{
 					Key:   aws.String(tag.Key),
 					Value: aws.String(tag.Value),
 				})
 			}
 		}
+		klog.V(5).Infof("tagging bucket with tags: %+v", tagset)
 
 		_, err := svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
@@ -614,6 +620,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		} else {
 			util.UpdateCondition(cr, defaults.StorageTagged, operatorapi.ConditionTrue, "Tagging Successful", "Tags were successfully applied to the S3 bucket")
 		}
+	} else {
+		klog.Info("ignoring bucket tags, storage is not managed")
 	}
 
 	// Enable default encryption on the bucket
