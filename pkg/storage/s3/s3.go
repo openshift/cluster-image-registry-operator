@@ -472,6 +472,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 	}
+
+	bucketCreatedByOperator := false
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		if cr.Spec.Storage.ManagementState == "" {
 			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
@@ -521,7 +523,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				S3: d.Config.DeepCopy(),
 			}
 			cr.Spec.Storage.S3 = d.Config.DeepCopy()
-
+			bucketCreatedByOperator = true
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created")
 
 			break
@@ -574,20 +576,33 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Tag the bucket with the openshiftClusterID
 	// along with any user defined tags from the cluster configuration
 	if cr.Spec.Storage.ManagementState == imageregistryv1.StorageManagementStateManaged {
+		tagset := []*s3.Tag{
+			{
+				Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
+				Value: aws.String("owned"),
+			},
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String(infra.Status.InfrastructureName + "-image-registry"),
+			},
+		}
+
+		// at this stage we are not keeping user tags in sync. as per enhancement proposal
+		// we only set user provided tags when we created the bucket.
+		hasAWSStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil
+		if bucketCreatedByOperator && hasAWSStatus {
+			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
+				tagset = append(tagset, &s3.Tag{
+					Key:   aws.String(tag.Key),
+					Value: aws.String(tag.Value),
+				})
+			}
+		}
+
 		_, err := svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 			Bucket: aws.String(d.Config.Bucket),
 			Tagging: &s3.Tagging{
-
-				TagSet: []*s3.Tag{
-					{
-						Key:   aws.String("kubernetes.io/cluster/" + infra.Status.InfrastructureName),
-						Value: aws.String("owned"),
-					},
-					{
-						Key:   aws.String("Name"),
-						Value: aws.String(infra.Status.InfrastructureName + "-image-registry"),
-					},
-				},
+				TagSet: tagset,
 			},
 		})
 		if err != nil {
