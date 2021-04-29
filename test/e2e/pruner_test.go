@@ -320,7 +320,7 @@ func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cronjob, err := te.Client().CronJobs("openshift-image-registry").Get(ctx, "image-pruner", metav1.GetOptions{})
+	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs("openshift-image-registry").Get(ctx, "image-pruner", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
