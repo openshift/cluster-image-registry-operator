@@ -400,7 +400,8 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Labels: defaults.DeploymentLabels,
+			Labels:      defaults.DeploymentLabels,
+			Annotations: defaults.DeploymentAnnotations,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations:       cr.Spec.Tolerations,

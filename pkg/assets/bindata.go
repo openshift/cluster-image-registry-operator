@@ -69,6 +69,8 @@ spec:
       maxUnavailable: 10%
   template:
     metadata:
+      annotations:
+        target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
       labels:
         name: node-ca
     spec:
