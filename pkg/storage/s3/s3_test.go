@@ -446,6 +446,7 @@ func TestUserProvidedTags(t *testing.T) {
 		expectedTags  []*s3.Tag
 		responseCodes []int
 		infraName     string
+		noTagRequest  bool
 	}{
 		{
 			name:      "no user tags",
@@ -508,6 +509,32 @@ func TestUserProvidedTags(t *testing.T) {
 			},
 		},
 		{
+			name:      "with user tags and unmanaged storage",
+			infraName: "tinfra",
+			userTags: []configv1.AWSResourceTag{
+				{
+					Key:   "tag0",
+					Value: "value0",
+				},
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+			},
+			noTagRequest: true,
+			expectedTags: []*s3.Tag{},
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "Unmanaged",
+						S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+							Bucket: "a-bucket",
+						},
+					},
+				},
+			},
+		},
+		{
 			name:      "with user tags and already existing bucket",
 			infraName: "tinfra",
 			userTags: []configv1.AWSResourceTag{
@@ -528,6 +555,14 @@ func TestUserProvidedTags(t *testing.T) {
 				{
 					Key:   aws.String("Name"),
 					Value: aws.String("tinfra-image-registry"),
+				},
+				{
+					Key:   aws.String("tag0"),
+					Value: aws.String("value0"),
+				},
+				{
+					Key:   aws.String("tag1"),
+					Value: aws.String("value1"),
 				},
 			},
 			config: &imageregistryv1.Config{
@@ -651,6 +686,9 @@ func TestUserProvidedTags(t *testing.T) {
 				return
 			}
 
+			if tt.noTagRequest {
+				return
+			}
 			t.Fatal("no request for tagging bucket found")
 		})
 	}
