@@ -474,7 +474,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	}
 
-	bucketCreatedByOperator := false
 	if len(d.Config.Bucket) != 0 && bucketExists {
 		if cr.Spec.Storage.ManagementState == "" {
 			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
@@ -524,7 +523,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				S3: d.Config.DeepCopy(),
 			}
 			cr.Spec.Storage.S3 = d.Config.DeepCopy()
-			bucketCreatedByOperator = true
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created")
 
 			break
@@ -593,7 +591,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
 		hasAWSStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil
-		if bucketCreatedByOperator && hasAWSStatus {
+		if hasAWSStatus {
 			klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
 			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
 				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
