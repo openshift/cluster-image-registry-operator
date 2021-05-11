@@ -43,6 +43,15 @@ func (c *Controller) Bootstrap() error {
 		return err
 	}
 
+	infra, err := util.GetInfrastructure(c.listers)
+	if err != nil {
+		return fmt.Errorf("unable to get infrastructure resource: %w", err)
+	}
+
+	if infra.Status.InfrastructureTopology == configapiv1.SingleReplicaTopologyMode && replicas > 1 {
+		replicas = 1
+	}
+
 	noStorage := imageregistryv1.ImageRegistryConfigStorage{}
 
 	// We bootstrap as "Removed" if the platform is known and does not
