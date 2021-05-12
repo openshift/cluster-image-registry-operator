@@ -123,6 +123,7 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 						Spec: kcorev1.PodSpec{
 							RestartPolicy:      kcorev1.RestartPolicyNever,
 							ServiceAccountName: "pruner",
+							PriorityClassName:  "system-cluster-critical",
 							Affinity:           gcj.getAffinity(cr),
 							NodeSelector:       gcj.getNodeSelector(cr),
 							Tolerations:        gcj.getTolerations(cr),
