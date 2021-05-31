@@ -29,7 +29,7 @@ func NewClusterOperatorLoggingController(operatorClient operatorv1helpers.Operat
 func NewClusterOperatorLoggingControllerWithLogLevel(operatorClient operatorv1helpers.OperatorClient, defaultLogLevel operatorv1.LogLevel, recorder events.Recorder) factory.Controller {
 	c := &LogLevelController{
 		operatorClient:  operatorClient,
-		setLogLevelFn:   SetLogLEvel,
+		setLogLevelFn:   SetLogLevel,
 		getLogLevelFn:   GetLogLevel,
 		defaultLogLevel: defaultLogLevel,
 	}
@@ -48,6 +48,11 @@ func (c LogLevelController) sync(ctx context.Context, syncCtx factory.SyncContex
 	desiredLogLevel := detailedSpec.OperatorLogLevel
 
 	if len(desiredLogLevel) == 0 {
+		desiredLogLevel = c.defaultLogLevel
+	}
+
+	if !ValidLogLevel(desiredLogLevel) {
+		syncCtx.Recorder().Warningf("OperatorLogLevelInvalid", "Invalid logLevel %q, falling back to %q", desiredLogLevel, c.defaultLogLevel)
 		desiredLogLevel = c.defaultLogLevel
 	}
 
