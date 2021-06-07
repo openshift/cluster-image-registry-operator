@@ -798,12 +798,8 @@ func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
 	}
 
 	for _, config := range configListShouldPass {
-		d := driver{
-			Config: &config,
-		}
-		err := d.ensureAuthURLHasAPIVersion()
+		_, err := ensureAuthURLHasAPIVersion(config.AuthURL, config.AuthVersion)
 		th.AssertNoErr(t, err)
-		th.AssertEquals(t, config.AuthURL, d.Config.AuthURL)
 	}
 
 	configListShouldFail := []imageregistryv1.ImageRegistryConfigStorageSwift{
@@ -822,10 +818,7 @@ func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
 	}
 
 	for _, config := range configListShouldFail {
-		d := driver{
-			Config: &config,
-		}
-		err := d.ensureAuthURLHasAPIVersion()
+		_, err := ensureAuthURLHasAPIVersion(config.AuthURL, config.AuthVersion)
 		th.AssertEquals(t, true, err != nil)
 	}
 }

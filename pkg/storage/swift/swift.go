@@ -166,23 +166,21 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 		return nil, err
 	}
 
-	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
-	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Tenant)
-	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.TenantID)
-	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Domain)
-	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.DomainID)
-	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.RegionName)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
+	authURL := replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
+	tenant := replaceEmpty(d.Config.Tenant, cfg.Tenant)
+	tenantID := replaceEmpty(d.Config.TenantID, cfg.TenantID)
+	domain := replaceEmpty(d.Config.Domain, cfg.Domain)
+	domainID := replaceEmpty(d.Config.DomainID, cfg.DomainID)
+	regionName := replaceEmpty(d.Config.RegionName, cfg.RegionName)
 
 	opts := &gophercloud.AuthOptions{
-		IdentityEndpoint: d.Config.AuthURL,
+		IdentityEndpoint: authURL,
 		Username:         cfg.Username,
 		Password:         cfg.Password,
-		DomainID:         d.Config.DomainID,
-		DomainName:       d.Config.Domain,
-		TenantID:         d.Config.TenantID,
-		TenantName:       d.Config.Tenant,
+		DomainID:         domainID,
+		DomainName:       domain,
+		TenantID:         tenantID,
+		TenantName:       tenant,
 	}
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
@@ -217,7 +215,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 	}
 
 	endpointOpts := gophercloud.EndpointOpts{
-		Region: d.Config.RegionName,
+		Region: regionName,
 		Name:   "swift",
 	}
 
@@ -250,21 +248,21 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		return nil, err
 	}
 
-	d.Config.AuthURL = replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
-	d.Config.Tenant = replaceEmpty(d.Config.Tenant, cfg.Tenant)
-	d.Config.TenantID = replaceEmpty(d.Config.TenantID, cfg.TenantID)
-	d.Config.Domain = replaceEmpty(d.Config.Domain, cfg.Domain)
-	d.Config.DomainID = replaceEmpty(d.Config.DomainID, cfg.DomainID)
-	d.Config.RegionName = replaceEmpty(d.Config.RegionName, cfg.RegionName)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
-	d.Config.AuthVersion = replaceEmpty(d.Config.AuthVersion, "3")
+	authURL := replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
+	tenant := replaceEmpty(d.Config.Tenant, cfg.Tenant)
+	tenantID := replaceEmpty(d.Config.TenantID, cfg.TenantID)
+	domain := replaceEmpty(d.Config.Domain, cfg.Domain)
+	domainID := replaceEmpty(d.Config.DomainID, cfg.DomainID)
+	regionName := replaceEmpty(d.Config.RegionName, cfg.RegionName)
+	authVersionStr := replaceEmpty(d.Config.AuthVersion, cfg.IdentityAPIVersion)
+	authVersionStr = replaceEmpty(authVersionStr, "3")
 
-	authVersion, err := strconv.Atoi(d.Config.AuthVersion)
+	authVersion, err := strconv.Atoi(authVersionStr)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse authVersion: %s", err)
 	}
 
-	err = d.ensureAuthURLHasAPIVersion()
+	authURL, err = ensureAuthURLHasAPIVersion(authURL, authVersionStr)
 	if err != nil {
 		return nil, err
 	}
@@ -272,64 +270,59 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "swift"},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_CONTAINER", Value: d.Config.Container},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: d.Config.AuthURL},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: authURL},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cfg.Username, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cfg.Password, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: authVersion},
 	)
-	if d.Config.Domain != "" {
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: d.Config.Domain})
+	if domain != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAIN", Value: domain})
 	}
-	if d.Config.DomainID != "" {
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: d.Config.DomainID})
+	if domainID != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_DOMAINID", Value: domainID})
 	}
-	if d.Config.Tenant != "" {
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: d.Config.Tenant})
+	if tenant != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANT", Value: tenant})
 	}
-	if d.Config.TenantID != "" {
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: d.Config.TenantID})
+	if tenantID != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: tenantID})
 	}
-	if d.Config.RegionName != "" {
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: d.Config.RegionName})
+	if regionName != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: regionName})
 	}
 
 	return
 }
 
-func (d *driver) ensureAuthURLHasAPIVersion() error {
-	authURL, err := urlx.NormalizeString(d.Config.AuthURL)
+func ensureAuthURLHasAPIVersion(authURL, authVersion string) (string, error) {
+	authURL, err := urlx.NormalizeString(authURL)
 	if err != nil {
-		return err
+		return "", err
 	}
-
-	authVersion := d.Config.AuthVersion
 
 	parsedURL, err := urlx.Parse(authURL)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	path := parsedURL.Path
 
 	// check if authUrl contains API version
 	if strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/v2") || strings.HasPrefix(path, "/v3") {
-		d.Config.AuthURL = authURL
-		return nil
+		return authURL, nil
 	}
 
 	// check that path is empty
 	if !(path == "/" || path == "") {
-		return fmt.Errorf("Incorrect Auth URL: %s", path)
+		return "", fmt.Errorf("Incorrect Auth URL: %s", path)
 	}
 
 	// append trailing / to the url
-	if !strings.HasSuffix(d.Config.AuthURL, "/") {
+	if !strings.HasSuffix(authURL, "/") {
 		authURL = authURL + "/"
 	}
 
-	d.Config.AuthURL = authURL + "v" + authVersion
-
-	return nil
+	return authURL + "v" + authVersion, nil
 }
 
 func (d *driver) containerExists(client *gophercloud.ServiceClient, containerName string) error {
