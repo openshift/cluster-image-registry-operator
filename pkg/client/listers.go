@@ -2,10 +2,10 @@ package client
 
 import (
 	kappslisters "k8s.io/client-go/listers/apps/v1"
+	kbatchlisters "k8s.io/client-go/listers/batch/v1"
 	kjoblisters "k8s.io/client-go/listers/batch/v1"
-	kbatchlisters "k8s.io/client-go/listers/batch/v1beta1"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
-	kpolicylisters "k8s.io/client-go/listers/policy/v1beta1"
+	kpolicylisters "k8s.io/client-go/listers/policy/v1"
 	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"

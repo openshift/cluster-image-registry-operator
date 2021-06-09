@@ -70,7 +70,7 @@ func NewImagePrunerController(
 	c.clients.RBAC = kubeClient.RbacV1()
 	c.clients.Kube = kubeClient
 	c.clients.RegOp = imageregistryClient
-	c.clients.Batch = kubeClient.BatchV1beta1()
+	c.clients.Batch = kubeClient.BatchV1()
 
 	for _, ctor := range []func() cache.SharedIndexInformer{
 		func() cache.SharedIndexInformer {
@@ -99,7 +99,7 @@ func NewImagePrunerController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := kubeInformerFactory.Batch().V1beta1().CronJobs()
+			informer := kubeInformerFactory.Batch().V1().CronJobs()
 			c.listers.CronJobs = informer.Lister().CronJobs(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},

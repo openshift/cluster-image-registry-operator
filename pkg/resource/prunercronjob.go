@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 
+	batchapi "k8s.io/api/batch/v1"
 	batchv1 "k8s.io/api/batch/v1"
-	batchapi "k8s.io/api/batch/v1beta1"
 	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	batchset "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
-	batchlisters "k8s.io/client-go/listers/batch/v1beta1"
+	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
+	batchlisters "k8s.io/client-go/listers/batch/v1"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
@@ -45,12 +45,12 @@ var _ Mutator = &generatorPrunerCronJob{}
 
 type generatorPrunerCronJob struct {
 	lister            batchlisters.CronJobNamespaceLister
-	client            batchset.BatchV1beta1Interface
+	client            batchset.BatchV1Interface
 	prunerLister      imageregistryv1listers.ImagePrunerLister
 	imageConfigLister configv1listers.ImageLister
 }
 
-func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1beta1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, imageConfigLister configv1listers.ImageLister) *generatorPrunerCronJob {
+func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, client batchset.BatchV1Interface, prunerLister imageregistryv1listers.ImagePrunerLister, imageConfigLister configv1listers.ImageLister) *generatorPrunerCronJob {
 	return &generatorPrunerCronJob{
 		lister:            lister,
 		client:            client,
