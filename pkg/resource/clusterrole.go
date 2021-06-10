@@ -88,6 +88,13 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 					"imagestreammappings",
 				},
 			},
+			{
+				Verbs:     []string{"list"},
+				APIGroups: []string{"operator.openshift.io"},
+				Resources: []string{
+					"imagecontentsourcepolicies",
+				},
+			},
 		},
 	}
 
