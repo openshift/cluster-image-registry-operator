@@ -5,23 +5,23 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
-	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	policyclient "k8s.io/client-go/kubernetes/typed/policy/v1beta1"
-	policylisters "k8s.io/client-go/listers/policy/v1beta1"
+	policyclient "k8s.io/client-go/kubernetes/typed/policy/v1"
+	policylisters "k8s.io/client-go/listers/policy/v1"
 )
 
 var _ Mutator = &generatorPodDisruptionBudget{}
 
 type generatorPodDisruptionBudget struct {
 	lister policylisters.PodDisruptionBudgetNamespaceLister
-	client policyclient.PolicyV1beta1Interface
+	client policyclient.PolicyV1Interface
 	cr     *imageregistryv1.Config
 }
 
-func newGeneratorPodDisruptionBudget(lister policylisters.PodDisruptionBudgetNamespaceLister, client policyclient.PolicyV1beta1Interface, cr *imageregistryv1.Config) *generatorPodDisruptionBudget {
+func newGeneratorPodDisruptionBudget(lister policylisters.PodDisruptionBudgetNamespaceLister, client policyclient.PolicyV1Interface, cr *imageregistryv1.Config) *generatorPodDisruptionBudget {
 	return &generatorPodDisruptionBudget{
 		lister: lister,
 		client: client,
@@ -30,7 +30,7 @@ func newGeneratorPodDisruptionBudget(lister policylisters.PodDisruptionBudgetNam
 }
 
 func (gpdb *generatorPodDisruptionBudget) Type() runtime.Object {
-	return &policyv1beta1.PodDisruptionBudget{}
+	return &policyv1.PodDisruptionBudget{}
 }
 
 func (gpdb *generatorPodDisruptionBudget) GetNamespace() string {
@@ -47,12 +47,12 @@ func (gpdb *generatorPodDisruptionBudget) expected() (runtime.Object, error) {
 		minAvailable = intstr.FromInt(0)
 	}
 
-	pdb := &policyv1beta1.PodDisruptionBudget{
+	pdb := &policyv1.PodDisruptionBudget{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gpdb.GetName(),
 			Namespace: gpdb.GetNamespace(),
 		},
-		Spec: policyv1beta1.PodDisruptionBudgetSpec{
+		Spec: policyv1.PodDisruptionBudgetSpec{
 			MinAvailable: &minAvailable,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
@@ -70,7 +70,7 @@ func (gpdb *generatorPodDisruptionBudget) Get() (runtime.Object, error) {
 func (gpdb *generatorPodDisruptionBudget) Create() (runtime.Object, error) {
 	return commonCreate(gpdb, func(obj runtime.Object) (runtime.Object, error) {
 		return gpdb.client.PodDisruptionBudgets(gpdb.GetNamespace()).Create(
-			context.TODO(), obj.(*policyv1beta1.PodDisruptionBudget), metav1.CreateOptions{},
+			context.TODO(), obj.(*policyv1.PodDisruptionBudget), metav1.CreateOptions{},
 		)
 	})
 }
@@ -78,7 +78,7 @@ func (gpdb *generatorPodDisruptionBudget) Create() (runtime.Object, error) {
 func (gpdb *generatorPodDisruptionBudget) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gpdb, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gpdb.client.PodDisruptionBudgets(gpdb.GetNamespace()).Update(
-			context.TODO(), obj.(*policyv1beta1.PodDisruptionBudget), metav1.UpdateOptions{},
+			context.TODO(), obj.(*policyv1.PodDisruptionBudget), metav1.UpdateOptions{},
 		)
 	})
 }
