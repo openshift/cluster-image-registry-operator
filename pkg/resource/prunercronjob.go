@@ -194,7 +194,7 @@ func (gcj *generatorPrunerCronJob) getNodeSelector(cr *imageregistryapiv1.ImageP
 }
 
 func (gcj *generatorPrunerCronJob) getTolerations(cr *imageregistryapiv1.ImagePruner) []kcorev1.Toleration {
-	if cr.Spec.NodeSelector != nil {
+	if cr.Spec.Tolerations != nil {
 		return cr.Spec.Tolerations
 	}
 	return defaultTolerations
