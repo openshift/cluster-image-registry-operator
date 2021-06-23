@@ -21,5 +21,3 @@ spec:
         message: |
           Image Registry Storage configuration has changed in the last 30
           minutes. This change may have caused data loss.
-    - expr: sum(apiserver_v1_image_imports_total)
-      record: :apiserver_v1_image_imports:sum
