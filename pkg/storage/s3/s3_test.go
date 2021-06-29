@@ -59,7 +59,7 @@ func TestGetConfig(t *testing.T) {
 		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
 
-	config, err := s3Driver.UpdateEffectiveConfig()
+	err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,8 +68,8 @@ func TestGetConfig(t *testing.T) {
 		Region: "us-east-1",
 	}
 
-	if !reflect.DeepEqual(config, expected) {
-		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
+	if !reflect.DeepEqual(s3Driver.Config, expected) {
+		t.Errorf("unexpected config: %s", cmp.Diff(expected, s3Driver.Config))
 	}
 }
 
@@ -114,7 +114,7 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 		Listers: listers,
 		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
-	config, err := s3Driver.UpdateEffectiveConfig()
+	err := s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +124,8 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 		RegionEndpoint:     "https://s3.example.com",
 		VirtualHostedStyle: true,
 	}
-	if !reflect.DeepEqual(config, expected) {
-		t.Errorf("unexpected config: %s", cmp.Diff(expected, config))
+	if !reflect.DeepEqual(s3Driver.Config, expected) {
+		t.Errorf("unexpected config: %s", cmp.Diff(expected, s3Driver.Config))
 	}
 }
 

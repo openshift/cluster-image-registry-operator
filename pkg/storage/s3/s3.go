@@ -16,6 +16,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -26,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 
-	configapiv1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
@@ -42,10 +43,52 @@ const (
 	imageRegistrySecretDataKey    = "credentials"
 )
 
+type endpointsResolver struct {
+	region           string
+	serviceEndpoints map[string]string
+}
+
+func newEndpointsResolver(region, s3Endpoint string, endpoints []configv1.AWSServiceEndpoint) *endpointsResolver {
+	serviceEndpoints := make(map[string]string)
+	for _, ep := range endpoints {
+		serviceEndpoints[ep.Name] = ep.URL
+	}
+
+	if s3Endpoint != "" {
+		serviceEndpoints["s3"] = s3Endpoint
+	}
+
+	return &endpointsResolver{
+		region:           region,
+		serviceEndpoints: serviceEndpoints,
+	}
+}
+
+func (er *endpointsResolver) EndpointFor(service, region string, opts ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+	if ep, ok := er.serviceEndpoints[service]; ok {
+		// The signing region and the cluster region may be different, see
+		// https://github.com/openshift/installer/commit/41a15b787b5f6d0b0766e1737dcdfeb5b23020d5
+		signingRegion := er.region
+		def, _ := endpoints.DefaultResolver().EndpointFor(service, region)
+		if len(def.SigningRegion) > 0 {
+			signingRegion = def.SigningRegion
+		}
+		return endpoints.ResolvedEndpoint{
+			URL:           ep,
+			SigningRegion: signingRegion,
+		}, nil
+	}
+	return endpoints.DefaultResolver().EndpointFor(service, region, opts...)
+}
+
 type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
 	Listers *regopclient.Listers
+
+	// endpointsResolver is populated by UpdateEffectiveConfig and takes into
+	// account the cluster configuration.
+	endpointsResolver *endpointsResolver
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
@@ -61,10 +104,9 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 	}
 }
 
-// UpdateEffectiveConfig updates the driver's local effective ImageRegistryConfig and returns the effective image
-// registry configuration based on infrastructure settings and any custom overrides.
-func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigStorageS3, error) {
-
+// UpdateEffectiveConfig updates the driver's local effective S3 configuration
+// based on infrastructure settings and any custom overrides.
+func (d *driver) UpdateEffectiveConfig() error {
 	effectiveConfig := d.Config.DeepCopy()
 
 	if effectiveConfig == nil {
@@ -74,14 +116,16 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 	// Load infrastructure values
 	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var clusterRegion, clusterRegionEndpoint string
-	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.AWSPlatformType {
+	var clusterServiceEndpoints []configv1.AWSServiceEndpoint
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configv1.AWSPlatformType {
 		clusterRegion = infra.Status.PlatformStatus.AWS.Region
+		clusterServiceEndpoints = infra.Status.PlatformStatus.AWS.ServiceEndpoints
 
-		for _, ep := range infra.Status.PlatformStatus.AWS.ServiceEndpoints {
+		for _, ep := range clusterServiceEndpoints {
 			if ep.Name == "s3" {
 				clusterRegionEndpoint = ep.URL
 				break
@@ -100,7 +144,9 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 
 	d.Config = effectiveConfig.DeepCopy()
 
-	return effectiveConfig, nil
+	d.endpointsResolver = newEndpointsResolver(d.Config.Region, d.Config.RegionEndpoint, clusterServiceEndpoints)
+
+	return nil
 }
 
 // GetCredentialsFile will create and return the location of an AWS config file that can
@@ -185,7 +231,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	}
 	defer os.Remove(credentialsFilename)
 
-	_, err = d.UpdateEffectiveConfig()
+	err = d.UpdateEffectiveConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +272,9 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		if !d.Config.VirtualHostedStyle {
 			awsOptions.Config.WithS3ForcePathStyle(true)
 		}
-		awsOptions.Config.WithEndpoint(d.Config.RegionEndpoint)
 	}
+
+	awsOptions.Config.WithEndpointResolver(d.endpointsResolver)
 
 	switch caBundle, err := d.getCABundle(); {
 	case err != nil:
@@ -276,7 +323,7 @@ func isBucketNotFound(err interface{}) bool {
 // Note: it is the callers responsiblity to make sure the returned file
 // location is cleaned up after it is no longer needed.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	_, err = d.UpdateEffectiveConfig()
+	err = d.UpdateEffectiveConfig()
 	if err != nil {
 		return
 	}
@@ -445,7 +492,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	if _, err := d.UpdateEffectiveConfig(); err != nil {
+	if err := d.UpdateEffectiveConfig(); err != nil {
 		return err
 	}
 

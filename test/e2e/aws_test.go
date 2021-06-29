@@ -84,7 +84,7 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
-	cfg, err := s3Driver.UpdateEffectiveConfig()
+	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
@@ -118,8 +118,8 @@ func TestAWSDefaults(t *testing.T) {
 	if cr.Spec.Storage.S3 == nil {
 		t.Fatalf("custom resource %s/%s is missing the S3 configuration", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName)
 	} else {
-		if cr.Spec.Storage.S3.Region != cfg.Region {
-			t.Errorf("custom resource %s/%s contains incorrect data. S3 Region was %v but should have been %v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, cfg.Region, cr.Spec.Storage.S3)
+		if cr.Spec.Storage.S3.Region != s3Driver.Config.Region {
+			t.Errorf("custom resource %s/%s contains incorrect data. S3 Region was %v but should have been %v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, s3Driver.Config.Region, cr.Spec.Storage.S3)
 
 		}
 		if cr.Spec.Storage.S3.Bucket == "" {
@@ -512,14 +512,14 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	defer awsCleanup()
 
 	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
-	cfg, err := s3Driver.UpdateEffectiveConfig()
+	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
 	}
 	// Check that the S3 bucket that we created exists and is accessible
 	sess, err := session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{
-			Region: aws.String(cfg.Region),
+			Region: aws.String(s3Driver.Config.Region),
 		},
 		SharedConfigState: session.SharedConfigEnable,
 		SharedConfigFiles: []string{awsConfigTempFile},
