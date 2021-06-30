@@ -7,7 +7,6 @@ package tools
 
 import (
 	// Makefile
-	"github.com/go-bindata/go-bindata/go-bindata"
 	"github.com/openshift/build-machinery-go/make/lib"
 	"github.com/openshift/build-machinery-go/make/targets/openshift"
 	"github.com/openshift/build-machinery-go/make/targets/openshift/operator"
