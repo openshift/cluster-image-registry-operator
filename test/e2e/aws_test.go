@@ -214,6 +214,7 @@ func TestAWSDefaults(t *testing.T) {
 				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
 					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
 				},
+				BucketKeyEnabled: aws.Bool(false),
 			},
 		},
 	}
@@ -529,6 +530,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 				ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
 					SSEAlgorithm: aws.String(s3.ServerSideEncryptionAes256),
 				},
+				BucketKeyEnabled: aws.Bool(false),
 			},
 		},
 	}
@@ -577,6 +579,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 						SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
 						KMSMasterKeyID: aws.String("testKey"),
 					},
+					BucketKeyEnabled: aws.Bool(false),
 				},
 			},
 		}
