@@ -16,6 +16,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/ibmcos"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
@@ -27,7 +28,7 @@ var (
 )
 
 // MultiStoragesError is returned when we have multiple storage engines
-// configured and we can't determin which one the user wants to use.
+// configured and we can't determine which one the user wants to use.
 type MultiStoragesError struct {
 	names []string
 }
@@ -78,6 +79,12 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 		names = append(names, "GCS")
 		ctx := context.Background()
 		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, kubeconfig, listers))
+	}
+
+	if cfg.IBMCOS != nil {
+		names = append(names, "IBMCOS")
+		ctx := context.Background()
+		drivers = append(drivers, ibmcos.NewDriver(ctx, cfg.IBMCOS, listers))
 	}
 
 	if cfg.PVC != nil {
@@ -147,6 +154,9 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		replicas = 2
 	case configapiv1.GCPPlatformType:
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
+		replicas = 2
+	case configapiv1.IBMCloudPlatformType:
+		cfg.IBMCOS = &imageregistryv1.ImageRegistryConfigStorageIBMCOS{}
 		replicas = 2
 	case configapiv1.OpenStackPlatformType:
 		if swift.IsSwiftEnabled(listers) {
