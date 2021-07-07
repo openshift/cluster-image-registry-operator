@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
-	"github.com/openshift/cluster-image-registry-operator/pkg/assets"
+	"github.com/openshift/cluster-image-registry-operator/bindata"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 

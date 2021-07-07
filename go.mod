@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-image-registry-operator
 
-go 1.13
+go 1.16
 
 require (
 	cloud.google.com/go/storage v1.10.0
@@ -20,7 +20,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emicklei/go-restful v2.11.1+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-bindata/go-bindata v3.1.2+incompatible
 	github.com/go-openapi/swag v0.19.6 // indirect
 	github.com/google/go-cmp v0.5.5
 	github.com/google/gofuzz v1.2.0 // indirect
