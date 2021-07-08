@@ -8,6 +8,7 @@ import (
 	appsapi "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
@@ -93,6 +94,16 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	}
 	podTemplateSpec.Annotations[defaults.ChecksumOperatorDepsAnnotation] = depsChecksum
 
+	var rollingUpdate *appsapi.RollingUpdateDeployment
+	if gd.cr.Spec.Replicas == 2 {
+		maxUnavailable := intstr.Parse("1")
+		maxSurge := intstr.Parse("1")
+		rollingUpdate = &appsapi.RollingUpdateDeployment{
+			MaxUnavailable: &maxUnavailable,
+			MaxSurge:       &maxSurge,
+		}
+	}
+
 	// Strategy defaults to RollingUpdate
 	deployStrategy := gd.cr.Spec.RolloutStrategy
 	if deployStrategy == "" {
@@ -116,7 +127,8 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			},
 			Template: podTemplateSpec,
 			Strategy: appsapi.DeploymentStrategy{
-				Type: appsapi.DeploymentStrategyType(deployStrategy),
+				Type:          appsapi.DeploymentStrategyType(deployStrategy),
+				RollingUpdate: rollingUpdate,
 			},
 		},
 	}
