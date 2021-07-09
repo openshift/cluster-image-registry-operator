@@ -13,8 +13,7 @@ require (
 	github.com/Azure/go-autorest/autorest/to v0.3.0
 	github.com/Azure/go-autorest/autorest/validation v0.2.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/aws/aws-sdk-go v1.34.30
-	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/aws/aws-sdk-go v1.38.35
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emicklei/go-restful v2.11.1+incompatible // indirect
@@ -47,7 +46,6 @@ require (
 	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	golang.org/x/text v0.3.4 // indirect
 	google.golang.org/api v0.20.0
 	gopkg.in/yaml.v2 v2.3.0
 	k8s.io/api v0.20.0
@@ -56,5 +54,4 @@ require (
 	k8s.io/client-go v0.20.0
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
-	sigs.k8s.io/structured-merge-diff/v4 v4.0.2 // indirect
 )
