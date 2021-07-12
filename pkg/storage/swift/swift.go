@@ -33,15 +33,18 @@ import (
 )
 
 type Swift struct {
-	AuthURL            string
-	Username           string
-	Password           string
-	Tenant             string
-	TenantID           string
-	Domain             string
-	DomainID           string
-	RegionName         string
-	IdentityAPIVersion string
+	AuthURL                     string
+	Username                    string
+	Password                    string
+	Tenant                      string
+	TenantID                    string
+	Domain                      string
+	DomainID                    string
+	RegionName                  string
+	IdentityAPIVersion          string
+	ApplicationCredentialID     string
+	ApplicationCredentialName   string
+	ApplicationCredentialSecret string
 }
 
 type driver struct {
@@ -117,6 +120,9 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 				cfg.AuthURL = cloud.AuthInfo.AuthURL
 				cfg.Username = cloud.AuthInfo.Username
 				cfg.Password = cloud.AuthInfo.Password
+				cfg.ApplicationCredentialID = cloud.AuthInfo.ApplicationCredentialID
+				cfg.ApplicationCredentialName = cloud.AuthInfo.ApplicationCredentialName
+				cfg.ApplicationCredentialSecret = cloud.AuthInfo.ApplicationCredentialSecret
 				cfg.Tenant = cloud.AuthInfo.ProjectName
 				cfg.TenantID = cloud.AuthInfo.ProjectID
 				cfg.Domain = cloud.AuthInfo.DomainName
@@ -143,6 +149,18 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 			return nil, err
 		}
 		cfg.Password, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_PASSWORD")
+		if err != nil {
+			return nil, err
+		}
+		cfg.ApplicationCredentialID, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID")
+		if err != nil {
+			return nil, err
+		}
+		cfg.ApplicationCredentialName, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME")
+		if err != nil {
+			return nil, err
+		}
+		cfg.ApplicationCredentialSecret, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET")
 		if err != nil {
 			return nil, err
 		}
@@ -174,13 +192,16 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 	regionName := replaceEmpty(d.Config.RegionName, cfg.RegionName)
 
 	opts := &gophercloud.AuthOptions{
-		IdentityEndpoint: authURL,
-		Username:         cfg.Username,
-		Password:         cfg.Password,
-		DomainID:         domainID,
-		DomainName:       domain,
-		TenantID:         tenantID,
-		TenantName:       tenant,
+		IdentityEndpoint:            authURL,
+		Username:                    cfg.Username,
+		Password:                    cfg.Password,
+		ApplicationCredentialID:     cfg.ApplicationCredentialID,
+		ApplicationCredentialName:   cfg.ApplicationCredentialName,
+		ApplicationCredentialSecret: cfg.ApplicationCredentialSecret,
+		DomainID:                    domainID,
+		DomainName:                  domain,
+		TenantID:                    tenantID,
+		TenantName:                  tenant,
 	}
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
@@ -273,6 +294,9 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: authURL},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cfg.Username, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cfg.Password, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID", Value: cfg.ApplicationCredentialID, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME", Value: cfg.ApplicationCredentialName, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET", Value: cfg.ApplicationCredentialSecret, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHVERSION", Value: authVersion},
 	)
 	if domain != "" {
