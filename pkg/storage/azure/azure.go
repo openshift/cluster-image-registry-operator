@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-04-01/storage"
+	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-04-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
@@ -161,10 +161,10 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 		resourceGroupName,
 		accountName,
 		storage.AccountCreateParameters{
-			Kind:     storage.StorageV2,
+			Kind:     storage.KindStorageV2,
 			Location: to.StringPtr(location),
 			Sku: &storage.Sku{
-				Name: storage.StandardLRS,
+				Name: storage.SkuNameStandardLRS,
 			},
 			AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{},
 		},
