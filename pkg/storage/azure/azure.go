@@ -166,7 +166,10 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 			Sku: &storage.Sku{
 				Name: storage.SkuNameStandardLRS,
 			},
-			AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{},
+			AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{
+				AllowBlobPublicAccess: to.BoolPtr(false),
+				MinimumTLSVersion:     storage.MinimumTLSVersionTLS12,
+			},
 		},
 	)
 	if err != nil {
