@@ -12,9 +12,9 @@ cloud.google.com/go/storage
 # github.com/Azure/azure-pipeline-go v0.2.3
 ## explicit
 github.com/Azure/azure-pipeline-go/pipeline
-# github.com/Azure/azure-sdk-for-go v34.0.0+incompatible
+# github.com/Azure/azure-sdk-for-go v55.6.0+incompatible
 ## explicit
-github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-04-01/storage
+github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-04-01/storage
 github.com/Azure/azure-sdk-for-go/version
 # github.com/Azure/azure-storage-blob-go v0.13.0
 ## explicit
