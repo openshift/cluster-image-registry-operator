@@ -643,3 +643,67 @@ func TestDisableRedirect(t *testing.T) {
 	}
 	framework.CheckEnvVars(te, expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false)
 }
+
+func TestScaleUp(t *testing.T) {
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 2,
+	})
+	defer framework.TeardownImageRegistry(te)
+
+	if _, err := te.Client().Configs().Patch(
+		context.Background(),
+		defaults.ImageRegistryResourceName,
+		types.JSONPatchType,
+		framework.MarshalJSON([]framework.JSONPatch{
+			{
+				Op:    "replace",
+				Path:  "/spec/replicas",
+				Value: 4,
+			},
+		}),
+		metav1.PatchOptions{},
+	); err != nil {
+		t.Fatalf("unable update spec.replicas: %s", err)
+	}
+
+	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	if cr.Status.ReadyReplicas != 4 {
+		t.Errorf("got %d ready replicas, want 4", cr.Status.ReadyReplicas)
+	}
+}
+
+func TestScaleDown(t *testing.T) {
+	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
+		ManagementState: operatorapiv1.Managed,
+		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+		},
+		Replicas: 2,
+	})
+	defer framework.TeardownImageRegistry(te)
+
+	if _, err := te.Client().Configs().Patch(
+		context.Background(),
+		defaults.ImageRegistryResourceName,
+		types.JSONPatchType,
+		framework.MarshalJSON([]framework.JSONPatch{
+			{
+				Op:    "replace",
+				Path:  "/spec/replicas",
+				Value: 1,
+			},
+		}),
+		metav1.PatchOptions{},
+	); err != nil {
+		t.Fatalf("unable update spec.replicas: %s", err)
+	}
+
+	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	if cr.Status.ReadyReplicas != 1 {
+		t.Errorf("got %d ready replicas, want 1", cr.Status.ReadyReplicas)
+	}
+}
