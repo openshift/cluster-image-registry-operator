@@ -94,20 +94,42 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	}
 	podTemplateSpec.Annotations[defaults.ChecksumOperatorDepsAnnotation] = depsChecksum
 
-	var rollingUpdate *appsapi.RollingUpdateDeployment
-	if gd.cr.Spec.Replicas == 2 {
-		maxUnavailable := intstr.Parse("1")
-		maxSurge := intstr.Parse("1")
-		rollingUpdate = &appsapi.RollingUpdateDeployment{
-			MaxUnavailable: &maxUnavailable,
-			MaxSurge:       &maxSurge,
-		}
+	// Strategy defaults to RollingUpdate
+	deployStrategy := appsapi.DeploymentStrategyType(gd.cr.Spec.RolloutStrategy)
+	if deployStrategy == "" {
+		deployStrategy = appsapi.RollingUpdateDeploymentStrategyType
 	}
 
-	// Strategy defaults to RollingUpdate
-	deployStrategy := gd.cr.Spec.RolloutStrategy
-	if deployStrategy == "" {
-		deployStrategy = string(appsapi.RollingUpdateDeploymentStrategyType)
+	var rollingUpdate *appsapi.RollingUpdateDeployment
+	if deployStrategy == appsapi.RollingUpdateDeploymentStrategyType {
+		if gd.cr.Spec.Replicas == 2 {
+			maxUnavailable := intstr.Parse("1")
+			maxSurge := intstr.Parse("1")
+			rollingUpdate = &appsapi.RollingUpdateDeployment{
+				MaxUnavailable: &maxUnavailable,
+				MaxSurge:       &maxSurge,
+			}
+		} else {
+			// The deployment controller scales up in an interesting way if the pod
+			// template has changed:
+			//
+			// 1. it scales up the replica set for the old pod template,
+			// 2. starts migration to the new pod template according to rolling
+			//    update parameters.
+			//
+			// To scale up from 2 replicas (when the registry pods have hard
+			// anti-affinity rules) to 6 replicas on a minimal cluster with 2
+			// worker nodes the deployment should tolerate 5 unavailable replicas:
+			//
+			//  * 4 replicas out of 6 cannot fit onto 2 workers,
+			//  * 1 replica should be deleted before a new one can be created.
+			maxUnavailable := intstr.FromInt(int(gd.cr.Spec.Replicas) - 1)
+			maxSurge := intstr.FromString("25%")
+			rollingUpdate = &appsapi.RollingUpdateDeployment{
+				MaxUnavailable: &maxUnavailable,
+				MaxSurge:       &maxSurge,
+			}
+		}
 	}
 
 	deploy := &appsapi.Deployment{
@@ -127,7 +149,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			},
 			Template: podTemplateSpec,
 			Strategy: appsapi.DeploymentStrategy{
-				Type:          appsapi.DeploymentStrategyType(deployStrategy),
+				Type:          deployStrategy,
 				RollingUpdate: rollingUpdate,
 			},
 		},
