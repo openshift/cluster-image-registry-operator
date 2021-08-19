@@ -14,9 +14,9 @@ cloud.google.com/go/storage
 github.com/Azure/azure-pipeline-go/pipeline
 # github.com/Azure/azure-sdk-for-go v55.6.0+incompatible
 ## explicit
-github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-04-01/storage
+github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage
 github.com/Azure/azure-sdk-for-go/version
-# github.com/Azure/azure-storage-blob-go v0.13.0
+# github.com/Azure/azure-storage-blob-go v0.7.0
 ## explicit
 github.com/Azure/azure-storage-blob-go/azblob
 # github.com/Azure/go-autorest v14.2.0+incompatible
@@ -377,7 +377,7 @@ github.com/openshift/api/template
 github.com/openshift/api/template/v1
 github.com/openshift/api/user
 github.com/openshift/api/user/v1
-# github.com/openshift/build-machinery-go v0.0.0-20210423112049-9415d7ebd33e
+# github.com/openshift/build-machinery-go v0.0.0-20210806203541-4ea9b6da3a37
 ## explicit
 github.com/openshift/build-machinery-go/make/lib
 github.com/openshift/build-machinery-go/make/targets/openshift

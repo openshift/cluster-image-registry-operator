@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-04-01/storage"
+	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
@@ -153,23 +153,32 @@ func (d *driver) accountExists(storageAccountsClient storage.AccountsClient, acc
 	)
 }
 
-func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location string) error {
+func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location, cloudName string) error {
 	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
+
+	kind := storage.StorageV2
+	params := &storage.AccountPropertiesCreateParameters{
+		AllowBlobPublicAccess: to.BoolPtr(false),
+		MinimumTLSVersion:     storage.TLS12,
+	}
+
+	if strings.EqualFold(cloudName, "AZURESTACKCLOUD") {
+		// It seems Azure Stack Hub does not support new API.
+		kind = storage.Storage
+		params = &storage.AccountPropertiesCreateParameters{}
+	}
 
 	future, err := storageAccountsClient.Create(
 		d.Context,
 		resourceGroupName,
 		accountName,
 		storage.AccountCreateParameters{
-			Kind:     storage.KindStorageV2,
+			Kind:     kind,
 			Location: to.StringPtr(location),
 			Sku: &storage.Sku{
-				Name: storage.SkuNameStandardLRS,
+				Name: storage.StandardLRS,
 			},
-			AccountPropertiesCreateParameters: &storage.AccountPropertiesCreateParameters{
-				AllowBlobPublicAccess: to.BoolPtr(false),
-				MinimumTLSVersion:     storage.MinimumTLSVersionTLS12,
-			},
+			AccountPropertiesCreateParameters: params,
 		},
 	)
 	if err != nil {
@@ -292,7 +301,7 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		storageAccountsClient.Authorizer = d.authorizer
 	} else {
 		clientCredentialsConfig := auth.NewClientCredentialsConfig(cfg.ClientID, cfg.ClientSecret, cfg.TenantID)
-		clientCredentialsConfig.Resource = environment.ResourceManagerEndpoint
+		clientCredentialsConfig.Resource = environment.TokenAudience
 		clientCredentialsConfig.AADEndpoint = environment.ActiveDirectoryEndpoint
 
 		auth, err := clientCredentialsConfig.Authorizer()
@@ -493,7 +502,7 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 	if *result.NameAvailable {
 		storageAccountCreated = true
 		if err := d.createStorageAccount(
-			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region,
+			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName,
 		); err != nil {
 			return "", false, err
 		}

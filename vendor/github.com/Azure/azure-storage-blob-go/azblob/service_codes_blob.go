@@ -61,11 +61,8 @@ const (
 	// ServiceCodeIncrementalCopyBlobMismatch means the specified source blob is different than the copy source of the existing incremental copy blob.
 	ServiceCodeIncrementalCopyBlobMismatch ServiceCodeType = "IncrementalCopyBlobMismatch"
 
-	// ServiceCodeFeatureEncryptionMismatch means the given customer specified encryption does not match the encryption used to encrypt the blob.
-	ServiceCodeFeatureEncryptionMismatch ServiceCodeType = "BlobCustomerSpecifiedEncryptionMismatch"
-
-	// ServiceCodeIncrementalCopyOfEarlierVersionSnapshotNotAllowed means the specified snapshot is earlier than the last snapshot copied into the incremental copy blob.
-	ServiceCodeIncrementalCopyOfEarlierVersionSnapshotNotAllowed ServiceCodeType = "IncrementalCopyOfEarlierVersionSnapshotNotAllowed"
+	// ServiceCodeIncrementalCopyOfEralierVersionSnapshotNotAllowed means the specified snapshot is earlier than the last snapshot copied into the incremental copy blob.
+	ServiceCodeIncrementalCopyOfEralierVersionSnapshotNotAllowed ServiceCodeType = "IncrementalCopyOfEralierVersionSnapshotNotAllowed"
 
 	// ServiceCodeIncrementalCopySourceMustBeSnapshot means the source for incremental copy request must be a snapshot.
 	ServiceCodeIncrementalCopySourceMustBeSnapshot ServiceCodeType = "IncrementalCopySourceMustBeSnapshot"

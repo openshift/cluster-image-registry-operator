@@ -65,6 +65,8 @@ spec:
               value: docker.io/openshift/origin-docker-registry:latest
             - name: IMAGE_PRUNER
               value: quay.io/openshift/origin-cli:v4.0
+            - name: AZURE_ENVIRONMENT_FILEPATH
+              value: /tmp/azurestackcloud.json
           volumeMounts:
             - name: trusted-ca
               mountPath: /var/run/configmaps/trusted-ca/

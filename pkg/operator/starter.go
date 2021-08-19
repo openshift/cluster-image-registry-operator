@@ -119,6 +119,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		events.NewLoggingEventRecorder("image-registry"),
 	)
 
+	azureStackCloudController := NewAzureStackCloudController(
+		configOperatorClient,
+		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
+	)
+
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
 	kubeInformersForOpenShiftConfigManaged.Start(ctx.Done())
@@ -134,6 +139,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imageConfigStatusController.Run(ctx.Done())
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
+	go azureStackCloudController.Run(ctx)
 
 	<-ctx.Done()
 	return nil
