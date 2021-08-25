@@ -37,6 +37,8 @@ spec:
           value: docker.io/openshift/origin-docker-registry:latest
         - name: IMAGE_PRUNER
           value: quay.io/openshift/origin-cli:v4.0
+        - name: AZURE_ENVIRONMENT_FILEPATH
+          value: /tmp/azurestackcloud.json
         image: docker.io/openshift/origin-cluster-image-registry-operator:latest
         imagePullPolicy: IfNotPresent
         name: cluster-image-registry-operator

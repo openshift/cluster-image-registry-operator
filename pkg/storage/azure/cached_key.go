@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2021-04-01/storage"
+	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
@@ -36,7 +36,7 @@ func (k *cachedKey) get(
 	}
 	metrics.AzureKeyCacheMiss()
 
-	keysResponse, err := cli.ListKeys(ctx, resourceGroup, account, storage.ListKeyExpandKerb)
+	keysResponse, err := cli.ListKeys(ctx, resourceGroup, account, storage.Kerb)
 	if err != nil {
 		return "", err
 	}

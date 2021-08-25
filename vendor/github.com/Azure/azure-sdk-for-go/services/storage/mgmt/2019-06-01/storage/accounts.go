@@ -83,7 +83,7 @@ func (client AccountsClient) CheckNameAvailabilityPreparer(ctx context.Context, 
 		"subscriptionId": autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -148,15 +148,11 @@ func (client AccountsClient) Create(ctx context.Context, resourceGroupName strin
 		{TargetValue: parameters,
 			Constraints: []validation.Constraint{{Target: "parameters.Sku", Name: validation.Null, Rule: true, Chain: nil},
 				{Target: "parameters.Location", Name: validation.Null, Rule: true, Chain: nil},
+				{Target: "parameters.Identity", Name: validation.Null, Rule: false,
+					Chain: []validation.Constraint{{Target: "parameters.Identity.Type", Name: validation.Null, Rule: true, Chain: nil}}},
 				{Target: "parameters.AccountPropertiesCreateParameters", Name: validation.Null, Rule: false,
-					Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.SasPolicy", Name: validation.Null, Rule: false,
-						Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.SasPolicy.SasExpirationPeriod", Name: validation.Null, Rule: true, Chain: nil},
-							{Target: "parameters.AccountPropertiesCreateParameters.SasPolicy.ExpirationAction", Name: validation.Null, Rule: true, Chain: nil},
-						}},
-						{Target: "parameters.AccountPropertiesCreateParameters.KeyPolicy", Name: validation.Null, Rule: false,
-							Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.KeyPolicy.KeyExpirationPeriodInDays", Name: validation.Null, Rule: true, Chain: nil}}},
-						{Target: "parameters.AccountPropertiesCreateParameters.CustomDomain", Name: validation.Null, Rule: false,
-							Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.CustomDomain.Name", Name: validation.Null, Rule: true, Chain: nil}}},
+					Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.CustomDomain", Name: validation.Null, Rule: false,
+						Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.CustomDomain.Name", Name: validation.Null, Rule: true, Chain: nil}}},
 						{Target: "parameters.AccountPropertiesCreateParameters.AzureFilesIdentityBasedAuthentication", Name: validation.Null, Rule: false,
 							Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.AzureFilesIdentityBasedAuthentication.ActiveDirectoryProperties", Name: validation.Null, Rule: false,
 								Chain: []validation.Constraint{{Target: "parameters.AccountPropertiesCreateParameters.AzureFilesIdentityBasedAuthentication.ActiveDirectoryProperties.DomainName", Name: validation.Null, Rule: true, Chain: nil},
@@ -196,7 +192,7 @@ func (client AccountsClient) CreatePreparer(ctx context.Context, resourceGroupNa
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -298,7 +294,7 @@ func (client AccountsClient) DeletePreparer(ctx context.Context, resourceGroupNa
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -383,7 +379,7 @@ func (client AccountsClient) FailoverPreparer(ctx context.Context, resourceGroup
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -485,7 +481,7 @@ func (client AccountsClient) GetPropertiesPreparer(ctx context.Context, resource
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -571,7 +567,7 @@ func (client AccountsClient) ListPreparer(ctx context.Context) (*http.Request, e
 		"subscriptionId": autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -702,7 +698,7 @@ func (client AccountsClient) ListAccountSASPreparer(ctx context.Context, resourc
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -740,13 +736,13 @@ func (client AccountsClient) ListAccountSASResponder(resp *http.Response) (resul
 // Parameters:
 // resourceGroupName - the name of the resource group within the user's subscription. The name is case
 // insensitive.
-func (client AccountsClient) ListByResourceGroup(ctx context.Context, resourceGroupName string) (result AccountListResultPage, err error) {
+func (client AccountsClient) ListByResourceGroup(ctx context.Context, resourceGroupName string) (result AccountListResult, err error) {
 	if tracing.IsEnabled() {
 		ctx = tracing.StartSpan(ctx, fqdn+"/AccountsClient.ListByResourceGroup")
 		defer func() {
 			sc := -1
-			if result.alr.Response.Response != nil {
-				sc = result.alr.Response.Response.StatusCode
+			if result.Response.Response != nil {
+				sc = result.Response.Response.StatusCode
 			}
 			tracing.EndSpan(ctx, sc, err)
 		}()
@@ -761,7 +757,6 @@ func (client AccountsClient) ListByResourceGroup(ctx context.Context, resourceGr
 		return result, validation.NewError("storage.AccountsClient", "ListByResourceGroup", err.Error())
 	}
 
-	result.fn = client.listByResourceGroupNextResults
 	req, err := client.ListByResourceGroupPreparer(ctx, resourceGroupName)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "storage.AccountsClient", "ListByResourceGroup", nil, "Failure preparing request")
@@ -770,18 +765,14 @@ func (client AccountsClient) ListByResourceGroup(ctx context.Context, resourceGr
 
 	resp, err := client.ListByResourceGroupSender(req)
 	if err != nil {
-		result.alr.Response = autorest.Response{Response: resp}
+		result.Response = autorest.Response{Response: resp}
 		err = autorest.NewErrorWithError(err, "storage.AccountsClient", "ListByResourceGroup", resp, "Failure sending request")
 		return
 	}
 
-	result.alr, err = client.ListByResourceGroupResponder(resp)
+	result, err = client.ListByResourceGroupResponder(resp)
 	if err != nil {
 		err = autorest.NewErrorWithError(err, "storage.AccountsClient", "ListByResourceGroup", resp, "Failure responding to request")
-		return
-	}
-	if result.alr.hasNextLink() && result.alr.IsEmpty() {
-		err = result.NextWithContext(ctx)
 		return
 	}
 
@@ -795,7 +786,7 @@ func (client AccountsClient) ListByResourceGroupPreparer(ctx context.Context, re
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -823,43 +814,6 @@ func (client AccountsClient) ListByResourceGroupResponder(resp *http.Response) (
 		autorest.ByUnmarshallingJSON(&result),
 		autorest.ByClosing())
 	result.Response = autorest.Response{Response: resp}
-	return
-}
-
-// listByResourceGroupNextResults retrieves the next set of results, if any.
-func (client AccountsClient) listByResourceGroupNextResults(ctx context.Context, lastResults AccountListResult) (result AccountListResult, err error) {
-	req, err := lastResults.accountListResultPreparer(ctx)
-	if err != nil {
-		return result, autorest.NewErrorWithError(err, "storage.AccountsClient", "listByResourceGroupNextResults", nil, "Failure preparing next results request")
-	}
-	if req == nil {
-		return
-	}
-	resp, err := client.ListByResourceGroupSender(req)
-	if err != nil {
-		result.Response = autorest.Response{Response: resp}
-		return result, autorest.NewErrorWithError(err, "storage.AccountsClient", "listByResourceGroupNextResults", resp, "Failure sending next results request")
-	}
-	result, err = client.ListByResourceGroupResponder(resp)
-	if err != nil {
-		err = autorest.NewErrorWithError(err, "storage.AccountsClient", "listByResourceGroupNextResults", resp, "Failure responding to next results request")
-	}
-	return
-}
-
-// ListByResourceGroupComplete enumerates all values, automatically crossing page boundaries as required.
-func (client AccountsClient) ListByResourceGroupComplete(ctx context.Context, resourceGroupName string) (result AccountListResultIterator, err error) {
-	if tracing.IsEnabled() {
-		ctx = tracing.StartSpan(ctx, fqdn+"/AccountsClient.ListByResourceGroup")
-		defer func() {
-			sc := -1
-			if result.Response().Response.Response != nil {
-				sc = result.page.Response().Response.Response.StatusCode
-			}
-			tracing.EndSpan(ctx, sc, err)
-		}()
-	}
-	result.page, err = client.ListByResourceGroup(ctx, resourceGroupName)
 	return
 }
 
@@ -924,7 +878,7 @@ func (client AccountsClient) ListKeysPreparer(ctx context.Context, resourceGroup
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -1023,7 +977,7 @@ func (client AccountsClient) ListServiceSASPreparer(ctx context.Context, resourc
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -1119,7 +1073,7 @@ func (client AccountsClient) RegenerateKeyPreparer(ctx context.Context, resource
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -1209,7 +1163,7 @@ func (client AccountsClient) RestoreBlobRangesPreparer(ctx context.Context, reso
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -1311,7 +1265,7 @@ func (client AccountsClient) RevokeUserDelegationKeysPreparer(ctx context.Contex
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
@@ -1407,7 +1361,7 @@ func (client AccountsClient) UpdatePreparer(ctx context.Context, resourceGroupNa
 		"subscriptionId":    autorest.Encode("path", client.SubscriptionID),
 	}
 
-	const APIVersion = "2021-04-01"
+	const APIVersion = "2019-06-01"
 	queryParameters := map[string]interface{}{
 		"api-version": APIVersion,
 	}
