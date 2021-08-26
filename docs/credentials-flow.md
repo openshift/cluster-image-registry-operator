@@ -1,3 +1,3 @@
-## How the operator gets credentials for the image registry
+## How the Operator gets credentials for the image registry
 
-![](aws-creds.png)
+![Credentials workflow.](aws-creds.png)
