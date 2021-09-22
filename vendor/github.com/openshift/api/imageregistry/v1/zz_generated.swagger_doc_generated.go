@@ -12,7 +12,7 @@ package v1
 
 // AUTO-GENERATED FUNCTIONS START HERE
 var map_Config = map[string]string{
-	"": "Config is the configuration object for a registry instance managed by the registry operator",
+	"": "Config is the configuration object for a registry instance managed by the registry operator\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 }
 
 func (Config) SwaggerDoc() map[string]string {
@@ -20,7 +20,7 @@ func (Config) SwaggerDoc() map[string]string {
 }
 
 var map_ConfigList = map[string]string{
-	"": "ConfigList is a slice of Config objects.",
+	"": "ConfigList is a slice of Config objects.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 }
 
 func (ConfigList) SwaggerDoc() map[string]string {
@@ -79,6 +79,7 @@ var map_ImageRegistryConfigStorage = map[string]string{
 	"pvc":             "pvc represents configuration that uses a PersistentVolumeClaim.",
 	"azure":           "azure represents configuration that uses Azure Blob Storage.",
 	"ibmcos":          "ibmcos represents configuration that uses IBM Cloud Object Storage.",
+	"oss":             "OSS represents configuration that uses Alibaba Cloud Object Storage Service.",
 	"managementState": "managementState indicates if the operator manages the underlying storage unit. If Managed the operator will remove the storage when this operator gets Removed.",
 }
 
@@ -128,6 +129,19 @@ var map_ImageRegistryConfigStorageIBMCOS = map[string]string{
 
 func (ImageRegistryConfigStorageIBMCOS) SwaggerDoc() map[string]string {
 	return map_ImageRegistryConfigStorageIBMCOS
+}
+
+var map_ImageRegistryConfigStorageOSS = map[string]string{
+	"":               "ImageRegistryConfigStorageOSS holds Alibaba Cloud OSS configuration. the registry to use Alibaba Cloud Object Storage Service for backend storage. More about oss, you can look at the [official documentation](https://www.alibabacloud.com/help/product/31815.htm)",
+	"bucket":         "bucket is the bucket name in which you want to store the registry's data. Optional, will be generated if not provided. About Bucket naming, more details you can look at the [official documentation](https://www.alibabacloud.com/help/doc-detail/257087.htm)",
+	"region":         "region is the Alibaba Cloud Region in which your bucket exists. Optional, will be set based on the installed Alibaba Cloud Region. For a list of regions, you can look at the [official documentation](https://www.alibabacloud.com/help/doc-detail/31837.html).",
+	"regionEndpoint": "regionEndpoint is the endpoint for OSS compatible storage services. Optional, defaults based on the Region that is provided. An endpoint which defaults to [bucket].[region].aliyuncs.com or [bucket].[region]-internal.aliyuncs.com (when internal=true). You can change the default endpoint by changing this value.",
+	"internal":       "internal specifies whether the registry use the OSS VPC internal endpoint Optional, defaults to false. if RegionEndpoint is specified, this config will be ignored",
+	"encrypt":        "encrypt specifies whether you would like your data encrypted on the server side. Defaults to false if not specified. Optional, defaults to false. More details, you can look cat the [official documentation](https://www.alibabacloud.com/help/doc-detail/117914.htm)",
+}
+
+func (ImageRegistryConfigStorageOSS) SwaggerDoc() map[string]string {
+	return map_ImageRegistryConfigStorageOSS
 }
 
 var map_ImageRegistryConfigStoragePVC = map[string]string{
@@ -217,7 +231,7 @@ func (ImageRegistryStatus) SwaggerDoc() map[string]string {
 }
 
 var map_ImagePruner = map[string]string{
-	"": "ImagePruner is the configuration object for an image registry pruner managed by the registry operator.",
+	"": "ImagePruner is the configuration object for an image registry pruner managed by the registry operator.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 }
 
 func (ImagePruner) SwaggerDoc() map[string]string {
@@ -225,7 +239,7 @@ func (ImagePruner) SwaggerDoc() map[string]string {
 }
 
 var map_ImagePrunerList = map[string]string{
-	"": "ImagePrunerList is a slice of ImagePruner objects.",
+	"": "ImagePrunerList is a slice of ImagePruner objects.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 }
 
 func (ImagePrunerList) SwaggerDoc() map[string]string {

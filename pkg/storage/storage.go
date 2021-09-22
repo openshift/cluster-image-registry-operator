@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/oss"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 
@@ -102,6 +104,12 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 		drivers = append(drivers, azure.NewDriver(ctx, cfg.Azure, listers))
 	}
 
+	if cfg.OSS != nil {
+		names = append(names, "OSS")
+		ctx := context.Background()
+		drivers = append(drivers, oss.NewDriver(ctx, cfg.OSS, listers))
+	}
+
 	switch len(drivers) {
 	case 0:
 		return nil, ErrStorageNotConfigured
@@ -157,6 +165,9 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		replicas = 2
 	case configapiv1.IBMCloudPlatformType:
 		cfg.IBMCOS = &imageregistryv1.ImageRegistryConfigStorageIBMCOS{}
+		replicas = 2
+	case configapiv1.AlibabaCloudPlatformType:
+		cfg.OSS = &imageregistryv1.ImageRegistryConfigStorageOSS{}
 		replicas = 2
 	case configapiv1.OpenStackPlatformType:
 		if swift.IsSwiftEnabled(listers) {

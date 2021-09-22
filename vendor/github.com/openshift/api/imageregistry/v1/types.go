@@ -10,6 +10,9 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // ConfigList is a slice of Config objects.
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type ConfigList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
@@ -30,6 +33,9 @@ const (
 
 // Config is the configuration object for a registry instance managed by
 // the registry operator
+//
+// Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
+// +openshift:compatibility-gen:level=1
 type Config struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -300,6 +306,38 @@ type ImageRegistryConfigStorageIBMCOS struct {
 	ServiceInstanceCRN string `json:"serviceInstanceCRN,omitempty"`
 }
 
+// ImageRegistryConfigStorageOSS holds Alibaba Cloud OSS configuration.
+// the registry to use Alibaba Cloud Object Storage Service for backend storage.
+// More about oss, you can look at the [official documentation](https://www.alibabacloud.com/help/product/31815.htm)
+type ImageRegistryConfigStorageOSS struct {
+	// bucket is the bucket name in which you want to store the registry's
+	// data.
+	// Optional, will be generated if not provided.
+	// +optional
+	// About Bucket naming, more details you can look at the [official documentation](https://www.alibabacloud.com/help/doc-detail/257087.htm)
+	Bucket string `json:"bucket,omitempty"`
+	// region is the Alibaba Cloud Region in which your bucket exists.
+	// Optional, will be set based on the installed Alibaba Cloud Region.
+	// +optional
+	// For a list of regions, you can look at the [official documentation](https://www.alibabacloud.com/help/doc-detail/31837.html).
+	Region string `json:"region,omitempty"`
+	// regionEndpoint is the endpoint for OSS compatible storage services.
+	// Optional, defaults based on the Region that is provided.
+	// +optional
+	// An endpoint which defaults to [bucket].[region].aliyuncs.com or [bucket].[region]-internal.aliyuncs.com (when internal=true).
+	// You can change the default endpoint by changing this value.
+	RegionEndpoint string `json:"regionEndpoint,omitempty"`
+	// internal specifies whether the registry use the OSS VPC internal endpoint
+	// Optional, defaults to false. if RegionEndpoint is specified, this config will be ignored
+	// +optional
+	Internal bool `json:"internal,omitempty"`
+	// encrypt specifies whether you would like your data encrypted on the server side. Defaults to false if not specified.
+	// Optional, defaults to false.
+	// +optional
+	// More details, you can look cat the [official documentation](https://www.alibabacloud.com/help/doc-detail/117914.htm)
+	Encrypt bool `json:"encrypt,omitempty"`
+}
+
 // ImageRegistryConfigStorage describes how the storage should be configured
 // for the image registry.
 type ImageRegistryConfigStorage struct {
@@ -327,6 +365,9 @@ type ImageRegistryConfigStorage struct {
 	// ibmcos represents configuration that uses IBM Cloud Object Storage.
 	// +optional
 	IBMCOS *ImageRegistryConfigStorageIBMCOS `json:"ibmcos,omitempty"`
+	// OSS represents configuration that uses Alibaba Cloud Object Storage Service.
+	// +optional
+	OSS *ImageRegistryConfigStorageOSS `json:"oss,omitempty"`
 	// managementState indicates if the operator manages the underlying
 	// storage unit. If Managed the operator will remove the storage when
 	// this operator gets Removed.
