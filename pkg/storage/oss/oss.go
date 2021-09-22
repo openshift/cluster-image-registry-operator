@@ -23,11 +23,10 @@ import (
 )
 
 const (
-	imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
-	imageRegistrySecretDataKey    = "credentials"
-	imageRegistryAccessKeyID      = "alibabacloud_access_key_id"
-	imageRegistryAccessKeySecret  = "alibabacloud_access_key_secret"
-	imageRegistrySecurityToken    = "alibabacloud_security_token"
+	//imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
+	//imageRegistrySecretDataKey    = "credentials"
+	imageRegistryAccessKeyID     = "alibabacloud_access_key_id"
+	imageRegistryAccessKeySecret = "alibabacloud_access_key_secret"
 
 	envRegistryStorage                   = "REGISTRY_STORAGE"
 	envRegistryStorageOssBucket          = "REGISTRY_STORAGE_OSS_BUCKET"
@@ -187,7 +186,7 @@ func (d *driver) getOSSService() (*oss.Client, error) {
 	endpoint := d.getOSSEndpoint()
 	client, err := oss.New(endpoint, d.credentials.accessKeyID, d.credentials.accessKeySecret)
 	if err != nil {
-		// HandleError(err)
+		return nil, err
 	}
 
 	if d.roundTripper != nil {
