@@ -245,6 +245,7 @@ type tripper struct {
 	req           int
 	reqBodies     [][]byte
 	responseCodes []int
+	respBody      string
 }
 
 func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -265,14 +266,22 @@ func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		code = r.responseCodes[r.req]
 	}
 
+	respBody := "{}"
+	if r.respBody != "" {
+		respBody = r.respBody
+	}
 	return &http.Response{
 		StatusCode: code,
-		Body:       ioutil.NopCloser(bytes.NewBufferString("{}")),
+		Body:       ioutil.NopCloser(bytes.NewBufferString(respBody)),
 	}, nil
 }
 
 func (r *tripper) AddResponse(code int) {
 	r.responseCodes = append(r.responseCodes, code)
+}
+
+func (r *tripper) AddResponseBody(body string) {
+	r.respBody = body
 }
 
 func TestStorageManagementState(t *testing.T) {
@@ -306,6 +315,7 @@ func TestStorageManagementState(t *testing.T) {
 		name                    string
 		config                  *imageregistryv1.Config
 		responseCodes           []int
+		respBody                string
 		expectedManagementState string
 	}{
 		{
@@ -331,35 +341,69 @@ func TestStorageManagementState(t *testing.T) {
 				},
 			},
 		},
-		//TODO fix test case
-		//{
-		//	name:                    "existing bucket provided",
-		//	expectedManagementState: imageregistryv1.StorageManagementStateUnmanaged,
-		//	config: &imageregistryv1.Config{
-		//		Spec: imageregistryv1.ImageRegistrySpec{
-		//			Storage: imageregistryv1.ImageRegistryConfigStorage{
-		//				OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
-		//					Bucket: TestBucketName,
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
-		//{
-		//	name:                    "existing bucket provided (management set)",
-		//	expectedManagementState: "foo",
-		//	config: &imageregistryv1.Config{
-		//		Spec: imageregistryv1.ImageRegistrySpec{
-		//			Storage: imageregistryv1.ImageRegistryConfigStorage{
-		//				ManagementState: "foo",
-		//				OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
-		//					Bucket: TestAnotherBucketName,
-		//				},
-		//			},
-		//		},
-		//	},
-		//	responseCodes: []int{http.StatusOK},
-		//},
+		{
+			name:                    "existing bucket provided",
+			expectedManagementState: imageregistryv1.StorageManagementStateUnmanaged,
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
+							Bucket: TestBucketName,
+						},
+					},
+				},
+			},
+			responseCodes: []int{http.StatusOK},
+			respBody: `
+			<?xml version="1.0" encoding="UTF-8"?>
+				<BucketInfo>
+				  <Bucket>
+					<CreationDate>2013-07-31T10:56:21.000Z</CreationDate>
+					<StorageClass>Standard</StorageClass>
+					<TransferAcceleration>Disabled</TransferAcceleration>
+					<CrossRegionReplication>Disabled</CrossRegionReplication>
+					<HierarchicalNamespace>Enabled</HierarchicalNamespace>
+					<Name>` + TestBucketName + `</Name>
+					<AccessControlList>
+					  <Grant>private</Grant>
+					</AccessControlList>
+					<Comment>test</Comment>
+				  </Bucket>
+				</BucketInfo>
+				`,
+		},
+		{
+			name:                    "existing bucket provided (management set)",
+			expectedManagementState: "foo",
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "foo",
+						OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
+							Bucket: TestAnotherBucketName,
+						},
+					},
+				},
+			},
+			responseCodes: []int{http.StatusOK},
+			respBody: `
+			<?xml version="1.0" encoding="UTF-8"?>
+				<BucketInfo>
+				  <Bucket>
+					<CreationDate>2013-07-31T10:56:21.000Z</CreationDate>
+					<StorageClass>Standard</StorageClass>
+					<TransferAcceleration>Disabled</TransferAcceleration>
+					<CrossRegionReplication>Disabled</CrossRegionReplication>
+					<HierarchicalNamespace>Enabled</HierarchicalNamespace>
+					<Name>` + TestAnotherBucketName + `</Name>
+					<AccessControlList>
+					  <Grant>private</Grant>
+					</AccessControlList>
+					<Comment>test</Comment>
+				  </Bucket>
+				</BucketInfo>
+				`,
+		},
 		//{
 		//	name:                    "non-existing bucket provided",
 		//	expectedManagementState: imageregistryv1.StorageManagementStateManaged,
@@ -372,7 +416,17 @@ func TestStorageManagementState(t *testing.T) {
 		//			},
 		//		},
 		//	},
-		//	responseCodes: []int{http.StatusNotFound},
+		//	responseCodes: []int{http.StatusNotFound, http.StatusOK},
+		//	respBody: `
+		//		<?xml version="1.0" encoding="UTF-8"?>
+		//		<Error>
+		//		  <Code>NoSuchBucket</Code>
+		//		  <Message>The specified bucket does not exist.</Message>
+		//		  <RequestId>568D547F31243C673BA1****</RequestId>
+		//		  <HostId>nosuchbucket.oss.aliyuncs.com</HostId>
+		//		  <BucketName>nosuchbucket</BucketName>
+		//		</Error>
+		//	`,
 		//},
 		//{
 		//	name:                    "non-existing bucket provided (management set)",
@@ -398,6 +452,10 @@ func TestStorageManagementState(t *testing.T) {
 					rt.AddResponse(code)
 				}
 			}
+			if len(tt.respBody) > 0 {
+				rt.AddResponseBody(tt.respBody)
+			}
+
 			drv.roundTripper = rt
 			if err := drv.CreateStorage(tt.config); err != nil {
 				t.Errorf("unexpected err %q", err)
@@ -422,6 +480,7 @@ func TestUserProvidedTags(t *testing.T) {
 		userTags      []configv1.AlibabaCloudResourceTag
 		expectedTags  []*oss.Tag
 		responseCodes []int
+		respBody      string
 		infraName     string
 		noTagRequest  bool
 	}{
@@ -485,75 +544,108 @@ func TestUserProvidedTags(t *testing.T) {
 				},
 			},
 		},
-		//TODO fix test case
-		//{
-		//	name:      "with user tags and unmanaged storage",
-		//	infraName: "tinfra",
-		//	userTags: []configv1.AlibabaCloudResourceTag{
-		//		{
-		//			Key:   "tag0",
-		//			Value: "value0",
-		//		},
-		//		{
-		//			Key:   "tag1",
-		//			Value: "value1",
-		//		},
-		//	},
-		//	noTagRequest: true,
-		//	expectedTags: []*oss.Tag{},
-		//	config: &imageregistryv1.Config{
-		//		Spec: imageregistryv1.ImageRegistrySpec{
-		//			Storage: imageregistryv1.ImageRegistryConfigStorage{
-		//				ManagementState: "Unmanaged",
-		//				OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
-		//					Bucket: TestBucketName,
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
-		//{
-		//	name:      "with user tags and already existing bucket",
-		//	infraName: "tinfra",
-		//	userTags: []configv1.AlibabaCloudResourceTag{
-		//		{
-		//			Key:   "tag0",
-		//			Value: "value0",
-		//		},
-		//		{
-		//			Key:   "tag1",
-		//			Value: "value1",
-		//		},
-		//	},
-		//	expectedTags: []*oss.Tag{
-		//		{
-		//			Key:   "kubernetes.io/cluster/tinfra",
-		//			Value: "owned",
-		//		},
-		//		{
-		//			Key:   "Name",
-		//			Value: "tinfra-image-registry",
-		//		},
-		//		{
-		//			Key:   "tag0",
-		//			Value: "value0",
-		//		},
-		//		{
-		//			Key:   "tag1",
-		//			Value: "value1",
-		//		},
-		//	},
-		//	config: &imageregistryv1.Config{
-		//		Spec: imageregistryv1.ImageRegistrySpec{
-		//			Storage: imageregistryv1.ImageRegistryConfigStorage{
-		//				ManagementState: "Managed",
-		//				OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
-		//					Bucket: TestBucketName,
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
+		{
+			name:      "with user tags and unmanaged storage",
+			infraName: "tinfra",
+			userTags: []configv1.AlibabaCloudResourceTag{
+				{
+					Key:   "tag0",
+					Value: "value0",
+				},
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+			},
+			noTagRequest: true,
+			expectedTags: []*oss.Tag{},
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "Unmanaged",
+						OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
+							Bucket: TestBucketName,
+						},
+					},
+				},
+			},
+			respBody: `
+			<?xml version="1.0" encoding="UTF-8"?>
+				<BucketInfo>
+				  <Bucket>
+					<CreationDate>2013-07-31T10:56:21.000Z</CreationDate>
+					<StorageClass>Standard</StorageClass>
+					<TransferAcceleration>Disabled</TransferAcceleration>
+					<CrossRegionReplication>Disabled</CrossRegionReplication>
+					<HierarchicalNamespace>Enabled</HierarchicalNamespace>
+					<Name>` + TestBucketName + `</Name>
+					<AccessControlList>
+					  <Grant>private</Grant>
+					</AccessControlList>
+					<Comment>test</Comment>
+				  </Bucket>
+				</BucketInfo>
+				`,
+		},
+		{
+			name:      "with user tags and already existing bucket",
+			infraName: "tinfra",
+			userTags: []configv1.AlibabaCloudResourceTag{
+				{
+					Key:   "tag0",
+					Value: "value0",
+				},
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+			},
+			expectedTags: []*oss.Tag{
+				{
+					Key:   "kubernetes.io/cluster/tinfra",
+					Value: "owned",
+				},
+				{
+					Key:   "Name",
+					Value: "tinfra-image-registry",
+				},
+				{
+					Key:   "tag0",
+					Value: "value0",
+				},
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+			},
+			config: &imageregistryv1.Config{
+				Spec: imageregistryv1.ImageRegistrySpec{
+					Storage: imageregistryv1.ImageRegistryConfigStorage{
+						ManagementState: "Managed",
+						OSS: &imageregistryv1.ImageRegistryConfigStorageOSS{
+							Bucket: TestBucketName,
+						},
+					},
+				},
+			},
+			respBody: `
+			<?xml version="1.0" encoding="UTF-8"?>
+				<BucketInfo>
+				  <Bucket>
+					<CreationDate>2013-07-31T10:56:21.000Z</CreationDate>
+					<StorageClass>Standard</StorageClass>
+					<TransferAcceleration>Disabled</TransferAcceleration>
+					<CrossRegionReplication>Disabled</CrossRegionReplication>
+					<HierarchicalNamespace>Enabled</HierarchicalNamespace>
+					<Name>` + TestBucketName + `</Name>
+					<AccessControlList>
+					  <Grant>private</Grant>
+					</AccessControlList>
+					<Comment>test</Comment>
+				  </Bucket>
+				</BucketInfo>
+				`,
+		},
 		//{
 		//	name:      "with user tags and creating provided bucket",
 		//	infraName: "tinfra",
@@ -633,6 +725,10 @@ func TestUserProvidedTags(t *testing.T) {
 				for _, code := range tt.responseCodes {
 					rt.AddResponse(code)
 				}
+			}
+
+			if len(tt.respBody) > 0 {
+				rt.AddResponseBody(tt.respBody)
 			}
 			drv.roundTripper = rt
 			if err := drv.CreateStorage(tt.config); err != nil {

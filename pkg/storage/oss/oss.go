@@ -1,6 +1,7 @@
 package oss
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -23,10 +24,10 @@ import (
 )
 
 const (
-	//imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
-	//imageRegistrySecretDataKey    = "credentials"
-	imageRegistryAccessKeyID     = "alibabacloud_access_key_id"
-	imageRegistryAccessKeySecret = "alibabacloud_access_key_secret"
+	imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
+	imageRegistrySecretDataKey    = "credentials"
+	imageRegistryAccessKeyID      = "alibabacloud_access_key_id"
+	imageRegistryAccessKeySecret  = "alibabacloud_access_key_secret"
 
 	envRegistryStorage                   = "REGISTRY_STORAGE"
 	envRegistryStorageOssBucket          = "REGISTRY_STORAGE_OSS_BUCKET"
@@ -229,11 +230,62 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 }
 
 func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
-	return nil, nil, nil
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+
+	optional := false
+
+	// Mount the registry config secret containing the credentials file data
+	credsVolume := corev1.Volume{
+		Name: defaults.ImageRegistryPrivateConfiguration,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: defaults.ImageRegistryPrivateConfiguration,
+				Optional:   &optional,
+			},
+		},
+	}
+
+	credsVolumeMount := corev1.VolumeMount{
+		Name:      credsVolume.Name,
+		MountPath: imageRegistrySecretMountpoint,
+		ReadOnly:  true,
+	}
+
+	volumes = append(volumes, credsVolume)
+	volumeMounts = append(volumeMounts, credsVolumeMount)
+
+	return volumes, volumeMounts, nil
 }
 
 func (d *driver) VolumeSecrets() (map[string]string, error) {
-	return nil, nil
+	// Return the same credentials data that the image-registry-operator is using
+	// so that it can be stored in the image-registry Pod's Secret.
+	err := d.getCredentialsConfigData()
+	if err != nil {
+		return nil, err
+	}
+
+	confData, err := d.sharedCredentialsDataFromStaticCreds()
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]string{
+		imageRegistrySecretDataKey: string(confData),
+	}, nil
+}
+
+func (d *driver) sharedCredentialsDataFromStaticCreds() ([]byte, error) {
+	if d.credentials == nil || d.credentials.accessKeyID == "" || d.credentials.accessKeySecret == "" {
+		return []byte{}, fmt.Errorf("invalid credentials for Alibaba Cloud")
+	}
+	buf := &bytes.Buffer{}
+	fmt.Fprint(buf, "[default]\n")
+	fmt.Fprintf(buf, "alibabacloud_access_key_id = %s\n", d.credentials.accessKeyID)
+	fmt.Fprintf(buf, "alibabacloud_secret_access_key = %s\n", d.credentials.accessKeySecret)
+
+	return buf.Bytes(), nil
 }
 
 // bucketExists checks whether or not the OSS bucket exists
@@ -247,7 +299,13 @@ func (d *driver) bucketExists(bucketName string) (bool, error) {
 		return false, err
 	}
 
-	return svc.IsBucketExist(bucketName)
+	_, err = svc.GetBucketInfo(bucketName)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // StorageExists checks if an OSS bucket with the given name exists
@@ -312,6 +370,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 		if err != nil {
 			if oerr, ok := err.(oss.ServiceError); ok {
+				switch oerr.Code {
+				case "NoSuchBucket", "NotFound":
+					// If the bucket doesn't exist that's ok, we'll try to create it
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, oerr.Code, oerr.Error())
+				default:
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+					return err
+				}
 				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, oerr.Code, oerr.Error())
 				return err
 			}
