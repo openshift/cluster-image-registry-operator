@@ -79,13 +79,13 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(obj)
 
-	klog.V(1).Infof("get event from workqueue")
+	klog.V(4).Infof("get event from workqueue")
 	if err := c.sync(); err != nil {
 		c.queue.AddRateLimited(workqueueKey)
 		klog.Errorf("NodeCADaemonController: unable to sync: %s, requeuing", err)
 	} else {
 		c.queue.Forget(obj)
-		klog.Infof("NodeCADaemonController: event from workqueue successfully processed")
+		klog.V(4).Infof("NodeCADaemonController: event from workqueue successfully processed")
 	}
 	return true
 }

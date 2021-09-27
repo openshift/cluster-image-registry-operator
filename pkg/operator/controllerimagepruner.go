@@ -305,7 +305,7 @@ func (c *ImagePrunerController) eventProcessor() {
 			return
 		}
 
-		klog.V(1).Infof("get event from image pruner workqueue")
+		klog.V(4).Infof("get event from image pruner workqueue")
 		func() {
 			defer c.workqueue.Done(obj)
 
@@ -320,7 +320,7 @@ func (c *ImagePrunerController) eventProcessor() {
 				klog.Errorf("(image pruner) unable to sync: %s, requeuing", err)
 			} else {
 				c.workqueue.Forget(obj)
-				klog.Infof("event from image pruner workqueue successfully processed")
+				klog.V(4).Infof("event from image pruner workqueue successfully processed")
 			}
 		}()
 	}

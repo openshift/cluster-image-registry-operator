@@ -103,13 +103,13 @@ func (icc *ImageConfigController) processNextWorkItem() bool {
 	}
 	defer icc.queue.Done(obj)
 
-	klog.V(1).Infof("get event from workqueue")
+	klog.V(4).Infof("get event from workqueue")
 	if err := icc.sync(); err != nil {
 		icc.queue.AddRateLimited(workqueueKey)
 		klog.Errorf("ImageConfigController: unable to sync: %s, requeuing", err)
 	} else {
 		icc.queue.Forget(obj)
-		klog.Infof("ImageConfigController: event from workqueue processed")
+		klog.V(4).Infof("ImageConfigController: event from workqueue processed")
 	}
 
 	return true
