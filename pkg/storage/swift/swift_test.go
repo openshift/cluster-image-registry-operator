@@ -27,11 +27,14 @@ import (
 )
 
 const (
-	username  = "myUsername"
-	password  = "myPassword"
-	container = "registry"
-	domain    = "Default"
-	tenant    = "openshift-registry"
+	username                    = "myUsername"
+	password                    = "myPassword"
+	applicationCredentialID     = "myId"
+	applicationCredentialName   = "myName"
+	applicationCredentialSecret = "mySecret"
+	container                   = "registry"
+	domain                      = "Default"
+	tenant                      = "openshift-registry"
 
 	cloudName      = "openstack"
 	cloudSecretKey = "clouds.yaml"
@@ -45,8 +48,11 @@ const (
 var (
 	// Fake Swift credentials map
 	fakeSecretData = map[string][]byte{
-		"REGISTRY_STORAGE_SWIFT_USERNAME": []byte(username),
-		"REGISTRY_STORAGE_SWIFT_PASSWORD": []byte(password),
+		"REGISTRY_STORAGE_SWIFT_USERNAME":                    []byte(username),
+		"REGISTRY_STORAGE_SWIFT_PASSWORD":                    []byte(password),
+		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID":     []byte(applicationCredentialID),
+		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME":   []byte(applicationCredentialName),
+		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET": []byte(applicationCredentialSecret),
 	}
 	fakeCloudsYAML             map[string][]byte
 	fakeCloudProviderConfigMap map[string]string
@@ -554,9 +560,12 @@ func TestSwiftSecrets(t *testing.T) {
 	th.AssertNoErr(t, err)
 	res, err := configenv.SecretData()
 	th.AssertNoErr(t, err)
-	th.AssertEquals(t, 2, len(res))
+	th.AssertEquals(t, 5, len(res))
 	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
 	th.AssertEquals(t, password, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
+	th.AssertEquals(t, applicationCredentialID, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
+	th.AssertEquals(t, applicationCredentialName, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
+	th.AssertEquals(t, applicationCredentialSecret, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
 
 	config = imageregistryv1.ImageRegistryConfigStorageSwift{
 		Container: container,
@@ -578,6 +587,9 @@ func TestSwiftSecrets(t *testing.T) {
       project_name: ` + tenant + `
       username: ` + username + `
       password: ` + password + `
+      application_credential_id: ` + applicationCredentialID + `
+      application_credential_name: ` + applicationCredentialName + `
+      application_credential_secret: ` + applicationCredentialSecret + `
       domain_name: ` + domain + `
     region_name: RegionOne`)
 
@@ -588,9 +600,12 @@ func TestSwiftSecrets(t *testing.T) {
 	th.AssertNoErr(t, err)
 	res, err = configenv.SecretData()
 	th.AssertNoErr(t, err)
-	th.AssertEquals(t, 2, len(res))
+	th.AssertEquals(t, 5, len(res))
 	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
 	th.AssertEquals(t, password, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
+	th.AssertEquals(t, applicationCredentialID, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
+	th.AssertEquals(t, applicationCredentialName, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
+	th.AssertEquals(t, applicationCredentialSecret, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
 }
 
 func TestSwiftCreateStorageCloudConfig(t *testing.T) {
@@ -755,14 +770,20 @@ func TestSwiftConfigEnvCloudConfig(t *testing.T) {
 	th.AssertEquals(t, true, res[3].Secret)
 	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_PASSWORD", res[4].Name)
 	th.AssertEquals(t, true, res[4].Secret)
-	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHVERSION", res[5].Name)
-	th.AssertEquals(t, 3, res[5].Value)
-	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_DOMAIN", res[6].Name)
-	th.AssertEquals(t, domain, res[6].Value)
-	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_TENANT", res[7].Name)
-	th.AssertEquals(t, tenant, res[7].Value)
-	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_REGION", res[8].Name)
-	th.AssertEquals(t, "RegionOne", res[8].Value)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID", res[5].Name)
+	th.AssertEquals(t, true, res[5].Secret)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME", res[6].Name)
+	th.AssertEquals(t, true, res[6].Secret)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET", res[7].Name)
+	th.AssertEquals(t, true, res[7].Secret)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_AUTHVERSION", res[8].Name)
+	th.AssertEquals(t, 3, res[8].Value)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_DOMAIN", res[9].Name)
+	th.AssertEquals(t, domain, res[9].Value)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_TENANT", res[10].Name)
+	th.AssertEquals(t, tenant, res[10].Value)
+	th.AssertEquals(t, "REGISTRY_STORAGE_SWIFT_REGION", res[11].Name)
+	th.AssertEquals(t, "RegionOne", res[11].Value)
 }
 
 func TestSwiftEnsureAuthURLHasAPIVersion(t *testing.T) {
