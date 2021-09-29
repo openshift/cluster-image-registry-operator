@@ -27,6 +27,7 @@ import (
 	"github.com/IBM/ibm-cos-sdk-go/service/s3/s3manager"
 	"github.com/IBM/platform-services-go-sdk/resourcecontrollerv2"
 	"github.com/IBM/platform-services-go-sdk/resourcemanagerv2"
+	"github.com/golang-jwt/jwt"
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
@@ -45,9 +46,10 @@ const (
 )
 
 type driver struct {
-	Context context.Context
-	Config  *imageregistryv1.ImageRegistryConfigStorageIBMCOS
-	Listers *regopclient.Listers
+	AccountID string
+	Context   context.Context
+	Config    *imageregistryv1.ImageRegistryConfigStorageIBMCOS
+	Listers   *regopclient.Listers
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
@@ -192,11 +194,20 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Attempt to create a new service instance
 	if len(d.Config.ServiceInstanceCRN) == 0 {
+		// Get account ID
+		if d.AccountID == "" {
+			d.AccountID, err = d.getAccountID()
+			if err != nil {
+				return fmt.Errorf("unable to determine account ID: %s", err.Error())
+			}
+		}
+
 		// Get resource group details
 		resourceGroups, resp, err := rm.ListResourceGroupsWithContext(
 			d.Context,
 			&resourcemanagerv2.ListResourceGroupsOptions{
-				Name: &d.Config.ResourceGroupName,
+				AccountID: &d.AccountID,
+				Name:      &d.Config.ResourceGroupName,
 			},
 		)
 		if resourceGroups == nil || err != nil {
@@ -373,6 +384,42 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	return nil
+}
+
+// getAccountID returns the IBM Cloud account ID associated with the
+// IAM API key.
+func (d *driver) getAccountID() (string, error) {
+	IAMAPIKey, err := d.getCredentialsConfigData()
+	if err != nil {
+		return "", err
+	}
+
+	iamAuthenticator := &core.IamAuthenticator{
+		ApiKey: IAMAPIKey,
+	}
+
+	// Get IAM token
+	iamToken, err := iamAuthenticator.RequestToken()
+	if err != nil {
+		return "", err
+	}
+	parsedToken, _ := jwt.Parse(iamToken.AccessToken, nil)
+
+	// Get account ID
+	var accountID string
+	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok {
+		if accountInfo, ok := claims["account"].(map[string]interface{}); ok {
+			if accountInfo["bss"] != nil {
+				accountID = accountInfo["bss"].(string)
+			}
+		}
+	}
+
+	if accountID == "" {
+		return "", fmt.Errorf("could not parse account id from token")
+	}
+
+	return accountID, nil
 }
 
 // getResouceControllerService returns the IBM Cloud resource controller
