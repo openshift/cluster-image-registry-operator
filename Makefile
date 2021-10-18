@@ -33,7 +33,7 @@ test-unit:
 .PHONY: test-unit
 
 test-e2e:
-	./hack/test-go.sh -count 1 -timeout 2h -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
+	./hack/test-go.sh -count 1 -timeout 110m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
 .PHONY: verify
