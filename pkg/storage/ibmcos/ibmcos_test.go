@@ -310,6 +310,7 @@ func TestStorageManagementState(t *testing.T) {
 			}
 
 			drv := NewDriver(ctx, tt.config.Spec.Storage.IBMCOS, listers)
+			drv.AccountID = "test-account-id"
 			drv.roundTripper = rt
 			drv.resourceController = &resourcecontrollerv2.ResourceControllerV2{
 				Service: &core.BaseService{
