@@ -52,16 +52,6 @@ verify-golangci-lint: $(GOLANGCI_LINT)
 verify: verify-golangci-lint
 .PHONY: verify-golangci-lint
 
-update-deps:
-	go get -d -u \
-		github.com/openshift/api@release-4.4 \
-		github.com/openshift/client-go@release-4.4 \
-		github.com/openshift/library-go@release-4.4
-	go get -u=patch ./cmd/... ./pkg/... ./test/... sigs.k8s.io/structured-merge-diff@v1.0.1-0.20191108220359-b1b620dd3f06
-	go mod tidy
-	go mod vendor
-.PHONY: update-deps
-
 clean:
 	rm -rf tmp
 .PHONY: clean
