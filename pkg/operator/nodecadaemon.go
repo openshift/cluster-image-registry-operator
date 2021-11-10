@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -91,6 +92,7 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 }
 
 func (c *NodeCADaemonController) sync() error {
+	ctx := context.TODO()
 	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient, c.operatorClient)
 
 	availableCondition := operatorv1.OperatorCondition{
@@ -122,6 +124,7 @@ func (c *NodeCADaemonController) sync() error {
 	err = resource.ApplyMutator(gen)
 	if err != nil {
 		_, _, updateError := v1helpers.UpdateStatus(
+			ctx,
 			c.operatorClient,
 			v1helpers.UpdateConditionFn(availableCondition),
 			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
@@ -135,6 +138,7 @@ func (c *NodeCADaemonController) sync() error {
 	}
 
 	_, _, err = v1helpers.UpdateStatus(
+		ctx,
 		c.operatorClient,
 		v1helpers.UpdateConditionFn(availableCondition),
 		v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{

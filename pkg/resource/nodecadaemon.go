@@ -78,6 +78,7 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 	}
 
 	dep, updated, err := resourceapply.ApplyDaemonSet(
+		context.TODO(),
 		ds.client,
 		ds.recorder,
 		daemonSet,
@@ -94,6 +95,7 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 		}
 
 		_, _, err = v1helpers.UpdateStatus(
+			context.TODO(),
 			ds.operatorClient,
 			updateStatusFn,
 		)
