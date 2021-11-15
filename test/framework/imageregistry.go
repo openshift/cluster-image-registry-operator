@@ -507,6 +507,7 @@ func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageReg
 func TeardownImageRegistry(te TestEnv) {
 	defer func() {
 		RemoveImageRegistry(te)
+		EnsureClusterOperatorsAreHealthy(te, 10*time.Second, AsyncOperationTimeout)
 	}()
 	if te.Failed() {
 		DumpImageRegistryResource(te)

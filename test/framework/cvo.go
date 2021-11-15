@@ -41,8 +41,9 @@ func DisableCVOForOperator(te TestEnv) {
 	changed := false
 	var componentChanged bool
 
+	// The tests need to managed the image registry operator.
 	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
-		Group:     "", // XXX(dmage): it will be changed soon.
+		Group:     "apps",
 		Kind:      "Deployment",
 		Namespace: OperatorDeploymentNamespace,
 		Name:      OperatorDeploymentName,
@@ -53,7 +54,7 @@ func DisableCVOForOperator(te TestEnv) {
 	// Disable the kube and openshift apiserver operators so the kube+openshift apiservers don't get
 	// restarted while we're running our tests.
 	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
-		Group:     "",
+		Group:     "apps",
 		Kind:      "Deployment",
 		Namespace: "openshift-kube-apiserver-operator",
 		Name:      "kube-apiserver-operator",
@@ -62,10 +63,21 @@ func DisableCVOForOperator(te TestEnv) {
 	changed = changed || componentChanged
 
 	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
-		Group:     "",
+		Group:     "apps",
 		Kind:      "Deployment",
 		Namespace: "openshift-apiserver-operator",
 		Name:      "openshift-apiserver-operator",
+		Unmanaged: true,
+	})
+	changed = changed || componentChanged
+
+	// Disable the machine config operator so that it doesn't recreate
+	// machines when tests change proxy settings.
+	cv.Spec.Overrides, componentChanged = addCompomentOverride(cv.Spec.Overrides, configv1.ComponentOverride{
+		Group:     "apps",
+		Kind:      "Deployment",
+		Namespace: "openshift-machine-config-operator",
+		Name:      "machine-config-operator",
 		Unmanaged: true,
 	})
 	changed = changed || componentChanged
@@ -80,4 +92,5 @@ func DisableCVOForOperator(te TestEnv) {
 
 	StopDeployment(te, "openshift-kube-apiserver-operator", "kube-apiserver-operator")
 	StopDeployment(te, "openshift-apiserver-operator", "openshift-apiserver-operator")
+	StopDeployment(te, "openshift-machine-config-operator", "machine-config-operator")
 }
