@@ -15,7 +15,7 @@ if [ -z "$CURRENT" ]; then
     - op: add
       path: /spec/overrides/-
       value:
-        group: apps/v1
+        group: apps
         kind: Deployment
         name: cluster-image-registry-operator
         namespace: openshift-image-registry
@@ -29,7 +29,7 @@ if [ -z "$CURRENT" ]; then
     - op: add
       path: /spec/overrides/-
       value:
-        group: apiextensions.k8s.io/v1
+        group: apiextensions.k8s.io
         kind: CustomResourceDefinition
         name: configs.imageregistry.operator.openshift.io
         namespace: ""
@@ -43,7 +43,7 @@ if [ -z "$CURRENT" ]; then
     - op: add
       path: /spec/overrides/-
       value:
-        group: apiextensions.k8s.io/v1
+        group: apiextensions.k8s.io
         kind: CustomResourceDefinition
         name: imagepruners.imageregistry.operator.openshift.io
         namespace: ""
