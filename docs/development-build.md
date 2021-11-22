@@ -38,7 +38,7 @@ You can also do it manually:
     ```yaml
     spec:
       overrides:
-      - group: apps/v1
+      - group: apps
         kind: Deployment
         name: cluster-image-registry-operator
         namespace: openshift-image-registry
