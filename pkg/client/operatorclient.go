@@ -55,11 +55,11 @@ func (c *ConfigOperatorClient) GetOperatorState() (spec *operatorv1.OperatorSpec
 	return &config.Spec.OperatorSpec, &config.Status.OperatorStatus, config.ResourceVersion, nil
 }
 
-func (c *ConfigOperatorClient) UpdateOperatorSpec(oldResourceVersion string, in *operatorv1.OperatorSpec) (out *operatorv1.OperatorSpec, newResourceVersion string, err error) {
+func (c *ConfigOperatorClient) UpdateOperatorSpec(ctx context.Context, oldResourceVersion string, in *operatorv1.OperatorSpec) (out *operatorv1.OperatorSpec, newResourceVersion string, err error) {
 	return nil, "", fmt.Errorf("not implemented")
 }
 
-func (c *ConfigOperatorClient) UpdateOperatorStatus(oldResourceVersion string, in *operatorv1.OperatorStatus) (out *operatorv1.OperatorStatus, err error) {
+func (c *ConfigOperatorClient) UpdateOperatorStatus(ctx context.Context, oldResourceVersion string, in *operatorv1.OperatorStatus) (out *operatorv1.OperatorStatus, err error) {
 	config, err := c.lister.Get("cluster")
 	if err != nil {
 		return nil, err

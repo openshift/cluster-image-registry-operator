@@ -166,22 +166,29 @@ func (icc *ImageConfigController) syncImageStatus() error {
 }
 
 func (icc *ImageConfigController) sync() error {
+	ctx := context.TODO()
 	err := icc.syncImageStatus()
 	if err != nil {
-		_, _, updateError := v1helpers.UpdateStatus(icc.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-			Type:    "ImageConfigControllerDegraded",
-			Status:  operatorv1.ConditionTrue,
-			Reason:  "Error",
-			Message: err.Error(),
-		}))
+		_, _, updateError := v1helpers.UpdateStatus(
+			ctx,
+			icc.operatorClient,
+			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+				Type:    "ImageConfigControllerDegraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "Error",
+				Message: err.Error(),
+			}))
 		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
-	_, _, err = v1helpers.UpdateStatus(icc.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-		Type:   "ImageConfigControllerDegraded",
-		Status: operatorv1.ConditionFalse,
-		Reason: "AsExpected",
-	}))
+	_, _, err = v1helpers.UpdateStatus(
+		ctx,
+		icc.operatorClient,
+		v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:   "ImageConfigControllerDegraded",
+			Status: operatorv1.ConditionFalse,
+			Reason: "AsExpected",
+		}))
 	return err
 }
 

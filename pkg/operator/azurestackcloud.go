@@ -138,22 +138,29 @@ func (c *AzureStackCloudController) syncConfig() error {
 }
 
 func (c *AzureStackCloudController) sync() error {
+	ctx := context.TODO()
 	err := c.syncConfig()
 	if err != nil {
-		_, _, updateError := v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-			Type:    "AzureStackCloudControllerDegraded",
-			Status:  operatorv1.ConditionTrue,
-			Reason:  "Error",
-			Message: err.Error(),
-		}))
+		_, _, updateError := v1helpers.UpdateStatus(
+			ctx,
+			c.operatorClient,
+			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+				Type:    "AzureStackCloudControllerDegraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "Error",
+				Message: err.Error(),
+			}))
 		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
-	_, _, err = v1helpers.UpdateStatus(c.operatorClient, v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
-		Type:   "AzureStackCloudControllerDegraded",
-		Status: operatorv1.ConditionFalse,
-		Reason: "AsExpected",
-	}))
+	_, _, err = v1helpers.UpdateStatus(
+		ctx,
+		c.operatorClient,
+		v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+			Type:   "AzureStackCloudControllerDegraded",
+			Status: operatorv1.ConditionFalse,
+			Reason: "AsExpected",
+		}))
 	return err
 }
 
