@@ -41,6 +41,7 @@ func (c *ConfigOperatorClient) GetObjectMeta() (meta *metav1.ObjectMeta, err err
 	if err != nil {
 		return nil, err
 	}
+	config = config.DeepCopy()
 
 	return &config.ObjectMeta, nil
 }
@@ -64,6 +65,7 @@ func (c *ConfigOperatorClient) UpdateOperatorStatus(ctx context.Context, oldReso
 	if err != nil {
 		return nil, err
 	}
+	config = config.DeepCopy()
 
 	if config.ResourceVersion != oldResourceVersion {
 		gr := schema.GroupResource{
