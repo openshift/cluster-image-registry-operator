@@ -8,7 +8,5 @@ package tools
 
 import (
 	// Makefile
-	"github.com/openshift/build-machinery-go/make/lib"
-	"github.com/openshift/build-machinery-go/make/targets/openshift"
-	"github.com/openshift/build-machinery-go/make/targets/openshift/operator"
+	_ "github.com/openshift/build-machinery-go"
 )

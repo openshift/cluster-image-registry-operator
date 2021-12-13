@@ -4,11 +4,14 @@ PROG  := cluster-image-registry-operator
 
 GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
-GOLANGCI_LINT_VERSION = v1.24
+GOLANGCI_LINT_VERSION = v1.24.0
 
 GO_REQUIRED_MIN_VERSION = 1.16
 
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
+    targets/help.mk \
+    targets/golang/verify-update.mk \
+    targets/openshift/deps.mk \
     targets/openshift/operator/profile-manifests.mk \
 )
 
@@ -36,21 +39,19 @@ test-e2e:
 	./hack/test-go.sh -count 1 -timeout 110m -v$${WHAT:+ -run="$$WHAT"} ./test/e2e/
 .PHONY: test-e2e
 
+verify: verify-gofmt verify-deps
 .PHONY: verify
 
-verify-fmt:
-	./hack/verify-gofmt.sh
-verify: verify-fmt
-.PHONY: verify-fmt
-
 $(GOLANGCI_LINT):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(dir $@) v1.24.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(dir $@) $(GOLANGCI_LINT_VERSION)
 
 verify-golangci-lint: $(GOLANGCI_LINT)
 	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run --timeout=300s ./cmd/... ./pkg/... ./test/...
-
 verify: verify-golangci-lint
 .PHONY: verify-golangci-lint
+
+update: update-gofmt
+.PHONY: update
 
 clean:
 	rm -rf tmp
