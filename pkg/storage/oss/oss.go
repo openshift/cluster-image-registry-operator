@@ -212,15 +212,12 @@ func (d *driver) Volumes() ([]corev1.Volume, []corev1.VolumeMount, error) {
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 
-	optional := false
-
 	// Mount the registry config secret containing the credentials file data
 	credsVolume := corev1.Volume{
 		Name: defaults.ImageRegistryPrivateConfiguration,
 		VolumeSource: corev1.VolumeSource{
 			Secret: &corev1.SecretVolumeSource{
 				SecretName: defaults.ImageRegistryPrivateConfiguration,
-				Optional:   &optional,
 			},
 		},
 	}
