@@ -142,7 +142,7 @@ func (d *driver) getCredentialsConfigData() error {
 	}
 
 	// This must be an AccessKeyCrential because the oss.New requires accessKeyID and accessSecretKey
-	if akCredentials, ok := credential.(*credentials.AccessKeyCredential); !ok {
+	if akCredentials, ok := credential.(*credentials.AccessKeyCredential); ok {
 		d.credentials = akCredentials
 		return nil
 	}
