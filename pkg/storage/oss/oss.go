@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -100,7 +99,7 @@ func fetchCredentialsIniFromSecret(secret *corev1.Secret) (auth.Credential, erro
 		return nil, fmt.Errorf("failed to fetch key 'credentials' in secret data")
 	}
 
-	f, err := ioutil.TempFile("", "alibaba-creds-*")
+	f, err := os.CreateTemp("", "alibaba-creds-*")
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +124,15 @@ func (d *driver) getCredentialsConfigData() error {
 
 	// Look for a user defined secret to get the Alibaba Cloud credentials from first
 	sec, err := d.Listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
-	if err != nil && errors.IsNotFound(err) {
-		// Fall back to those provided by the credential minter if nothing is provided by the user
-		sec, err = d.Listers.Secrets.Get(defaults.CloudCredentialsName)
-		if err != nil {
-			return fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Fall back to those provided by the credential minter if nothing is provided by the user
+			sec, err = d.Listers.Secrets.Get(defaults.CloudCredentialsName)
+			if err != nil {
+				return fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
+			}
+		} else {
+			return fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryPrivateConfigurationUser, defaults.CloudCredentialsName), err)
 		}
 	}
 
@@ -137,13 +140,17 @@ func (d *driver) getCredentialsConfigData() error {
 	if err != nil {
 		return fmt.Errorf("failed to generate shared secrets data: %v", err)
 	}
-	// This must be an AccessKeyCrential because the oss.New requires accessKeyID and accessSecretKey
-	d.credentials = credential.(*credentials.AccessKeyCredential)
 
-	return nil
+	// This must be an AccessKeyCrential because the oss.New requires accessKeyID and accessSecretKey
+	if akCredentials, ok := credential.(*credentials.AccessKeyCredential); !ok {
+		d.credentials = akCredentials
+		return nil
+	}
+
+	return fmt.Errorf("an invalid credential type ")
 }
 
-// isInternal return An internal endpoint or the public endpoint for OSS access.  default internal
+// isInternal Identifies whether to use a public or private oss endpoint.
 func (d *driver) isInternal() bool {
 	return d.Config.EndpointAccessibility != imageregistryv1.PublicEndpoint
 }
@@ -174,17 +181,12 @@ func (d *driver) getOSSService() (*oss.Client, error) {
 	if d.roundTripper != nil {
 		clientOptions = append(clientOptions, oss.HTTPClient(&http.Client{Transport: d.roundTripper}))
 	}
-	client, err := oss.New(endpoint, d.credentials.AccessKeyId, d.credentials.AccessKeySecret, clientOptions...)
-	if err != nil {
-		return nil, err
-	}
 
-	return client, err
+	return oss.New(endpoint, d.credentials.AccessKeyId, d.credentials.AccessKeySecret, clientOptions...)
 }
 
-// ConfigEnv configures the environment variables
-// Note: it is the callers responsiblity to make sure the returned file
-// location is cleaned up after it is no longer needed.
+// ConfigEnv configures the environment variables that will be
+// used in the image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	err = d.UpdateEffectiveConfig()
 	if err != nil {
@@ -298,8 +300,8 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "OSS Bucket Exists", "")
 	}
 	if err != nil {
-		if oerr, ok := err.(oss.ServiceError); ok {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, oerr.Code, oerr.Error())
+		if svcErr, ok := err.(oss.ServiceError); ok && svcErr.Code == "NoSuchBucket" {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, svcErr.Code, svcErr.Error())
 			return false, nil
 		}
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
@@ -307,7 +309,6 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	}
 
 	return true, nil
-
 }
 
 // StorageChanged checks to see if the name of the storage medium
