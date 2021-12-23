@@ -6,6 +6,9 @@ tmp/_test
 deploy/test
 cluster-image-registry-operator
 
+#idea dev tools
+.idea/
+
 # Created by https://www.gitignore.io/api/go,vim,emacs,visualstudiocode
 
 ### Emacs ###

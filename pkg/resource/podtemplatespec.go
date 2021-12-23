@@ -54,7 +54,7 @@ func generateReadinessProbeConfig() *corev1.Probe {
 func generateProbeConfig() *corev1.Probe {
 	return &corev1.Probe{
 		TimeoutSeconds: int32(defaults.HealthzTimeoutSeconds),
-		Handler: corev1.Handler{
+		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme: corev1.URISchemeHTTPS,
 				Path:   defaults.HealthzRoute,
@@ -453,7 +453,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					// seconds to propagate before we actually shutdown the
 					// registry.
 					Lifecycle: &corev1.Lifecycle{
-						PreStop: &corev1.Handler{
+						PreStop: &corev1.LifecycleHandler{
 							Exec: &corev1.ExecAction{
 								Command: []string{"sleep", "25"},
 							},

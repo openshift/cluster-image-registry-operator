@@ -17,6 +17,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/ibmcos"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/oss"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/pvc"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/swift"
@@ -102,6 +103,12 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 		drivers = append(drivers, azure.NewDriver(ctx, cfg.Azure, listers))
 	}
 
+	if cfg.OSS != nil {
+		names = append(names, "OSS")
+		ctx := context.Background()
+		drivers = append(drivers, oss.NewDriver(ctx, cfg.OSS, listers))
+	}
+
 	switch len(drivers) {
 	case 0:
 		return nil, ErrStorageNotConfigured
@@ -173,6 +180,9 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 			Claim: defaults.PVCImageRegistryName,
 		}
 		replicas = 1
+	case configapiv1.AlibabaCloudPlatformType:
+		cfg.OSS = &imageregistryv1.ImageRegistryConfigStorageAlibabaOSS{}
+		replicas = 2
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.
 	case configapiv1.LibvirtPlatformType:
