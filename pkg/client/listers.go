@@ -26,7 +26,6 @@ type Listers struct {
 	OpenShiftConfig        kcorelisters.ConfigMapNamespaceLister
 	OpenShiftConfigManaged kcorelisters.ConfigMapNamespaceLister
 	RegistryConfigs        regoplisters.ConfigLister
-	InstallerConfigMaps    kcorelisters.ConfigMapNamespaceLister
 	ProxyConfigs           configlisters.ProxyLister
 	Infrastructures        configlisters.InfrastructureLister
 }

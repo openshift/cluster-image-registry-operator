@@ -166,11 +166,6 @@ func NewController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
-			informer := kubeSystemKubeInformerFactory.Core().V1().ConfigMaps()
-			c.listers.InstallerConfigMaps = informer.Lister().ConfigMaps(kubeSystemNamespace)
-			return informer.Informer()
-		},
-		func() cache.SharedIndexInformer {
 			informer := configInformerFactory.Config().V1().Infrastructures()
 			c.listers.Infrastructures = informer.Lister()
 			return informer.Informer()
