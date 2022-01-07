@@ -218,7 +218,6 @@ func (f *FixturesBuilder) BuildListers() *client.Listers {
 		OpenShiftConfig:        corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config"),
 		OpenShiftConfigManaged: corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config-managed"),
 		RegistryConfigs:        regopv1listers.NewConfigLister(f.registryConfigsIndexer),
-		InstallerConfigMaps:    corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("kube-system"),
 		ProxyConfigs:           configv1listers.NewProxyLister(f.proxyConfigsIndexer),
 		Infrastructures:        configv1listers.NewInfrastructureLister(f.infraIndexer),
 	}
