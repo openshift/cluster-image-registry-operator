@@ -499,18 +499,6 @@ github.com/openshift/client-go/route/informers/externalversions/internalinterfac
 github.com/openshift/client-go/route/informers/externalversions/route
 github.com/openshift/client-go/route/informers/externalversions/route/v1
 github.com/openshift/client-go/route/listers/route/v1
-# github.com/openshift/installer v0.9.0-master.0.20190726121806-6e8f9c335410
-## explicit
-github.com/openshift/installer/pkg/ipnet
-github.com/openshift/installer/pkg/types
-github.com/openshift/installer/pkg/types/aws
-github.com/openshift/installer/pkg/types/azure
-github.com/openshift/installer/pkg/types/baremetal
-github.com/openshift/installer/pkg/types/gcp
-github.com/openshift/installer/pkg/types/libvirt
-github.com/openshift/installer/pkg/types/none
-github.com/openshift/installer/pkg/types/openstack
-github.com/openshift/installer/pkg/types/vsphere
 # github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492
 ## explicit; go 1.17
 github.com/openshift/library-go/pkg/authorization/hardcodedauthorizer
