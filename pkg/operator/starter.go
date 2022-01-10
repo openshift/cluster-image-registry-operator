@@ -124,6 +124,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
 	)
 
+	awsController := NewAWSController(
+		configOperatorClient,
+		configInformers.Config().V1().Infrastructures(),
+	)
+
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
 	kubeInformersForOpenShiftConfigManaged.Start(ctx.Done())
@@ -140,6 +145,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
 	go azureStackCloudController.Run(ctx)
+	go awsController.Run(ctx)
 
 	<-ctx.Done()
 	return nil
