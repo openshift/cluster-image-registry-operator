@@ -115,6 +115,9 @@ const (
 
 	// CloudCABundleKey is the name of the CA bundle to use when interacting with the cloud API.
 	CloudCABundleKey = "ca-bundle.pem"
+
+	// InfrastructureResourceName is the name of the infrastructure config resource
+	InfrastructureResourceName = "cluster"
 )
 
 var (

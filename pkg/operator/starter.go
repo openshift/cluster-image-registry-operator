@@ -144,8 +144,20 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imageConfigStatusController.Run(ctx.Done())
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
-	go azureStackCloudController.Run(ctx)
-	go awsController.Run(ctx)
+
+	// Fetch on Infrastructure resource is trivial and failure to fetch
+	// shouldn't be a reason to shutdown operator. Starting an unnecessary
+	// routine can be avoided if fetch is successful.
+	var platformType configv1.PlatformType
+	if infra, _ := configInformers.Config().V1().Infrastructures().Lister().Get(defaults.InfrastructureResourceName); infra != nil {
+		platformType = infra.Status.PlatformStatus.Type
+	}
+	if platformType == configv1.AzurePlatformType || platformType == "" {
+		go azureStackCloudController.Run(ctx)
+	}
+	if platformType == configv1.AWSPlatformType || platformType == "" {
+		go awsController.Run(ctx)
+	}
 
 	<-ctx.Done()
 	return nil

@@ -47,3 +47,7 @@ require (
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9
 )
+
+replace (
+	github.com/openshift/api => github.com/josefkarasek/api-1 v0.0.0-20211122143617-216bd2eae3e2
+)

@@ -61,7 +61,7 @@ func (c *AWSController) processNextWorkItem() bool {
 	defer c.queue.Done(obj)
 
 	klog.V(4).Infof("AWSController: got event from workqueue")
-	if err := c.handleEvent(); err != nil {
+	if err := c.sync(); err != nil {
 		c.queue.AddRateLimited(workqueueKey)
 		klog.Errorf("AWSController: failed to process event: %s, requeuing", err)
 	} else {
@@ -87,7 +87,7 @@ func (c *AWSController) Run(ctx context.Context) {
 	klog.Infof("Shutting down AWSController")
 }
 
-func (c *AWSController) handleEvent() error {
+func (c *AWSController) sync() error {
 	return c.syncTags()
 }
 
