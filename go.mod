@@ -164,3 +164,8 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.40.0
+
+// TODO: should be removed before merging
+replace (
+	github.com/openshift/api => github.com/josefkarasek/api-1 v0.0.0-20211122143617-216bd2eae3e2
+)
