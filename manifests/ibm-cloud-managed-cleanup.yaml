@@ -1,0 +1,53 @@
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry-alibaba
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry-azure
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry-gcs
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry-ibmcos
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry-openstack
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-image-registry
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    release.openshift.io/delete: "true"
