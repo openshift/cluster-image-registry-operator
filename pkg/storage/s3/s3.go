@@ -637,10 +637,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
-		hasAWSStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil
-		if hasAWSStatus {
-			klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
-			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
+		hasAWSSpec := !reflect.DeepEqual(infra.Spec.PlatformSpec, configv1.PlatformSpec{}) && infra.Spec.PlatformSpec.AWS != nil
+		if hasAWSSpec {
+			klog.Infof("user provided %d tags", len(infra.Spec.PlatformSpec.AWS.ResourceTags))
+			for _, tag := range infra.Spec.PlatformSpec.AWS.ResourceTags {
 				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
 				tagset = append(tagset, &s3.Tag{
 					Key:   aws.String(tag.Key),

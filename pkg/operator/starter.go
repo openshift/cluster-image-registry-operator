@@ -6,6 +6,7 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
@@ -149,9 +150,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	// shouldn't be a reason to shutdown operator. Starting an unnecessary
 	// routine can be avoided if fetch is successful.
 	var platformType configv1.PlatformType
-	if infra, _ := configInformers.Config().V1().Infrastructures().Lister().Get(defaults.InfrastructureResourceName); infra != nil {
+	infra, err := configInformers.Config().V1().Infrastructures().Lister().Get(defaults.InfrastructureResourceName)
+	if infra != nil {
 		platformType = infra.Status.PlatformStatus.Type
 	}
+	klog.Infof("infra: %+v", infra, "err: %v", err, "platformType: %v", platformType)
 	if platformType == configv1.AzurePlatformType || platformType == "" {
 		go azureStackCloudController.Run(ctx)
 	}
