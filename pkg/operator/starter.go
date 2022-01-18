@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
@@ -150,7 +151,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	// shouldn't be a reason to shutdown operator. Starting an unnecessary
 	// routine can be avoided if fetch is successful.
 	var platformType configv1.PlatformType
-	infra, err := configInformers.Config().V1().Infrastructures().Lister().Get(defaults.InfrastructureResourceName)
+	infra, err := configClient.ConfigV1().Infrastructures().Get(
+		context.Background(),
+		defaults.InfrastructureResourceName,
+		metav1.GetOptions{},
+	)
 	if infra != nil {
 		platformType = infra.Status.PlatformStatus.Type
 	}
