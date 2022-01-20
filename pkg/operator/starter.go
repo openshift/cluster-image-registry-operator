@@ -127,7 +127,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	)
 
 	awsController := NewAWSController(
-		configOperatorClient,
+		configClient.ConfigV1(),
 		configInformers.Config().V1().Infrastructures(),
 	)
 
@@ -156,10 +156,12 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		defaults.InfrastructureResourceName,
 		metav1.GetOptions{},
 	)
+	if err != nil {
+		klog.Errorf("failed to fetch Infrastructure resource: %v", err)
+	}
 	if infra != nil {
 		platformType = infra.Status.PlatformStatus.Type
 	}
-	klog.Infof("infra: %+v", infra, "err: %v", err, "platformType: %v", platformType)
 	if platformType == configv1.AzurePlatformType || platformType == "" {
 		go azureStackCloudController.Run(ctx)
 	}
