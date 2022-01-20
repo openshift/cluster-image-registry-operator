@@ -119,9 +119,10 @@ type driver interface {
 func (c *AWSController) syncTags(driver driver) error {
 	tagset, err := driver.GetStorageTags()
 	if err != nil {
+		klog.Errorf("syncTags: %v", err)
 		return err
 	}
-	klog.Info("aws bucket tags: %v", tagset)
+	klog.Infof("aws bucket tags: %v", tagset)
 
 	infra, err := c.configClient.Infrastructures().Get(
 		context.Background(),
@@ -129,9 +130,23 @@ func (c *AWSController) syncTags(driver driver) error {
 		metav1.GetOptions{},
 	)
 	if err != nil {
+		klog.Errorf("syncTags: failed to fetch Infrastructure: %v", err)
 		return err
 	}
 	klog.Infof("tags provided by the user: %v", infra.Spec.PlatformSpec.AWS.ResourceTags)
+
+	newTagSet := make(map[string]string)
+	for _, tags := range infra.Spec.PlatformSpec.AWS.ResourceTags {
+		value, ok := tagset[tags.Key]
+		if !ok || value != tags.Value {
+			newTagSet[tags.Key] = tags.Value
+		}
+	}
+
+	driver.PutStorageTags(newTagSet)
+	if err != nil {
+		klog.Errorf("syncTags: %v", err)
+	}
 
 	return nil
 }
