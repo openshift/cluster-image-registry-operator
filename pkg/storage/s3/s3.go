@@ -861,7 +861,12 @@ func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte
 	return buf.Bytes()
 }
 
-func (d *driver) PutStorageTags(tagList map[string]string) error {
+func PutStorageTags(iDriver interface{}, tagList map[string]string) error {
+	d, ok := iDriver.(*driver)
+	if !ok {
+		return fmt.Errorf("invalid or nil storage driver")
+	}
+
 	svc, err := d.getS3Service()
 	if err != nil {
 		return err
@@ -894,8 +899,12 @@ func (d *driver) PutStorageTags(tagList map[string]string) error {
 	return nil
 }
 
-func (d *driver) GetStorageTags() (map[string]string, error) {
-	tagList := make(map[string]string)
+func GetStorageTags(iDriver interface{}) (map[string]string, error) {
+	d, ok := iDriver.(*driver)
+	if !ok {
+		return nil, fmt.Errorf("invalid or nil storage driver")
+	}
+
 	svc, err := d.getS3Service()
 	if err != nil {
 		return nil, err
@@ -916,8 +925,10 @@ func (d *driver) GetStorageTags() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to fetch s3 bucket tags: %s", errMsg)
 	}
 
+	tagList := make(map[string]string)
 	for _, tags := range output.TagSet {
 		tagList[aws.StringValue(tags.Key)] = aws.StringValue(tags.Value)
 	}
+
 	return tagList, nil
 }
