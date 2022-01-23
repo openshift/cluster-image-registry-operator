@@ -2,55 +2,92 @@ package operator
 
 import (
 	"context"
-	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
-	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
-	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	kubeinformers "k8s.io/client-go/informers"
+	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
-	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
+	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned"
+	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 )
 
 type AWSController struct {
-	configClient         configv1client.ConfigV1Interface
-	registryConfigClient imageregistryv1client.ConfigInterface
-	infraConfigLister    configv1listers.InfrastructureLister
-	registryConfigLister imageregistryv1listers.ConfigLister
-	configOperatorClient *regopclient.ConfigOperatorClient
+	listers *regopclient.Listers
+	clients *regopclient.Clients
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
 }
 
 func NewAWSController(
-	configClient configv1client.ConfigV1Interface,
-	registryConfigClient imageregistryv1client.ConfigInterface,
-	infraConfigInformer configv1informers.InfrastructureInformer,
-	registryConfigInformer imageregistryinformers.ConfigInformer,
-	configOperatorClient *regopclient.ConfigOperatorClient,
+	kubeClient kubeclient.Interface,
+	configClient configclient.Interface,
+	imageregistryClient imageregistryclient.Interface,
+	routeClient routeclient.Interface,
+	kubeInformerFactory kubeinformers.SharedInformerFactory,
+	openshiftConfigKubeInformerFactory kubeinformers.SharedInformerFactory,
+	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
+	configInformerFactory configinformers.SharedInformerFactory,
+	regopInformerFactory imageregistryinformers.SharedInformerFactory,
+	routeInformerFactory routeinformers.SharedInformerFactory,
 ) *AWSController {
 	c := &AWSController{
-		configClient:         configClient,
-		infraConfigLister:    infraConfigInformer.Lister(),
-		registryConfigClient: registryConfigClient,
-		registryConfigLister: registryConfigInformer.Lister(),
-		configOperatorClient: configOperatorClient,
-		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AWSController"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AWSController"),
 	}
 
-	infraConfigInformer.Informer().AddEventHandler(c.eventHandler())
-	c.cachesToSync = append(c.cachesToSync, infraConfigInformer.Informer().HasSynced)
+	c.clients = &regopclient.Clients{
+		Core:   kubeClient.CoreV1(),
+		Apps:   kubeClient.AppsV1(),
+		RBAC:   kubeClient.RbacV1(),
+		Kube:   kubeClient,
+		Route:  routeClient.RouteV1(),
+		Config: configClient.ConfigV1(),
+		RegOp:  imageregistryClient,
+		Batch:  kubeClient.BatchV1(),
+	}
+
+	infraConfig := configInformerFactory.Config().V1().Infrastructures()
+	c.listers = &regopclient.Listers{
+		Deployments: kubeInformerFactory.Apps().V1().Deployments().
+			Lister().Deployments(defaults.ImageRegistryOperatorNamespace),
+		Services: kubeInformerFactory.Core().V1().Services().
+			Lister().Services(defaults.ImageRegistryOperatorNamespace),
+		Secrets: kubeInformerFactory.Core().V1().Secrets().
+			Lister().Secrets(defaults.ImageRegistryOperatorNamespace),
+		ConfigMaps: kubeInformerFactory.Core().V1().ConfigMaps().
+			Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace),
+		ServiceAccounts: kubeInformerFactory.Core().V1().ServiceAccounts().
+			Lister().ServiceAccounts(defaults.ImageRegistryOperatorNamespace),
+		PodDisruptionBudgets: kubeInformerFactory.Policy().V1().PodDisruptionBudgets().
+			Lister().PodDisruptionBudgets(defaults.ImageRegistryOperatorNamespace),
+		Routes: routeInformerFactory.Route().V1().Routes().
+			Lister().Routes(defaults.ImageRegistryOperatorNamespace),
+		ClusterRoles:        kubeInformerFactory.Rbac().V1().ClusterRoles().Lister(),
+		ClusterRoleBindings: kubeInformerFactory.Rbac().V1().ClusterRoleBindings().Lister(),
+		OpenShiftConfig: openshiftConfigKubeInformerFactory.Core().V1().ConfigMaps().
+			Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
+		OpenShiftConfigManaged: openshiftConfigManagedKubeInformerFactory.Core().V1().ConfigMaps().
+			Lister().ConfigMaps(defaults.OpenShiftConfigManagedNamespace),
+		ProxyConfigs:    configInformerFactory.Config().V1().Proxies().Lister(),
+		RegistryConfigs: regopInformerFactory.Imageregistry().V1().Configs().Lister(),
+		Infrastructures: infraConfig.Lister(),
+	}
+
+	infraConfig.Informer().AddEventHandler(c.eventHandler())
+	c.cachesToSync = append(c.cachesToSync, infraConfig.Informer().HasSynced)
 
 	return c
 }
@@ -104,10 +141,7 @@ func (c *AWSController) Run(ctx context.Context) {
 }
 
 func (c *AWSController) sync() error {
-	listers := &regopclient.Listers{}
-	listers.RegistryConfigs = c.registryConfigLister
-	//cr, err := listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
-	cr, err := c.registryConfigClient.Get(context.Background(),
+	cr, err := c.clients.RegOp.ImageregistryV1().Configs().Get(context.Background(),
 		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	)
@@ -125,7 +159,7 @@ func (c *AWSController) sync() error {
 
 	// Create a driver with the current configuration
 	ctx := context.Background()
-	driver := s3.NewDriver(ctx, cr.Spec.Storage.S3, listers)
+	driver := s3.NewDriver(ctx, cr.Spec.Storage.S3, c.listers)
 
 	return c.syncTags(driver)
 }
@@ -138,7 +172,7 @@ func (c *AWSController) syncTags(driver interface{}) error {
 	}
 	klog.Infof("aws bucket tags: %v", tagset)
 
-	infra, err := c.configClient.Infrastructures().Get(
+	infra, err := c.clients.Config.Infrastructures().Get(
 		context.Background(),
 		defaults.InfrastructureResourceName,
 		metav1.GetOptions{},
