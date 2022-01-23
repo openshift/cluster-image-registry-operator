@@ -176,7 +176,12 @@ func (c *AWSController) syncTags(driver interface{}) error {
 		klog.Errorf("failed to fetch Infrastructure resource: %v", err)
 		return err
 	}
-	klog.Infof("tags read from Infrastructure resource: %v", infra.Spec.PlatformSpec.AWS.ResourceTags)
+
+	// tags deletion is not supported. Should the user remove it from
+	// PlatformSpec, PlatformStatus will be looked up for retaining the tag
+	infraTagSet := make(map[string]string)
+	mergePlatformSpecStatusTags(infra, infraTagSet)
+	klog.Infof("tags read from Infrastructure resource: %v", infraTagSet)
 
 	s3TagSet, err := s3.GetStorageTags(driver)
 	if err != nil {
@@ -185,18 +190,13 @@ func (c *AWSController) syncTags(driver interface{}) error {
 	}
 	klog.Infof("tags read from storage resource: %v", s3TagSet)
 
-	// tags deletion is not supported. Should the user remove it from
-	// PlatformSpec, PlatformStatus will be looked up for retaining the tag
-	infraTagSet := make(map[string]string)
-	mergePlatformSpecStatusTags(infra, infraTagSet)
-
 	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
 		if err := s3.PutStorageTags(driver, s3TagSet); err != nil {
 			klog.Errorf("failed to update storage tags: %v", err)
 		}
+		klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
 	}
-	klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
 
 	return nil
 }
