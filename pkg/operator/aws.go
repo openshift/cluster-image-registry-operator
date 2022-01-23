@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
+	configv1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
@@ -128,20 +129,21 @@ func (c *AWSController) Run(ctx context.Context) {
 	defer k8sruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.Infof("Starting AWSController")
+	klog.Infof("Starting AWS Controller")
 	if !cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...) {
 		return
 	}
 
 	go wait.Until(c.runWorker, time.Second, ctx.Done())
 
-	klog.Infof("Started AWSController")
+	klog.Infof("Started AWS Controller")
 	<-ctx.Done()
-	klog.Infof("Shutting down AWSController")
+	klog.Infof("Shutting down AWS Controller")
 }
 
 func (c *AWSController) sync() error {
-	cr, err := c.clients.RegOp.ImageregistryV1().Configs().Get(context.Background(),
+	cr, err := c.clients.RegOp.ImageregistryV1().Configs().Get(
+		context.Background(),
 		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
 	)
@@ -165,36 +167,66 @@ func (c *AWSController) sync() error {
 }
 
 func (c *AWSController) syncTags(driver interface{}) error {
-	tagset, err := s3.GetStorageTags(driver)
-	if err != nil {
-		klog.Errorf("syncTags: %v", err)
-		return err
-	}
-	klog.Infof("aws bucket tags: %v", tagset)
-
 	infra, err := c.clients.Config.Infrastructures().Get(
 		context.Background(),
 		defaults.InfrastructureResourceName,
 		metav1.GetOptions{},
 	)
 	if err != nil {
-		klog.Errorf("syncTags: failed to fetch Infrastructure: %v", err)
+		klog.Errorf("failed to fetch Infrastructure resource: %v", err)
 		return err
 	}
-	klog.Infof("tags provided by the user: %v", infra.Spec.PlatformSpec.AWS.ResourceTags)
+	klog.Infof("tags read from Infrastructure resource: %v", infra.Spec.PlatformSpec.AWS.ResourceTags)
 
-	newTagSet := make(map[string]string)
-	for _, tags := range infra.Spec.PlatformSpec.AWS.ResourceTags {
-		value, ok := tagset[tags.Key]
-		if !ok || value != tags.Value {
-			klog.Infof("%s tag added/updated with value %s", tags.Key, tags.Value)
-			newTagSet[tags.Key] = tags.Value
+	s3TagSet, err := s3.GetStorageTags(driver)
+	if err != nil {
+		klog.Errorf("failed to fetch storage tags: %v", err)
+		return err
+	}
+	klog.Infof("tags read from storage resource: %v", s3TagSet)
+
+	// tags deletion is not supported. Should the user remove it from
+	// PlatformSpec, PlatformStatus will be looked up for retaining the tag
+	infraTagSet := make(map[string]string)
+	mergePlatformSpecStatusTags(infra, infraTagSet)
+
+	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
+	if tagUpdatedCount > 0 {
+		if err := s3.PutStorageTags(driver, s3TagSet); err != nil {
+			klog.Errorf("failed to update storage tags: %v", err)
 		}
 	}
-
-	if err := s3.PutStorageTags(driver, newTagSet); err != nil {
-		klog.Errorf("syncTags: %v", err)
-	}
+	klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
 
 	return nil
+}
+
+func mergePlatformSpecStatusTags(infra *configv1.Infrastructure, infraTagSet map[string]string) {
+	for _, specTags := range infra.Spec.PlatformSpec.AWS.ResourceTags {
+		infraTagSet[specTags.Key] = specTags.Value
+	}
+
+	for _, statusTags := range infra.Status.PlatformStatus.AWS.ResourceTags {
+		value, ok := infraTagSet[statusTags.Key]
+		if !ok {
+			klog.Warningf("tag %s exists in infra.Status alone, considering for update",
+				statusTags.Key)
+			infraTagSet[statusTags.Key] = value
+		} else if value != statusTags.Value {
+			klog.Warningf("value for tag %s differs in infra.Status(%s) and infra.Spec(%s)"+
+				",preferring infra.Spec", statusTags.Key, statusTags.Value, value)
+		}
+	}
+}
+
+func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]string) (tagUpdatedCount int) {
+	for key, value := range infraTagSet {
+		val, ok := s3TagSet[key]
+		if !ok || val != value {
+			klog.Infof("%s tag added/updated with value %s", key, value)
+			s3TagSet[key] = value
+			tagUpdatedCount++
+		}
+	}
+	return
 }

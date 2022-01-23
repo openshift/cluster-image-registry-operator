@@ -637,7 +637,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
-		if infra.Spec.PlatformSpec.AWS != nil {
+		// During bucket creation if userTags are not present in infra.Spec, then infra.Status
+		// will be used. infra.Spec is given higher priority even if older tags are removed
+		// as CreateStorage is called for new resource creation.
+		if infra.Spec.PlatformSpec.AWS != nil && len(infra.Spec.PlatformSpec.AWS.ResourceTags) > 0 {
 			klog.Infof("user provided %d tags", len(infra.Spec.PlatformSpec.AWS.ResourceTags))
 			for _, tag := range infra.Spec.PlatformSpec.AWS.ResourceTags {
 				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
@@ -645,6 +648,17 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 					Key:   aws.String(tag.Key),
 					Value: aws.String(tag.Value),
 				})
+			}
+		} else {
+			if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil {
+				klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
+				for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
+					klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
+					tagset = append(tagset, &s3.Tag{
+						Key:   aws.String(tag.Key),
+						Value: aws.String(tag.Value),
+					})
+				}
 			}
 		}
 		klog.V(5).Infof("tagging bucket with tags: %+v", tagset)
@@ -916,7 +930,7 @@ func GetStorageTags(iDriver interface{}) (map[string]string, error) {
 	if err != nil {
 		errMsg := ""
 		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() != "NoSuchTagSetError" {
+			if aerr.Code() != "NoSuchTagSet" {
 				errMsg = fmt.Sprintf("%s: %s", aerr.Code(), aerr.Error())
 			}
 		} else {
