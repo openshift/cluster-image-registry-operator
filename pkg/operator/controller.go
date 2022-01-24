@@ -377,7 +377,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
+			klog.V(4).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
@@ -400,7 +400,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
+			klog.V(4).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -421,7 +421,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if object.GetNamespace() == kubeSystemNamespace && object.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
+			klog.V(4).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
 	}
