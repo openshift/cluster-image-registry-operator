@@ -8,59 +8,54 @@ import (
 	k8sruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	kubeinformers "k8s.io/client-go/informers"
-	kubeclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	configclient "github.com/openshift/client-go/config/clientset/versioned"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
-	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
+	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
-	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 )
 
+// AWSController is for storing internal data required for
+// performing AWS controller operations
 type AWSController struct {
-	listers *regopclient.Listers
-	clients *regopclient.Clients
+	infraConfigClient         configv1client.InfrastructureInterface
+	imageRegistryConfigClient imageregistryv1client.ConfigInterface
+	listers                   *regopclient.Listers
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
 }
 
+// NewAWSController is for obtaining AWSController object
+// required for invoking AWS controller methods.
 func NewAWSController(
-	kubeClient kubeclient.Interface,
-	configClient configclient.Interface,
-	imageregistryClient imageregistryclient.Interface,
-	routeClient routeclient.Interface,
+	infraConfigClient configv1client.InfrastructureInterface,
+	imageRegistryConfigClient imageregistryv1client.ConfigInterface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
-	openshiftConfigKubeInformerFactory kubeinformers.SharedInformerFactory,
-	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
-	configInformerFactory configinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
 	routeInformerFactory routeinformers.SharedInformerFactory,
+	configInformerFactory configinformers.SharedInformerFactory,
+	openshiftConfigKubeInformerFactory kubeinformers.SharedInformerFactory,
+	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
 ) *AWSController {
 	c := &AWSController{
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AWSController"),
-	}
-
-	c.clients = &regopclient.Clients{
-		Core:   kubeClient.CoreV1(),
-		Apps:   kubeClient.AppsV1(),
-		RBAC:   kubeClient.RbacV1(),
-		Kube:   kubeClient,
-		Route:  routeClient.RouteV1(),
-		Config: configClient.ConfigV1(),
-		RegOp:  imageregistryClient,
-		Batch:  kubeClient.BatchV1(),
+		infraConfigClient:         infraConfigClient,
+		imageRegistryConfigClient: imageRegistryConfigClient,
+		queue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(),
+			"AWSController"),
 	}
 
 	infraConfig := configInformerFactory.Config().V1().Infrastructures()
+	// list of Listers requied by S3 package NewDriver method
 	c.listers = &regopclient.Listers{
 		Deployments: kubeInformerFactory.Apps().V1().Deployments().
 			Lister().Deployments(defaults.ImageRegistryOperatorNamespace),
@@ -93,6 +88,7 @@ func NewAWSController(
 	return c
 }
 
+// eventHandler is the callback method for handling events from informer
 func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 	const workQueueKey = "aws"
 	return cache.ResourceEventHandlerFuncs{
@@ -107,6 +103,8 @@ func (c *AWSController) runWorker() {
 	}
 }
 
+// processNextWorkItem is for prcessing the event received
+// which blocks until a new item is received
 func (c *AWSController) processNextWorkItem() bool {
 	obj, shutdown := c.queue.Get()
 	if shutdown {
@@ -125,6 +123,7 @@ func (c *AWSController) processNextWorkItem() bool {
 	return true
 }
 
+// Run is the main method for starting the AWS controller
 func (c *AWSController) Run(ctx context.Context) {
 	defer k8sruntime.HandleCrash()
 	defer c.queue.ShutDown()
@@ -141,8 +140,12 @@ func (c *AWSController) Run(ctx context.Context) {
 	klog.Infof("Shutting down AWS Controller")
 }
 
+// sync method is defined for handling the operations required
+// on receiving a informer event.
+// Fetches image registry config data, required for obtaining
+// the S3 bucket configuration and creating a driver out of it
 func (c *AWSController) sync() error {
-	cr, err := c.clients.RegOp.ImageregistryV1().Configs().Get(
+	cr, err := c.imageRegistryConfigClient.Get(
 		context.Background(),
 		defaults.ImageRegistryResourceName,
 		metav1.GetOptions{},
@@ -166,8 +169,11 @@ func (c *AWSController) sync() error {
 	return c.syncTags(driver)
 }
 
+// syncTags fetches user tags from Infrastructure resource, which
+// is then compared with the tags configured for the created S3 bucket
+// fetched using the driver object passed and updates if any new tags.
 func (c *AWSController) syncTags(driver interface{}) error {
-	infra, err := c.clients.Config.Infrastructures().Get(
+	infra, err := c.infraConfigClient.Get(
 		context.Background(),
 		defaults.InfrastructureResourceName,
 		metav1.GetOptions{},
@@ -201,6 +207,11 @@ func (c *AWSController) syncTags(driver interface{}) error {
 	return nil
 }
 
+// mergePlatformSpecStatusTags is for reading and merging user tags present in both
+// Platform Spec and Status of Infratsructure config.
+// There could be scenarios(upgrade, user deletes) where user tags could be missing
+// from the Platform Spec, hence using Status too to avoid said scenarios.
+// If a tag exists in both Status and Spec, Spec is given higher priority.
 func mergePlatformSpecStatusTags(infra *configv1.Infrastructure, infraTagSet map[string]string) {
 	for _, specTags := range infra.Spec.PlatformSpec.AWS.ResourceTags {
 		infraTagSet[specTags.Key] = specTags.Value
@@ -219,6 +230,8 @@ func mergePlatformSpecStatusTags(infra *configv1.Infrastructure, infraTagSet map
 	}
 }
 
+// compareS3InfraTagSet is comparing the tags obtained from S3 bucket and user
+// to find if any new tags have been added or existing tags modified.
 func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]string) (tagUpdatedCount int) {
 	for key, value := range infraTagSet {
 		val, ok := s3TagSet[key]

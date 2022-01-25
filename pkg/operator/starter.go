@@ -127,16 +127,14 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	)
 
 	awsController := NewAWSController(
-		kubeClient,
-		configClient,
-		imageregistryClient,
-		routeClient,
+		configClient.ConfigV1().Infrastructures(),
+		imageregistryClient.ImageregistryV1().Configs(),
 		kubeInformers,
-		kubeInformersForOpenShiftConfig,
-		kubeInformersForOpenShiftConfigManaged,
-		configInformers,
 		imageregistryInformers,
 		routeInformers,
+		configInformers,
+		kubeInformersForOpenShiftConfig,
+		kubeInformersForOpenShiftConfigManaged,
 	)
 
 	kubeInformers.Start(ctx.Done())

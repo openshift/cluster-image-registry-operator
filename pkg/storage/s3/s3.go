@@ -875,6 +875,8 @@ func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte
 	return buf.Bytes()
 }
 
+// PutStorageTags is for adding/overwriting tags of the S3 bucket
+// which name is obtained using the ID() method.
 func PutStorageTags(iDriver interface{}, tagList map[string]string) error {
 	d, ok := iDriver.(*driver)
 	if !ok {
@@ -913,6 +915,10 @@ func PutStorageTags(iDriver interface{}, tagList map[string]string) error {
 	return nil
 }
 
+// GetStorageTags is fetching the tags of the S3 bucket which name
+// is obtained using the ID() method.
+// If no tags are present(NoSuchTagSet error) is considered as
+// successful scenario.
 func GetStorageTags(iDriver interface{}) (map[string]string, error) {
 	d, ok := iDriver.(*driver)
 	if !ok {
