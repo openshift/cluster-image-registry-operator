@@ -27,8 +27,8 @@ require (
 	github.com/goware/urlx v0.3.1
 	github.com/openshift/api v0.0.0-20211215015256-3cf5120f2ce6
 	github.com/openshift/build-machinery-go v0.0.0-20211213093930-7e33a7eb4ce3
-	github.com/openshift/client-go v0.0.0-20210916133943-9acee1a0fb83
-	github.com/openshift/library-go v0.0.0-20211110085240-047b536a17c6
+	github.com/openshift/client-go v0.0.0-20211209144617-7385dd6338e3
+	github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
@@ -159,7 +159,7 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.25 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.2.0 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
