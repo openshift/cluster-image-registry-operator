@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
@@ -88,7 +89,8 @@ func (c ImageRegistryConditions) String() string {
 	)
 }
 
-func ensureImageRegistryToBeRemoved(te TestEnv) {
+func removeImageRegistry(te TestEnv) {
+	te.Logf("uninstalling the image registry...")
 	if _, err := te.Client().Configs().Patch(
 		context.Background(),
 		defaults.ImageRegistryResourceName,
@@ -130,6 +132,7 @@ func ensureImageRegistryToBeRemoved(te TestEnv) {
 }
 
 func deleteImageRegistryConfig(te TestEnv) {
+	te.Logf("deleting the image registry config...")
 	// TODO(dmage): the finalizer should be removed by the operator
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		cr, err := te.Client().Configs().Get(
@@ -162,6 +165,19 @@ func deleteImageRegistryConfig(te TestEnv) {
 		},
 	); err != nil {
 		te.Fatalf("unable to delete the image registry resource: %s", err)
+	}
+}
+
+func deleteLeaderElectionConfigMap(te TestEnv, name string) {
+	err := te.Client().ConfigMaps(OperatorDeploymentNamespace).Delete(
+		context.Background(),
+		name,
+		metav1.DeleteOptions{},
+	)
+	if err == nil {
+		te.Logf("leader election configmap %s deleted", name)
+	} else if !errors.IsNotFound(err) {
+		te.Errorf("unable to delete leader election configmap %s: %s", name, err)
 	}
 }
 
@@ -224,18 +240,16 @@ func deleteImageRegistryCertificates(te TestEnv) {
 }
 
 func deleteImageRegistryAlwaysPresentResources(te TestEnv) {
+	te.Logf("deleting always-present resources...")
 	defer deleteImageRegistryCertificates(te)
 	defer deleteNodeCADaemonSet(te)
+	defer deleteLeaderElectionConfigMap(te, "openshift-master-controllers")
 }
 
 func RemoveImageRegistry(te TestEnv) {
-	te.Logf("uninstalling the image registry...")
-	ensureImageRegistryToBeRemoved(te)
-	te.Logf("stopping the operator...")
+	removeImageRegistry(te)
 	StopDeployment(te, OperatorDeploymentNamespace, OperatorDeploymentName)
-	te.Logf("deleting the image registry config...")
 	deleteImageRegistryConfig(te)
-	te.Logf("deleting always-present resources...")
 	deleteImageRegistryAlwaysPresentResources(te)
 }
 
@@ -255,7 +269,6 @@ func DeployImageRegistry(te TestEnv, spec *imageregistryapiv1.ImageRegistrySpec)
 		}
 	}
 
-	te.Logf("starting the operator...")
 	startOperator(te)
 }
 
@@ -505,10 +518,10 @@ func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageReg
 }
 
 func TeardownImageRegistry(te TestEnv) {
-	defer func() {
-		RemoveImageRegistry(te)
-		EnsureClusterOperatorsAreHealthy(te, 10*time.Second, AsyncOperationTimeout)
-	}()
+	defer WaitUntilClusterOperatorsAreHealthy(te, 10*time.Second, AsyncOperationTimeout)
+	defer CheckAbsenceOfOperatorPods(te)
+	defer RemoveImageRegistry(te)
+	defer CheckPodsAreNotRestarted(te, labels.Everything())
 	if te.Failed() {
 		DumpImageRegistryResource(te)
 		DumpOperatorDeployment(te)
