@@ -4,7 +4,6 @@
 tmp/_output
 tmp/_test
 deploy/test
-cluster-image-registry-operator
 
 #idea dev tools
 .idea/
