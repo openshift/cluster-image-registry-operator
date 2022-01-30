@@ -760,12 +760,6 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	if exists {
 		t.Errorf("s3 bucket should have been deleted, but it wasn't: %s", err)
 	}
-
-	// Once the config object is deleted, the operator will create a new one.
-	// The testing framework does not expect creation of a new config object
-	// when it is in the teardown stage, so let's wait until the operator
-	// stabilizes again.
-	framework.WaitUntilImageRegistryIsAvailable(te)
 }
 
 // createAWSConfigFile creates an AWS credentials config based on the contents of the Secret
