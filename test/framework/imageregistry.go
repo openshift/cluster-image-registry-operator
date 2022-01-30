@@ -91,6 +91,52 @@ func (c ImageRegistryConditions) String() string {
 
 func removeImageRegistry(te TestEnv) {
 	te.Logf("uninstalling the image registry...")
+
+	operatorDeployment, err := te.Client().Deployments(OperatorDeploymentNamespace).Get(
+		context.Background(), OperatorDeploymentName, metav1.GetOptions{},
+	)
+	if err != nil {
+		te.Fatalf("unable to get the operator deployment: %s", err)
+	}
+
+	if !isDeploymentRolledOut(operatorDeployment) {
+		te.Errorf("unexepected state: the operator is not rolled out before removing the image registry")
+	}
+
+	if operatorDeployment.Spec.Replicas != nil && *operatorDeployment.Spec.Replicas == 0 {
+		config, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
+		if errors.IsNotFound(err) {
+			return
+		} else if err != nil {
+			te.Fatalf("unable to get the image registry config: %s", err)
+		}
+		conds := GetImageRegistryConditions(config)
+		if !conds.Removed.IsTrue() {
+			te.Fatalf("unable to uninstall the image registry: the operator is shutted down, but the image registry is not removed: %s", config.Spec.ManagementState, conds)
+		}
+		return
+	}
+
+	err = wait.PollImmediate(2*time.Second, 30*time.Second, func() (stop bool, err error) {
+		cr, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		)
+		if err != nil {
+			te.Logf("the image registry config is not found: %s", err)
+			return false, nil
+		}
+		if cr.DeletionTimestamp != nil {
+			te.Logf("the image registry config is being deleted: %s", cr.DeletionTimestamp)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		te.Fatalf("failed to wait until the operator creates the config object: %s", err)
+	}
+
 	if _, err := te.Client().Configs().Patch(
 		context.Background(),
 		defaults.ImageRegistryResourceName,
@@ -98,26 +144,27 @@ func removeImageRegistry(te TestEnv) {
 		[]byte(`{"spec": {"managementState": "Removed"}}`),
 		metav1.PatchOptions{},
 	); err != nil {
-		if errors.IsNotFound(err) {
-			// That's not exactly what we are asked for. And few seconds later
-			// the operator may bootstrap it. However, if the operator is
-			// disabled, it means the registry is not installed and we're
-			// already in the desired state.
-			return
-		}
 		te.Fatalf("unable to uninstall the image registry: %s", err)
 	}
 
 	var cr *imageregistryapiv1.Config
-	err := wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
+	err = wait.Poll(5*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
 		cr, err = te.Client().Configs().Get(
 			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 		)
 		if errors.IsNotFound(err) {
+			te.Logf("waiting for the registry to be removed: the config object does not exist?!")
 			cr = nil
 			return true, nil
 		} else if err != nil {
+			te.Logf("waiting for the registry to be removed: %s", err)
 			return false, err
+		}
+
+		if cr.Spec.ManagementState != "Removed" {
+			DumpYAML(te, "unexpected management state in the config object", cr)
+			DumpOperatorLogs(te)
+			te.Fatalf("unexpected management state: got %s, want Removed", cr.Spec.ManagementState)
 		}
 
 		conds := GetImageRegistryConditions(cr)
