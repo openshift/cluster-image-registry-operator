@@ -18,6 +18,7 @@ import (
 	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -31,6 +32,7 @@ type AWSController struct {
 	imageRegistryConfigClient imageregistryv1client.ConfigInterface
 	listers                   *regopclient.Listers
 
+	event        events.Recorder
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
 }
@@ -46,10 +48,12 @@ func NewAWSController(
 	configInformerFactory configinformers.SharedInformerFactory,
 	openshiftConfigKubeInformerFactory kubeinformers.SharedInformerFactory,
 	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
+	eventRecorder events.Recorder,
 ) *AWSController {
 	c := &AWSController{
 		infraConfigClient:         infraConfigClient,
 		imageRegistryConfigClient: imageRegistryConfigClient,
+		event:                     eventRecorder,
 		queue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(),
 			"AWSController"),
@@ -201,8 +205,10 @@ func (c *AWSController) syncTags() error {
 	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
 		if err := driver.PutStorageTags(s3TagSet); err != nil {
+			c.event.Warningf("failed to update tags of %s s3 bucket", driver.ID())
 			klog.Errorf("failed to update storage tags: %v", err)
 		}
+		c.event.Eventf("successfully updates tags of %s s3 bucket", driver.ID())
 		klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
 	}
 

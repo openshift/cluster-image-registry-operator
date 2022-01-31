@@ -67,7 +67,7 @@ func main() {
 					klog.Infof("Watching files %v...", filesToWatch)
 					rand.Seed(time.Now().UnixNano())
 					go metrics.RunServer(metricsPort)
-					return operator.RunOperator(ctx, cctx.KubeConfig)
+					return operator.RunOperator(ctx, *cctx)
 				},
 			).WithLeaderElection(
 				configv1.LeaderElection{},
