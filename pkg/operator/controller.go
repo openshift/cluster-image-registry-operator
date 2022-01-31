@@ -278,7 +278,7 @@ func (c *Controller) sync() error {
 	}
 	c.syncStatus(cr, deploy, routes, applyError)
 
-	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
+	metadataChanged := strategy.Metadata(prevCR.ObjectMeta.DeepCopy(), &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
 	if metadataChanged || specChanged {
 		difference, err := object.DiffString(prevCR, cr)
@@ -299,7 +299,12 @@ func (c *Controller) sync() error {
 				updatedCR.ObjectMeta = cr.ObjectMeta
 			}
 			if specChanged {
+				// FIXME: Here be dragons. The operator can
+				// accidentally lose user-provided
+				// configuration.
+				managementState := updatedCR.Spec.ManagementState
 				updatedCR.Spec = cr.Spec
+				updatedCR.Spec.ManagementState = managementState
 			}
 
 			updatedCR, err = c.clients.RegOp.ImageregistryV1().Configs().Update(
@@ -313,6 +318,10 @@ func (c *Controller) sync() error {
 		// If we updated the Status field too, we'll make one more call and we
 		// want it to succeed.
 		cr.ResourceVersion = updatedCR.ResourceVersion
+
+		// Update prevCR to make diff accurate.
+		prevCR.ObjectMeta = updatedCR.ObjectMeta
+		prevCR.Spec = updatedCR.Spec
 	}
 
 	cr.Status.ObservedGeneration = cr.Generation

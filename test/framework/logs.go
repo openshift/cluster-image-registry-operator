@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +45,7 @@ func (psl PodSetLogs) Contains(re *regexp.Regexp) bool {
 	return false
 }
 
-func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector) (PodSetLogs, error) {
+func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector, previous bool) (PodSetLogs, error) {
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
 		return nil, err
@@ -61,7 +62,7 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 
 	podLogs := make(PodSetLogs)
 	for _, pod := range podList.Items {
-		podLog, err := readPodLogs(client, &pod)
+		podLog, err := readPodLogs(client, &pod, previous)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +77,7 @@ func GetLogsForPod(client *Clientset, namespace string, podName string) (PodSetL
 	if err != nil {
 		return nil, err
 	}
-	podLogs, err := readPodLogs(client, pod)
+	podLogs, err := readPodLogs(client, pod, false)
 	if err != nil {
 		return nil, err
 	}
@@ -85,12 +86,13 @@ func GetLogsForPod(client *Clientset, namespace string, podName string) (PodSetL
 	return podSetLogs, nil
 }
 
-func readPodLogs(client *Clientset, pod *corev1.Pod) (PodLog, error) {
+func readPodLogs(client *Clientset, pod *corev1.Pod, previous bool) (PodLog, error) {
 	podLog := make(PodLog)
 	for _, container := range pod.Spec.Containers {
 		var containerLog ContainerLog
 		log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 			Container: container.Name,
+			Previous:  previous,
 		}).Stream(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
@@ -114,13 +116,16 @@ func readPodLogs(client *Clientset, pod *corev1.Pod) (PodLog, error) {
 
 func DumpPodLogs(logger Logger, podLogs PodSetLogs) {
 	if len(podLogs) > 0 {
-		for pod, logs := range podLogs {
-			logger.Logf("=== logs for pod/%s", pod)
-			for _, line := range logs {
-				logger.Logf("%s", line)
+		for pod, containers := range podLogs {
+			for container, logs := range containers {
+				var buf strings.Builder
+				fmt.Fprintf(&buf, "logs for pod/%s (container %s)\n", pod, container)
+				for _, line := range logs {
+					fmt.Fprintf(&buf, "%s", line)
+				}
+				logger.Logf("%s", buf.String())
 			}
 		}
-		logger.Logf("=== end of logs")
 	}
 }
 
