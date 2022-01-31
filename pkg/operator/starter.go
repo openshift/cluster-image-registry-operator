@@ -6,7 +6,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -16,6 +15,7 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/loglevel"
 
@@ -23,20 +23,20 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
-	kubeClient, err := kubeclient.NewForConfig(kubeconfig)
+func RunOperator(ctx context.Context, cctx controllercmd.ControllerContext) error {
+	kubeClient, err := kubeclient.NewForConfig(cctx.KubeConfig)
 	if err != nil {
 		return err
 	}
-	configClient, err := configclient.NewForConfig(kubeconfig)
+	configClient, err := configclient.NewForConfig(cctx.KubeConfig)
 	if err != nil {
 		return err
 	}
-	imageregistryClient, err := imageregistryclient.NewForConfig(kubeconfig)
+	imageregistryClient, err := imageregistryclient.NewForConfig(cctx.KubeConfig)
 	if err != nil {
 		return err
 	}
-	routeClient, err := routeclient.NewForConfig(kubeconfig)
+	routeClient, err := routeclient.NewForConfig(cctx.KubeConfig)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	)
 
 	controller := NewController(
-		kubeconfig,
+		cctx.KubeConfig,
 		kubeClient,
 		configClient,
 		imageregistryClient,
@@ -135,6 +135,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configInformers,
 		kubeInformersForOpenShiftConfig,
 		kubeInformersForOpenShiftConfigManaged,
+		cctx.EventRecorder,
 	)
 
 	kubeInformers.Start(ctx.Done())
