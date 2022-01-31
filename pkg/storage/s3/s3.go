@@ -877,10 +877,10 @@ func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte
 
 // PutStorageTags is for adding/overwriting tags of the S3 bucket
 // which name is obtained using the ID() method.
-func PutStorageTags(iDriver interface{}, tagList map[string]string) error {
-	d, ok := iDriver.(*driver)
-	if !ok {
-		return fmt.Errorf("invalid or nil storage driver")
+func (d *driver) PutStorageTags(tagList map[string]string) error {
+	if len(tagList) == 0 {
+		klog.Info("TagSet is empty, no action taken")
+		return nil
 	}
 
 	svc, err := d.getS3Service()
@@ -919,12 +919,7 @@ func PutStorageTags(iDriver interface{}, tagList map[string]string) error {
 // is obtained using the ID() method.
 // If no tags are present(NoSuchTagSet error) is considered as
 // successful scenario.
-func GetStorageTags(iDriver interface{}) (map[string]string, error) {
-	d, ok := iDriver.(*driver)
-	if !ok {
-		return nil, fmt.Errorf("invalid or nil storage driver")
-	}
-
+func (d *driver) GetStorageTags() (map[string]string, error) {
 	svc, err := d.getS3Service()
 	if err != nil {
 		return nil, err

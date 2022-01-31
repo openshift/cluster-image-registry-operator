@@ -693,3 +693,261 @@ func TestUserProvidedTags(t *testing.T) {
 		})
 	}
 }
+
+func TestPutStorageTags(t *testing.T) {
+	infraConfig := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: "test-infra",
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					ResourceTags: []configv1.AWSResourceTag{
+						{
+							Key:   "test",
+							Value: "userTags",
+						},
+					},
+					Region: "us-west-1",
+				},
+			},
+		},
+		Spec: configv1.InfrastructureSpec{
+			PlatformSpec: configv1.PlatformSpec{
+				AWS: &configv1.AWSPlatformSpec{
+					ResourceTags: []configv1.AWSResourceTag{
+						{
+							Key:   "kubernetes.io/cluster/another-test-infra",
+							Value: "owned",
+						},
+						{
+							Key:   "Name",
+							Value: "test-cluster-image-registry",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access_key_id"),
+			"aws_secret_access_key": []byte("secret_access_key"),
+		},
+	}
+
+	imageRegistryConfig := &imageregistryv1.Config{
+		Spec: imageregistryv1.ImageRegistrySpec{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				ManagementState: "Managed",
+				S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+					Bucket: "image-registry-bucket",
+				},
+			},
+		},
+	}
+
+	validBuilder := cirofake.NewFixturesBuilder()
+	validBuilder.AddInfraConfig(infraConfig)
+	validBuilder.AddSecrets(awsSecret)
+	validListers := validBuilder.BuildListers()
+
+	invalidBuilder := cirofake.NewFixturesBuilder()
+	invalidBuilder.AddInfraConfig(infraConfig)
+	invalidListers := invalidBuilder.BuildListers()
+
+	for _, tt := range []struct {
+		name          string
+		tagList       map[string]string
+		driver        *driver
+		responseCodes []int
+		wantErr       bool
+	}{
+		{
+			name:    "empty tag set",
+			tagList: map[string]string{},
+			driver:  NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			wantErr: false,
+		},
+		{
+			name: "missing aws credentials",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:  NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, invalidListers),
+			wantErr: true,
+		},
+		{
+			name: "bucket not found",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:        NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			responseCodes: []int{http.StatusNotFound},
+			wantErr:       true,
+		},
+		{
+			name: "tags added successfully",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:        NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			responseCodes: []int{http.StatusOK},
+			wantErr:       false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+
+			if tt.driver != nil {
+				rt := &tripper{}
+				if len(tt.responseCodes) > 0 {
+					for _, code := range tt.responseCodes {
+						rt.AddResponse(code)
+					}
+				}
+				tt.driver.roundTripper = rt
+			}
+
+			if err := tt.driver.PutStorageTags(tt.tagList); (err != nil) != tt.wantErr {
+				t.Errorf("PutStorageTags() error = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetStorageTags(t *testing.T) {
+	infraConfig := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: "test-infra",
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					ResourceTags: []configv1.AWSResourceTag{
+						{
+							Key:   "test",
+							Value: "userTags",
+						},
+					},
+					Region: "us-west-1",
+				},
+			},
+		},
+		Spec: configv1.InfrastructureSpec{
+			PlatformSpec: configv1.PlatformSpec{
+				AWS: &configv1.AWSPlatformSpec{
+					ResourceTags: []configv1.AWSResourceTag{
+						{
+							Key:   "kubernetes.io/cluster/another-test-infra",
+							Value: "owned",
+						},
+						{
+							Key:   "Name",
+							Value: "test-cluster-image-registry",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access_key_id"),
+			"aws_secret_access_key": []byte("secret_access_key"),
+		},
+	}
+
+	imageRegistryConfig := &imageregistryv1.Config{
+		Spec: imageregistryv1.ImageRegistrySpec{
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				ManagementState: "Managed",
+				S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+					Bucket: "image-registry-bucket",
+				},
+			},
+		},
+	}
+
+	validBuilder := cirofake.NewFixturesBuilder()
+	validBuilder.AddInfraConfig(infraConfig)
+	validBuilder.AddSecrets(awsSecret)
+	validListers := validBuilder.BuildListers()
+
+	invalidBuilder := cirofake.NewFixturesBuilder()
+	invalidBuilder.AddInfraConfig(infraConfig)
+	invalidListers := invalidBuilder.BuildListers()
+
+	for _, tt := range []struct {
+		name          string
+		tagList       map[string]string
+		driver        *driver
+		responseCodes []int
+		wantErr       bool
+	}{
+		{
+			name:    "missing aws credentials",
+			tagList: map[string]string{},
+			driver:  NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, invalidListers),
+			wantErr: true,
+		},
+		{
+			name: "bucket not found",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:        NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			responseCodes: []int{http.StatusNotFound},
+			wantErr:       true,
+		},
+		{
+			name: "no tags configured for bucket",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:        NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			responseCodes: []int{http.StatusNotFound},
+			wantErr:       true,
+		},
+		{
+			name: "tags fetched successfully",
+			tagList: map[string]string{
+				"test": "userTags",
+			},
+			driver:        NewDriver(context.Background(), imageRegistryConfig.Spec.Storage.S3, validListers),
+			responseCodes: []int{http.StatusOK},
+			wantErr:       false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+
+			if tt.driver != nil {
+				rt := &tripper{}
+				if len(tt.responseCodes) > 0 {
+					for _, code := range tt.responseCodes {
+						rt.AddResponse(code)
+					}
+				}
+				tt.driver.roundTripper = rt
+			}
+
+			if tagList, err := tt.driver.GetStorageTags(); (err != nil) != tt.wantErr {
+				t.Errorf("GetStorageTags() error = %v, wantErr = %v", err, tt.wantErr)
+				t.Errorf("tagList: %v", tagList)
+			}
+		})
+	}
+}

@@ -18,6 +18,7 @@ import (
 	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
@@ -98,6 +99,23 @@ func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 	}
 }
 
+// Run is the main method for starting the AWS controller
+func (c *AWSController) Run(ctx context.Context) {
+	defer k8sruntime.HandleCrash()
+	defer c.queue.ShutDown()
+
+	klog.Infof("Starting AWS Controller")
+	if !cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...) {
+		return
+	}
+
+	go wait.Until(c.runWorker, time.Second, ctx.Done())
+
+	klog.Infof("Started AWS Controller")
+	<-ctx.Done()
+	klog.Infof("Shutting down AWS Controller")
+}
+
 func (c *AWSController) runWorker() {
 	for c.processNextWorkItem() {
 	}
@@ -123,28 +141,18 @@ func (c *AWSController) processNextWorkItem() bool {
 	return true
 }
 
-// Run is the main method for starting the AWS controller
-func (c *AWSController) Run(ctx context.Context) {
-	defer k8sruntime.HandleCrash()
-	defer c.queue.ShutDown()
-
-	klog.Infof("Starting AWS Controller")
-	if !cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...) {
-		return
-	}
-
-	go wait.Until(c.runWorker, time.Second, ctx.Done())
-
-	klog.Infof("Started AWS Controller")
-	<-ctx.Done()
-	klog.Infof("Shutting down AWS Controller")
-}
-
 // sync method is defined for handling the operations required
 // on receiving a informer event.
 // Fetches image registry config data, required for obtaining
 // the S3 bucket configuration and creating a driver out of it
 func (c *AWSController) sync() error {
+	return c.syncTags()
+}
+
+// syncTags fetches user tags from Infrastructure resource, which
+// is then compared with the tags configured for the created S3 bucket
+// fetched using the driver object passed and updates if any new tags.
+func (c *AWSController) syncTags() error {
 	cr, err := c.imageRegistryConfigClient.Get(
 		context.Background(),
 		defaults.ImageRegistryResourceName,
@@ -153,8 +161,6 @@ func (c *AWSController) sync() error {
 	if err != nil {
 		return err
 	}
-	// make a copy to avoid changing the cached data
-	cr = cr.DeepCopy()
 
 	// if s3 storage config is missing, must be
 	// non-AWS platform, so not treating it as error
@@ -162,17 +168,9 @@ func (c *AWSController) sync() error {
 		return nil
 	}
 
-	// Create a driver with the current configuration
-	ctx := context.Background()
-	driver := s3.NewDriver(ctx, cr.Spec.Storage.S3, c.listers)
+	// make a copy to avoid changing the cached data
+	cr = cr.DeepCopy()
 
-	return c.syncTags(driver)
-}
-
-// syncTags fetches user tags from Infrastructure resource, which
-// is then compared with the tags configured for the created S3 bucket
-// fetched using the driver object passed and updates if any new tags.
-func (c *AWSController) syncTags(driver interface{}) error {
 	infra, err := c.infraConfigClient.Get(
 		context.Background(),
 		defaults.InfrastructureResourceName,
@@ -189,7 +187,11 @@ func (c *AWSController) syncTags(driver interface{}) error {
 	mergePlatformSpecStatusTags(infra, infraTagSet)
 	klog.Infof("tags read from Infrastructure resource: %v", infraTagSet)
 
-	s3TagSet, err := s3.GetStorageTags(driver)
+	// Create a driver with the current configuration
+	ctx := context.Background()
+	driver := s3.NewDriver(ctx, cr.Spec.Storage.S3, c.listers)
+
+	s3TagSet, err := driver.GetStorageTags()
 	if err != nil {
 		klog.Errorf("failed to fetch storage tags: %v", err)
 		return err
@@ -198,7 +200,7 @@ func (c *AWSController) syncTags(driver interface{}) error {
 
 	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
-		if err := s3.PutStorageTags(driver, s3TagSet); err != nil {
+		if err := driver.PutStorageTags(s3TagSet); err != nil {
 			klog.Errorf("failed to update storage tags: %v", err)
 		}
 		klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
@@ -208,7 +210,7 @@ func (c *AWSController) syncTags(driver interface{}) error {
 }
 
 // mergePlatformSpecStatusTags is for reading and merging user tags present in both
-// Platform Spec and Status of Infratsructure config.
+// Platform Spec and Status of Infrastructure config.
 // There could be scenarios(upgrade, user deletes) where user tags could be missing
 // from the Platform Spec, hence using Status too to avoid said scenarios.
 // If a tag exists in both Status and Spec, Spec is given higher priority.
