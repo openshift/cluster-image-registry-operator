@@ -82,7 +82,18 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 		return nil, err
 	}
 
+	script := `set -eu
+"$@" && exit
+for i in 1 2 3 4 5; do
+  echo "attempt #$i has failed (exit code $?), going to make another attempt..." >&2
+  sleep $(($i * 30))
+  "$@" && break  # this is the last command of the script, so its last failure will be exit code of the script
+done
+`
+
 	args := []string{
+		"arg0", // value of $0, unused
+		"oc",
 		"adm",
 		"prune",
 		"images",
@@ -145,8 +156,8 @@ func (gcj *generatorPrunerCronJob) expected() (runtime.Object, error) {
 									Resources:                gcj.getResourceRequirements(cr),
 									TerminationMessagePolicy: kcorev1.TerminationMessageFallbackToLogsOnError,
 									Name:                     gcj.GetName(),
-									Command:                  []string{"oc"},
-									Args:                     args,
+									Command:                  []string{"/bin/sh"},
+									Args:                     append([]string{"-c", script}, args...),
 									VolumeMounts: []kcorev1.VolumeMount{
 										{
 											Name:      "serviceca",
