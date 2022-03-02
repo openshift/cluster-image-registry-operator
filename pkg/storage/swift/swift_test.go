@@ -232,7 +232,7 @@ func mockConfig(
 	}
 
 	d := driver{
-		Listers: &regopclient.Listers{
+		Listers: &regopclient.StorageListers{
 			Secrets:         secretLister,
 			Infrastructures: fakeInfrastructureLister(cloudName),
 			OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -549,7 +549,7 @@ func TestSwiftSecrets(t *testing.T) {
 		Tenant:    tenant,
 	}
 	d := driver{
-		Listers: &regopclient.Listers{
+		Listers: &regopclient.StorageListers{
 			Secrets:         MockUPISecretNamespaceLister{},
 			Infrastructures: fakeInfrastructureLister(cloudName),
 			OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -573,7 +573,7 @@ func TestSwiftSecrets(t *testing.T) {
 	// Support any cloud name provided by platform status
 	customCloud := "myCloud"
 	d = driver{
-		Listers: &regopclient.Listers{
+		Listers: &regopclient.StorageListers{
 			Secrets:         MockIPISecretNamespaceLister{},
 			Infrastructures: fakeInfrastructureLister(customCloud),
 			OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -905,7 +905,7 @@ func TestSwiftIsAvailable(t *testing.T) {
 	})
 
 	// IsSwiftEnabled should return true in this case
-	listers := &regopclient.Listers{
+	listers := &regopclient.StorageListers{
 		Secrets:         MockIPISecretNamespaceLister{},
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -957,7 +957,7 @@ func TestSwiftIsNotAvailable(t *testing.T) {
 	th.AssertEquals(t, true, ok)
 
 	// IsSwiftEnabled should return false in this case
-	listers := &regopclient.Listers{
+	listers := &regopclient.StorageListers{
 		Secrets:         MockIPISecretNamespaceLister{},
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -1007,7 +1007,7 @@ func TestNoPermissionsKeystone(t *testing.T) {
 	th.AssertEquals(t, true, ok)
 
 	// IsSwiftEnabled should return false in this case
-	listers := &regopclient.Listers{
+	listers := &regopclient.StorageListers{
 		Secrets:         MockIPISecretNamespaceLister{},
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
@@ -1057,7 +1057,7 @@ func TestNoPermissionsSwauth(t *testing.T) {
 	th.AssertEquals(t, true, ok)
 
 	// IsSwiftEnabled should return false in this case
-	listers := &regopclient.Listers{
+	listers := &regopclient.StorageListers{
 		Secrets:         MockIPISecretNamespaceLister{},
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},

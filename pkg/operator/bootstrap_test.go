@@ -46,7 +46,9 @@ func TestBootstrapAWS(t *testing.T) {
 
 	c := &Controller{
 		listers: &client.Listers{
-			Infrastructures: configInformerFactory.Config().V1().Infrastructures().Lister(),
+			StorageListers: client.StorageListers{
+				Infrastructures: configInformerFactory.Config().V1().Infrastructures().Lister(),
+			},
 			RegistryConfigs: imageregistryInformerFactory.Imageregistry().V1().Configs().Lister(),
 		},
 		clients: &client.Clients{

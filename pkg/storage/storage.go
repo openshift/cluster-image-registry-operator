@@ -57,13 +57,13 @@ type Driver interface {
 	ID() string
 }
 
-func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.StorageListers) (Driver, error) {
 	var names []string
 	var drivers []Driver
 
 	if cfg.EmptyDir != nil {
 		names = append(names, "EmptyDir")
-		drivers = append(drivers, emptydir.NewDriver(cfg.EmptyDir, listers))
+		drivers = append(drivers, emptydir.NewDriver(cfg.EmptyDir))
 	}
 
 	if cfg.S3 != nil {
@@ -80,7 +80,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.GCS != nil {
 		names = append(names, "GCS")
 		ctx := context.Background()
-		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, kubeconfig, listers))
+		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, listers))
 	}
 
 	if cfg.IBMCOS != nil {
@@ -135,7 +135,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 //    This is useful as it easily allows other teams to experiment with OpenShift
 //    in new platforms, if it is LibVirt platform we also return EmptyDir for
 //    historical reasons.
-func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
+func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)
 

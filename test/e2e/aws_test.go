@@ -65,7 +65,7 @@ func TestAWSDefaults(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister)
+	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
-	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
@@ -339,7 +339,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister)
+	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister)
+	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -420,7 +420,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 
 	// Check that the user provided credentials override the system provided ones
-	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
 
 	sharedCredentialsFile, err := s3Driver.GetCredentialsFile()
 	if err != nil {
@@ -475,7 +475,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister)
+	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -511,7 +511,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 	defer awsCleanup()
 
-	s3Driver := storages3.NewDriver(context.Background(), nil, mockLister)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
@@ -682,7 +682,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister)
+	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}

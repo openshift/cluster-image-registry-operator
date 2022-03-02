@@ -46,7 +46,7 @@ func TestConfigEnv(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	// Create new driver for test
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	// Invoke ConfigEnv()
 	envvars, err := d.ConfigEnv()
@@ -309,7 +309,7 @@ func TestStorageManagementState(t *testing.T) {
 				}
 			}
 
-			drv := NewDriver(ctx, tt.config.Spec.Storage.IBMCOS, listers)
+			drv := NewDriver(ctx, tt.config.Spec.Storage.IBMCOS, &listers.StorageListers)
 			drv.AccountID = "test-account-id"
 			drv.roundTripper = rt
 			drv.resourceController = &resourcecontrollerv2.ResourceControllerV2{

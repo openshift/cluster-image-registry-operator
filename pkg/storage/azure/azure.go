@@ -267,7 +267,7 @@ type driver struct {
 
 	// Listers is a collection of listers that the driver can use to obtain
 	// additional objects from the cluster.
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 
 	// authorizer is for Azure autorest generated clients.
 	// Added as a member to the struct to allow injection for testing.
@@ -283,7 +283,7 @@ type driver struct {
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAzure, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAzure, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,

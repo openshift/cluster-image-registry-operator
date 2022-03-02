@@ -254,7 +254,7 @@ func TestConfigEnv(t *testing.T) {
 		}
 	})
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 	d.authorizer = authorizer
 	d.sender = sender
 	d.httpSender = httpSender
@@ -305,7 +305,7 @@ func TestConfigEnvWithUserKey(t *testing.T) {
 
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 	envvars, err := d.ConfigEnv()
 	if err != nil {
 		t.Fatal(err)
@@ -719,7 +719,7 @@ func Test_assureContainer(t *testing.T) {
 				storageConfig = tt.storageConfig
 			}
 
-			drv := NewDriver(context.Background(), storageConfig, listers)
+			drv := NewDriver(context.Background(), storageConfig, &listers.StorageListers)
 			drv.authorizer = autorest.NullAuthorizer{}
 			drv.sender = sender
 			primaryKey = cachedKey{}
@@ -1091,7 +1091,7 @@ func Test_storageManagementState(t *testing.T) {
 			drv := NewDriver(
 				context.Background(),
 				storageConfig,
-				listers,
+				&listers.StorageListers,
 			)
 			drv.authorizer = autorest.NullAuthorizer{}
 			drv.sender = sender

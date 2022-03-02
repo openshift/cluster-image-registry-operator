@@ -62,7 +62,7 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 
 // GetInfrastructure gets information about the cloud platform that the cluster is
 // installed on including the Type, Region, and other platform specific information.
-func GetInfrastructure(listers *regopclient.Listers) (*configv1.Infrastructure, error) {
+func GetInfrastructure(listers *regopclient.StorageListers) (*configv1.Infrastructure, error) {
 	return listers.Infrastructures.Get("cluster")
 }
 
@@ -77,7 +77,7 @@ func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
 
 // GenerateStorageName generates a unique name for the storage
 // medium that the registry will use
-func GenerateStorageName(listers *regopclient.Listers, additionalInfo ...string) (string, error) {
+func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...string) (string, error) {
 	// Get the infrastructure name
 	infra, err := GetInfrastructure(listers)
 	if err != nil {

@@ -51,7 +51,7 @@ type driver struct {
 	// Config is a struct where the basic configuration is stored
 	Config *imageregistryv1.ImageRegistryConfigStorageSwift
 	// Listers are used to download OpenStack credentials from the native secret
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 }
 
 // replaceEmpty is a helper function to replace empty fields with another field
@@ -63,7 +63,7 @@ func replaceEmpty(a string, b string) string {
 }
 
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
-func IsSwiftEnabled(listers *regopclient.Listers) bool {
+func IsSwiftEnabled(listers *regopclient.StorageListers) bool {
 	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
 	conn, err := driver.getSwiftClient()
 	if err != nil {
@@ -79,7 +79,7 @@ func IsSwiftEnabled(listers *regopclient.Listers) bool {
 }
 
 // GetConfig reads credentials
-func GetConfig(listers *regopclient.Listers) (*Swift, error) {
+func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 	cfg := &Swift{}
 
 	// Look for a user defined secret to get the Swift credentials
@@ -169,7 +169,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 	return cfg, nil
 }
 
-func getCloudProviderCert(listers *regopclient.Listers) (string, error) {
+func getCloudProviderCert(listers *regopclient.StorageListers) (string, error) {
 	cm, err := listers.OpenShiftConfig.Get("cloud-provider-config")
 	if err != nil {
 		return "", err
@@ -256,7 +256,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 }
 
 // NewDriver creates new Swift driver for the Image Registry
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageSwift, listers *regopclient.Listers) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageSwift, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Config:  c,
 		Listers: listers,

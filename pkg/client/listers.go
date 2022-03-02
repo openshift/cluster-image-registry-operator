@@ -13,21 +13,26 @@ import (
 	routelisters "github.com/openshift/client-go/route/listers/route/v1"
 )
 
-type Listers struct {
-	Deployments            kappslisters.DeploymentNamespaceLister
-	Services               kcorelisters.ServiceNamespaceLister
-	Secrets                kcorelisters.SecretNamespaceLister
-	ConfigMaps             kcorelisters.ConfigMapNamespaceLister
-	ServiceAccounts        kcorelisters.ServiceAccountNamespaceLister
-	PodDisruptionBudgets   kpolicylisters.PodDisruptionBudgetNamespaceLister
-	Routes                 routelisters.RouteNamespaceLister
-	ClusterRoles           krbaclisters.ClusterRoleLister
-	ClusterRoleBindings    krbaclisters.ClusterRoleBindingLister
+// StorageListers is a set of listers that can be used by storage drivers.
+type StorageListers struct {
+	Infrastructures        configlisters.InfrastructureLister
 	OpenShiftConfig        kcorelisters.ConfigMapNamespaceLister
 	OpenShiftConfigManaged kcorelisters.ConfigMapNamespaceLister
-	RegistryConfigs        regoplisters.ConfigLister
-	ProxyConfigs           configlisters.ProxyLister
-	Infrastructures        configlisters.InfrastructureLister
+	Secrets                kcorelisters.SecretNamespaceLister
+}
+
+type Listers struct {
+	StorageListers
+	Deployments          kappslisters.DeploymentNamespaceLister
+	Services             kcorelisters.ServiceNamespaceLister
+	ConfigMaps           kcorelisters.ConfigMapNamespaceLister
+	ServiceAccounts      kcorelisters.ServiceAccountNamespaceLister
+	PodDisruptionBudgets kpolicylisters.PodDisruptionBudgetNamespaceLister
+	Routes               routelisters.RouteNamespaceLister
+	ClusterRoles         krbaclisters.ClusterRoleLister
+	ClusterRoleBindings  krbaclisters.ClusterRoleBindingLister
+	RegistryConfigs      regoplisters.ConfigLister
+	ProxyConfigs         configlisters.ProxyLister
 }
 
 type ImagePrunerControllerListers struct {

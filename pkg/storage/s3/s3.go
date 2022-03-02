@@ -86,7 +86,7 @@ func (er *endpointsResolver) EndpointFor(service, region string, opts ...func(*e
 type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 
 	// endpointsResolver is populated by UpdateEffectiveConfig and takes into
 	// account the cluster configuration.
@@ -98,7 +98,7 @@ type driver struct {
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,

@@ -49,7 +49,7 @@ type driver struct {
 	AccountID string
 	Context   context.Context
 	Config    *imageregistryv1.ImageRegistryConfigStorageIBMCOS
-	Listers   *regopclient.Listers
+	Listers   *regopclient.StorageListers
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
@@ -61,7 +61,7 @@ type driver struct {
 
 // NewDriver creates a new IBM COS storage driver.
 // Used during bootstrapping.
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageIBMCOS, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageIBMCOS, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,

@@ -15,7 +15,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
@@ -35,21 +34,19 @@ type GCS struct {
 }
 
 type driver struct {
-	Context    context.Context
-	Config     *imageregistryv1.ImageRegistryConfigStorageGCS
-	KubeConfig *rest.Config
-	Listers    *regopclient.Listers
+	Context context.Context
+	Config  *imageregistryv1.ImageRegistryConfigStorageGCS
+	Listers *regopclient.StorageListers
 
 	// httpClient is used only during tests.
 	httpClient *http.Client
 }
 
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, kubeconfig *rest.Config, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, listers *regopclient.StorageListers) *driver {
 	return &driver{
-		Context:    ctx,
-		Config:     c,
-		KubeConfig: kubeconfig,
-		Listers:    listers,
+		Context: ctx,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
@@ -85,7 +82,7 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 }
 
 // GetConfig reads configuration for the GCS cloud platform services.
-func GetConfig(listers *regopclient.Listers) (*GCS, error) {
+func GetConfig(listers *regopclient.StorageListers) (*GCS, error) {
 	gcsConfig := &GCS{}
 
 	infra, err := util.GetInfrastructure(listers)

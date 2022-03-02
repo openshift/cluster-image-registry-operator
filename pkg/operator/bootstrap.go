@@ -38,12 +38,12 @@ func (c *Controller) Bootstrap() error {
 	// If no registry resource exists, let's create one with sane defaults
 	klog.Infof("generating registry custom resource")
 
-	platformStorage, replicas, err := storage.GetPlatformStorage(c.listers)
+	platformStorage, replicas, err := storage.GetPlatformStorage(&c.listers.StorageListers)
 	if err != nil {
 		return err
 	}
 
-	infra, err := util.GetInfrastructure(c.listers)
+	infra, err := util.GetInfrastructure(&c.listers.StorageListers)
 	if err != nil {
 		return fmt.Errorf("unable to get infrastructure resource: %w", err)
 	}
@@ -112,7 +112,7 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode, cla
 	storageClassName := "standard-csi"
 
 	// This is a Workaround for Bug#1862991 Tracker for removel on Bug#1866240
-	if infra, err := util.GetInfrastructure(c.listers); err != nil {
+	if infra, err := util.GetInfrastructure(&c.listers.StorageListers); err != nil {
 		return err
 	} else if infra.Status.PlatformStatus.Type == configapiv1.OvirtPlatformType {
 		storageClassName = "ovirt-csi-sc"
