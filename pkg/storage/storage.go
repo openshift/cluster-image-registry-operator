@@ -185,6 +185,11 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 		replicas = 2
 	// Unknown platforms or LibVirt: we configure image registry using
 	// EmptyDir storage.
+	case configapiv1.NutanixPlatformType:
+		cfg.PVC = &imageregistryv1.ImageRegistryConfigStoragePVC{
+			Claim: defaults.PVCImageRegistryName,
+		}
+		replicas = 1
 	case configapiv1.LibvirtPlatformType:
 		fallthrough
 	default:
