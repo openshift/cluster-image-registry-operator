@@ -637,23 +637,23 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
-		// During bucket creation if userTags are not present in infra.Spec, then infra.Status
-		// will be used. infra.Spec is given higher priority even if older tags are removed
-		// as CreateStorage is called for new resource creation.
-		if infra.Spec.PlatformSpec.AWS != nil && len(infra.Spec.PlatformSpec.AWS.ResourceTags) > 0 {
-			klog.Infof("user provided %d tags", len(infra.Spec.PlatformSpec.AWS.ResourceTags))
+		tagsInSpec := make(map[string]*struct{})
+		if infra.Spec.PlatformSpec.AWS != nil && len(infra.Spec.PlatformSpec.AWS.ResourceTags) != 0 {
+			klog.V(5).Infof("infra.Spec has %d user provided tags", len(infra.Spec.PlatformSpec.AWS.ResourceTags))
 			for _, tag := range infra.Spec.PlatformSpec.AWS.ResourceTags {
-				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
+				klog.Infof("user provided bucket tag in infra.Spec: %s: %s", tag.Key, tag.Value)
+				tagsInSpec[tag.Key] = nil
 				tagset = append(tagset, &s3.Tag{
 					Key:   aws.String(tag.Key),
 					Value: aws.String(tag.Value),
 				})
 			}
-		} else {
-			if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil {
-				klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
-				for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
-					klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
+		}
+		if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil {
+			klog.V(5).Infof("infra.Status has %d user provided tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
+			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
+				if _, exist := tagsInSpec[tag.Key]; !exist {
+					klog.Infof("user provided bucket tag in infra.Status: %s: %s", tag.Key, tag.Value)
 					tagset = append(tagset, &s3.Tag{
 						Key:   aws.String(tag.Key),
 						Value: aws.String(tag.Value),

@@ -174,13 +174,13 @@ func (c *AWSController) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(obj)
 
-	klog.V(4).Infof("AWSController: got event from workqueue")
+	klog.V(5).Infof("AWSController: got event from workqueue")
 	if err := c.sync(); err != nil {
 		c.queue.AddRateLimited(workqueueKey)
 		klog.Errorf("AWSController: failed to process event: %s, requeuing", err)
 	} else {
 		c.queue.Forget(obj)
-		klog.V(4).Infof("AWSController: event from workqueue successfully processed")
+		klog.V(5).Infof("AWSController: event from workqueue successfully processed")
 	}
 	return true
 }
@@ -229,7 +229,7 @@ func (c *AWSController) syncTags() error {
 	// PlatformSpec, PlatformStatus will be looked up for retaining the tag
 	infraTagSet := make(map[string]string)
 	mergePlatformSpecStatusTags(infra, infraTagSet)
-	klog.Infof("tags read from Infrastructure resource: %v", infraTagSet)
+	klog.V(5).Infof("tags read from Infrastructure resource: %v", infraTagSet)
 
 	// Create a driver with the current configuration
 	ctx := context.Background()
@@ -240,17 +240,17 @@ func (c *AWSController) syncTags() error {
 		klog.Errorf("failed to fetch storage tags: %v", err)
 		return err
 	}
-	klog.Infof("tags read from storage resource: %v", s3TagSet)
+	klog.V(5).Infof("tags read from storage resource: %v", s3TagSet)
 
 	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
 		if err := driver.PutStorageTags(s3TagSet); err != nil {
 			klog.Errorf("failed to update storage tags: %v", err)
-			c.event.Warningf("TagsUpdate",
+			c.event.Warningf("UpdateAWSTags",
 				"Failed to update tags of %s s3 bucket", driver.ID())
 		}
 		klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
-		c.event.Eventf("TagsUpdate",
+		c.event.Eventf("UpdateAWSTags",
 			"Successfully updated tags of %s s3 bucket", driver.ID())
 	}
 
@@ -291,12 +291,13 @@ func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]str
 		// If a tag is value is empty, it's marked for deletion
 		// and is deleted from the list obtained from S3 bucket
 		if value == "" {
+			klog.V(5).Infof("%s tag deleted", key)
 			delete(s3TagSet, key)
 			continue
 		}
 		val, ok := s3TagSet[key]
 		if !ok || val != value {
-			klog.Infof("%s tag added/updated with value %s", key, value)
+			klog.V(5).Infof("%s tag added/updated with value %s", key, value)
 			s3TagSet[key] = value
 			tagUpdatedCount++
 		}
