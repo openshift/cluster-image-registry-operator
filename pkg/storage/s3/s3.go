@@ -206,21 +206,21 @@ func (d *driver) getCredentialsConfigData() ([]byte, error) {
 	}
 }
 
-// getCABundle gets the custom CA bundle for trusting communication with the AWS API
-func (d *driver) getCABundle() (string, error) {
+// CABundle gets the custom CA bundle for trusting communication with the AWS API
+func (d *driver) CABundle() (string, bool, error) {
 	cloudConfig, err := d.Listers.OpenShiftConfigManaged.Get(defaults.KubeCloudConfigName)
 	switch {
 	case errors.IsNotFound(err):
 		// No cloud config, so no custom CA bundle.
-		return "", nil
+		return "", true, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to get the kube cloud config: %w", err)
+		return "", false, fmt.Errorf("unable to get the kube cloud config: %w", err)
 	default:
 		caBundle, ok := cloudConfig.Data[defaults.CloudCABundleKey]
 		if !ok {
-			return "", nil
+			return "", true, nil
 		}
-		return caBundle, nil
+		return caBundle, true, nil
 	}
 }
 
@@ -238,15 +238,21 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return nil, err
 	}
 
-	rootCAs, err := x509.SystemCertPool()
+	userCABundle, useSystemCertPool, err := d.CABundle()
 	if err != nil {
-		return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+		return nil, fmt.Errorf("unable to get S3 CA bundle: %w", err)
 	}
 
-	userCABundle, err := d.getCABundle()
-	if err != nil {
-		return nil, err
+	var rootCAs *x509.CertPool
+	if useSystemCertPool {
+		rootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+		}
+	} else {
+		rootCAs = x509.NewCertPool()
 	}
+
 	rootCAs.AppendCertsFromPEM([]byte(userCABundle))
 
 	tr := &http.Transport{

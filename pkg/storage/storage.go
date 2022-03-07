@@ -46,14 +46,47 @@ func (m *MultiStoragesError) Error() string {
 	)
 }
 
+func IsMultiStoragesError(err error) bool {
+	_, ok := err.(*MultiStoragesError)
+	return ok
+}
+
 type Driver interface {
+	// CABundle returns the CA bundle that should be used to verify storage
+	// certificates. The returned system flag indicates whether the system
+	// trust bundle should be used in addition to the returned bundle.
+	CABundle() (bundle string, system bool, err error)
+
+	// ConfigEnv returns the environment variables for the image registry
+	// pods.
 	ConfigEnv() (envvar.List, error)
+
+	// Volumes returns the volumes for the image registry pods.
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
+
+	// VolumeSecrets returns secret data for injection into the secret
+	// image-registry-private-configuration. This secret should be used by
+	// Volumes.
 	VolumeSecrets() (map[string]string, error)
+
+	// CreateStorage configures, creates, and reconsiles the storage
+	// backend. It is called when the storage configuration is changed or
+	// the storage backend does not exist.
 	CreateStorage(*imageregistryv1.Config) error
+
+	// StorageExists returns true if the storage backend is configured and
+	// exists.
 	StorageExists(*imageregistryv1.Config) (bool, error)
+
+	// RemoveStorage removes the storage backend.
 	RemoveStorage(*imageregistryv1.Config) (bool, error)
+
+	// StorageChanged returns true if the storage configuration has changed.
 	StorageChanged(*imageregistryv1.Config) bool
+
+	// ID returns the unique identifier of the storage backend. It helps
+	// the operator to determine if the storage backend is changed and the
+	// data potentially needs to be migrated.
 	ID() string
 }
 

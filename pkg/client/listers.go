@@ -21,6 +21,20 @@ type StorageListers struct {
 	Secrets                kcorelisters.SecretNamespaceLister
 }
 
+func NewStorageListers(
+	infrastructures configlisters.InfrastructureLister,
+	openshiftConfig kcorelisters.ConfigMapNamespaceLister,
+	openshiftConfigManaged kcorelisters.ConfigMapNamespaceLister,
+	secrets kcorelisters.SecretNamespaceLister,
+) *StorageListers {
+	return &StorageListers{
+		Infrastructures:        infrastructures,
+		OpenShiftConfig:        openshiftConfig,
+		OpenShiftConfigManaged: openshiftConfigManaged,
+		Secrets:                secrets,
+	}
+}
+
 type Listers struct {
 	StorageListers
 	Deployments          kappslisters.DeploymentNamespaceLister

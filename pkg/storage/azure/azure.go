@@ -338,6 +338,10 @@ func (d *driver) getKey(cfg *Azure, environment autorestazure.Environment) (stri
 	return key, nil
 }
 
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
+}
+
 // ConfigEnv configures the environment variables that will be used in the
 // image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {

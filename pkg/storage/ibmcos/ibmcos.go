@@ -69,6 +69,11 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 	}
 }
 
+// CABundle returns a additional CA bundle for IBM COS.
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
+}
+
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {

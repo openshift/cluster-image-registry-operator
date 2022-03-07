@@ -169,12 +169,21 @@ func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 	return cfg, nil
 }
 
-func getCloudProviderCert(listers *regopclient.StorageListers) (string, error) {
-	cm, err := listers.OpenShiftConfig.Get("cloud-provider-config")
-	if err != nil {
-		return "", err
+// CABundle returns either the configured CA bundle or indicates that the
+// system trust bundle should be used instead.
+func (d *driver) CABundle() (string, bool, error) {
+	cm, err := d.Listers.OpenShiftConfig.Get("cloud-provider-config")
+	if errors.IsNotFound(err) {
+		return "", true, nil
 	}
-	return string(cm.Data["ca-bundle.pem"]), nil
+	if err != nil {
+		return "", false, err
+	}
+	caBundle := string(cm.Data["ca-bundle.pem"])
+	if caBundle == "" {
+		return "", true, nil
+	}
+	return caBundle, false, nil
 }
 
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
@@ -209,8 +218,8 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 		return nil, fmt.Errorf("Create new provider client failed: %v", err)
 	}
 
-	cert, err := getCloudProviderCert(d.Listers)
-	if err != nil && !errors.IsNotFound(err) {
+	cert, _, err := d.CABundle()
+	if err != nil {
 		return nil, fmt.Errorf("Failed to get cloud provider CA certificate: %v", err)
 	}
 

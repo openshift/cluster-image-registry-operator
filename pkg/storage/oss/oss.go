@@ -56,6 +56,10 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 	}
 }
 
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
+}
+
 // UpdateEffectiveConfig updates the driver's local effective OSS configuration
 // based on infrastructure settings and any custom overrides.
 func (d *driver) UpdateEffectiveConfig() error {

@@ -51,6 +51,10 @@ func NewDriver(c *imageregistryv1.ImageRegistryConfigStoragePVC, kubeconfig *res
 	}, nil
 }
 
+func (d *driver) CABundle() (string, bool, error) {
+	return "", false, nil
+}
+
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "filesystem"},

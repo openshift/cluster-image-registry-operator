@@ -121,6 +121,10 @@ func GetConfig(listers *regopclient.StorageListers) (*GCS, error) {
 	return gcsConfig, nil
 }
 
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
+}
+
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "gcs"},
