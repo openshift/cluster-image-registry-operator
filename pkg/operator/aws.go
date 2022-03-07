@@ -2,6 +2,10 @@ package operator
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"regexp"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,6 +40,18 @@ type AWSController struct {
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
 }
+
+// tagKeyRegex is used to check that the keys and values of a tag contain only valid characters.
+var tagKeyRegex = regexp.MustCompile(`^[0-9A-Za-z_.:/=+-@]{1,128}$`)
+
+// tagValRegex is used to check that the keys and values of a tag contain only valid characters.
+var tagValRegex = regexp.MustCompile(`^[0-9A-Za-z_.:/=+-@]{0,256}$`)
+
+// kubernetesNamespaceRegex is used to check that a tag key is not in the kubernetes.io namespace.
+var kubernetesNamespaceRegex = regexp.MustCompile(`^([^/]*\.)?kubernetes.io/`)
+
+// openshiftNamespaceRegex is used to check that a tag key is not in the openshift.io namespace.
+var openshiftNamespaceRegex = regexp.MustCompile(`^([^/]*\.)?openshift.io/`)
 
 // NewAWSController is for obtaining AWSController object
 // required for invoking AWS controller methods.
@@ -97,9 +113,33 @@ func NewAWSController(
 func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 	const workQueueKey = "aws"
 	return cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { c.queue.Add(workQueueKey) },
-		UpdateFunc: func(old, new interface{}) { c.queue.Add(workQueueKey) },
-		DeleteFunc: func(obj interface{}) { c.queue.Add(workQueueKey) },
+		AddFunc: func(obj interface{}) {
+			infra, ok := obj.(*configv1.Infrastructure)
+			if !ok || infra == nil {
+				return
+			}
+			if infra.Spec.PlatformSpec.AWS != nil && len(infra.Spec.PlatformSpec.AWS.ResourceTags) != 0 {
+				c.queue.Add(workQueueKey)
+				return
+			}
+		},
+		UpdateFunc: func(prev, cur interface{}) {
+			oldInfra, ok := prev.(*configv1.Infrastructure)
+			if !ok || oldInfra == nil {
+				return
+			}
+			newInfra, ok := cur.(*configv1.Infrastructure)
+			if !ok || newInfra == nil {
+				return
+			}
+			if oldInfra.Spec.PlatformSpec.AWS != nil && newInfra.Spec.PlatformSpec.AWS != nil {
+				if !reflect.DeepEqual(oldInfra.Spec.PlatformSpec.AWS.ResourceTags, newInfra.Spec.PlatformSpec.AWS.ResourceTags) {
+					c.queue.Add(workQueueKey)
+					return
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) { return },
 	}
 }
 
@@ -224,6 +264,10 @@ func (c *AWSController) syncTags() error {
 // If a tag exists in both Status and Spec, Spec is given higher priority.
 func mergePlatformSpecStatusTags(infra *configv1.Infrastructure, infraTagSet map[string]string) {
 	for _, specTags := range infra.Spec.PlatformSpec.AWS.ResourceTags {
+		if err := validateUserTag(specTags.Key, specTags.Value); err != nil {
+			klog.Warningf("validation failed for tag(%s:%s): %v", specTags.Key, specTags.Value, err)
+			continue
+		}
 		infraTagSet[specTags.Key] = specTags.Value
 	}
 
@@ -240,10 +284,16 @@ func mergePlatformSpecStatusTags(infra *configv1.Infrastructure, infraTagSet map
 	}
 }
 
-// compareS3InfraTagSet is comparing the tags obtained from S3 bucket and user
-// to find if any new tags have been added or existing tags modified.
+// compareS3InfraTagSet is for comparing the tags obtained from S3 bucket and Infrastructure CR
+// to find if any new tags have been deleted, added or existing tags modified.
 func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]string) (tagUpdatedCount int) {
 	for key, value := range infraTagSet {
+		// If a tag is value is empty, it's marked for deletion
+		// and is deleted from the list obtained from S3 bucket
+		if value == "" {
+			delete(s3TagSet, key)
+			continue
+		}
 		val, ok := s3TagSet[key]
 		if !ok || val != value {
 			klog.Infof("%s tag added/updated with value %s", key, value)
@@ -252,4 +302,24 @@ func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]str
 		}
 	}
 	return
+}
+
+// validateUserTag is for validating the user defined tags in Infrastructure CR
+func validateUserTag(key, value string) error {
+	if !tagKeyRegex.MatchString(key) {
+		return fmt.Errorf("key has invalid characters or length")
+	}
+	if strings.EqualFold(key, "Name") {
+		return fmt.Errorf("key cannot be customized by user")
+	}
+	if !tagValRegex.MatchString(value) {
+		return fmt.Errorf("value has invalid characters or length")
+	}
+	if kubernetesNamespaceRegex.MatchString(key) {
+		return fmt.Errorf("key is in the kubernetes.io namespace")
+	}
+	if openshiftNamespaceRegex.MatchString(key) {
+		return fmt.Errorf("key is in the openshift.io namespace")
+	}
+	return nil
 }
