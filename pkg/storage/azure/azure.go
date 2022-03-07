@@ -158,8 +158,9 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 
 	kind := storage.StorageV2
 	params := &storage.AccountPropertiesCreateParameters{
-		AllowBlobPublicAccess: to.BoolPtr(false),
-		MinimumTLSVersion:     storage.TLS12,
+		EnableHTTPSTrafficOnly: to.BoolPtr(true),
+		AllowBlobPublicAccess:  to.BoolPtr(false),
+		MinimumTLSVersion:      storage.TLS12,
 	}
 
 	if strings.EqualFold(cloudName, "AZURESTACKCLOUD") {
