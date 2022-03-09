@@ -245,13 +245,13 @@ func (c *AWSController) syncTags() error {
 	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
 		if err := driver.PutStorageTags(s3TagSet); err != nil {
-			klog.Errorf("failed to update storage tags: %v", err)
+			klog.Errorf("failed to update/delete tagset of %s s3 bucket: %v", driver.ID(), err)
 			c.event.Warningf("UpdateAWSTags",
-				"Failed to update tags of %s s3 bucket", driver.ID())
+				"Failed to update/delete tagset of %s s3 bucket", driver.ID())
 		}
-		klog.Infof("successfully added/updated %d tags", tagUpdatedCount)
+		klog.Infof("successfully updated/deleted %d tags, tagset: %+v", tagUpdatedCount, s3TagSet)
 		c.event.Eventf("UpdateAWSTags",
-			"Successfully updated tags of %s s3 bucket", driver.ID())
+			"Successfully updated/deleted tagset of %s s3 bucket", driver.ID())
 	}
 
 	return nil
@@ -291,13 +291,14 @@ func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]str
 		// If a tag is value is empty, it's marked for deletion
 		// and is deleted from the list obtained from S3 bucket
 		if value == "" {
-			klog.V(5).Infof("%s tag deleted", key)
+			klog.V(5).Infof("%s tag will be deleted", key)
 			delete(s3TagSet, key)
+			tagUpdatedCount++
 			continue
 		}
 		val, ok := s3TagSet[key]
 		if !ok || val != value {
-			klog.V(5).Infof("%s tag added/updated with value %s", key, value)
+			klog.V(5).Infof("%s tag will be added/updated with value %s", key, value)
 			s3TagSet[key] = value
 			tagUpdatedCount++
 		}
