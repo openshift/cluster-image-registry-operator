@@ -40,15 +40,23 @@ func generateLogLevel(cr *v1.Config) string {
 	return "debug"
 }
 
+// generateLivenessProbeConfig returns an HTTPS liveness probe for the image
+// registry.
 func generateLivenessProbeConfig() *corev1.Probe {
 	probeConfig := generateProbeConfig()
-	probeConfig.InitialDelaySeconds = 10
-
+	// Wait until the registry is ready to serve requests.
+	probeConfig.InitialDelaySeconds = 5
 	return probeConfig
 }
 
+// generateReadinessProbeConfig returns an HTTPS readiness probe for the image
+// registry.
 func generateReadinessProbeConfig() *corev1.Probe {
-	return generateProbeConfig()
+	probeConfig := generateProbeConfig()
+	// Wait until the registry checks its storage health before reporting
+	// the registry as Ready.
+	probeConfig.InitialDelaySeconds = 15
+	return probeConfig
 }
 
 func generateProbeConfig() *corev1.Probe {
@@ -157,6 +165,9 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_ENABLED", Value: "true"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_INTERVAL", Value: "10s"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_THRESHOLD", Value: "1"},
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_METRICS_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", defaults.ServiceName, defaults.ImageRegistryOperatorNamespace, defaults.ContainerPort)},
