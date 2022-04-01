@@ -95,8 +95,10 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace strin
 		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", defaults.SupplementalGroupsAnnotation, namespace, err)
 	}
 
+	fsGroupChangePolicy := corev1.FSGroupChangeOnRootMismatch
 	return &corev1.PodSecurityContext{
-		FSGroup: &gid,
+		FSGroup:             &gid,
+		FSGroupChangePolicy: &fsGroupChangePolicy,
 	}, nil
 }
 
