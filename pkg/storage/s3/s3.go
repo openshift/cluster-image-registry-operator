@@ -206,8 +206,21 @@ func (d *driver) getCredentialsConfigData() ([]byte, error) {
 	}
 }
 
-// CABundle gets the custom CA bundle for trusting communication with the AWS API
+// CABundle gets the custom CA bundle for trusting communication with the AWS
+// API.
 func (d *driver) CABundle() (string, bool, error) {
+	if d.Config.TrustedCA.Name != "" {
+		trustedCA, err := d.Listers.OpenShiftConfig.Get(d.Config.TrustedCA.Name)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to get trusted CA %q: %w", d.Config.TrustedCA.Name, err)
+		}
+		bundle, ok := trustedCA.Data["ca-bundle.crt"]
+		if !ok {
+			return "", false, fmt.Errorf("trusted CA config map %q does not contain required key %q", d.Config.TrustedCA.Name, "ca-bundle.crt")
+		}
+		return string(bundle), false, nil
+	}
+
 	cloudConfig, err := d.Listers.OpenShiftConfigManaged.Get(defaults.KubeCloudConfigName)
 	switch {
 	case errors.IsNotFound(err):
