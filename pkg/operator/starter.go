@@ -10,6 +10,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	imageclient "github.com/openshift/client-go/image/clientset/versioned"
+	imageinformers "github.com/openshift/client-go/image/informers/externalversions"
 	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
@@ -38,6 +40,10 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	if err != nil {
 		return err
 	}
+	imageClient, err := imageclient.NewForConfig(kubeconfig)
+	if err != nil {
+		return err
+	}
 
 	kubeInformers := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
 	kubeInformersForOpenShiftConfig := kubeinformers.NewSharedInformerFactoryWithOptions(kubeClient, defaultResyncDuration, kubeinformers.WithNamespace(defaults.OpenShiftConfigNamespace))
@@ -46,6 +52,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	configInformers := configinformers.NewSharedInformerFactory(configClient, defaultResyncDuration)
 	imageregistryInformers := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, defaultResyncDuration)
 	routeInformers := routeinformers.NewSharedInformerFactoryWithOptions(routeClient, defaultResyncDuration, routeinformers.WithNamespace(defaults.ImageRegistryOperatorNamespace))
+	imageInformers := imageinformers.NewSharedInformerFactory(imageClient, defaultResyncDuration)
 
 	configOperatorClient := client.NewConfigOperatorClient(
 		imageregistryClient.ImageregistryV1().Configs(),
@@ -124,6 +131,8 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
 	)
 
+	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
+
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
 	kubeInformersForOpenShiftConfigManaged.Start(ctx.Done())
@@ -131,6 +140,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	configInformers.Start(ctx.Done())
 	imageregistryInformers.Start(ctx.Done())
 	routeInformers.Start(ctx.Done())
+	imageInformers.Start(ctx.Done())
 
 	go controller.Run(ctx.Done())
 	go clusterOperatorStatusController.Run(ctx.Done())
@@ -140,6 +150,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
 	go azureStackCloudController.Run(ctx)
+	go metricsController.Run(ctx)
 
 	<-ctx.Done()
 	return nil

@@ -60,6 +60,25 @@ func ImagePrunerInstallStatus(installed bool, enabled bool) {
 	imagePrunerInstallStatus.Set(2)
 }
 
+// ReportOpenShiftImageStreamTags reports the amount of seen ImageStream tags existing in openshift
+// namespaces. Receives the total of 'imported' and 'pushed' image streams tags.
+func ReportOpenShiftImageStreamTags(imported float64, pushed float64) {
+	imageStreamTags.WithLabelValues("imported", "openshift").Set(imported)
+	imageStreamTags.WithLabelValues("pushed", "openshift").Set(pushed)
+}
+
+// ReportOtherImageStreamTags reports the amount of seen ImageStream tags existing outside the
+// openshift namespaces. Receives the total of 'imported' and 'pushed' image streams tags.
+func ReportOtherImageStreamTags(imported float64, pushed float64) {
+	imageStreamTags.WithLabelValues("imported", "other").Set(imported)
+	imageStreamTags.WithLabelValues("pushed", "other").Set(pushed)
+}
+
+// ReportStorageType sets the storage in use.
+func ReportStorageType(stype string) {
+	storageType.WithLabelValues(stype).Set(1)
+}
+
 // AzureKeyCacheHit registers a hit on Azure key cache.
 func AzureKeyCacheHit() {
 	azurePrimaryKeyCache.With(map[string]string{"result": "hit"}).Inc()
