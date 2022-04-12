@@ -13,6 +13,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
@@ -113,6 +114,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	case 0:
 		return nil, ErrStorageNotConfigured
 	case 1:
+		metrics.ReportStorageType(names[0])
 		return drivers[0], nil
 	}
 
