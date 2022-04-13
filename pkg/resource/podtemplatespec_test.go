@@ -173,6 +173,10 @@ func TestMakePodTemplateSpec(t *testing.T) {
 		}
 	}
 
+	fsGroupChangePolicy := pod.Spec.SecurityContext.FSGroupChangePolicy
+	if fsGroupChangePolicy == nil || *fsGroupChangePolicy != corev1.FSGroupChangeOnRootMismatch {
+		t.Errorf("expected FSGroupChangePolicy to be set to OnRootMismatch")
+	}
 }
 
 func verifyVolume(volume corev1.Volume, expected *volumeMount, t *testing.T) {
