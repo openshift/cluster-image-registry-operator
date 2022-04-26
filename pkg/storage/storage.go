@@ -150,7 +150,8 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	// we should bootstrap the image registry as "Removed".
 	case configapiv1.BareMetalPlatformType,
 		configapiv1.VSpherePlatformType,
-		configapiv1.NonePlatformType:
+		configapiv1.NonePlatformType,
+		configapiv1.NutanixPlatformType:
 		break
 
 	// These are the supported platforms. We do have backend implementation
