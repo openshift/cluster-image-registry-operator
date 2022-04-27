@@ -1,17 +1,223 @@
 package resource
 
 import (
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 )
+
+func buildFakeClient(config *v1.Config, nodes []*corev1.Node) *cirofake.Fixtures {
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddRegistryOperatorConfig(config)
+
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "openshift-image-registry",
+			Annotations: map[string]string{
+				"openshift.io/node-selector":              "",
+				"openshift.io/sa.scc.supplemental-groups": "1000430000/10000",
+			},
+			Labels: map[string]string{
+				"openshift.io/cluster-monitoring": "true",
+			},
+		},
+		Spec: corev1.NamespaceSpec{
+			Finalizers: []corev1.FinalizerName{
+				corev1.FinalizerKubernetes,
+			},
+		},
+	}
+	testBuilder.AddNamespaces(ns)
+	testBuilder.AddNodes(nodes...)
+	return testBuilder.Build()
+}
+
+func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
+	nodeWorkerA := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "worker-a",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "a",
+				"kubernetes.io/hostname":         "a",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+	nodeWorkerB := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "worker-b",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "b",
+				"kubernetes.io/hostname":         "b",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+	nodeMasterA := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "master-a",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "a",
+				"kubernetes.io/hostname":         "a",
+				"node-role.kubernetes.io/master": "",
+			},
+		},
+	}
+	tests := map[string]struct {
+		spec     v1.ImageRegistrySpec
+		nodes    []*corev1.Node
+		expected []corev1.TopologySpreadConstraint
+	}{
+		"testSetsSaneDefaults": {
+			nodes: []*corev1.Node{nodeMasterA, nodeWorkerA, nodeWorkerB},
+			spec:  v1.ImageRegistrySpec{},
+			expected: []corev1.TopologySpreadConstraint{
+				{
+					MaxSkew:           1,
+					TopologyKey:       "kubernetes.io/hostname",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: defaults.DeploymentLabels,
+					},
+				},
+				{
+					MaxSkew:           1,
+					TopologyKey:       "node-role.kubernetes.io/worker",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: defaults.DeploymentLabels,
+					},
+				},
+				{
+					MaxSkew:           1,
+					TopologyKey:       "topology.kubernetes.io/zone",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: defaults.DeploymentLabels,
+					},
+				},
+			},
+		},
+		"testOmitsDefaultsWithNodeSelector": {
+			nodes: []*corev1.Node{nodeMasterA, nodeWorkerA, nodeWorkerB},
+			spec: imageregistryapiv1.ImageRegistrySpec{
+				NodeSelector: map[string]string{
+					"node-role.kubernetes.io/master": "",
+				},
+			},
+			expected: nil,
+		},
+		"testUserDefinedOverrideDefaults": {
+			nodes: []*corev1.Node{nodeMasterA, nodeWorkerA, nodeWorkerB},
+			spec: v1.ImageRegistrySpec{
+				TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+					{
+						MaxSkew:           2,
+						TopologyKey:       "topology.kubernetes.io/region",
+						WhenUnsatisfiable: corev1.DoNotSchedule,
+						LabelSelector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"registry": "abc"},
+						},
+					},
+				}},
+			expected: []corev1.TopologySpreadConstraint{
+				{
+					MaxSkew:           2,
+					TopologyKey:       "topology.kubernetes.io/region",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"registry": "abc"},
+					},
+				},
+			},
+		},
+		"testUserDefinedEmptyOverridesDefaults": {
+			nodes: []*corev1.Node{nodeMasterA, nodeWorkerA, nodeWorkerB},
+			spec: v1.ImageRegistrySpec{
+				TopologySpreadConstraints: []corev1.TopologySpreadConstraint{},
+			},
+			expected: []corev1.TopologySpreadConstraint{},
+		},
+		"testDefaultsForNodeWithoutZone": {
+			nodes: []*corev1.Node{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "worker",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "a",
+							"node-role.kubernetes.io/worker": "",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "master",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "b",
+							"node-role.kubernetes.io/master": "",
+						},
+					},
+				},
+			},
+			spec: v1.ImageRegistrySpec{},
+			expected: []corev1.TopologySpreadConstraint{
+				{
+					MaxSkew:           1,
+					TopologyKey:       "kubernetes.io/hostname",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: defaults.DeploymentLabels,
+					},
+				},
+				{
+					MaxSkew:           1,
+					TopologyKey:       "node-role.kubernetes.io/worker",
+					WhenUnsatisfiable: corev1.DoNotSchedule,
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: defaults.DeploymentLabels,
+					},
+				},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			config := &v1.Config{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: tc.spec,
+			}
+			fixture := buildFakeClient(config, tc.nodes)
+			emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{}, fixture.Listers)
+			pod, _, err := makePodTemplateSpec(
+				fixture.KubeClient.CoreV1(),
+				fixture.Listers.ProxyConfigs,
+				emptyDirStorage,
+				config,
+			)
+			if err != nil {
+				t.Fatalf("error creating pod template: %v", err)
+			}
+			expected := tc.expected
+			got := pod.Spec.TopologySpreadConstraints
+			if !reflect.DeepEqual(got, expected) {
+				t.Logf("want: %#v", expected)
+				t.Logf("got:  %#v", got)
+				t.Fatalf("wrong pod template spec")
+			}
+		})
+	}
+}
 
 type volumeMount struct {
 	volExists   bool
@@ -22,7 +228,7 @@ type volumeMount struct {
 	optional    bool
 }
 
-func TestMakePodTemplateSpec(t *testing.T) {
+func TestMakePodTemplateSpecWithVolumeMounts(t *testing.T) {
 	// TODO: Make this table-driven to verify all storage drivers
 	testBuilder := cirofake.NewFixturesBuilder()
 	config := &v1.Config{

@@ -34,6 +34,7 @@ type FixturesBuilder struct {
 	registryConfigsIndexer     cache.Indexer
 	proxyConfigsIndexer        cache.Indexer
 	infraIndexer               cache.Indexer
+	nodeIndexer                cache.Indexer
 
 	kClientSet []runtime.Object
 }
@@ -59,9 +60,22 @@ func NewFixturesBuilder() *FixturesBuilder {
 		registryConfigsIndexer:     cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		proxyConfigsIndexer:        cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		infraIndexer:               cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
+		nodeIndexer:                cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		kClientSet:                 []runtime.Object{},
 	}
 	return factory
+}
+
+// AddNodes adds corev1.Nodes to the lister cache
+func (f *FixturesBuilder) AddNodes(objs ...*corev1.Node) *FixturesBuilder {
+	for _, v := range objs {
+		err := f.nodeIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
+		f.kClientSet = append(f.kClientSet, v)
+	}
+	return f
 }
 
 // AddDeployments adds appsv1.Deployments to the lister cache
