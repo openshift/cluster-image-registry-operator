@@ -3,6 +3,8 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -11,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -22,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"golang.org/x/net/http/httpproxy"
+	"golang.org/x/net/http2"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -236,27 +238,48 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return nil, err
 	}
 
+	rootCAs, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+	}
+
+	userCABundle, err := d.getCABundle()
+	if err != nil {
+		return nil, err
+	}
+	rootCAs.AppendCertsFromPEM([]byte(userCABundle))
+
+	tr := &http.Transport{
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSClientConfig: &tls.Config{
+			RootCAs: rootCAs,
+		},
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	}
+
+	err = http2.ConfigureTransport(tr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to configure http2 transport: %w", err)
+	}
+
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
 	awsOptions := session.Options{
 		Config: aws.Config{
 			Region: &d.Config.Region,
 			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy: func(req *http.Request) (*url.URL, error) {
-						return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-					},
-					DialContext: (&net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-						DualStack: true,
-					}).DialContext,
-					ForceAttemptHTTP2:     true,
-					MaxIdleConns:          100,
-					IdleConnTimeout:       90 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				},
+				Transport: tr,
 			},
 		},
 		SharedConfigState: session.SharedConfigEnable,
@@ -275,13 +298,6 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	}
 
 	awsOptions.Config.WithEndpointResolver(d.endpointsResolver)
-
-	switch caBundle, err := d.getCABundle(); {
-	case err != nil:
-		return nil, err
-	case caBundle != "":
-		awsOptions.CustomCABundle = strings.NewReader(caBundle)
-	}
 
 	sess, err := session.NewSessionWithOptions(awsOptions)
 	if err != nil {
