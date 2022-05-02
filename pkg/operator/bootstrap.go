@@ -108,8 +108,8 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode, cla
 		return err
 	}
 
-	// "standard" is the default StorageClass name, that was provisioned by the cloud provider
-	storageClassName := "standard"
+	// "standard-csi" is the default StorageClass name in 4.11 and newer versions, that was provisioned by the cloud provider
+	storageClassName := "standard-csi"
 
 	// This is a Workaround for Bug#1862991 Tracker for removel on Bug#1866240
 	if infra, err := util.GetInfrastructure(c.listers); err != nil {
