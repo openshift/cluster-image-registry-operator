@@ -1,18 +1,23 @@
 package resource
 
 import (
+	"context"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 )
 
 func buildFakeClient(config *v1.Config, nodes []*corev1.Node) *cirofake.Fixtures {
@@ -443,5 +448,106 @@ func verifyVolume(volume corev1.Volume, expected *volumeMount, t *testing.T) {
 func verifyMount(mount corev1.VolumeMount, expected *volumeMount, t *testing.T) {
 	if mount.MountPath != expected.mountPath {
 		t.Errorf("expected mount path to be %s, got %s", expected.mountPath, mount.MountPath)
+	}
+}
+
+func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
+	ctx := context.Background()
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	config := &v1.Config{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Spec: v1.ImageRegistrySpec{
+			Storage: v1.ImageRegistryConfigStorage{
+				ManagementState: "Unmanaged",
+				S3: &v1.ImageRegistryConfigStorageS3{
+					Bucket:  "bucket",
+					Region:  "region",
+					Encrypt: true,
+					CloudFront: &v1.ImageRegistryConfigStorageS3CloudFront{
+						BaseURL:   "https://cloudfront.example.com",
+						KeypairID: "keypair-id",
+						Duration: metav1.Duration{
+							Duration: 300 * time.Second,
+						},
+					},
+					VirtualHostedStyle: true,
+				},
+			},
+		},
+	}
+	testBuilder.AddRegistryOperatorConfig(config)
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: "region",
+				},
+			},
+		},
+	}
+	testBuilder.AddInfraConfig(infra)
+
+	imageRegNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "openshift-image-registry",
+			Annotations: map[string]string{
+				"openshift.io/sa.scc.supplemental-groups": "1000430000/10000",
+			},
+		},
+	}
+	testBuilder.AddNamespaces(imageRegNs)
+
+	fixture := testBuilder.Build()
+	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, fixture.Listers)
+	pod, _, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, s3Storage, config)
+	if err != nil {
+		t.Fatalf("error creating pod template: %v", err)
+	}
+
+	ignoreEnvVar := func(name string) bool {
+		return !strings.HasPrefix(name, "REGISTRY_STORAGE") && !strings.HasPrefix(name, "REGISTRY_MIDDLEWARE")
+	}
+	expectedEnvVars := map[string]corev1.EnvVar{
+		"REGISTRY_STORAGE":                          {Value: "s3"},
+		"REGISTRY_STORAGE_S3_BUCKET":                {Value: "bucket"},
+		"REGISTRY_STORAGE_S3_REGION":                {Value: "region"},
+		"REGISTRY_STORAGE_S3_ENCRYPT":               {Value: "true"},
+		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    {Value: "true"},
+		"REGISTRY_STORAGE_S3_USEDUALSTACK":          {Value: "true"},
+		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": {Value: "/var/run/secrets/cloud/credentials"},
+		"REGISTRY_MIDDLEWARE_STORAGE": {Value: `- name: cloudfront
+  options:
+    baseurl: https://cloudfront.example.com
+    privatekey: /etc/docker/cloudfront/private.pem
+    keypairid: keypair-id
+    duration: 5m0s
+    ipfilteredby: none`},
+		"REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR": {Value: "inmemory"},
+		"REGISTRY_STORAGE_DELETE_ENABLED":       {Value: "true"},
+	}
+
+	for _, envVar := range pod.Spec.Containers[0].Env {
+		expected, ok := expectedEnvVars[envVar.Name]
+		if !ok {
+			if !ignoreEnvVar(envVar.Name) {
+				t.Errorf("unexpected env var %s", envVar.Name)
+			}
+			continue
+		}
+		if envVar.Value != expected.Value {
+			t.Errorf("expected env var %s to have value %s, got %s", envVar.Name, expectedEnvVars[envVar.Name].Value, envVar.Value)
+		}
+		delete(expectedEnvVars, envVar.Name)
+	}
+	for name := range expectedEnvVars {
+		t.Errorf("expected env var %s not found", name)
 	}
 }
