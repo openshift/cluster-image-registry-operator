@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -153,6 +154,23 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 				RollingUpdate: rollingUpdate,
 			},
 		},
+	}
+
+	rawoverrides := gd.cr.Spec.UnsupportedConfigOverrides.Raw
+	if len(rawoverrides) > 0 {
+		var overrides ConfigOverrides
+		if err := json.Unmarshal(rawoverrides, &overrides); err != nil {
+			return nil, fmt.Errorf("invalid unsupportedConfigOverrides: %w", err)
+		}
+
+		depoverrides := overrides.Deployment
+		if depoverrides != nil {
+			deploy.Spec.Template.Spec.RuntimeClassName = depoverrides.RuntimeClassName
+			for key, val := range depoverrides.Annotations {
+				deploy.Annotations[key] = val
+				deploy.Spec.Template.Annotations[key] = val
+			}
+		}
 	}
 
 	dgst, err := strategy.Checksum(deploy)
