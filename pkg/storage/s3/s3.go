@@ -347,11 +347,39 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	)
 
 	if d.Config.CloudFront != nil {
+		// Use structs to make ordering deterministic
+		type cloudFrontOptions struct {
+			BaseURL      string `json:"baseurl"`
+			PrivateKey   string `json:"privatekey"`
+			KeypairID    string `json:"keypairid"`
+			Duration     string `json:"duration"`
+			IPFilteredBy string `json:"ipfilteredby"`
+		}
+		type middleware struct {
+			Name    string      `json:"name"`
+			Options interface{} `json:"options"`
+		}
+
+		duration := "1200s"
+		if d.Config.CloudFront.Duration.Duration != 0 {
+			duration = d.Config.CloudFront.Duration.Duration.String()
+		}
 		envs = append(envs,
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_BASEURL", Value: d.Config.CloudFront.BaseURL},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_KEYPAIRID", Value: d.Config.CloudFront.KeypairID},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_DURATION", Value: d.Config.CloudFront.Duration.String()},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_PRIVATEKEY", Value: "/etc/docker/cloudfront/private.pem"},
+			envvar.EnvVar{
+				Name: "REGISTRY_MIDDLEWARE_STORAGE",
+				Value: []middleware{
+					{
+						Name: "cloudfront",
+						Options: cloudFrontOptions{
+							BaseURL:      d.Config.CloudFront.BaseURL,
+							PrivateKey:   "/etc/docker/cloudfront/private.pem",
+							KeypairID:    d.Config.CloudFront.KeypairID,
+							Duration:     duration,
+							IPFilteredBy: "none",
+						},
+					},
+				},
+			},
 		)
 	}
 
