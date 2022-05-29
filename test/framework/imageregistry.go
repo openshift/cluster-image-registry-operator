@@ -215,16 +215,16 @@ func deleteImageRegistryConfig(te TestEnv) {
 	}
 }
 
-func deleteLeaderElectionConfigMap(te TestEnv, name string) {
-	err := te.Client().ConfigMaps(OperatorDeploymentNamespace).Delete(
+func deleteLeaderElectionLease(te TestEnv, name string) {
+	err := te.Client().Leases(OperatorDeploymentNamespace).Delete(
 		context.Background(),
 		name,
 		metav1.DeleteOptions{},
 	)
 	if err == nil {
-		te.Logf("leader election configmap %s deleted", name)
+		te.Logf("leader election lease %s deleted", name)
 	} else if !errors.IsNotFound(err) {
-		te.Errorf("unable to delete leader election configmap %s: %s", name, err)
+		te.Errorf("unable to delete leader election lease %s: %s", name, err)
 	}
 }
 
@@ -290,7 +290,7 @@ func deleteImageRegistryAlwaysPresentResources(te TestEnv) {
 	te.Logf("deleting always-present resources...")
 	defer deleteImageRegistryCertificates(te)
 	defer deleteNodeCADaemonSet(te)
-	defer deleteLeaderElectionConfigMap(te, "openshift-master-controllers")
+	defer deleteLeaderElectionLease(te, "openshift-master-controllers")
 }
 
 func RemoveImageRegistry(te TestEnv) {
