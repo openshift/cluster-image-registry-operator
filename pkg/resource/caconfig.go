@@ -70,28 +70,30 @@ func (gcac *generatorCAConfig) GetName() string {
 	return defaults.ImageRegistryCertificatesName
 }
 
-func (gcac *generatorCAConfig) storageDriver() (storage.Driver, error) {
+func (gcac *generatorCAConfig) storageDriver() (storage.Driver, bool, error) {
 	imageRegistryConfig, err := gcac.imageRegistryConfigLister.Get("cluster")
 	if errors.IsNotFound(err) {
-		return nil, nil
+		return nil, false, nil
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if imageRegistryConfig.Spec.ManagementState == operatorv1.Removed {
 		// The certificates controller does not need to know about
 		// storage when the management state is Removed.
-		return nil, nil
+		return nil, false, nil
 	}
 
 	driver, err := storage.NewDriver(&imageRegistryConfig.Spec.Storage, gcac.kubeconfig, gcac.storageListers)
 	if err == storage.ErrStorageNotConfigured || storage.IsMultiStoragesError(err) {
-		return nil, nil
+		return nil, false, nil
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return driver, nil
+	canRedirect := !imageRegistryConfig.Spec.DisableRedirect
+
+	return driver, canRedirect, nil
 }
 
 func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
@@ -103,6 +105,8 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		Data:       map[string]string{},
 		BinaryData: map[string][]byte{},
 	}
+
+	var ownHostnameKeys []string
 
 	serviceCA, err := gcac.lister.Get(defaults.ServiceCAName)
 	if errors.IsNotFound(err) {
@@ -119,7 +123,9 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 				klog.Infof("unable to get the service name to add service-ca.crt")
 			} else {
 				for _, internalHostname := range internalHostnames {
-					cm.Data[strings.Replace(internalHostname, ":", "..", -1)] = cert
+					key := strings.Replace(internalHostname, ":", "..", -1)
+					ownHostnameKeys = append(ownHostnameKeys, key)
+					cm.Data[key] = cert
 				}
 			}
 		} else {
@@ -146,7 +152,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
-	driver, err := gcac.storageDriver()
+	driver, canRedirect, err := gcac.storageDriver()
 	if err != nil {
 		return cm, err
 	}
@@ -158,6 +164,12 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		if storageCABundle != "" {
 			klog.V(4).Infof("using storage ca bundle (%d bytes)", len(storageCABundle))
 			cm.Data["storage-ca-bundle.pem"] = storageCABundle
+			if canRedirect {
+				klog.V(4).Infof("injecting storage ca bundle into registry certificates...")
+				for _, key := range ownHostnameKeys {
+					cm.Data[key] += "\n" + storageCABundle
+				}
+			}
 		}
 	}
 
