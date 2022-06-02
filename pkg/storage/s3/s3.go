@@ -81,6 +81,22 @@ func (er *endpointsResolver) EndpointFor(service, region string, opts ...func(*e
 	return endpoints.DefaultResolver().EndpointFor(service, region, opts...)
 }
 
+func isUnknownEndpointError(err error) bool {
+	_, ok := err.(endpoints.UnknownEndpointError)
+	return ok
+}
+
+func regionHasDualStackS3(region string) (bool, error) {
+	_, err := endpoints.DefaultResolver().EndpointFor("s3", region, endpoints.UseDualStackEndpointOption)
+	if isUnknownEndpointError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
@@ -222,6 +238,18 @@ func (d *driver) getCABundle() (string, error) {
 	}
 }
 
+// useDualStack returns true if the driver should use dual-stack endpoints
+func (d *driver) useDualStack() (bool, error) {
+	if d.Config.RegionEndpoint != "" {
+		return true, nil
+	}
+	ok, err := regionHasDualStackS3(d.Config.Region)
+	if err != nil {
+		return false, fmt.Errorf("failed to determine if region %s has dual stack S3: %w", d.Config.Region, err)
+	}
+	return ok, nil
+}
+
 // getS3Service returns a client that allows us to interact
 // with the aws S3 service
 func (d *driver) getS3Service() (*s3.S3, error) {
@@ -267,7 +295,14 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		awsOptions.Config.HTTPClient.Transport = d.roundTripper
 	}
 
-	awsOptions.Config.WithUseDualStack(true)
+	useDualStack, err := d.useDualStack()
+	if err != nil {
+		return nil, err
+	}
+	if useDualStack {
+		awsOptions.Config.WithUseDualStack(true)
+	}
+
 	if d.Config.RegionEndpoint != "" {
 		if !d.Config.VirtualHostedStyle {
 			awsOptions.Config.WithS3ForcePathStyle(true)
@@ -342,9 +377,16 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey)},
 	)
+
+	useDualStack, err := d.useDualStack()
+	if err != nil {
+		return nil, err
+	}
+	if useDualStack {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true})
+	}
 
 	if d.Config.CloudFront != nil {
 		// Use structs to make ordering deterministic
