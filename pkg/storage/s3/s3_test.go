@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/google/go-cmp/cmp"
@@ -26,6 +27,92 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 )
+
+func TestEndpointsResolver(t *testing.T) {
+	testCases := []struct {
+		region       string
+		useDualStack bool
+		endpoint     string
+	}{
+		{
+			region:   "us-east-1",
+			endpoint: "https://s3.amazonaws.com",
+		},
+		{
+			region:       "us-east-1",
+			useDualStack: true,
+			endpoint:     "https://s3.dualstack.us-east-1.amazonaws.com",
+		},
+		{
+			region:   "us-gov-east-1",
+			endpoint: "https://s3.us-gov-east-1.amazonaws.com",
+		},
+		{
+			region:       "us-gov-east-1",
+			useDualStack: true,
+			endpoint:     "https://s3.dualstack.us-gov-east-1.amazonaws.com",
+		},
+		{
+			region:   "us-iso-east-1",
+			endpoint: "https://s3.us-iso-east-1.c2s.ic.gov",
+		},
+		{
+			region:       "us-iso-east-1",
+			useDualStack: true,
+			endpoint:     "",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.region, func(t *testing.T) {
+			er := newEndpointsResolver(tc.region, "", nil)
+			var opts []func(*endpoints.Options)
+			if tc.useDualStack {
+				opts = append(opts, endpoints.UseDualStackEndpointOption)
+			}
+			ep, err := er.EndpointFor("s3", tc.region, opts...)
+			if isUnknownEndpointError(err) && tc.endpoint == "" {
+				return // the error is expected
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ep.URL != tc.endpoint {
+				t.Errorf("got %s, want %s", ep.URL, tc.endpoint)
+			}
+		})
+	}
+}
+
+func TestRegionS3DualStack(t *testing.T) {
+	testCases := []struct {
+		region string
+		want   bool
+	}{
+		{
+			region: "us-east-1",
+			want:   true,
+		},
+		{
+			region: "us-gov-east-1",
+			want:   true,
+		},
+		{
+			region: "us-iso-east-1",
+			want:   false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.region, func(t *testing.T) {
+			got, err := regionHasDualStackS3(tc.region)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("got %t, want %t", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestGetConfig(t *testing.T) {
 	testBuilder := cirofake.NewFixturesBuilder()
