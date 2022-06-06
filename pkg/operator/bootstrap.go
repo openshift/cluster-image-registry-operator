@@ -78,8 +78,8 @@ func (c *Controller) Bootstrap() error {
 		},
 		Spec: imageregistryv1.ImageRegistrySpec{
 			OperatorSpec: operatorapi.OperatorSpec{
-				LogLevel:         operatorapi.Normal,
-				OperatorLogLevel: operatorapi.Normal,
+				LogLevel:         operatorapi.Trace,
+				OperatorLogLevel: operatorapi.Trace,
 			},
 			ManagementState: mgmtState,
 			Storage:         platformStorage,
