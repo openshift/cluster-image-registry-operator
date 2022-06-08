@@ -8,7 +8,6 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
 
-	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
@@ -19,15 +18,17 @@ const (
 )
 
 type driver struct {
-	Config  *imageregistryv1.ImageRegistryConfigStorageEmptyDir
-	Listers *regopclient.Listers
+	Config *imageregistryv1.ImageRegistryConfigStorageEmptyDir
 }
 
-func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageEmptyDir, listers *regopclient.Listers) *driver {
+func NewDriver(c *imageregistryv1.ImageRegistryConfigStorageEmptyDir) *driver {
 	return &driver{
-		Config:  c,
-		Listers: listers,
+		Config: c,
 	}
+}
+
+func (d *driver) CABundle() (string, bool, error) {
+	return "", false, nil
 }
 
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {

@@ -203,7 +203,7 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 				Spec: tc.spec,
 			}
 			fixture := buildFakeClient(config, tc.nodes)
-			emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{}, fixture.Listers)
+			emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{})
 			pod, _, err := makePodTemplateSpec(
 				fixture.KubeClient.CoreV1(),
 				fixture.Listers.ProxyConfigs,
@@ -268,7 +268,7 @@ func TestMakePodTemplateSpecWithVolumeMounts(t *testing.T) {
 	testBuilder.AddNamespaces(imageRegNs)
 
 	fixture := testBuilder.Build()
-	emptyDirStorage := emptydir.NewDriver(config.Spec.Storage.EmptyDir, fixture.Listers)
+	emptyDirStorage := emptydir.NewDriver(config.Spec.Storage.EmptyDir)
 	pod, deps, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, emptyDirStorage, config)
 	if err != nil {
 		t.Fatalf("error creating pod template: %v", err)
@@ -506,7 +506,7 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	testBuilder.AddNamespaces(imageRegNs)
 
 	fixture := testBuilder.Build()
-	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, fixture.Listers)
+	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, &fixture.Listers.StorageListers)
 	pod, _, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, s3Storage, config)
 	if err != nil {
 		t.Fatalf("error creating pod template: %v", err)

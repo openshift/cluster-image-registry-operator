@@ -55,7 +55,7 @@ func TestGetConfig(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	s3Driver := &driver{
-		Listers: listers,
+		Listers: &listers.StorageListers,
 		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
 
@@ -111,7 +111,7 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	s3Driver := &driver{
-		Listers: listers,
+		Listers: &listers.StorageListers,
 		Config:  &imageregistryv1.ImageRegistryConfigStorageS3{},
 	}
 	err := s3Driver.UpdateEffectiveConfig()
@@ -169,7 +169,7 @@ func TestConfigEnv(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -233,7 +233,7 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -418,7 +418,7 @@ func TestStorageManagementState(t *testing.T) {
 				}
 			}
 
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers)
 
 			drv.roundTripper = rt
 
@@ -649,7 +649,7 @@ func TestUserProvidedTags(t *testing.T) {
 			})
 			listers := builder.BuildListers()
 
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, listers)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers)
 			rt := &tripper{}
 			if len(tt.responseCodes) > 0 {
 				for _, code := range tt.responseCodes {

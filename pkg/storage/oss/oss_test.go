@@ -57,7 +57,7 @@ func TestGetConfig(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	ossDriver := &driver{
-		Listers: listers,
+		Listers: &listers.StorageListers,
 		Config:  &imageregistryv1.ImageRegistryConfigStorageAlibabaOSS{},
 	}
 
@@ -102,7 +102,7 @@ func TestGetConfigCustomRegionEndpoint(t *testing.T) {
 	listers := testBuilder.BuildListers()
 
 	ossDriver := &driver{
-		Listers: listers,
+		Listers: &listers.StorageListers,
 		Config:  &imageregistryv1.ImageRegistryConfigStorageAlibabaOSS{},
 	}
 	err := ossDriver.UpdateEffectiveConfig()
@@ -157,7 +157,7 @@ func TestConfigEnv(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -211,7 +211,7 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -402,7 +402,7 @@ func TestStorageManagementState(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.OSS, listers)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.OSS, &listers.StorageListers)
 			rt := &tripper{}
 			if len(tt.responseCodes) > 0 {
 				for _, code := range tt.responseCodes {
@@ -632,7 +632,7 @@ func TestUserProvidedTags(t *testing.T) {
 			})
 			listers := builder.BuildListers()
 
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.OSS, listers)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.OSS, &listers.StorageListers)
 			rt := &tripper{}
 			if len(tt.responseCodes) > 0 {
 				for _, code := range tt.responseCodes {
@@ -694,7 +694,7 @@ func Test_isInternal(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	d := NewDriver(ctx, config, listers)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	// internal
 	result := d.isInternal()

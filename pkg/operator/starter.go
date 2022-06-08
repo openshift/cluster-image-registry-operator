@@ -98,12 +98,17 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	)
 
 	imageRegistryCertificatesController := NewImageRegistryCertificatesController(
+		kubeconfig,
 		kubeClient.CoreV1(),
 		configOperatorClient,
 		kubeInformers.Core().V1().ConfigMaps(),
+		kubeInformers.Core().V1().Secrets(),
 		kubeInformers.Core().V1().Services(),
 		configInformers.Config().V1().Images(),
+		configInformers.Config().V1().Infrastructures(),
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
+		kubeInformersForOpenShiftConfigManaged.Core().V1().ConfigMaps(),
+		imageregistryInformers.Imageregistry().V1().Configs(),
 	)
 
 	nodeCADaemonController := NewNodeCADaemonController(

@@ -86,7 +86,7 @@ func (er *endpointsResolver) EndpointFor(service, region string, opts ...func(*e
 type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 
 	// endpointsResolver is populated by UpdateEffectiveConfig and takes into
 	// account the cluster configuration.
@@ -98,7 +98,7 @@ type driver struct {
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,
@@ -206,21 +206,34 @@ func (d *driver) getCredentialsConfigData() ([]byte, error) {
 	}
 }
 
-// getCABundle gets the custom CA bundle for trusting communication with the AWS API
-func (d *driver) getCABundle() (string, error) {
+// CABundle gets the custom CA bundle for trusting communication with the AWS
+// API.
+func (d *driver) CABundle() (string, bool, error) {
+	if d.Config.TrustedCA.Name != "" {
+		trustedCA, err := d.Listers.OpenShiftConfig.Get(d.Config.TrustedCA.Name)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to get trusted CA %q: %w", d.Config.TrustedCA.Name, err)
+		}
+		bundle, ok := trustedCA.Data["ca-bundle.crt"]
+		if !ok {
+			return "", false, fmt.Errorf("trusted CA config map %q does not contain required key %q", d.Config.TrustedCA.Name, "ca-bundle.crt")
+		}
+		return string(bundle), false, nil
+	}
+
 	cloudConfig, err := d.Listers.OpenShiftConfigManaged.Get(defaults.KubeCloudConfigName)
 	switch {
 	case errors.IsNotFound(err):
 		// No cloud config, so no custom CA bundle.
-		return "", nil
+		return "", true, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to get the kube cloud config: %w", err)
+		return "", false, fmt.Errorf("unable to get the kube cloud config: %w", err)
 	default:
 		caBundle, ok := cloudConfig.Data[defaults.CloudCABundleKey]
 		if !ok {
-			return "", nil
+			return "", true, nil
 		}
-		return caBundle, nil
+		return caBundle, true, nil
 	}
 }
 
@@ -238,15 +251,21 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return nil, err
 	}
 
-	rootCAs, err := x509.SystemCertPool()
+	userCABundle, useSystemCertPool, err := d.CABundle()
 	if err != nil {
-		return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+		return nil, fmt.Errorf("unable to get S3 CA bundle: %w", err)
 	}
 
-	userCABundle, err := d.getCABundle()
-	if err != nil {
-		return nil, err
+	var rootCAs *x509.CertPool
+	if useSystemCertPool {
+		rootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+		}
+	} else {
+		rootCAs = x509.NewCertPool()
 	}
+
 	rootCAs.AppendCertsFromPEM([]byte(userCABundle))
 
 	tr := &http.Transport{
