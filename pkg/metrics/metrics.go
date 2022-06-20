@@ -19,6 +19,20 @@ var (
 		},
 		[]string{"result"},
 	)
+	imageStreamTags = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "image_registry_image_stream_tags_total",
+			Help: "Number of image stream tags. Source is either 'imported' or 'pushed'. 'location' label shows if the tag lives in one of the 'openshift' namespaces or 'other'",
+		},
+		[]string{"source", "location"},
+	)
+	storageType = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "image_registry_storage_type",
+			Help: "Holds the storage in use for the image registry",
+		},
+		[]string{"storage"},
+	)
 )
 
 func init() {
@@ -26,5 +40,7 @@ func init() {
 		storageReconfigured,
 		imagePrunerInstallStatus,
 		azurePrimaryKeyCache,
+		imageStreamTags,
+		storageType,
 	)
 }
