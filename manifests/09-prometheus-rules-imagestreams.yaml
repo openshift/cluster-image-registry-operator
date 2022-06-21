@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: imagestreams-rules
+  namespace: openshift-image-registry
+spec:
+  groups:
+  - name: imagestreams.rules
+    rules:
+    - expr: sum by (location, source) (image_registry_image_stream_tags_total)
+      record: imageregistry:imagestreamtags_count:sum
