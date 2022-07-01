@@ -43,7 +43,7 @@ func generateLogLevel(cr *v1.Config) string {
 // generateLivenessProbeConfig returns an HTTPS liveness probe for the image
 // registry.
 func generateLivenessProbeConfig() *corev1.Probe {
-	probeConfig := generateProbeConfig()
+	probeConfig := generateProbeConfig(defaults.HealthzRoute, defaults.HealthzTimeoutSeconds)
 	// Wait until the registry is ready to serve requests.
 	probeConfig.InitialDelaySeconds = 5
 	return probeConfig
@@ -52,20 +52,20 @@ func generateLivenessProbeConfig() *corev1.Probe {
 // generateReadinessProbeConfig returns an HTTPS readiness probe for the image
 // registry.
 func generateReadinessProbeConfig() *corev1.Probe {
-	probeConfig := generateProbeConfig()
+	probeConfig := generateProbeConfig(defaults.ReadyzRoute, defaults.ReadyzTimeoutSeconds)
 	// Wait until the registry checks its storage health before reporting
 	// the registry as Ready.
 	probeConfig.InitialDelaySeconds = 15
 	return probeConfig
 }
 
-func generateProbeConfig() *corev1.Probe {
+func generateProbeConfig(path string, timeout int) *corev1.Probe {
 	return &corev1.Probe{
-		TimeoutSeconds: int32(defaults.HealthzTimeoutSeconds),
+		TimeoutSeconds: int32(timeout),
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
 				Scheme: corev1.URISchemeHTTPS,
-				Path:   defaults.HealthzRoute,
+				Path:   path,
 				Port:   intstr.FromInt(defaults.ContainerPort),
 			},
 		},

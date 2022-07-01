@@ -97,6 +97,8 @@ const (
 	ContainerPort         = 5000
 	HealthzRoute          = "/healthz"
 	HealthzTimeoutSeconds = 5
+	ReadyzRoute           = "/readyz"
+	ReadyzTimeoutSeconds  = 5
 
 	ImageConfigName   = "cluster"
 	ClusterConfigName = "cluster-config-v1"
