@@ -499,17 +499,6 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 					LivenessProbe:  generateLivenessProbeConfig(),
 					ReadinessProbe: generateReadinessProbeConfig(),
 					Resources:      resources,
-					// Once the pod is deleted, its endpoint should be removed
-					// from routers, load balancers, and nodes. We'll give 25
-					// seconds to propagate before we actually shutdown the
-					// registry.
-					Lifecycle: &corev1.Lifecycle{
-						PreStop: &corev1.LifecycleHandler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"sleep", "25"},
-							},
-						},
-					},
 				},
 			},
 			Volumes:                       volumes,
