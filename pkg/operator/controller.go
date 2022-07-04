@@ -278,7 +278,7 @@ func (c *Controller) sync() error {
 	}
 	c.syncStatus(cr, deploy, routes, applyError)
 
-	metadataChanged := strategy.Metadata(&prevCR.ObjectMeta, &cr.ObjectMeta)
+	metadataChanged := strategy.Metadata(prevCR.ObjectMeta.DeepCopy(), &cr.ObjectMeta)
 	specChanged := !reflect.DeepEqual(prevCR.Spec, cr.Spec)
 	if metadataChanged || specChanged {
 		difference, err := object.DiffString(prevCR, cr)
@@ -299,7 +299,12 @@ func (c *Controller) sync() error {
 				updatedCR.ObjectMeta = cr.ObjectMeta
 			}
 			if specChanged {
+				// FIXME: Here be dragons. The operator can
+				// accidentally lose user-provided
+				// configuration.
+				managementState := updatedCR.Spec.ManagementState
 				updatedCR.Spec = cr.Spec
+				updatedCR.Spec.ManagementState = managementState
 			}
 
 			updatedCR, err = c.clients.RegOp.ImageregistryV1().Configs().Update(
@@ -313,6 +318,10 @@ func (c *Controller) sync() error {
 		// If we updated the Status field too, we'll make one more call and we
 		// want it to succeed.
 		cr.ResourceVersion = updatedCR.ResourceVersion
+
+		// Update prevCR to make diff accurate.
+		prevCR.ObjectMeta = updatedCR.ObjectMeta
+		prevCR.Spec = updatedCR.Spec
 	}
 
 	cr.Status.ObservedGeneration = cr.Generation
@@ -377,7 +386,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
+			klog.V(4).Infof("add event to workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(workqueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
@@ -400,7 +409,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if obj.GetNamespace() == kubeSystemNamespace && obj.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
+			klog.V(4).Infof("add event to workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(workqueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -421,7 +430,7 @@ func (c *Controller) handler() cache.ResourceEventHandlerFuncs {
 			if object.GetNamespace() == kubeSystemNamespace && object.GetName() != defaults.ClusterConfigName {
 				return
 			}
-			klog.V(1).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
+			klog.V(4).Infof("add event to workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(workqueueKey)
 		},
 	}

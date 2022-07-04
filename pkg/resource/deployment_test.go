@@ -182,6 +182,10 @@ func waitForUpdatedSecret(ctx context.Context, kubeClient kubeclient.Interface, 
 
 type testDriver struct{}
 
+func (d *testDriver) CABundle() (string, bool, error) {
+	return "", false, nil
+}
+
 func (d *testDriver) ConfigEnv() (envvar.List, error) {
 	return nil, nil
 }

@@ -40,15 +40,23 @@ func generateLogLevel(cr *v1.Config) string {
 	return "debug"
 }
 
+// generateLivenessProbeConfig returns an HTTPS liveness probe for the image
+// registry.
 func generateLivenessProbeConfig() *corev1.Probe {
 	probeConfig := generateProbeConfig()
-	probeConfig.InitialDelaySeconds = 10
-
+	// Wait until the registry is ready to serve requests.
+	probeConfig.InitialDelaySeconds = 5
 	return probeConfig
 }
 
+// generateReadinessProbeConfig returns an HTTPS readiness probe for the image
+// registry.
 func generateReadinessProbeConfig() *corev1.Probe {
-	return generateProbeConfig()
+	probeConfig := generateProbeConfig()
+	// Wait until the registry checks its storage health before reporting
+	// the registry as Ready.
+	probeConfig.InitialDelaySeconds = 15
+	return probeConfig
 }
 
 func generateProbeConfig() *corev1.Probe {
@@ -87,8 +95,10 @@ func generateSecurityContext(coreClient coreset.CoreV1Interface, namespace strin
 		return nil, fmt.Errorf("unable to parse annotation %s in namespace %q: %s", defaults.SupplementalGroupsAnnotation, namespace, err)
 	}
 
+	fsGroupChangePolicy := corev1.FSGroupChangeOnRootMismatch
 	return &corev1.PodSecurityContext{
-		FSGroup: &gid,
+		FSGroup:             &gid,
+		FSGroupChangePolicy: &fsGroupChangePolicy,
 	}, nil
 }
 
@@ -157,6 +167,9 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_QUOTA_ENABLED", Value: "true"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR", Value: "inmemory"},
 		corev1.EnvVar{Name: "REGISTRY_STORAGE_DELETE_ENABLED", Value: "true"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_ENABLED", Value: "true"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_INTERVAL", Value: "10s"},
+		corev1.EnvVar{Name: "REGISTRY_HEALTH_STORAGEDRIVER_THRESHOLD", Value: "1"},
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_METRICS_ENABLED", Value: "true"},
 		// TODO(dmage): sync with InternalRegistryHostname in origin
 		corev1.EnvVar{Name: "REGISTRY_OPENSHIFT_SERVER_ADDR", Value: fmt.Sprintf("%s.%s.svc:%d", defaults.ServiceName, defaults.ImageRegistryOperatorNamespace, defaults.ContainerPort)},
@@ -367,45 +380,83 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		resources = *cr.Spec.Resources
 	}
 
+	nodes, err := coreClient.Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: "topology.kubernetes.io/zone"})
+	if err != nil {
+		return corev1.PodTemplateSpec{}, deps, fmt.Errorf("could not check nodes for zone failure domain: %s", err)
+	}
+	hasZoneFailureDomain := len(nodes.Items) >= 1
+
+	// defaults topology spread constraints to both zone, node and workers.
+	// on SNO environments, these constraints will always work, since the
+	// skew will always be 0.
+	// some bare metal cluster nodes will not include the zone labels, in
+	// which case we just omit the related constraint.
+	// we constraint scheduling to workers because we want to reduce the
+	// scope of scheduling to workers only. we need this constraint
+	// because tainted nodes (such as control plane nodes) are not excluded
+	// from skew calculations, so if we don't limit scheduling to workers
+	// the maxSkew won't allow more than one pod to be scheduled per node.
+	// see https://k8s.io/docs/concepts/workloads/pods/pod-topology-spread-constraints
+	// and https://github.com/kubernetes/kubernetes/issues/80921 for details.
+	topologySpreadConstraints := []corev1.TopologySpreadConstraint{
+		{
+			MaxSkew:           1,
+			TopologyKey:       "kubernetes.io/hostname",
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: defaults.DeploymentLabels,
+			},
+		},
+		{
+			MaxSkew:           1,
+			TopologyKey:       "node-role.kubernetes.io/worker",
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: defaults.DeploymentLabels,
+			},
+		},
+	}
+	if hasZoneFailureDomain {
+		zoneConstraint := corev1.TopologySpreadConstraint{
+			MaxSkew:           1,
+			TopologyKey:       "topology.kubernetes.io/zone",
+			WhenUnsatisfiable: corev1.DoNotSchedule,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: defaults.DeploymentLabels,
+			},
+		}
+		topologySpreadConstraints = append(topologySpreadConstraints, zoneConstraint)
+	}
+
+	// topology spread constraints might conflict with node selectors, so we
+	// do not set defaults when they're specified.
+	if cr.Spec.NodeSelector != nil {
+		topologySpreadConstraints = nil
+	}
+
+	if cr.Spec.TopologySpreadConstraints != nil {
+		topologySpreadConstraints = cr.Spec.TopologySpreadConstraints
+	}
+
 	// if user has provided an affinity through config spec we use it here, if not
 	// then we fallback to a preferred affinity configuration. we only require a
 	// certain affinity during schedule if the number of replicas is defined to two.
 	affinity := cr.Spec.Affinity
-	if affinity == nil {
+	if affinity == nil && cr.Spec.Replicas == 2 {
 		affinity = &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
-				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
-						Weight: 100,
-						PodAffinityTerm: corev1.PodAffinityTerm{
-							TopologyKey: "kubernetes.io/hostname",
-							Namespaces: []string{
-								defaults.ImageRegistryOperatorNamespace,
-							},
-							LabelSelector: &metav1.LabelSelector{
-								MatchLabels: defaults.DeploymentLabels,
-							},
+						TopologyKey: "kubernetes.io/hostname",
+						Namespaces: []string{
+							defaults.ImageRegistryOperatorNamespace,
+						},
+						LabelSelector: &metav1.LabelSelector{
+							MatchLabels: defaults.DeploymentLabels,
 						},
 					},
 				},
 			},
-		}
-		if cr.Spec.Replicas == 2 {
-			affinity = &corev1.Affinity{
-				PodAntiAffinity: &corev1.PodAntiAffinity{
-					RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-						{
-							TopologyKey: "kubernetes.io/hostname",
-							Namespaces: []string{
-								defaults.ImageRegistryOperatorNamespace,
-							},
-							LabelSelector: &metav1.LabelSelector{
-								MatchLabels: defaults.DeploymentLabels,
-							},
-						},
-					},
-				},
-			}
 		}
 	}
 
@@ -465,6 +516,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			ServiceAccountName:            defaults.ServiceAccountName,
 			SecurityContext:               securityContext,
 			Affinity:                      affinity,
+			TopologySpreadConstraints:     topologySpreadConstraints,
 			TerminationGracePeriodSeconds: &gracePeriod,
 		},
 	}

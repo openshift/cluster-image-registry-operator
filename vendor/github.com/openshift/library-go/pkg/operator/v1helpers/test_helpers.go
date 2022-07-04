@@ -63,6 +63,10 @@ func (fakeSharedIndexInformer) SetWatchErrorHandler(handler cache.WatchErrorHand
 	panic("implement me")
 }
 
+func (fakeSharedIndexInformer) SetTransform(f cache.TransformFunc) error {
+	panic("implement me")
+}
+
 // NewFakeStaticPodOperatorClient returns a fake operator client suitable to use in static pod controller unit tests.
 func NewFakeStaticPodOperatorClient(
 	staticPodSpec *operatorv1.StaticPodOperatorSpec, staticPodStatus *operatorv1.StaticPodOperatorStatus,
@@ -140,7 +144,7 @@ func (c *fakeStaticPodOperatorClient) UpdateStaticPodOperatorSpec(ctx context.Co
 func (c *fakeStaticPodOperatorClient) GetOperatorState() (*operatorv1.OperatorSpec, *operatorv1.OperatorStatus, string, error) {
 	return &c.fakeStaticPodOperatorSpec.OperatorSpec, &c.fakeStaticPodOperatorStatus.OperatorStatus, c.resourceVersion, nil
 }
-func (c *fakeStaticPodOperatorClient) UpdateOperatorSpec(context.Context, string, *operatorv1.OperatorSpec) (spec *operatorv1.OperatorSpec, resourceVersion string, err error) {
+func (c *fakeStaticPodOperatorClient) UpdateOperatorSpec(ctx context.Context, s string, p *operatorv1.OperatorSpec) (spec *operatorv1.OperatorSpec, resourceVersion string, err error) {
 	panic("not supported")
 }
 func (c *fakeStaticPodOperatorClient) UpdateOperatorStatus(ctx context.Context, resourceVersion string, status *operatorv1.OperatorStatus) (*operatorv1.OperatorStatus, error) {

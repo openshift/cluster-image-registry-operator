@@ -90,7 +90,7 @@ func TestGenerateStorageName(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			l := regopclient.Listers{Infrastructures: MockInfrastructureLister{
+			l := regopclient.StorageListers{Infrastructures: MockInfrastructureLister{
 				infraName: tt.infraName,
 			}}
 

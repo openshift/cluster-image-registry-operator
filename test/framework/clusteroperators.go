@@ -34,7 +34,7 @@ func AreClusterOperatorsHealthy(cos []configv1.ClusterOperator) error {
 	return utilerrors.NewAggregate(errs)
 }
 
-func EnsureClusterOperatorsAreHealthy(te TestEnv, interval, timeout time.Duration) {
+func WaitUntilClusterOperatorsAreHealthy(te TestEnv, interval, timeout time.Duration) {
 	ctx := context.Background()
 	start := time.Now()
 	var lastErr error

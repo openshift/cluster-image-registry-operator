@@ -166,7 +166,7 @@ func TestStorageManagementState(t *testing.T) {
 				}
 			}
 
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.GCS, nil, listers)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.GCS, &listers.StorageListers)
 			drv.httpClient = &http.Client{Transport: rt}
 
 			if err := drv.CreateStorage(tt.config); err != nil {

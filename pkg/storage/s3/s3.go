@@ -3,6 +3,8 @@ package s3
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -11,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -22,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"golang.org/x/net/http/httpproxy"
+	"golang.org/x/net/http2"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -81,10 +83,26 @@ func (er *endpointsResolver) EndpointFor(service, region string, opts ...func(*e
 	return endpoints.DefaultResolver().EndpointFor(service, region, opts...)
 }
 
+func isUnknownEndpointError(err error) bool {
+	_, ok := err.(endpoints.UnknownEndpointError)
+	return ok
+}
+
+func regionHasDualStackS3(region string) (bool, error) {
+	_, err := endpoints.DefaultResolver().EndpointFor("s3", region, endpoints.UseDualStackEndpointOption)
+	if isUnknownEndpointError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 type driver struct {
 	Context context.Context
 	Config  *imageregistryv1.ImageRegistryConfigStorageS3
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 
 	// endpointsResolver is populated by UpdateEffectiveConfig and takes into
 	// account the cluster configuration.
@@ -96,7 +114,7 @@ type driver struct {
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,
@@ -204,22 +222,47 @@ func (d *driver) getCredentialsConfigData() ([]byte, error) {
 	}
 }
 
-// getCABundle gets the custom CA bundle for trusting communication with the AWS API
-func (d *driver) getCABundle() (string, error) {
+// CABundle gets the custom CA bundle for trusting communication with the AWS
+// API.
+func (d *driver) CABundle() (string, bool, error) {
+	if d.Config.TrustedCA.Name != "" {
+		trustedCA, err := d.Listers.OpenShiftConfig.Get(d.Config.TrustedCA.Name)
+		if err != nil {
+			return "", false, fmt.Errorf("failed to get trusted CA %q: %w", d.Config.TrustedCA.Name, err)
+		}
+		bundle, ok := trustedCA.Data["ca-bundle.crt"]
+		if !ok {
+			return "", false, fmt.Errorf("trusted CA config map %q does not contain required key %q", d.Config.TrustedCA.Name, "ca-bundle.crt")
+		}
+		return string(bundle), false, nil
+	}
+
 	cloudConfig, err := d.Listers.OpenShiftConfigManaged.Get(defaults.KubeCloudConfigName)
 	switch {
 	case errors.IsNotFound(err):
 		// No cloud config, so no custom CA bundle.
-		return "", nil
+		return "", true, nil
 	case err != nil:
-		return "", fmt.Errorf("unable to get the kube cloud config: %w", err)
+		return "", false, fmt.Errorf("unable to get the kube cloud config: %w", err)
 	default:
 		caBundle, ok := cloudConfig.Data[defaults.CloudCABundleKey]
 		if !ok {
-			return "", nil
+			return "", true, nil
 		}
-		return caBundle, nil
+		return caBundle, true, nil
 	}
+}
+
+// useDualStack returns true if the driver should use dual-stack endpoints
+func (d *driver) useDualStack() (bool, error) {
+	if d.Config.RegionEndpoint != "" {
+		return true, nil
+	}
+	ok, err := regionHasDualStackS3(d.Config.Region)
+	if err != nil {
+		return false, fmt.Errorf("failed to determine if region %s has dual stack S3: %w", d.Config.Region, err)
+	}
+	return ok, nil
 }
 
 // getS3Service returns a client that allows us to interact
@@ -236,27 +279,54 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		return nil, err
 	}
 
+	userCABundle, useSystemCertPool, err := d.CABundle()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get S3 CA bundle: %w", err)
+	}
+
+	var rootCAs *x509.CertPool
+	if useSystemCertPool {
+		rootCAs, err = x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("unable to load system root CA bundle: %w", err)
+		}
+	} else {
+		rootCAs = x509.NewCertPool()
+	}
+
+	rootCAs.AppendCertsFromPEM([]byte(userCABundle))
+
+	tr := &http.Transport{
+		Proxy: func(req *http.Request) (*url.URL, error) {
+			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
+		},
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		TLSClientConfig: &tls.Config{
+			RootCAs: rootCAs,
+		},
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ForceAttemptHTTP2:     true,
+	}
+
+	err = http2.ConfigureTransport(tr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to configure http2 transport: %w", err)
+	}
+
 	// A custom HTTPClient is used here since the default HTTPClients ProxyFromEnvironment
 	// uses a cache which won't let us update the proxy env vars
 	awsOptions := session.Options{
 		Config: aws.Config{
 			Region: &d.Config.Region,
 			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy: func(req *http.Request) (*url.URL, error) {
-						return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
-					},
-					DialContext: (&net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-						DualStack: true,
-					}).DialContext,
-					ForceAttemptHTTP2:     true,
-					MaxIdleConns:          100,
-					IdleConnTimeout:       90 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second,
-				},
+				Transport: tr,
 			},
 		},
 		SharedConfigState: session.SharedConfigEnable,
@@ -267,7 +337,14 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 		awsOptions.Config.HTTPClient.Transport = d.roundTripper
 	}
 
-	awsOptions.Config.WithUseDualStack(true)
+	useDualStack, err := d.useDualStack()
+	if err != nil {
+		return nil, err
+	}
+	if useDualStack {
+		awsOptions.Config.WithUseDualStack(true)
+	}
+
 	if d.Config.RegionEndpoint != "" {
 		if !d.Config.VirtualHostedStyle {
 			awsOptions.Config.WithS3ForcePathStyle(true)
@@ -275,13 +352,6 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 	}
 
 	awsOptions.Config.WithEndpointResolver(d.endpointsResolver)
-
-	switch caBundle, err := d.getCABundle(); {
-	case err != nil:
-		return nil, err
-	case caBundle != "":
-		awsOptions.CustomCABundle = strings.NewReader(caBundle)
-	}
 
 	sess, err := session.NewSessionWithOptions(awsOptions)
 	if err != nil {
@@ -342,16 +412,51 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey)},
 	)
 
+	useDualStack, err := d.useDualStack()
+	if err != nil {
+		return nil, err
+	}
+	if useDualStack {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: true})
+	}
+
 	if d.Config.CloudFront != nil {
+		// Use structs to make ordering deterministic
+		type cloudFrontOptions struct {
+			BaseURL      string `json:"baseurl"`
+			PrivateKey   string `json:"privatekey"`
+			KeypairID    string `json:"keypairid"`
+			Duration     string `json:"duration"`
+			IPFilteredBy string `json:"ipfilteredby"`
+		}
+		type middleware struct {
+			Name    string      `json:"name"`
+			Options interface{} `json:"options"`
+		}
+
+		duration := "1200s"
+		if d.Config.CloudFront.Duration.Duration != 0 {
+			duration = d.Config.CloudFront.Duration.Duration.String()
+		}
 		envs = append(envs,
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_BASEURL", Value: d.Config.CloudFront.BaseURL},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_KEYPAIRID", Value: d.Config.CloudFront.KeypairID},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_DURATION", Value: d.Config.CloudFront.Duration.String()},
-			envvar.EnvVar{Name: "REGISTRY_MIDDLEWARE_STORAGE_CLOUDFRONT_PRIVATEKEY", Value: "/etc/docker/cloudfront/private.pem"},
+			envvar.EnvVar{
+				Name: "REGISTRY_MIDDLEWARE_STORAGE",
+				Value: []middleware{
+					{
+						Name: "cloudfront",
+						Options: cloudFrontOptions{
+							BaseURL:      d.Config.CloudFront.BaseURL,
+							PrivateKey:   "/etc/docker/cloudfront/private.pem",
+							KeypairID:    d.Config.CloudFront.KeypairID,
+							Duration:     duration,
+							IPFilteredBy: "none",
+						},
+					},
+				},
+			},
 		)
 	}
 

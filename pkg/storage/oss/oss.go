@@ -39,7 +39,7 @@ var mutex sync.Mutex
 type driver struct {
 	Context     context.Context
 	Config      *imageregistryv1.ImageRegistryConfigStorageAlibabaOSS
-	Listers     *regopclient.Listers
+	Listers     *regopclient.StorageListers
 	credentials *credentials.AccessKeyCredential
 
 	// roundTripper is used only during tests.
@@ -48,12 +48,16 @@ type driver struct {
 
 // NewDriver creates a new OSS storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAlibabaOSS, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAlibabaOSS, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,
 		Listers: listers,
 	}
+}
+
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
 }
 
 // UpdateEffectiveConfig updates the driver's local effective OSS configuration

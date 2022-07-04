@@ -4,35 +4,22 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
-
-	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 func TestLeaderElection(t *testing.T) {
-	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
-		Storage: imageregistryv1.ImageRegistryConfigStorage{
-			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
-		},
-		Replicas: 1,
-	})
+	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
-
-	if _, err := framework.WaitForRegistryDeployment(te.Client()); err != nil {
-		t.Fatalf("error awaiting for registry deployment: %v", err)
-	}
 
 	var numberOfReplicas = int32(3)
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		deploy, err := te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "cluster-image-registry-operator", metav1.GetOptions{},
+		deploy, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Get(
+			context.Background(), framework.OperatorDeploymentName, metav1.GetOptions{},
 		)
 		if err != nil {
 			return err
@@ -40,7 +27,7 @@ func TestLeaderElection(t *testing.T) {
 
 		deploy.Spec.Replicas = &numberOfReplicas
 
-		_, err = te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Update(
+		_, err = te.Client().Deployments(framework.OperatorDeploymentNamespace).Update(
 			context.Background(), deploy, metav1.UpdateOptions{},
 		)
 		return err
@@ -49,8 +36,14 @@ func TestLeaderElection(t *testing.T) {
 	}
 
 	framework.WaitUntilDeploymentIsRolledOut(
-		te, defaults.ImageRegistryOperatorNamespace, "cluster-image-registry-operator",
+		te,
+		framework.OperatorDeploymentNamespace,
+		framework.OperatorDeploymentName,
 	)
+
+	// With the convention of leader election we need to wait a couple of seconds
+	// for the pods to write the logs, so we don't get false positives
+	time.Sleep(time.Second * 2)
 
 	allLogs, err := framework.GetOperatorLogs(te.Client())
 	if err != nil {

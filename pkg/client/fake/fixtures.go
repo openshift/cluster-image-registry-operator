@@ -34,6 +34,7 @@ type FixturesBuilder struct {
 	registryConfigsIndexer     cache.Indexer
 	proxyConfigsIndexer        cache.Indexer
 	infraIndexer               cache.Indexer
+	nodeIndexer                cache.Indexer
 
 	kClientSet []runtime.Object
 }
@@ -59,9 +60,22 @@ func NewFixturesBuilder() *FixturesBuilder {
 		registryConfigsIndexer:     cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		proxyConfigsIndexer:        cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		infraIndexer:               cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
+		nodeIndexer:                cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}),
 		kClientSet:                 []runtime.Object{},
 	}
 	return factory
+}
+
+// AddNodes adds corev1.Nodes to the lister cache
+func (f *FixturesBuilder) AddNodes(objs ...*corev1.Node) *FixturesBuilder {
+	for _, v := range objs {
+		err := f.nodeIndexer.Add(v)
+		if err != nil {
+			panic(err)
+		}
+		f.kClientSet = append(f.kClientSet, v)
+	}
+	return f
 }
 
 // AddDeployments adds appsv1.Deployments to the lister cache
@@ -207,19 +221,21 @@ func (f *FixturesBuilder) Build() *Fixtures {
 // BuildListers creates an in-memory instance of client.Listers
 func (f *FixturesBuilder) BuildListers() *client.Listers {
 	listers := &client.Listers{
-		Deployments:            appsv1listers.NewDeploymentLister(f.deploymentIndexer).Deployments("openshift-image-registry"),
-		Services:               corev1listers.NewServiceLister(f.servicesIndexer).Services("openshift-image-registry"),
-		Secrets:                corev1listers.NewSecretLister(f.secretsIndexer).Secrets("openshift-image-registry"),
-		ConfigMaps:             corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-image-registry"),
-		ServiceAccounts:        corev1listers.NewServiceAccountLister(f.serviceAcctIndexer).ServiceAccounts("openshift-image-registry"),
-		Routes:                 routev1listers.NewRouteLister(f.routesIndexer).Routes("openshift-image-registry"),
-		ClusterRoles:           rbacv1listers.NewClusterRoleLister(f.clusterRolesIndexer),
-		ClusterRoleBindings:    rbacv1listers.NewClusterRoleBindingLister(f.clusterRoleBindingsIndexer),
-		OpenShiftConfig:        corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config"),
-		OpenShiftConfigManaged: corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config-managed"),
-		RegistryConfigs:        regopv1listers.NewConfigLister(f.registryConfigsIndexer),
-		ProxyConfigs:           configv1listers.NewProxyLister(f.proxyConfigsIndexer),
-		Infrastructures:        configv1listers.NewInfrastructureLister(f.infraIndexer),
+		StorageListers: client.StorageListers{
+			Infrastructures:        configv1listers.NewInfrastructureLister(f.infraIndexer),
+			OpenShiftConfig:        corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config"),
+			OpenShiftConfigManaged: corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-config-managed"),
+			Secrets:                corev1listers.NewSecretLister(f.secretsIndexer).Secrets("openshift-image-registry"),
+		},
+		Deployments:         appsv1listers.NewDeploymentLister(f.deploymentIndexer).Deployments("openshift-image-registry"),
+		Services:            corev1listers.NewServiceLister(f.servicesIndexer).Services("openshift-image-registry"),
+		ConfigMaps:          corev1listers.NewConfigMapLister(f.configMapsIndexer).ConfigMaps("openshift-image-registry"),
+		ServiceAccounts:     corev1listers.NewServiceAccountLister(f.serviceAcctIndexer).ServiceAccounts("openshift-image-registry"),
+		Routes:              routev1listers.NewRouteLister(f.routesIndexer).Routes("openshift-image-registry"),
+		ClusterRoles:        rbacv1listers.NewClusterRoleLister(f.clusterRolesIndexer),
+		ClusterRoleBindings: rbacv1listers.NewClusterRoleBindingLister(f.clusterRoleBindingsIndexer),
+		RegistryConfigs:     regopv1listers.NewConfigLister(f.registryConfigsIndexer),
+		ProxyConfigs:        configv1listers.NewProxyLister(f.proxyConfigsIndexer),
 	}
 	return listers
 }

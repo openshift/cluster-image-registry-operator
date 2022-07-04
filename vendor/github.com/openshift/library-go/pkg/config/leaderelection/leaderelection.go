@@ -22,8 +22,15 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
-// ToConfigMapLeaderElection returns a leader election config that you just need to fill in the Callback for.  Don't forget the callbacks!
-func ToConfigMapLeaderElection(clientConfig *rest.Config, config configv1.LeaderElection, component, identity string) (leaderelection.LeaderElectionConfig, error) {
+// ToLeaderElectionWithConfigmapLease returns a "configmapsleases" based leader
+// election config that you just need to fill in the Callback for.
+// It is compatible with a "configmaps" based leader election and
+// paves the way toward using "leases" based leader election.
+// See https://github.com/kubernetes/kubernetes/issues/107454 for
+// details on how to migrate to "leases" leader election.
+// Don't forget the callbacks!
+// TODO: In the next version we should switch to using "leases"
+func ToLeaderElectionWithConfigmapLease(clientConfig *rest.Config, config configv1.LeaderElection, component, identity string) (leaderelection.LeaderElectionConfig, error) {
 	kubeClient, err := kubernetes.NewForConfig(clientConfig)
 	if err != nil {
 		return leaderelection.LeaderElectionConfig{}, err
@@ -50,7 +57,7 @@ func ToConfigMapLeaderElection(clientConfig *rest.Config, config configv1.Leader
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: v1core.New(kubeClient.CoreV1().RESTClient()).Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(clientgoscheme.Scheme, corev1.EventSource{Component: component})
 	rl, err := resourcelock.New(
-		resourcelock.ConfigMapsResourceLock,
+		resourcelock.ConfigMapsLeasesResourceLock,
 		config.Namespace,
 		config.Name,
 		kubeClient.CoreV1(),
@@ -122,5 +129,33 @@ func LeaderElectionDefaulting(config configv1.LeaderElection, defaultNamespace, 
 	if len(ret.Name) == 0 {
 		ret.Name = defaultName
 	}
+	return ret
+}
+
+// LeaderElectionSNOConfig uses the formula derived in LeaderElectionDefaulting with increased
+// retry period and lease duration for SNO clusters that have limited resources.
+// This method does not respect the passed in LeaderElection config and the returned object will have values
+// that are overridden with SNO environments in mind.
+// This method should only be called when running in an SNO Cluster.
+func LeaderElectionSNOConfig(config configv1.LeaderElection) configv1.LeaderElection {
+
+	// We want to make sure we respect a 30s clock skew as well as a 4 retry attempt with out making
+	// leader election ineffectual while still having some small performance gain by limiting calls against
+	// the api server.
+
+	// 1. clock skew tolerance is leaseDuration-renewDeadline == 30s
+	// 2. kube-apiserver downtime tolerance is == 180s
+	//      lastRetry=floor(renewDeadline/retryPeriod)*retryPeriod == 240
+	//      downtimeTolerance = lastRetry-retryPeriod == 180s
+	// 3. worst non-graceful lease acquisition is leaseDuration+retryPeriod == 330s
+	// 4. worst graceful lease acquisition is retryPeriod == 60s
+
+	ret := *(&config).DeepCopy()
+	// 270-240 = 30s of clock skew tolerance
+	ret.LeaseDuration.Duration = 270 * time.Second
+	// 240/60 = 4 retries attempts before leader is lost.
+	ret.RenewDeadline.Duration = 240 * time.Second
+	// With 60s retry config we aim to maintain 30s of clock skew as well as 4 retry attempts.
+	ret.RetryPeriod.Duration = 60 * time.Second
 	return ret
 }

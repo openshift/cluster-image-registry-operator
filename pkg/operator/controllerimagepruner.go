@@ -329,7 +329,7 @@ func (c *ImagePrunerController) eventProcessor() {
 func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(o interface{}) {
-			klog.V(1).Infof("add event to image pruner workqueue due to %s (add)", utilObjectInfo(o))
+			klog.V(4).Infof("add event to image pruner workqueue due to %s (add)", utilObjectInfo(o))
 			c.workqueue.Add(imagePrunerWorkQueueKey)
 		},
 		UpdateFunc: func(o, n interface{}) {
@@ -348,7 +348,7 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 				// Two different versions of the same resource will always have different RVs.
 				return
 			}
-			klog.V(1).Infof("add event to image pruner workqueue due to %s (update)", utilObjectInfo(n))
+			klog.V(4).Infof("add event to image pruner workqueue due to %s (update)", utilObjectInfo(n))
 			c.workqueue.Add(imagePrunerWorkQueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
@@ -366,7 +366,7 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 				}
 				klog.V(4).Infof("recovered deleted object %q from tombstone", object.GetName())
 			}
-			klog.V(1).Infof("add event to image pruner workqueue due to %s (delete)", utilObjectInfo(object))
+			klog.V(4).Infof("add event to image pruner workqueue due to %s (delete)", utilObjectInfo(object))
 			c.workqueue.Add(imagePrunerWorkQueueKey)
 		},
 	}

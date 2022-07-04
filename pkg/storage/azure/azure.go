@@ -158,8 +158,9 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 
 	kind := storage.StorageV2
 	params := &storage.AccountPropertiesCreateParameters{
-		AllowBlobPublicAccess: to.BoolPtr(false),
-		MinimumTLSVersion:     storage.TLS12,
+		EnableHTTPSTrafficOnly: to.BoolPtr(true),
+		AllowBlobPublicAccess:  to.BoolPtr(false),
+		MinimumTLSVersion:      storage.TLS12,
 	}
 
 	if strings.EqualFold(cloudName, "AZURESTACKCLOUD") {
@@ -266,7 +267,7 @@ type driver struct {
 
 	// Listers is a collection of listers that the driver can use to obtain
 	// additional objects from the cluster.
-	Listers *regopclient.Listers
+	Listers *regopclient.StorageListers
 
 	// authorizer is for Azure autorest generated clients.
 	// Added as a member to the struct to allow injection for testing.
@@ -282,7 +283,7 @@ type driver struct {
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAzure, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageAzure, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,
@@ -335,6 +336,10 @@ func (d *driver) getKey(cfg *Azure, environment autorestazure.Environment) (stri
 	}
 
 	return key, nil
+}
+
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
 }
 
 // ConfigEnv configures the environment variables that will be used in the

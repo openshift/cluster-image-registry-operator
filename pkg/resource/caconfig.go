@@ -11,30 +11,50 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	restclient "k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 
+	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
 )
 
 var _ Mutator = &generatorCAConfig{}
 
 type generatorCAConfig struct {
-	lister                corelisters.ConfigMapNamespaceLister
-	imageConfigLister     configlisters.ImageLister
-	openshiftConfigLister corelisters.ConfigMapNamespaceLister
-	serviceLister         corelisters.ServiceNamespaceLister
-	client                coreset.CoreV1Interface
+	lister                    corelisters.ConfigMapNamespaceLister
+	imageConfigLister         configlisters.ImageLister
+	openshiftConfigLister     corelisters.ConfigMapNamespaceLister
+	serviceLister             corelisters.ServiceNamespaceLister
+	imageRegistryConfigLister imageregistryv1listers.ConfigLister
+	storageListers            *client.StorageListers
+	kubeconfig                *restclient.Config
+	client                    coreset.CoreV1Interface
 }
 
-func NewGeneratorCAConfig(lister corelisters.ConfigMapNamespaceLister, imageConfigLister configlisters.ImageLister, openshiftConfigLister corelisters.ConfigMapNamespaceLister, serviceLister corelisters.ServiceNamespaceLister, client coreset.CoreV1Interface) Mutator {
+func NewGeneratorCAConfig(
+	lister corelisters.ConfigMapNamespaceLister,
+	imageConfigLister configlisters.ImageLister,
+	openshiftConfigLister corelisters.ConfigMapNamespaceLister,
+	serviceLister corelisters.ServiceNamespaceLister,
+	imageRegistryConfigLister imageregistryv1listers.ConfigLister,
+	storageListers *client.StorageListers,
+	kubeconfig *restclient.Config,
+	client coreset.CoreV1Interface,
+) Mutator {
 	return &generatorCAConfig{
-		lister:                lister,
-		imageConfigLister:     imageConfigLister,
-		openshiftConfigLister: openshiftConfigLister,
-		serviceLister:         serviceLister,
-		client:                client,
+		lister:                    lister,
+		imageConfigLister:         imageConfigLister,
+		openshiftConfigLister:     openshiftConfigLister,
+		serviceLister:             serviceLister,
+		imageRegistryConfigLister: imageRegistryConfigLister,
+		storageListers:            storageListers,
+		kubeconfig:                kubeconfig,
+		client:                    client,
 	}
 }
 
@@ -50,6 +70,32 @@ func (gcac *generatorCAConfig) GetName() string {
 	return defaults.ImageRegistryCertificatesName
 }
 
+func (gcac *generatorCAConfig) storageDriver() (storage.Driver, bool, error) {
+	imageRegistryConfig, err := gcac.imageRegistryConfigLister.Get("cluster")
+	if errors.IsNotFound(err) {
+		return nil, false, nil
+	} else if err != nil {
+		return nil, false, err
+	}
+
+	if imageRegistryConfig.Spec.ManagementState == operatorv1.Removed {
+		// The certificates controller does not need to know about
+		// storage when the management state is Removed.
+		return nil, false, nil
+	}
+
+	driver, err := storage.NewDriver(&imageRegistryConfig.Spec.Storage, gcac.kubeconfig, gcac.storageListers)
+	if err == storage.ErrStorageNotConfigured || storage.IsMultiStoragesError(err) {
+		return nil, false, nil
+	} else if err != nil {
+		return nil, false, err
+	}
+
+	canRedirect := !imageRegistryConfig.Spec.DisableRedirect
+
+	return driver, canRedirect, nil
+}
+
 func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -60,9 +106,11 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		BinaryData: map[string][]byte{},
 	}
 
+	var ownHostnameKeys []string
+
 	serviceCA, err := gcac.lister.Get(defaults.ServiceCAName)
 	if errors.IsNotFound(err) {
-		klog.V(1).Infof("missing the service CA configmap: %s", err)
+		klog.V(4).Infof("missing the service CA configmap: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else {
@@ -75,7 +123,9 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 				klog.Infof("unable to get the service name to add service-ca.crt")
 			} else {
 				for _, internalHostname := range internalHostnames {
-					cm.Data[strings.Replace(internalHostname, ":", "..", -1)] = cert
+					key := strings.Replace(internalHostname, ":", "..", -1)
+					ownHostnameKeys = append(ownHostnameKeys, key)
+					cm.Data[key] = cert
 				}
 			}
 		} else {
@@ -85,7 +135,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 
 	imageConfig, err := gcac.imageConfigLister.Get(defaults.ImageConfigName)
 	if errors.IsNotFound(err) {
-		klog.V(1).Infof("missing the image config: %s", err)
+		klog.V(4).Infof("missing the image config: %s", err)
 	} else if err != nil {
 		return cm, err
 	} else if caConfigName := imageConfig.Spec.AdditionalTrustedCA.Name; caConfigName != "" {
@@ -102,14 +152,24 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		}
 	}
 
-	cp_ca, err := gcac.openshiftConfigLister.Get("cloud-provider-config")
-	if errors.IsNotFound(err) {
-		klog.V(1).Infof("missing the cloud-provider-config configmap: %s", err)
-	} else if err != nil {
+	driver, canRedirect, err := gcac.storageDriver()
+	if err != nil {
 		return cm, err
-	} else {
-		if cert, ok := cp_ca.Data["ca-bundle.pem"]; ok {
-			cm.Data["cloud-provider-ca-bundle.pem"] = cert
+	}
+	if driver != nil {
+		storageCABundle, _, err := driver.CABundle()
+		if err != nil {
+			return cm, err
+		}
+		if storageCABundle != "" {
+			klog.V(4).Infof("using storage ca bundle (%d bytes)", len(storageCABundle))
+			cm.Data["storage-ca-bundle.pem"] = storageCABundle
+			if canRedirect {
+				klog.V(4).Infof("injecting storage ca bundle into registry certificates...")
+				for _, key := range ownHostnameKeys {
+					cm.Data[key] += "\n" + storageCABundle
+				}
+			}
 		}
 	}
 

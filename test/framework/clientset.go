@@ -7,6 +7,7 @@ import (
 	clientappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	clientbatchv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	clientbatchv1beta1 "k8s.io/client-go/kubernetes/typed/batch/v1beta1"
+	clientcoordinationv1 "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	clientcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	clientstoragev1 "k8s.io/client-go/kubernetes/typed/storage/v1"
 	restclient "k8s.io/client-go/rest"
@@ -30,6 +31,7 @@ type Clientset struct {
 	clientstoragev1.StorageV1Interface
 	clientbatchv1beta1.BatchV1beta1Interface
 	clientbatchv1.BatchV1Interface
+	clientcoordinationv1.CoordinationV1Interface
 	ImageInterface imagev1.ImageV1Interface
 	BuildInterface buildv1.BuildV1Interface
 }
@@ -74,6 +76,10 @@ func NewClientset(kubeconfig *restclient.Config) (clientset *Clientset, err erro
 		return
 	}
 	clientset.StorageV1Interface, err = clientstoragev1.NewForConfig(kubeconfig)
+	if err != nil {
+		return
+	}
+	clientset.CoordinationV1Interface, err = clientcoordinationv1.NewForConfig(kubeconfig)
 	if err != nil {
 		return
 	}

@@ -57,7 +57,7 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 		if cr == nil {
 			// Skip using the cache here so we don't have as many
 			// retries due to slow cache updates
-			cr, err := client.Configs().Get(
+			cr, err = client.Configs().Get(
 				context.TODO(), o.Name, metav1.GetOptions{},
 			)
 			if err != nil {

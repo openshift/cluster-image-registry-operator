@@ -49,7 +49,7 @@ type driver struct {
 	AccountID string
 	Context   context.Context
 	Config    *imageregistryv1.ImageRegistryConfigStorageIBMCOS
-	Listers   *regopclient.Listers
+	Listers   *regopclient.StorageListers
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
@@ -61,12 +61,17 @@ type driver struct {
 
 // NewDriver creates a new IBM COS storage driver.
 // Used during bootstrapping.
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageIBMCOS, listers *regopclient.Listers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageIBMCOS, listers *regopclient.StorageListers) *driver {
 	return &driver{
 		Context: ctx,
 		Config:  c,
 		Listers: listers,
 	}
+}
+
+// CABundle returns a additional CA bundle for IBM COS.
+func (d *driver) CABundle() (string, bool, error) {
+	return "", true, nil
 }
 
 // ConfigEnv configures the environment variables that will be
@@ -135,6 +140,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	d.Config.Location = infra.Status.PlatformStatus.IBMCloud.Location
 	d.Config.ResourceGroupName = infra.Status.PlatformStatus.IBMCloud.ResourceGroupName
 
+	// Initialize IBMCOS status
+	if cr.Status.Storage.IBMCOS == nil {
+		cr.Status.Storage.IBMCOS = &imageregistryv1.ImageRegistryConfigStorageIBMCOS{}
+	}
+
 	// Get resource controller service
 	rc, err := d.getResouceControllerService()
 	if err != nil {
@@ -176,9 +186,8 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				// Set resource group name
 				d.Config.ResourceGroupName = *rg.Name
 			}
-			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-				IBMCOS: d.Config.DeepCopy(),
-			}
+			cr.Status.Storage.IBMCOS.ServiceInstanceCRN = d.Config.ServiceInstanceCRN
+			cr.Status.Storage.IBMCOS.ResourceGroupName = d.Config.ResourceGroupName
 			cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "IBM COS Instance Active", "IBM COS service instance is active")
 		case resourcecontrollerv2.ListResourceInstancesOptionsStateProvisioningConst:
@@ -261,15 +270,15 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		d.Config.ServiceInstanceCRN = *instance.CRN
-		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-			IBMCOS: d.Config.DeepCopy(),
-		}
+		cr.Status.Storage.IBMCOS.ServiceInstanceCRN = d.Config.ServiceInstanceCRN
+		cr.Status.Storage.IBMCOS.ResourceGroupName = d.Config.ResourceGroupName
+		cr.Status.Storage.ManagementState = cr.Spec.Storage.ManagementState
 		cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "IBM COS Instance Creation Successful", "IBM COS service instance was successfully created")
 	}
 
-	// Create resource key
 	if len(d.Config.ResourceKeyCRN) == 0 {
+		// Create resource key
 		keyName := fmt.Sprintf("%s-%s", infra.Status.InfrastructureName, defaults.ImageRegistryName)
 		roleCRN := "crn:v1:bluemix:public:iam::::serviceRole:Writer"
 		params := &resourcecontrollerv2.ResourceKeyPostParameters{}
@@ -289,11 +298,43 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 
 		d.Config.ResourceKeyCRN = *key.CRN
-		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-			IBMCOS: d.Config.DeepCopy(),
-		}
+		cr.Status.Storage.IBMCOS.ResourceKeyCRN = d.Config.ResourceKeyCRN
 		cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "IBM COS Resource Key Creation Successful", "IBM COS resource key was successfully created")
+	} else {
+		// Get resource key
+		key, resp, err := rc.GetResourceKeyWithContext(
+			d.Context,
+			&resourcecontrollerv2.GetResourceKeyOptions{
+				ID: &d.Config.ResourceKeyCRN,
+			},
+		)
+		if err != nil {
+			return fmt.Errorf("unable to get resource key for service instance: %s with resp code: %d", err.Error(), resp.StatusCode)
+		}
+
+		// Check if resource key is for service instance
+		if *key.SourceCRN != d.Config.ServiceInstanceCRN {
+			return fmt.Errorf("specified resource key is not valid for service instance")
+		}
+
+		if key.Credentials != nil {
+			// Check if resource key is HMAC enabled
+			if key.Credentials.GetProperty("cos_hmac_keys") == nil {
+				return fmt.Errorf("specified resource key credentials does not contain HMAC keys")
+			}
+			// Check if resource key has a valid IAM role
+			if *key.Credentials.IamRoleCRN != "crn:v1:bluemix:public:iam::::serviceRole:Writer" && *key.Credentials.IamRoleCRN != "crn:v1:bluemix:public:iam::::serviceRole:Manager" {
+				return fmt.Errorf("specified resource key's IAM role is not valid")
+			}
+			// Valid resource key
+			d.Config.ResourceKeyCRN = *key.CRN
+			cr.Status.Storage.IBMCOS.ResourceKeyCRN = d.Config.ResourceKeyCRN
+			cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "IBM COS Resource Key Valid", "IBM COS resource key exists and is valid")
+		} else {
+			return fmt.Errorf("specified resource key does not have any attached credentials")
+		}
 	}
 
 	// Check if bucket already exists
@@ -360,15 +401,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			return err
 		}
 
-		if cr.Spec.Storage.ManagementState == "" {
-			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
-		}
-		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-			IBMCOS: d.Config.DeepCopy(),
-		}
-		cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "IBM COS bucket was successfully created")
-
 		// Wait until the bucket exists
 		if err := client.WaitUntilBucketExistsWithContext(
 			d.Context,
@@ -381,6 +413,15 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 			return err
 		}
+
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
+		}
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			IBMCOS: d.Config.DeepCopy(),
+		}
+		cr.Spec.Storage.IBMCOS = d.Config.DeepCopy()
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "IBM COS bucket was successfully created")
 	}
 
 	return nil

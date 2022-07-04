@@ -64,6 +64,7 @@ rules:
   resources:
   - limitranges
   - resourcequotas
+  - nodes
   verbs:
   - list
 - apiGroups:
@@ -121,6 +122,12 @@ rules:
   resources:
   - cronjobs
   - jobs
+  verbs:
+  - "*"
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
   verbs:
   - "*"
 - apiGroups:

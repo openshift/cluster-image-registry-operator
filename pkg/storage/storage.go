@@ -13,6 +13,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
@@ -45,24 +46,57 @@ func (m *MultiStoragesError) Error() string {
 	)
 }
 
+func IsMultiStoragesError(err error) bool {
+	_, ok := err.(*MultiStoragesError)
+	return ok
+}
+
 type Driver interface {
+	// CABundle returns the CA bundle that should be used to verify storage
+	// certificates. The returned system flag indicates whether the system
+	// trust bundle should be used in addition to the returned bundle.
+	CABundle() (bundle string, system bool, err error)
+
+	// ConfigEnv returns the environment variables for the image registry
+	// pods.
 	ConfigEnv() (envvar.List, error)
+
+	// Volumes returns the volumes for the image registry pods.
 	Volumes() ([]corev1.Volume, []corev1.VolumeMount, error)
+
+	// VolumeSecrets returns secret data for injection into the secret
+	// image-registry-private-configuration. This secret should be used by
+	// Volumes.
 	VolumeSecrets() (map[string]string, error)
+
+	// CreateStorage configures, creates, and reconsiles the storage
+	// backend. It is called when the storage configuration is changed or
+	// the storage backend does not exist.
 	CreateStorage(*imageregistryv1.Config) error
+
+	// StorageExists returns true if the storage backend is configured and
+	// exists.
 	StorageExists(*imageregistryv1.Config) (bool, error)
+
+	// RemoveStorage removes the storage backend.
 	RemoveStorage(*imageregistryv1.Config) (bool, error)
+
+	// StorageChanged returns true if the storage configuration has changed.
 	StorageChanged(*imageregistryv1.Config) bool
+
+	// ID returns the unique identifier of the storage backend. It helps
+	// the operator to determine if the storage backend is changed and the
+	// data potentially needs to be migrated.
 	ID() string
 }
 
-func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.Listers) (Driver, error) {
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.StorageListers) (Driver, error) {
 	var names []string
 	var drivers []Driver
 
 	if cfg.EmptyDir != nil {
 		names = append(names, "EmptyDir")
-		drivers = append(drivers, emptydir.NewDriver(cfg.EmptyDir, listers))
+		drivers = append(drivers, emptydir.NewDriver(cfg.EmptyDir))
 	}
 
 	if cfg.S3 != nil {
@@ -79,7 +113,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.GCS != nil {
 		names = append(names, "GCS")
 		ctx := context.Background()
-		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, kubeconfig, listers))
+		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, listers))
 	}
 
 	if cfg.IBMCOS != nil {
@@ -113,6 +147,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	case 0:
 		return nil, ErrStorageNotConfigured
 	case 1:
+		metrics.ReportStorageType(names[0])
 		return drivers[0], nil
 	}
 
@@ -133,7 +168,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 //    This is useful as it easily allows other teams to experiment with OpenShift
 //    in new platforms, if it is LibVirt platform we also return EmptyDir for
 //    historical reasons.
-func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
+func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)
 
@@ -148,7 +183,8 @@ func GetPlatformStorage(listers *regopclient.Listers) (imageregistryv1.ImageRegi
 	// we should bootstrap the image registry as "Removed".
 	case configapiv1.BareMetalPlatformType,
 		configapiv1.VSpherePlatformType,
-		configapiv1.NonePlatformType:
+		configapiv1.NonePlatformType,
+		configapiv1.NutanixPlatformType:
 		break
 
 	// These are the supported platforms. We do have backend implementation

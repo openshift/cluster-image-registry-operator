@@ -2,6 +2,7 @@ package framework
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,6 +11,7 @@ import (
 )
 
 func startOperator(te TestEnv) {
+	te.Logf("starting the operator...")
 	if _, err := te.Client().Deployments(OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		OperatorDeploymentName,
@@ -32,7 +34,25 @@ func DumpOperatorDeployment(te TestEnv) {
 	DumpYAML(te, "the operator deployment", deployment)
 }
 
+func CheckAbsenceOfOperatorPods(te TestEnv) {
+	pods, err := te.Client().Pods(OperatorDeploymentNamespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		te.Fatalf("failed to list the pods: %s", err)
+	}
+	i := 0
+	for _, pod := range pods.Items {
+		if strings.HasPrefix(pod.Name, OperatorDeploymentName+"-") {
+			te.Errorf("unexpected operator pod %s (%s old)", pod.Name, time.Since(pod.CreationTimestamp.Time))
+			i++
+		}
+	}
+	if i > 0 {
+		te.Fatalf("found %d unexpected operator pod(s)", i)
+	}
+}
+
 func StopDeployment(te TestEnv, namespace, name string) {
+	te.Logf("scaling down the deployment %s/%s...", namespace, name)
 	var realErr error
 	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
 		if _, realErr = te.Client().Deployments(namespace).Patch(
@@ -59,7 +79,7 @@ func GetOperatorLogs(client *Clientset) (PodSetLogs, error) {
 		MatchLabels: map[string]string{
 			"name": "cluster-image-registry-operator",
 		},
-	})
+	}, false)
 }
 
 func DumpOperatorLogs(te TestEnv) {

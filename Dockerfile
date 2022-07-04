@@ -1,9 +1,9 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.17-openshift-4.10 AS builder
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.11 AS builder
 WORKDIR /go/src/github.com/openshift/cluster-image-registry-operator
 COPY . .
 RUN make build
 
-FROM registry.ci.openshift.org/ocp/4.10:base
+FROM registry.ci.openshift.org/ocp/4.11:base
 COPY images/bin/entrypoint.sh /usr/bin/
 COPY manifests/image-references manifests/0* /manifests/
 COPY vendor/github.com/openshift/api/imageregistry/v1/*.crd.yaml /manifests/
