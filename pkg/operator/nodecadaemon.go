@@ -80,7 +80,16 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(obj)
 
-	klog.V(4).Infof("get event from workqueue")
+	klog.V(4).Infof("get event from workqueue: %s", obj)
+
+	// the workqueueKey we reference here is different than the one we use in eventHandler
+	// use that to identify we are processing an item that was added back to the queue
+	// can remove if not useful but curious why this didn't seem to be working for the
+	// caches not synced error
+	if obj == workqueueKey {
+		klog.V(2).Infof("NodeCADaemonController processing requeued item  %s", obj)
+	}
+
 	if err := c.sync(); err != nil {
 		c.queue.AddRateLimited(workqueueKey)
 		klog.Errorf("NodeCADaemonController: unable to sync: %s, requeuing", err)
