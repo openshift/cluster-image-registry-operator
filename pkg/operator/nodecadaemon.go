@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog/v2"
 
 	operatorv1 "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -27,6 +28,7 @@ import (
 )
 
 type NodeCADaemonController struct {
+	eventRecorder   events.Recorder
 	appsClient      appsv1client.AppsV1Interface
 	operatorClient  v1helpers.OperatorClient
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
@@ -37,12 +39,14 @@ type NodeCADaemonController struct {
 }
 
 func NewNodeCADaemonController(
+	eventRecorder events.Recorder,
 	appsClient appsv1client.AppsV1Interface,
 	operatorClient v1helpers.OperatorClient,
 	daemonSetInformer appsv1informers.DaemonSetInformer,
 	serviceInformer corev1informers.ServiceInformer,
 ) *NodeCADaemonController {
 	c := &NodeCADaemonController{
+		eventRecorder:   eventRecorder,
 		appsClient:      appsClient,
 		operatorClient:  operatorClient,
 		daemonSetLister: daemonSetInformer.Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace),
@@ -102,7 +106,7 @@ func (c *NodeCADaemonController) processNextWorkItem() bool {
 
 func (c *NodeCADaemonController) sync() error {
 	ctx := context.TODO()
-	gen := resource.NewGeneratorNodeCADaemonSet(c.daemonSetLister, c.serviceLister, c.appsClient, c.operatorClient)
+	gen := resource.NewGeneratorNodeCADaemonSet(c.eventRecorder, c.daemonSetLister, c.serviceLister, c.appsClient, c.operatorClient)
 
 	availableCondition := operatorv1.OperatorCondition{
 		Type:   "NodeCADaemonAvailable",

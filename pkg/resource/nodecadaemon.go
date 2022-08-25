@@ -25,16 +25,16 @@ import (
 var _ Mutator = &generatorNodeCADaemonSet{}
 
 type generatorNodeCADaemonSet struct {
-	recorder        events.Recorder
+	eventRecorder   events.Recorder
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
 	serviceLister   corev1listers.ServiceNamespaceLister
 	client          appsv1client.AppsV1Interface
 	operatorClient  v1helpers.OperatorClient
 }
 
-func NewGeneratorNodeCADaemonSet(daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface, operatorClient v1helpers.OperatorClient) Mutator {
+func NewGeneratorNodeCADaemonSet(eventRecorder events.Recorder, daemonSetLister appsv1listers.DaemonSetNamespaceLister, serviceLister corev1listers.ServiceNamespaceLister, client appsv1client.AppsV1Interface, operatorClient v1helpers.OperatorClient) Mutator {
 	return &generatorNodeCADaemonSet{
-		recorder:        events.NewLoggingEventRecorder("image-registry-operator"),
+		eventRecorder:   eventRecorder,
 		daemonSetLister: daemonSetLister,
 		serviceLister:   serviceLister,
 		client:          client,
@@ -79,7 +79,7 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 	actualDaemonSet, updated, err := resourceapply.ApplyDaemonSet(
 		context.TODO(),
 		ds.client,
-		ds.recorder,
+		ds.eventRecorder,
 		desiredDaemonSet,
 		resourcemerge.ExpectedDaemonSetGeneration(desiredDaemonSet, opStatus.Generations),
 	)

@@ -6,6 +6,7 @@ import (
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
@@ -59,7 +60,16 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryInformers.Imageregistry().V1().Configs(),
 	)
 
+	// library-go just logs a warning and continues
+	// https://github.com/openshift/library-go/blob/4362aa519714a4b62b00ab8318197ba2bba51cb7/pkg/controller/controllercmd/builder.go#L230
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(context.TODO(), kubeClient, defaults.ImageRegistryOperatorNamespace, nil)
+	if err != nil {
+		klog.Warningf("unable to get owner reference (falling back to namespace): %v", err)
+	}
+	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(defaults.ImageRegistryOperatorNamespace), "image-registry-operator", controllerRef)
+
 	controller := NewController(
+		eventRecorder,
 		kubeconfig,
 		kubeClient,
 		configClient,
@@ -112,6 +122,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	)
 
 	nodeCADaemonController := NewNodeCADaemonController(
+		eventRecorder,
 		kubeClient.AppsV1(),
 		configOperatorClient,
 		kubeInformers.Apps().V1().DaemonSets(),
@@ -128,7 +139,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	loggingController := loglevel.NewClusterOperatorLoggingController(
 		configOperatorClient,
-		events.NewLoggingEventRecorder("image-registry"),
+		eventRecorder,
 	)
 
 	azureStackCloudController := NewAzureStackCloudController(

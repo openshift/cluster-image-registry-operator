@@ -15,6 +15,7 @@ import (
 	"k8s.io/klog/v2"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -63,18 +64,20 @@ func ApplyMutator(gen Mutator) error {
 	})
 }
 
-func NewGenerator(kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers) *Generator {
+func NewGenerator(eventRecorder events.Recorder, kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers) *Generator {
 	return &Generator{
-		kubeconfig: kubeconfig,
-		listers:    listers,
-		clients:    clients,
+		eventRecorder: eventRecorder,
+		kubeconfig:    kubeconfig,
+		listers:       listers,
+		clients:       clients,
 	}
 }
 
 type Generator struct {
-	kubeconfig *rest.Config
-	listers    *client.Listers
-	clients    *client.Clients
+	eventRecorder events.Recorder
+	kubeconfig    *rest.Config
+	listers       *client.Listers
+	clients       *client.Clients
 }
 
 func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
@@ -105,7 +108,7 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core))
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
-	mutators = append(mutators, newGeneratorDeployment(g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
+	mutators = append(mutators, newGeneratorDeployment(g.eventRecorder, g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
 	mutators = append(mutators, newGeneratorPodDisruptionBudget(g.listers.PodDisruptionBudgets, g.clients.Kube.PolicyV1(), cr))
 	mutators = append(mutators, g.listRoutes(cr)...)
 

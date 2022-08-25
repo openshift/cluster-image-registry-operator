@@ -28,6 +28,7 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -64,6 +65,7 @@ func (e permanentError) Error() string {
 // This controller keeps track of resources needed in order to have openshift
 // internal registry working.
 func NewController(
+	eventRecorder events.Recorder,
 	kubeconfig *restclient.Config,
 	kubeClient kubeclient.Interface,
 	configClient configclient.Interface,
@@ -81,7 +83,7 @@ func NewController(
 	clients := &regopclient.Clients{}
 	c := &Controller{
 		kubeconfig: kubeconfig,
-		generator:  resource.NewGenerator(kubeconfig, clients, listers),
+		generator:  resource.NewGenerator(eventRecorder, kubeconfig, clients, listers),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:    listers,
 		clients:    clients,
