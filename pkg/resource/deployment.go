@@ -30,7 +30,7 @@ import (
 var _ Mutator = &generatorDeployment{}
 
 type generatorDeployment struct {
-	recorder        events.Recorder
+	eventRecorder   events.Recorder
 	lister          appslisters.DeploymentNamespaceLister
 	configMapLister corelisters.ConfigMapNamespaceLister
 	secretLister    corelisters.SecretNamespaceLister
@@ -41,9 +41,9 @@ type generatorDeployment struct {
 	cr              *imageregistryv1.Config
 }
 
-func newGeneratorDeployment(lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, cr *imageregistryv1.Config) *generatorDeployment {
+func newGeneratorDeployment(eventRecorder events.Recorder, lister appslisters.DeploymentNamespaceLister, configMapLister corelisters.ConfigMapNamespaceLister, secretLister corelisters.SecretNamespaceLister, proxyLister configlisters.ProxyLister, coreClient coreset.CoreV1Interface, client appsset.AppsV1Interface, driver storage.Driver, cr *imageregistryv1.Config) *generatorDeployment {
 	return &generatorDeployment{
-		recorder:        events.NewLoggingEventRecorder("image-registry-operator"),
+		eventRecorder:   eventRecorder,
 		lister:          lister,
 		configMapLister: configMapLister,
 		secretLister:    secretLister,
@@ -193,7 +193,7 @@ func (gd *generatorDeployment) Create() (runtime.Object, error) {
 	}
 
 	dep, _, err := resourceapply.ApplyDeployment(
-		context.TODO(), gd.client, gd.recorder, exp.(*appsapi.Deployment), -1,
+		context.TODO(), gd.client, gd.eventRecorder, exp.(*appsapi.Deployment), -1,
 	)
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 	}
 
 	dep, updated, err := resourceapply.ApplyDeployment(
-		context.TODO(), gd.client, gd.recorder, exp.(*appsapi.Deployment), gd.LastGeneration(),
+		context.TODO(), gd.client, gd.eventRecorder, exp.(*appsapi.Deployment), gd.LastGeneration(),
 	)
 	if err != nil {
 		return o, false, err

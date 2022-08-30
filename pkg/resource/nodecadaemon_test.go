@@ -14,6 +14,7 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	imageregistryfake "github.com/openshift/client-go/imageregistry/clientset/versioned/fake"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
@@ -52,7 +53,7 @@ func TestNodeCADaemon(t *testing.T) {
 	imageregistryInformers.Start(ctx.Done())
 	imageregistryInformers.WaitForCacheSync(ctx.Done())
 
-	g := NewGeneratorNodeCADaemonSet(nil, nil, clientset.AppsV1(), operatorClient)
+	g := NewGeneratorNodeCADaemonSet(events.NewInMemoryRecorder("image-registry-operator"), nil, nil, clientset.AppsV1(), operatorClient)
 	obj, err := g.Create()
 	if err != nil {
 		t.Fatal(err)
