@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
-	"github.com/openshift/cluster-image-registry-operator/bindata"
+	assets "github.com/openshift/cluster-image-registry-operator/bindata"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
@@ -70,19 +70,18 @@ func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
-	daemonSet := ds.expected()
+	desiredDaemonSet := ds.expected()
 
 	_, opStatus, _, err := ds.operatorClient.GetOperatorState()
 	if err != nil {
 		return nil, false, err
 	}
-
-	dep, updated, err := resourceapply.ApplyDaemonSet(
+	actualDaemonSet, updated, err := resourceapply.ApplyDaemonSet(
 		context.TODO(),
 		ds.client,
 		ds.recorder,
-		daemonSet,
-		resourcemerge.ExpectedDaemonSetGeneration(daemonSet, opStatus.Generations),
+		desiredDaemonSet,
+		resourcemerge.ExpectedDaemonSetGeneration(desiredDaemonSet, opStatus.Generations),
 	)
 	if err != nil {
 		return o, updated, err
@@ -90,7 +89,7 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 
 	if updated {
 		updateStatusFn := func(newStatus *operatorv1.OperatorStatus) error {
-			resourcemerge.SetDaemonSetGeneration(&newStatus.Generations, daemonSet)
+			resourcemerge.SetDaemonSetGeneration(&newStatus.Generations, actualDaemonSet)
 			return nil
 		}
 
@@ -100,11 +99,11 @@ func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bo
 			updateStatusFn,
 		)
 		if err != nil {
-			return dep, updated, err
+			return actualDaemonSet, updated, err
 		}
 	}
 
-	return dep, updated, nil
+	return actualDaemonSet, updated, nil
 }
 
 func (ds *generatorNodeCADaemonSet) Delete(opts metav1.DeleteOptions) error {
