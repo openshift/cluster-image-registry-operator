@@ -20,7 +20,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -134,7 +134,9 @@ func TestGCSDay2(t *testing.T) {
 	}()
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			GCS: &imageregistryv1.ImageRegistryConfigStorageGCS{
 				Bucket: bucketName,

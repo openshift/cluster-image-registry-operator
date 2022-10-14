@@ -59,7 +59,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "set as Removed but still with Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Removed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Removed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -107,7 +109,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "everything online and working as expected",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -195,7 +199,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment lagging some replicas",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -237,7 +243,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment lagging some replicas (progressing with random reason)",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -286,7 +294,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment lagging some replicas (progressing with ProgressDeadlineExceeded reason)",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -340,7 +350,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment without replicas for more than one minute",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 				Status: imageregistryv1.ImageRegistryStatus{
 					OperatorStatus: operatorv1.OperatorStatus{
@@ -386,7 +398,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment without available replicas",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{},
@@ -421,7 +435,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment flagged to be deleted",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{
@@ -460,7 +476,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "set as Removed without Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Removed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Removed",
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -494,7 +512,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "permanent error without Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			applyError: newPermanentError("Permanent", fmt.Errorf("segfault")),
@@ -529,7 +549,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "Deployment not in place after one minute",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 				Status: imageregistryv1.ImageRegistryStatus{
 					OperatorStatus: operatorv1.OperatorStatus{
@@ -575,7 +597,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "generic error without Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			applyError: fmt.Errorf("error creating deployment"),
@@ -611,7 +635,9 @@ func Test_syncStatus(t *testing.T) {
 			deploy: &appsapi.Deployment{},
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Unmanaged",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Unmanaged",
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -645,7 +671,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "set as Managed without Deployment in place",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -679,7 +707,9 @@ func Test_syncStatus(t *testing.T) {
 			name: "a faulty route",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
-					ManagementState: "Managed",
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: "Managed",
+					},
 				},
 			},
 			deploy: &appsapi.Deployment{

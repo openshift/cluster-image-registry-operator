@@ -12,7 +12,7 @@ import (
 
 	cfgapi "github.com/openshift/api/config/v1"
 	imregv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
@@ -78,7 +78,9 @@ func TestSyncVersions(t *testing.T) {
 			failOnGet:    true,
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Managed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Managed,
+					},
 				},
 			},
 		},
@@ -88,7 +90,9 @@ func TestSyncVersions(t *testing.T) {
 			expectsError: false,
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Managed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Managed,
+					},
 				},
 			},
 		},
@@ -107,7 +111,9 @@ func TestSyncVersions(t *testing.T) {
 			},
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Managed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Managed,
+					},
 				},
 			},
 		},
@@ -138,7 +144,9 @@ func TestSyncVersions(t *testing.T) {
 			},
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Managed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Managed,
+					},
 				},
 			},
 		},
@@ -169,7 +177,9 @@ func TestSyncVersions(t *testing.T) {
 			},
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Managed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Managed,
+					},
 				},
 			},
 		},
@@ -200,7 +210,9 @@ func TestSyncVersions(t *testing.T) {
 			},
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Removed,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Removed,
+					},
 				},
 			},
 		},
@@ -231,7 +243,9 @@ func TestSyncVersions(t *testing.T) {
 			},
 			config: &imregv1.Config{
 				Spec: imregv1.ImageRegistrySpec{
-					ManagementState: operatorapi.Unmanaged,
+					OperatorSpec: operatorv1.OperatorSpec{
+						ManagementState: operatorv1.Unmanaged,
+					},
 				},
 			},
 		},

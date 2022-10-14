@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -20,7 +20,9 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	te := framework.Setup(t)
 
 	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Removed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Removed,
+		},
 	})
 	defer framework.TeardownImageRegistry(te)
 

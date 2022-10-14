@@ -256,8 +256,10 @@ func TestS3Minio(t *testing.T) {
 	}()
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorv1.Managed,
-		Replicas:        1,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
+		Replicas: 1,
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			S3: &imageregistryv1.ImageRegistryConfigStorageS3{
 				Region:         "us-east-1",

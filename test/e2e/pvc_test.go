@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -180,7 +180,9 @@ func TestDefaultPVC(t *testing.T) {
 	createPVWithStorageClass(te)
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{},
 		},
@@ -202,7 +204,9 @@ func TestCustomRWXPVC(t *testing.T) {
 	createPVC(te, claimName, corev1.ReadWriteMany)
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
 				Claim: claimName,
@@ -226,7 +230,9 @@ func TestCustomRWOPVC(t *testing.T) {
 	createPVC(te, claimName, corev1.ReadWriteOnce)
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			PVC: &imageregistryv1.ImageRegistryConfigStoragePVC{
 				Claim: claimName,

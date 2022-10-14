@@ -14,7 +14,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -85,7 +85,9 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	}()
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -173,7 +175,9 @@ func TestImageConfigWhenRemoved(t *testing.T) {
 	hostname := "test.example.com"
 
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -200,7 +204,7 @@ func TestImageConfigWhenRemoved(t *testing.T) {
 			{
 				Op:    "replace",
 				Path:  "/spec/managementState",
-				Value: operatorapi.Removed,
+				Value: operatorv1.Removed,
 			},
 		}),
 		metav1.PatchOptions{},
