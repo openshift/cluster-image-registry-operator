@@ -170,14 +170,18 @@ func (d *driver) UpdateEffectiveConfig() error {
 // GetCredentialsFile will create and return the location of an AWS config file that can
 // be used to create AWS clients with. Caller is responsible for cleaning up the file.
 // sharedCredentialsFile, err := d.GetCredentialsFile()
-// if err != nil {
-// 	// handle error
-// }
+//
+//	if err != nil {
+//		// handle error
+//	}
+//
 // defer os.Remove(sharedCredentialsFile)
-// options := session.Options{
-// 	SharedConfigState: session.SharedConfigEnable,
-// 	SharedConfigFiles: []string{sharedCredentialsFile},
-// }
+//
+//	options := session.Options{
+//		SharedConfigState: session.SharedConfigEnable,
+//		SharedConfigFiles: []string{sharedCredentialsFile},
+//	}
+//
 // sess := session.Must(session.NewSessionWithOptions(options))
 func (d *driver) GetCredentialsFile() (string, error) {
 	data, err := d.getCredentialsConfigData()
