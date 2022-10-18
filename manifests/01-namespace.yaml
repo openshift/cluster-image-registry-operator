@@ -9,6 +9,7 @@ metadata:
     openshift.io/node-selector: ""
     include.release.openshift.io/single-node-developer: "true"
     workload.openshift.io/allowed: "management"
+    capability.openshift.io/name: Registry
   labels:
     openshift.io/cluster-monitoring: "true"
     pod-security.kubernetes.io/enforce: privileged
