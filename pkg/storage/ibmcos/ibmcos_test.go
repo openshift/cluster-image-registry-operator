@@ -3,7 +3,7 @@ package ibmcos
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -361,7 +361,7 @@ func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return &http.Response{
 		StatusCode: r.responseCodes[r.req],
 		Header:     http.Header{"Content-Type": {"application/json"}},
-		Body:       ioutil.NopCloser(bytes.NewBufferString(r.responseBodies[r.req])),
+		Body:       io.NopCloser(bytes.NewBufferString(r.responseBodies[r.req])),
 	}, nil
 }
 
