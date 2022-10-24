@@ -11,12 +11,15 @@ import (
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/jongio/azidext/go/azidext"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -299,16 +302,30 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 	if d.authorizer != nil {
 		storageAccountsClient.Authorizer = d.authorizer
 	} else {
-		clientCredentialsConfig := auth.NewClientCredentialsConfig(cfg.ClientID, cfg.ClientSecret, cfg.TenantID)
-		clientCredentialsConfig.Resource = environment.TokenAudience
-		clientCredentialsConfig.AADEndpoint = environment.ActiveDirectoryEndpoint
-
-		auth, err := clientCredentialsConfig.Authorizer()
+		cloudConfig := cloud.Configuration{
+			ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
+			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+				cloud.ResourceManager: {
+					Audience: environment.TokenAudience,
+					Endpoint: environment.ResourceManagerEndpoint,
+				},
+			},
+		}
+		options := azidentity.ClientSecretCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+		}
+		cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}
+		scope := environment.TokenAudience
+		if !strings.HasSuffix(scope, "/.default") {
+			scope += "/.default"
+		}
 
-		storageAccountsClient.Authorizer = auth
+		storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
 	}
 
 	if d.sender != nil {
