@@ -44,7 +44,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Check that the cronjob was created
-	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
 		errs = nil
 		// Get an updated version of the cronjob
-		cronjob, err = te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+		cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 			context.Background(), "image-pruner", metav1.GetOptions{},
 		)
 		if err != nil {
@@ -132,7 +132,7 @@ func TestPruner(t *testing.T) {
 	}
 
 	// Check that the cronjob was created
-	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestPruner(t *testing.T) {
 	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionFalse, "Suspended")
 
-	cronjob, err = te.Client().BatchV1beta1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+	cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
 	if err != nil {
@@ -320,7 +320,7 @@ func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cronjob, err := te.Client().BatchV1beta1Interface.CronJobs("openshift-image-registry").Get(ctx, "image-pruner", metav1.GetOptions{})
+	cronjob, err := te.Client().BatchV1Interface.CronJobs("openshift-image-registry").Get(ctx, "image-pruner", metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

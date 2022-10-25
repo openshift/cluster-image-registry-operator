@@ -17,7 +17,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapiv1 "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -25,7 +25,9 @@ import (
 
 func TestHTTPSecretDefaulter(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -71,7 +73,9 @@ func TestHTTPSecretDefaulter(t *testing.T) {
 
 func TestPodResourceConfiguration(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -114,7 +118,9 @@ func TestPodResourceConfiguration(t *testing.T) {
 
 func TestRolloutStrategyConfiguration(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -161,7 +167,9 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	}
 
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -205,7 +213,9 @@ func TestPodAffinityConfiguration(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -231,7 +241,9 @@ func TestRouteConfiguration(t *testing.T) {
 	hostname := "test.example.com"
 
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -315,7 +327,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that the operator can no longer reach the storage providers api
-	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionUnknown, "")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorv1.ConditionUnknown, "")
 
 	t.Logf("resetting proxy environment variables of the operator deployment...")
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
@@ -349,12 +361,14 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 
 	// Wait for the image registry resource to have an updated StorageExists condition
 	// showing that operator can now reach the storage providers api
-	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorapiv1.ConditionTrue, "")
+	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorv1.ConditionTrue, "")
 }
 
 func TestOperandProxyConfiguration(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -444,7 +458,9 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	}
 
 	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -487,7 +503,9 @@ func TestSecureRouteConfiguration(t *testing.T) {
 
 func TestVersionReporting(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -534,7 +552,9 @@ func TestVersionReporting(t *testing.T) {
 
 func TestRequests(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -578,7 +598,9 @@ func TestRequests(t *testing.T) {
 
 func TestDisableRedirect(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -602,7 +624,9 @@ func TestDisableRedirect(t *testing.T) {
 
 func TestScaleUp(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},
@@ -634,7 +658,9 @@ func TestScaleUp(t *testing.T) {
 
 func TestScaleDown(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
-		ManagementState: operatorapiv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryapiv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
 		},

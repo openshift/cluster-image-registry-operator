@@ -71,11 +71,11 @@ func TestBootstrapAWS(t *testing.T) {
 	}
 
 	expected := imageregistryv1.ImageRegistrySpec{
-		ManagementState: "Managed",
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			S3: &imageregistryv1.ImageRegistryConfigStorageS3{},
 		},
 		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState:  "Managed",
 			LogLevel:         operatorv1.Normal,
 			OperatorLogLevel: operatorv1.Normal,
 		},

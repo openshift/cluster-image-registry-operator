@@ -80,8 +80,8 @@ func (c *Controller) Bootstrap() error {
 			OperatorSpec: operatorapi.OperatorSpec{
 				LogLevel:         operatorapi.Normal,
 				OperatorLogLevel: operatorapi.Normal,
+				ManagementState:  mgmtState,
 			},
-			ManagementState: mgmtState,
 			Storage:         platformStorage,
 			Replicas:        replicas,
 			RolloutStrategy: string(rolloutStrategy),

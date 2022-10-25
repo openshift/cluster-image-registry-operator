@@ -25,8 +25,10 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorv1.Removed,
-		Replicas:        1,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Removed,
+		},
+		Replicas: 1,
 	})
 	framework.WaitUntilImageRegistryIsAvailable(te)
 
@@ -56,7 +58,9 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 
 func TestNodeCADaemonChangesReverted(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorv1.Managed,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Managed,
+		},
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 		},

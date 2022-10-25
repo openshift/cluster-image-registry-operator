@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -30,7 +30,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 			{
 				Op:    "replace",
 				Path:  "/spec/managementState",
-				Value: operatorapi.Unmanaged,
+				Value: operatorv1.Unmanaged,
 			},
 		}),
 		metav1.PatchOptions{},
@@ -69,7 +69,7 @@ func TestManagementStateRemoved(t *testing.T) {
 			{
 				Op:    "replace",
 				Path:  "/spec/managementState",
-				Value: operatorapi.Removed,
+				Value: operatorv1.Removed,
 			},
 		}),
 		metav1.PatchOptions{},
@@ -117,8 +117,10 @@ func TestRemovedToManagedTransition(t *testing.T) {
 
 	t.Log("creating config with ManagementState set to Removed")
 	framework.DeployImageRegistry(te, &imageregistryv1.ImageRegistrySpec{
-		ManagementState: operatorapi.Removed,
-		Replicas:        1,
+		OperatorSpec: operatorv1.OperatorSpec{
+			ManagementState: operatorv1.Removed,
+		},
+		Replicas: 1,
 	})
 
 	t.Log("make sure operator is reporting itself as Removed")
@@ -149,7 +151,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 			return err
 		}
 
-		cr.Spec.ManagementState = operatorapi.Managed
+		cr.Spec.ManagementState = operatorv1.Managed
 		cr.Spec.Storage = imageregistryv1.ImageRegistryConfigStorage{}
 
 		_, err = te.Client().Configs().Update(context.Background(), cr, metav1.UpdateOptions{})
