@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -32,7 +32,7 @@ func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}()
 	return &http.Response{
 		StatusCode: r.responseCodes[r.req],
-		Body:       ioutil.NopCloser(bytes.NewBufferString(r.responseBodies[r.req])),
+		Body:       io.NopCloser(bytes.NewBufferString(r.responseBodies[r.req])),
 	}, nil
 }
 

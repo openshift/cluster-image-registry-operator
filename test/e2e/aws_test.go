@@ -3,7 +3,6 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -428,7 +427,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	}
 	defer os.Remove(sharedCredentialsFile)
 
-	credsBytes, err := ioutil.ReadFile(sharedCredentialsFile)
+	credsBytes, err := os.ReadFile(sharedCredentialsFile)
 	if err != nil {
 		t.Fatalf("failed to read in S3 driver's AWS configuration file: %s", err)
 	}
@@ -802,7 +801,7 @@ func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clients
 		}
 
 		var tokenTempFile *os.File
-		if tokenTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-token"); err != nil {
+		if tokenTempFile, err = os.CreateTemp("", "cluster-image-registry-operator-test-token"); err != nil {
 			return
 		}
 		defer tokenTempFile.Close()
@@ -814,7 +813,7 @@ func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clients
 		}
 
 		// create AWS config file pointing to token file
-		if awsConfigTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
+		if awsConfigTempFile, err = os.CreateTemp("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
 			return
 		}
 		defer awsConfigTempFile.Close()
@@ -831,7 +830,7 @@ func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clients
 
 	} else {
 		// just use the Secret contents as-is
-		if awsConfigTempFile, err = ioutil.TempFile("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
+		if awsConfigTempFile, err = os.CreateTemp("", "cluster-image-registry-operator-test-awsconfig"); err != nil {
 			return
 		}
 		defer awsConfigTempFile.Close()

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -362,7 +362,7 @@ func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}()
 
 	if req.Body != nil {
-		dt, err := ioutil.ReadAll(req.Body)
+		dt, err := io.ReadAll(req.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -376,7 +376,7 @@ func (r *tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	return &http.Response{
 		StatusCode: code,
-		Body:       ioutil.NopCloser(bytes.NewBufferString("{}")),
+		Body:       io.NopCloser(bytes.NewBufferString("{}")),
 	}, nil
 }
 
