@@ -118,9 +118,8 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 // syncStorage checks:
 // 1.)  to make sure that an existing storage medium still exists and we can access it
 // 2.)  to see if the storage medium name changed and we need to:
-//
-//	a.) check to make sure that we can access the storage or
-//	b.) see if we need to try to create the new storage
+//      a.) check to make sure that we can access the storage or
+//      b.) see if we need to try to create the new storage
 func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
 	// Create a driver with the current configuration

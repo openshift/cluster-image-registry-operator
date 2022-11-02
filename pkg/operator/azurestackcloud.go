@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
@@ -109,7 +110,7 @@ func (c *AzureStackCloudController) syncConfig() error {
 		return err
 	}
 
-	f, err := os.CreateTemp(filepath.Dir(filename), "azurestackcloud")
+	f, err := ioutil.TempFile(filepath.Dir(filename), "azurestackcloud")
 	if err != nil {
 		return err
 	}

@@ -160,14 +160,14 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 // replicas for this platform.
 //
 // Following rules apply:
-//   - If it is a known platform for which we have a backend implementation (e.g.
-//     AWS) we return a storage configuration that uses that implementation.
-//   - If it is a known platform and it doesn't provide any backend implementation,
-//     we return an empty storage configuration.
-//   - If it is a unknown platform we return a storage configuration with EmptyDir.
-//     This is useful as it easily allows other teams to experiment with OpenShift
-//     in new platforms, if it is LibVirt platform we also return EmptyDir for
-//     historical reasons.
+//  - If it is a known platform for which we have a backend implementation (e.g.
+//    AWS) we return a storage configuration that uses that implementation.
+//  - If it is a known platform and it doesn't provide any backend implementation,
+//    we return an empty storage configuration.
+//  - If it is a unknown platform we return a storage configuration with EmptyDir.
+//    This is useful as it easily allows other teams to experiment with OpenShift
+//    in new platforms, if it is LibVirt platform we also return EmptyDir for
+//    historical reasons.
 func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)

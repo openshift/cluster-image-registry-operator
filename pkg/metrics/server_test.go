@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"io"
+	"io/ioutil"
 	"log"
 	"math/big"
 	"net/http"
@@ -63,7 +64,7 @@ func generateTempCertificates() (string, string, error) {
 		return "", "", err
 	}
 
-	cert, err := os.CreateTemp("", "testcert-")
+	cert, err := ioutil.TempFile("", "testcert-")
 	if err != nil {
 		return "", "", err
 	}
@@ -76,7 +77,7 @@ func generateTempCertificates() (string, string, error) {
 		return "", "", err
 	}
 
-	keyPath, err := os.CreateTemp("", "testkey-")
+	keyPath, err := ioutil.TempFile("", "testkey-")
 	if err != nil {
 		return "", "", err
 	}
