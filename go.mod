@@ -22,7 +22,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/go-cmp v0.5.8
 	github.com/google/uuid v1.2.0
-	github.com/gophercloud/gophercloud v0.17.0
+	github.com/gophercloud/gophercloud v0.18.0
 	github.com/gophercloud/utils v0.0.0-20210323225332-7b186010c04f
 	github.com/goware/urlx v0.3.1
 	github.com/openshift/api v0.0.0-20221004161420-ef2c62cf20d0
