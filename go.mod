@@ -25,7 +25,7 @@ require (
 	github.com/gophercloud/gophercloud v0.18.0
 	github.com/gophercloud/utils v0.0.0-20210323225332-7b186010c04f
 	github.com/goware/urlx v0.3.1
-	github.com/openshift/api v0.0.0-20221004161420-ef2c62cf20d0
+	github.com/openshift/api v0.0.0-20221121222131-004dbc33dd4f
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
 	github.com/openshift/client-go v0.0.0-20221006134153-58ea193f9d20
 	github.com/openshift/library-go v0.0.0-20221004125358-0d713c6520e2
