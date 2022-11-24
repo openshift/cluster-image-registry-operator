@@ -69,7 +69,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
@@ -119,7 +119,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
@@ -206,7 +206,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -250,7 +250,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -301,7 +301,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -717,7 +717,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32Ptr(3),
+					Replicas: pointer.Int32(3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
