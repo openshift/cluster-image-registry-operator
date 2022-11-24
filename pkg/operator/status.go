@@ -176,7 +176,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 		updatePrunerCondition(cr, "Failed", prunerLastJobStatus)
 	}
 
-	if *cr.Spec.Suspend {
+	if cr.Spec.Suspend != nil && *cr.Spec.Suspend {
 		prunerJobScheduled := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,
 			Message: "The pruner job has been suspended",
