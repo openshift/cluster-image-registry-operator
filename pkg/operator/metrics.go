@@ -32,7 +32,7 @@ func NewMetricsController(informer imageinformers.ImageStreamInformer) *MetricsC
 	}
 }
 
-// report gathers all metrics reported by this operator and calls approprate function in the
+// report gathers all metrics reported by this operator and calls appropriate function in the
 // metrics package to report the current values.
 func (m *MetricsController) report(_ context.Context) {
 	imgstreams, err := m.lister.List(labels.Everything())

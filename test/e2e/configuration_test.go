@@ -225,7 +225,7 @@ func TestPodAffinityConfiguration(t *testing.T) {
 
 	// The operator won't become available because of affinity settings. So
 	// instead of waiting for the operator, we'll just hope that everything is
-	// fine and the delpoyment will eventually be created.
+	// fine and the deployment will eventually be created.
 	deployment, err := framework.WaitForRegistryDeployment(te.Client())
 	if err != nil {
 		t.Fatal(err)
@@ -534,7 +534,7 @@ func TestVersionReporting(t *testing.T) {
 			return false, nil
 		}
 		if len(clusterOperatorStatus.Status.Versions) == 0 {
-			// We should always have *some* version information in the clusteroperator once we are avaiable,
+			// We should always have *some* version information in the clusteroperator once we are available,
 			// so we do not retry in this scenario.
 			t.Fatalf("Cluster operator status has no version information: %v", clusterOperatorStatus)
 			return true, err

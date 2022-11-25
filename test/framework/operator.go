@@ -62,7 +62,7 @@ func StopDeployment(te TestEnv, namespace, name string) {
 			[]byte(`{"spec": {"replicas": 0}}`),
 			metav1.PatchOptions{},
 		); realErr != nil {
-			te.Logf("failed to patch delpoyment %s/%s to zero replicas: %v", namespace, name, realErr)
+			te.Logf("failed to patch deployment %s/%s to zero replicas: %v", namespace, name, realErr)
 			return false, nil
 		}
 		return true, nil

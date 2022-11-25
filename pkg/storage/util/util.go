@@ -100,7 +100,7 @@ func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...
 		}
 	}
 
-	// Join the slice together with dashes, removing any occurence of
+	// Join the slice together with dashes, removing any occurrence of
 	// multiple dashes in a row as some cloud providers consider this
 	// invalid.
 	name := multiDashes.ReplaceAllString(strings.Join(parts, "-"), "-")

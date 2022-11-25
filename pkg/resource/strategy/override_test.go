@@ -45,7 +45,7 @@ func TestOverride(t *testing.T) {
 		t.Error("object is expected to be changed, but changed=false")
 	}
 	if o.ResourceVersion != "12345" {
-		t.Errorf("resouce version is changed: %v", o.ResourceVersion)
+		t.Errorf("resource version is changed: %v", o.ResourceVersion)
 	}
 	if val, ok := o.Annotations["hello"]; ok {
 		t.Errorf("annotation hello: expected to be removed, got %q", val)

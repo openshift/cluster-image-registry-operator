@@ -506,7 +506,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 				errs[i] = fmt.Errorf("cannot delete object %v: %v", objectError[0], objectError[1])
 			}
 
-			return false, fmt.Errorf("errors occured during bulk deleting of container %v objects: %v", cr.Spec.Storage.Swift.Container, k8sutilerrors.NewAggregate(errs))
+			return false, fmt.Errorf("errors occurred during bulk deleting of container %v objects: %v", cr.Spec.Storage.Swift.Container, k8sutilerrors.NewAggregate(errs))
 		}
 
 		return true, nil
