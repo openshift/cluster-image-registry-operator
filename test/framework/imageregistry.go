@@ -479,6 +479,8 @@ func EnsureClusterOperatorStatusIsNormal(te TestEnv) {
 			if cond.Status != configapiv1.ConditionFalse {
 				te.Errorf("Expected clusteroperator Degraded=%s, got %s", configapiv1.ConditionFalse, cond.Status)
 			}
+		case configapiv1.OperatorUpgradeable, configapiv1.EvaluationConditionsDetected, configapiv1.RetrievedUpdates:
+			// we don't use these conditions
 		}
 	}
 
