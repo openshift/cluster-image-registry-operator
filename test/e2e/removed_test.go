@@ -143,7 +143,7 @@ func dumpBuildInfo(ctx context.Context, te framework.TestEnv, nsName string, bui
 	}
 	te.Log("attempting to dump build information")
 	buildPodName := fmt.Sprintf("%s-build", buildName)
-	buildLogs, err := framework.GetLogsForPod(te.Client(), nsName, buildPodName)
+	buildLogs, err := framework.GetLogsForPod(ctx, te.Client(), nsName, buildPodName)
 	if err != nil {
 		te.Logf("failed to get build logs: %v", err)
 	} else {
