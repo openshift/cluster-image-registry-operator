@@ -26,9 +26,7 @@ import (
 
 const metricsPort = 60000
 
-var (
-	filesToWatch []string
-)
+var filesToWatch []string
 
 func printVersion() {
 	klog.Infof("Cluster Image Registry Operator Version: %s", version.Version)

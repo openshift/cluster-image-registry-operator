@@ -25,9 +25,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
-var (
-	ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
-)
+var ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
 
 // MultiStoragesError is returned when we have multiple storage engines
 // configured and we can't determine which one the user wants to use.

@@ -588,8 +588,10 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 			return false, err
 		}
 		for _, upload := range lmur.Uploads {
-			var imur = oss.InitiateMultipartUploadResult{Bucket: bucket.BucketName,
-				Key: upload.Key, UploadID: upload.UploadID}
+			imur := oss.InitiateMultipartUploadResult{
+				Bucket: bucket.BucketName,
+				Key:    upload.Key, UploadID: upload.UploadID,
+			}
 			err = bucket.AbortMultipartUpload(imur)
 			if err != nil {
 				return false, err

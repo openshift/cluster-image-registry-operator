@@ -32,5 +32,4 @@ func (m MockConfigMapNamespaceLister) List(selector labels.Selector) ([]*corev1.
 		list = append(list, &item)
 	}
 	return list, nil
-
 }

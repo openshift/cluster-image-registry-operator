@@ -45,15 +45,13 @@ const (
 	storageExistsReasonAccountDeleted    = "AccountDeleted"
 )
 
-var (
-	// storageAccountInvalidCharRe is a regular expression for characters that
-	// cannot be used in Azure storage accounts names (i.e. that are not
-	// numbers nor lower-case letters) and that are not upper-case letters. If
-	// you use this regular expression to filter invalid characters, you also
-	// need to strings.ToLower to get a valid storage account name or an empty
-	// string.
-	storageAccountInvalidCharRe = regexp.MustCompile(`[^0-9A-Za-z]`)
-)
+// storageAccountInvalidCharRe is a regular expression for characters that
+// cannot be used in Azure storage accounts names (i.e. that are not
+// numbers nor lower-case letters) and that are not upper-case letters. If
+// you use this regular expression to filter invalid characters, you also
+// need to strings.ToLower to get a valid storage account name or an empty
+// string.
+var storageAccountInvalidCharRe = regexp.MustCompile(`[^0-9A-Za-z]`)
 
 // Azure holds configuration used to reach Azure's endpoints.
 type Azure struct {

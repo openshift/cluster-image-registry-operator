@@ -178,7 +178,7 @@ func TestGetConfig(t *testing.T) {
 }
 
 func TestGenerateAccountName(t *testing.T) {
-	var re = regexp.MustCompile(`^[0-9a-z]{3,24}$`)
+	re := regexp.MustCompile(`^[0-9a-z]{3,24}$`)
 	for _, infrastructureName := range []string{
 		"",
 		"foo",

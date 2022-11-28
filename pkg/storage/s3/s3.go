@@ -573,7 +573,6 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "")
 	return true, nil
-
 }
 
 // StorageChanged checks to see if the name of the storage medium

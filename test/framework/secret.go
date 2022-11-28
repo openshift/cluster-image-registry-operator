@@ -64,7 +64,6 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 			context.Background(), cur, metav1.UpdateOptions{},
 		)
 		return err
-
 	}); err != nil {
 		return nil, err
 	}

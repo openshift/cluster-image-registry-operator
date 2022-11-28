@@ -17,10 +17,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-var (
-	// multiDashes is a regexp matching multiple dashes in a sequence.
-	multiDashes = regexp.MustCompile(`-{2,}`)
-)
+// multiDashes is a regexp matching multiple dashes in a sequence.
+var multiDashes = regexp.MustCompile(`-{2,}`)
 
 // UpdateCondition will update or add the provided condition.
 func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status operatorapi.ConditionStatus, reason string, message string) {
@@ -122,5 +120,4 @@ func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...
 	}
 
 	return strings.ToLower(name), nil
-
 }

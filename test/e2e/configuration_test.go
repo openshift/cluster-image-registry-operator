@@ -234,7 +234,6 @@ func TestPodAffinityConfiguration(t *testing.T) {
 	if !reflect.DeepEqual(affinity, deployment.Spec.Template.Spec.Affinity) {
 		t.Errorf("expected affinity configuration not found wanted: %#v, got %#v", affinity, deployment.Spec.Template.Spec.Affinity)
 	}
-
 }
 
 func TestRouteConfiguration(t *testing.T) {

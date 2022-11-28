@@ -32,7 +32,6 @@ func TestImageRegistryRemovedWithImages(t *testing.T) {
 			Name: nsName,
 		},
 	}, metav1.CreateOptions{})
-
 	if err != nil {
 		te.Fatalf("failed to create test namespace: %v", err)
 	}

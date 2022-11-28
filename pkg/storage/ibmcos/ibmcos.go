@@ -77,7 +77,6 @@ func (d *driver) CABundle() (string, bool, error) {
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-
 	_, err = d.UpdateEffectiveConfig()
 	if err != nil {
 		return
@@ -99,7 +98,6 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 // UpdateEffectiveConfig updates the driver's local effective ImageRegistryConfig and returns the effective image
 // registry configuration based on infrastructure settings and any custom overrides.
 func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigStorageIBMCOS, error) {
-
 	effectiveConfig := d.Config.DeepCopy()
 
 	if effectiveConfig == nil {
@@ -668,7 +666,6 @@ func (d *driver) bucketExists(bucketName string, serviceInstanceCRN string) erro
 // getIBMCOSClient returns a client that allows us to interact
 // with the IBM COS service.
 func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
-
 	infra, err := util.GetInfrastructure(d.Listers)
 	if err != nil {
 		return nil, err
