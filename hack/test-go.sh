@@ -14,7 +14,9 @@ if [ -n "${JUNIT_REPORT-}" ]; then
     _V="-v"
     for i do [ "$i" != "-v" ] || _V=""; done
     RETCODE=0
-    go test $_V -json "$@" >"$GO_TEST_JSON" || RETCODE=$?
+    go test $_V -coverprofile=coverage.out "-outputdir=$ARTIFACT_DIR" -json "$@" >"$GO_TEST_JSON" || RETCODE=$?
+
+    go tool cover "-html=$ARTIFACT_DIR/coverage.out" "-o=$ARTIFACT_DIR/coverage.html"
 
     ! grep "^[^{]" "$GO_TEST_JSON" || exit $RETCODE
     go run "$(dirname "$0")/junitxml/junitxml.go" <"$GO_TEST_JSON" >"$REPORT_FILE"
