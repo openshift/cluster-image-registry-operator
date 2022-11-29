@@ -16,7 +16,7 @@ func TestLeaderElection(t *testing.T) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
-	var numberOfReplicas = int32(3)
+	numberOfReplicas := int32(3)
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		deploy, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Get(
 			context.Background(), framework.OperatorDeploymentName, metav1.GetOptions{},

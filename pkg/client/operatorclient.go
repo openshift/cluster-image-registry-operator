@@ -77,7 +77,7 @@ func (c *ConfigOperatorClient) UpdateOperatorStatus(ctx context.Context, oldReso
 
 	config.Status.OperatorStatus = *in
 
-	updatedConfig, err := c.client.UpdateStatus(context.TODO(), config, metav1.UpdateOptions{})
+	updatedConfig, err := c.client.UpdateStatus(ctx, config, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}

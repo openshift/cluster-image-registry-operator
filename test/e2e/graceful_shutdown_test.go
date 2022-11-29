@@ -88,7 +88,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 			// this is the log line node-ca pods print when they
 			// gorgeously die, if we find this it means that the
 			// pod had manage to exit properly so we can end this
-			// test successfuly.
+			// test successfully.
 			if strings.HasPrefix(line, "shutting down node-ca") {
 				return
 			}
@@ -159,9 +159,9 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 				t.Fatal("pod died, no graceful message found.")
 			}
 			// this is the log line image registry pod prints when
-			// it gracefuly dies, if we find this it means that the
+			// it gracefully dies, if we find this it means that the
 			// pod had manage to exit properly so we can end this
-			// test successfuly.
+			// test successfully.
 			if strings.Contains(line, "server shutdown, bye.") {
 				return
 			}

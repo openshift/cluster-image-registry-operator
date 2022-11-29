@@ -46,7 +46,6 @@ func ConditionExistsWithStatusAndReason(te TestEnv, conditionType string, condit
 		}
 		if !conditionExists {
 			errs = append(errs, fmt.Errorf("condition %s was not found, but should have been. %#v", conditionType, cr.Status.Conditions))
-
 		}
 		if len(errs) != 0 {
 			return false, nil

@@ -43,7 +43,7 @@ func (d dependencies) Checksum(configMapLister corelisters.ConfigMapNamespaceLis
 		cm, err := configMapLister.Get(name)
 		if errors.IsNotFound(err) {
 			// We may have optional dependencies.
-			klog.Infof("missing the deployment depencency: ConfigMap %s: %s", name, err)
+			klog.Infof("missing the deployment dependency: ConfigMap %s: %s", name, err)
 			continue
 		} else if err != nil {
 			return "", err

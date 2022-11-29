@@ -32,5 +32,4 @@ func (m MockSecretNamespaceLister) List(selector labels.Selector) ([]*coreapi.Se
 		list = append(list, &item)
 	}
 	return list, nil
-
 }

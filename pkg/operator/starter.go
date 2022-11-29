@@ -62,7 +62,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	// library-go just logs a warning and continues
 	// https://github.com/openshift/library-go/blob/4362aa519714a4b62b00ab8318197ba2bba51cb7/pkg/controller/controllercmd/builder.go#L230
-	controllerRef, err := events.GetControllerReferenceForCurrentPod(context.TODO(), kubeClient, defaults.ImageRegistryOperatorNamespace, nil)
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(ctx, kubeClient, defaults.ImageRegistryOperatorNamespace, nil)
 	if err != nil {
 		klog.Warningf("unable to get owner reference (falling back to namespace): %v", err)
 	}

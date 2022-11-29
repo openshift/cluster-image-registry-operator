@@ -46,13 +46,15 @@ func (psl PodSetLogs) Contains(re *regexp.Regexp) bool {
 }
 
 func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector, previous bool) (PodSetLogs, error) {
+	ctx := context.Background()
+
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
 		return nil, err
 	}
 
 	podList, err := client.Pods(namespace).List(
-		context.Background(), metav1.ListOptions{
+		ctx, metav1.ListOptions{
 			LabelSelector: selector.String(),
 		},
 	)
@@ -62,7 +64,7 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 
 	podLogs := make(PodSetLogs)
 	for _, pod := range podList.Items {
-		podLog, err := readPodLogs(client, &pod, previous)
+		podLog, err := readPodLogs(ctx, client, &pod, previous)
 		if err != nil {
 			return nil, err
 		}
@@ -71,13 +73,12 @@ func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *
 	return podLogs, nil
 }
 
-func GetLogsForPod(client *Clientset, namespace string, podName string) (PodSetLogs, error) {
-	ctx := context.Background()
+func GetLogsForPod(ctx context.Context, client *Clientset, namespace string, podName string) (PodSetLogs, error) {
 	pod, err := client.Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
-	podLogs, err := readPodLogs(client, pod, false)
+	podLogs, err := readPodLogs(ctx, client, pod, false)
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +87,14 @@ func GetLogsForPod(client *Clientset, namespace string, podName string) (PodSetL
 	return podSetLogs, nil
 }
 
-func readPodLogs(client *Clientset, pod *corev1.Pod, previous bool) (PodLog, error) {
+func readPodLogs(ctx context.Context, client *Clientset, pod *corev1.Pod, previous bool) (PodLog, error) {
 	podLog := make(PodLog)
 	for _, container := range pod.Spec.Containers {
 		var containerLog ContainerLog
 		log, err := client.Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
 			Container: container.Name,
 			Previous:  previous,
-		}).Stream(context.Background())
+		}).Stream(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get logs for pod %s: %s", pod.Name, err)
 		}

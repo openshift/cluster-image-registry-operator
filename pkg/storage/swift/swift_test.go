@@ -480,7 +480,7 @@ func TestSwiftRemoveStorageWithContentFailure(t *testing.T) {
 	_, err := d.RemoveStorage(&installConfig)
 
 	th.AssertErr(t, err)
-	th.AssertEquals(t, "errors occured during bulk deleting of container registry objects: cannot delete object obj0: Internal Error", err.Error())
+	th.AssertEquals(t, "errors occurred during bulk deleting of container registry objects: cannot delete object obj0: Internal Error", err.Error())
 	th.AssertEquals(t, "registry", installConfig.Status.Storage.Swift.Container)
 	th.AssertEquals(t, true, containerContentListed)
 	th.AssertEquals(t, false, containerContentDeleted)

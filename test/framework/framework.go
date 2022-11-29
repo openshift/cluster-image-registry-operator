@@ -13,12 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
-var (
-	// AsyncOperationTimeout is how long we want to wait for asynchronous
-	// operations to complete. ForeverTestTimeout is not long enough to create
-	// several replicas and get them available on a slow machine.
-	AsyncOperationTimeout = 5 * time.Minute
-)
+// AsyncOperationTimeout is how long we want to wait for asynchronous
+// operations to complete. ForeverTestTimeout is not long enough to create
+// several replicas and get them available on a slow machine.
+var AsyncOperationTimeout = 5 * time.Minute
 
 // Logger is an interface to report events from tests. It is implemented by
 // testing.T.

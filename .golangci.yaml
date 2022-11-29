@@ -1,0 +1,13 @@
+linters:
+  enable:
+  - contextcheck
+  - errcheck
+  - exhaustive
+  - gofumpt
+  - gosimple
+  - govet
+  - ineffassign
+  - misspell
+  - staticcheck
+  - typecheck
+  - unused

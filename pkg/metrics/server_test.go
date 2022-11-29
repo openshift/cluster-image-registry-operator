@@ -197,10 +197,8 @@ func TestImagePrunerInstallStatus(t *testing.T) {
 					t.Errorf("expected metric %s to be 2, got %f", metricName, m.Gauge.GetValue())
 				}
 			}
-
 		})
 	}
-
 }
 
 func findMetricsByCounter(buf io.ReadCloser, name string) []*io_prometheus_client.Metric {

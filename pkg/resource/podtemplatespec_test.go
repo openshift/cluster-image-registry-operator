@@ -133,7 +133,8 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 							MatchLabels: map[string]string{"registry": "abc"},
 						},
 					},
-				}},
+				},
+			},
 			expected: []corev1.TopologySpreadConstraint{
 				{
 					MaxSkew:           2,

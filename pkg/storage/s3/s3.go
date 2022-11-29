@@ -393,7 +393,7 @@ func isBucketNotFound(err interface{}) bool {
 // ConfigEnv configures the environment variables that will be
 // used in the image registry deployment, and returns an AWS credentials file
 // that can be used for setting up an AWS session/client.
-// Note: it is the callers responsiblity to make sure the returned file
+// Note: it is the callers responsibility to make sure the returned file
 // location is cleaned up after it is no longer needed.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	err = d.UpdateEffectiveConfig()
@@ -573,7 +573,6 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 
 	util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "")
 	return true, nil
-
 }
 
 // StorageChanged checks to see if the name of the storage medium

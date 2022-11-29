@@ -23,10 +23,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var TestAccessKeyId = "TEST_ACCESS_KEY_ID"
-var TestAccessKeySecret = "TEST_ACCESS_KEY_SECRET"
-var TestBucketName = "a-bucket"
-var TestAnotherBucketName = "another-bucket"
+var (
+	TestAccessKeyId       = "TEST_ACCESS_KEY_ID"
+	TestAccessKeySecret   = "TEST_ACCESS_KEY_SECRET"
+	TestBucketName        = "a-bucket"
+	TestAnotherBucketName = "another-bucket"
+)
 
 func TestGetConfig(t *testing.T) {
 	testBuilder := cirofake.NewFixturesBuilder()
@@ -648,7 +650,6 @@ func TestUserProvidedTags(t *testing.T) {
 				t.Errorf("unexpected err %q", err)
 				return
 			}
-
 		})
 	}
 }
@@ -700,7 +701,7 @@ func Test_isInternal(t *testing.T) {
 	result := d.isInternal()
 	assert.Equal(t, true, result)
 
-	//public
+	// public
 	d.Config.EndpointAccessibility = imageregistryv1.PublicEndpoint
 	result = d.isInternal()
 	assert.Equal(t, false, result)

@@ -25,9 +25,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
-var (
-	ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
-)
+var ErrStorageNotConfigured = fmt.Errorf("storage backend not configured")
 
 // MultiStoragesError is returned when we have multiple storage engines
 // configured and we can't determine which one the user wants to use.
@@ -184,7 +182,10 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 	case configapiv1.BareMetalPlatformType,
 		configapiv1.VSpherePlatformType,
 		configapiv1.NonePlatformType,
-		configapiv1.NutanixPlatformType:
+		configapiv1.NutanixPlatformType,
+		configapiv1.KubevirtPlatformType,
+		configapiv1.EquinixMetalPlatformType,
+		configapiv1.PowerVSPlatformType:
 		break
 
 	// These are the supported platforms. We do have backend implementation

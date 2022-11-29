@@ -37,13 +37,11 @@ const (
 	defaultBoundServiceAccountTokenMountpoint = "/var/run/secrets/openshift/serviceaccount/token"
 )
 
-var (
-	// Invalid AWS credentials map
-	fakeAWSCredsData = map[string]string{
-		"REGISTRY_STORAGE_S3_ACCESSKEY": "myAccessKey",
-		"REGISTRY_STORAGE_S3_SECRETKEY": "mySecretKey",
-	}
-)
+// Invalid AWS credentials map
+var fakeAWSCredsData = map[string]string{
+	"REGISTRY_STORAGE_S3_ACCESSKEY": "myAccessKey",
+	"REGISTRY_STORAGE_S3_SECRETKEY": "mySecretKey",
+}
 
 func TestAWSDefaults(t *testing.T) {
 	te := framework.Setup(t)
@@ -119,7 +117,6 @@ func TestAWSDefaults(t *testing.T) {
 	} else {
 		if cr.Spec.Storage.S3.Region != s3Driver.Config.Region {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Region was %v but should have been %v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, s3Driver.Config.Region, cr.Spec.Storage.S3)
-
 		}
 		if cr.Spec.Storage.S3.Bucket == "" {
 			t.Errorf("custom resource %s/%s contains incorrect data. S3 Bucket name should not be empty", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName)
@@ -543,7 +540,6 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		if aerr, ok := err.(awserr.Error); ok {
 			t.Errorf("unable to get encryption information for S3 bucket: %#v, %#v", aerr.Code(), aerr.Error())
 		} else {
-
 			t.Errorf("unknown error occurred getting encryption information for S3 bucket: %#v", err)
 		}
 	}
@@ -617,7 +613,6 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 					return false, nil
 				}
 			}
-
 		}
 		return true, nil
 	})
@@ -765,7 +760,6 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 // containing credentials info.
 // Caller is returned an cleanup function that will clean up the temporary files created.
 func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clientset) (awsConfigFilename string, cleanupFunc func(), err error) {
-
 	secretData, ok := awsSecret.Data["credentials"]
 	if !ok {
 		err = fmt.Errorf("Secret did not contain expected 'credentials' field")
