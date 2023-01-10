@@ -185,7 +185,8 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 		configapiv1.NutanixPlatformType,
 		configapiv1.KubevirtPlatformType,
 		configapiv1.EquinixMetalPlatformType,
-		configapiv1.PowerVSPlatformType:
+		configapiv1.PowerVSPlatformType,
+		configapiv1.ExternalPlatformType:
 		break
 
 	// These are the supported platforms. We do have backend implementation
