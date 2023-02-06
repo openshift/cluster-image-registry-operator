@@ -54,7 +54,7 @@ func NewImageRegistryCertificatesController(
 	openshiftConfigInformer corev1informers.ConfigMapInformer,
 	openshiftConfigManagedInformer corev1informers.ConfigMapInformer,
 	imageRegistryConfigInformer imageregistryv1informers.ConfigInformer,
-) *ImageRegistryCertificatesController {
+) (*ImageRegistryCertificatesController, error) {
 	c := &ImageRegistryCertificatesController{
 		kubeconfig:                kubeconfig,
 		coreClient:                coreClient,
@@ -67,25 +67,39 @@ func NewImageRegistryCertificatesController(
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageRegistryCertificatesController"),
 	}
 
-	configMapInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := configMapInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, configMapInformer.Informer().HasSynced)
 
-	secretInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := secretInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, secretInformer.Informer().HasSynced)
 
-	serviceInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := serviceInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, serviceInformer.Informer().HasSynced)
 
-	imageConfigInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := imageConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, imageConfigInformer.Informer().HasSynced)
 
-	infrastructureInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := infrastructureInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, infrastructureInformer.Informer().HasSynced)
 
-	openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, openshiftConfigInformer.Informer().HasSynced)
 
-	openshiftConfigManagedInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := openshiftConfigManagedInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, openshiftConfigManagedInformer.Informer().HasSynced)
 
 	c.storageListers = client.NewStorageListers(
@@ -95,7 +109,7 @@ func NewImageRegistryCertificatesController(
 		secretInformer.Lister().Secrets(defaults.ImageRegistryOperatorNamespace),
 	)
 
-	return c
+	return c, nil
 }
 
 func (c *ImageRegistryCertificatesController) eventHandler() cache.ResourceEventHandler {

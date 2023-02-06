@@ -68,7 +68,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	}
 	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(defaults.ImageRegistryOperatorNamespace), "image-registry-operator", controllerRef)
 
-	controller := NewController(
+	controller, err := NewController(
 		eventRecorder,
 		kubeconfig,
 		kubeClient,
@@ -83,15 +83,21 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryInformers,
 		routeInformers,
 	)
+	if err != nil {
+		return err
+	}
 
-	imageConfigStatusController := NewImageConfigController(
+	imageConfigStatusController, err := NewImageConfigController(
 		configClient.ConfigV1(),
 		configOperatorClient,
 		routeInformers.Route().V1().Routes(),
 		kubeInformers.Core().V1().Services(),
 	)
+	if err != nil {
+		return err
+	}
 
-	clusterOperatorStatusController := NewClusterOperatorStatusController(
+	clusterOperatorStatusController, err := NewClusterOperatorStatusController(
 		[]configv1.ObjectReference{
 			{Group: "imageregistry.operator.openshift.io", Resource: "configs", Name: "cluster"},
 			{Group: "imageregistry.operator.openshift.io", Resource: "imagepruners", Name: "cluster"},
@@ -106,8 +112,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryInformers.Imageregistry().V1().ImagePruners(),
 		kubeInformers.Apps().V1().Deployments(),
 	)
+	if err != nil {
+		return err
+	}
 
-	imageRegistryCertificatesController := NewImageRegistryCertificatesController(
+	imageRegistryCertificatesController, err := NewImageRegistryCertificatesController(
 		kubeconfig,
 		kubeClient.CoreV1(),
 		configOperatorClient,
@@ -120,32 +129,44 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		kubeInformersForOpenShiftConfigManaged.Core().V1().ConfigMaps(),
 		imageregistryInformers.Imageregistry().V1().Configs(),
 	)
+	if err != nil {
+		return err
+	}
 
-	nodeCADaemonController := NewNodeCADaemonController(
+	nodeCADaemonController, err := NewNodeCADaemonController(
 		eventRecorder,
 		kubeClient.AppsV1(),
 		configOperatorClient,
 		kubeInformers.Apps().V1().DaemonSets(),
 		kubeInformers.Core().V1().Services(),
 	)
+	if err != nil {
+		return err
+	}
 
-	imagePrunerController := NewImagePrunerController(
+	imagePrunerController, err := NewImagePrunerController(
 		kubeClient,
 		imageregistryClient,
 		kubeInformers,
 		imageregistryInformers,
 		configInformers.Config().V1().Images(),
 	)
+	if err != nil {
+		return err
+	}
 
 	loggingController := loglevel.NewClusterOperatorLoggingController(
 		configOperatorClient,
 		eventRecorder,
 	)
 
-	azureStackCloudController := NewAzureStackCloudController(
+	azureStackCloudController, err := NewAzureStackCloudController(
 		configOperatorClient,
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
 	)
+	if err != nil {
+		return err
+	}
 
 	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
 

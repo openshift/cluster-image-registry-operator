@@ -44,7 +44,7 @@ func NewNodeCADaemonController(
 	operatorClient v1helpers.OperatorClient,
 	daemonSetInformer appsv1informers.DaemonSetInformer,
 	serviceInformer corev1informers.ServiceInformer,
-) *NodeCADaemonController {
+) (*NodeCADaemonController, error) {
 	c := &NodeCADaemonController{
 		eventRecorder:   eventRecorder,
 		appsClient:      appsClient,
@@ -54,13 +54,17 @@ func NewNodeCADaemonController(
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeCADaemonController"),
 	}
 
-	daemonSetInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := daemonSetInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, daemonSetInformer.Informer().HasSynced)
 
-	serviceInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := serviceInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, serviceInformer.Informer().HasSynced)
 
-	return c
+	return c, nil
 }
 
 func (c *NodeCADaemonController) eventHandler() cache.ResourceEventHandler {
