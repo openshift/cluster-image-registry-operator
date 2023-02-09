@@ -43,7 +43,7 @@ func NewClusterOperatorStatusController(
 	imageRegistryConfigInformer imageregistryv1informers.ConfigInformer,
 	imagePrunerInformer imageregistryv1informers.ImagePrunerInformer,
 	deploymentInformer appsv1informers.DeploymentInformer,
-) *ClusterOperatorStatusController {
+) (*ClusterOperatorStatusController, error) {
 	c := &ClusterOperatorStatusController{
 		relatedObjects:            relatedObjects,
 		clusterOperatorClient:     configClient,
@@ -54,19 +54,27 @@ func NewClusterOperatorStatusController(
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ClusterOperatorStatusController"),
 	}
 
-	clusterOperatorInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := clusterOperatorInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, clusterOperatorInformer.Informer().HasSynced)
 
-	imageRegistryConfigInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := imageRegistryConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, imageRegistryConfigInformer.Informer().HasSynced)
 
-	imagePrunerInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := imagePrunerInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, imagePrunerInformer.Informer().HasSynced)
 
-	deploymentInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := deploymentInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, deploymentInformer.Informer().HasSynced)
 
-	return c
+	return c, nil
 }
 
 func (c *ClusterOperatorStatusController) eventHandler() cache.ResourceEventHandler {

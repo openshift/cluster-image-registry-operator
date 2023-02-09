@@ -34,17 +34,19 @@ type AzureStackCloudController struct {
 func NewAzureStackCloudController(
 	operatorClient v1helpers.OperatorClient,
 	openshiftConfigInformer corev1informers.ConfigMapInformer,
-) *AzureStackCloudController {
+) (*AzureStackCloudController, error) {
 	c := &AzureStackCloudController{
 		operatorClient:        operatorClient,
 		openshiftConfigLister: openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzureStackCloudController"),
 	}
 
-	openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler())
+	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
 	c.cachesToSync = append(c.cachesToSync, openshiftConfigInformer.Informer().HasSynced)
 
-	return c
+	return c, nil
 }
 
 func (c *AzureStackCloudController) eventHandler() cache.ResourceEventHandler {

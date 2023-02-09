@@ -52,7 +52,7 @@ func NewImagePrunerController(
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
 	imageConfigInformer configv1informers.ImageInformer,
-) *ImagePrunerController {
+) (*ImagePrunerController, error) {
 	listers := &regopclient.ImagePrunerControllerListers{}
 	clients := &regopclient.Clients{}
 	c := &ImagePrunerController{
@@ -119,11 +119,13 @@ func NewImagePrunerController(
 		},
 	} {
 		informer := ctor()
-		informer.AddEventHandler(c.handler())
+		if _, err := informer.AddEventHandler(c.handler()); err != nil {
+			return nil, err
+		}
 		c.cachesToSync = append(c.cachesToSync, informer.HasSynced)
 	}
 
-	return c
+	return c, nil
 }
 
 // ImagePrunerController keeps track of openshift image pruner components.

@@ -49,7 +49,7 @@ func NewImageConfigController(
 	operatorClient v1helpers.OperatorClient,
 	routeInformer routev1informers.RouteInformer,
 	serviceInformer corev1informers.ServiceInformer,
-) *ImageConfigController {
+) (*ImageConfigController, error) {
 	icc := &ImageConfigController{
 		configClient:   configClient,
 		operatorClient: operatorClient,
@@ -58,13 +58,17 @@ func NewImageConfigController(
 		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
 	}
 
-	serviceInformer.Informer().AddEventHandler(icc.eventHandler())
+	if _, err := serviceInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
+		return nil, err
+	}
 	icc.cachesToSync = append(icc.cachesToSync, serviceInformer.Informer().HasSynced)
 
-	routeInformer.Informer().AddEventHandler(icc.eventHandler())
+	if _, err := routeInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
+		return nil, err
+	}
 	icc.cachesToSync = append(icc.cachesToSync, routeInformer.Informer().HasSynced)
 
-	return icc
+	return icc, nil
 }
 
 func (icc *ImageConfigController) eventHandler() cache.ResourceEventHandler {

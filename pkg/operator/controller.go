@@ -78,7 +78,7 @@ func NewController(
 	configInformerFactory configinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
 	routeInformerFactory routeinformers.SharedInformerFactory,
-) *Controller {
+) (*Controller, error) {
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
 	c := &Controller{
@@ -174,11 +174,13 @@ func NewController(
 		},
 	} {
 		informer := ctor()
-		informer.AddEventHandler(c.handler())
+		if _, err := informer.AddEventHandler(c.handler()); err != nil {
+			return nil, err
+		}
 		c.cachesToSync = append(c.cachesToSync, informer.HasSynced)
 	}
 
-	return c
+	return c, nil
 }
 
 // Controller keeps track of openshift image registry components.
