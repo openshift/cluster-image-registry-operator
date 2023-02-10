@@ -4,7 +4,7 @@ PROG  := cluster-image-registry-operator
 
 GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
-GOLANGCI_LINT_VERSION = v1.24.0
+GOLANGCI_LINT_VERSION = v1.46.2
 
 GO_REQUIRED_MIN_VERSION = 1.16
 
@@ -43,7 +43,10 @@ verify: verify-gofmt verify-deps
 .PHONY: verify
 
 $(GOLANGCI_LINT):
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(dir $@) $(GOLANGCI_LINT_VERSION)
+	if [ ! -e $@ ] || ! $@ --version | grep -q $(patsubst v%,%,$(GOLANGCI_LINT_VERSION)); then \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(dir $@) $(GOLANGCI_LINT_VERSION); \
+	fi
+.PHONY: $(GOLANGCI_LINT)
 
 verify-golangci-lint: $(GOLANGCI_LINT)
 	GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GOLANGCI_LINT) run --timeout=300s ./cmd/... ./pkg/... ./test/...

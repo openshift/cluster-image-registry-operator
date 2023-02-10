@@ -3,6 +3,7 @@ package swift
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -19,7 +20,7 @@ import (
 	yamlv2 "gopkg.in/yaml.v2"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
 
@@ -63,19 +64,26 @@ func replaceEmpty(a string, b string) string {
 }
 
 // IsSwiftEnabled checks if Swift service is available for OpenStack platform
-func IsSwiftEnabled(listers *regopclient.Listers) bool {
+func IsSwiftEnabled(listers *regopclient.Listers) (bool, error) {
 	driver := NewDriver(&imageregistryv1.ImageRegistryConfigStorageSwift{}, listers)
 	conn, err := driver.getSwiftClient()
 	if err != nil {
-		klog.Errorf("swift storage inaccessible: %v", err)
-		return false
+		if errors.As(err, &ErrContainerEndpointNotFound{}) {
+			klog.Errorf("error connecting to Swift: %v", err)
+			return false, nil
+		}
+		klog.Errorf("error connecting to OpenStack: %v", err)
+		return false, err
 	}
+
 	// Try to list containers to make sure the user has required permissions to do that
-	if _, err = containers.List(conn, containers.ListOpts{}).AllPages(); err != nil {
+	if err := containers.List(conn, containers.ListOpts{}).EachPage(func(_ pagination.Page) (bool, error) {
+		return false, nil
+	}); err != nil {
 		klog.Errorf("error listing swift containers: %v", err)
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
 // GetConfig reads credentials
@@ -84,7 +92,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 
 	// Look for a user defined secret to get the Swift credentials
 	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apimachineryerrors.IsNotFound(err) {
 		// If no user defined credentials were provided, then try to find them in the secret,
 		// created by cloud-credential-operator.
 		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
@@ -103,7 +111,7 @@ func GetConfig(listers *regopclient.Listers) (*Swift, error) {
 			var cloudName string
 			cloudInfra, err := util.GetInfrastructure(listers)
 			if err != nil {
-				if !errors.IsNotFound(err) {
+				if !apimachineryerrors.IsNotFound(err) {
 					return nil, fmt.Errorf("failed to get cluster infrastructure info: %v", err)
 				}
 			}
@@ -177,6 +185,15 @@ func getCloudProviderCert(listers *regopclient.Listers) (string, error) {
 	return string(cm.Data["ca-bundle.pem"]), nil
 }
 
+type ErrContainerEndpointNotFound struct {
+	wrapped error
+}
+
+func (err ErrContainerEndpointNotFound) Unwrap() error { return err.wrapped }
+func (err ErrContainerEndpointNotFound) Error() string {
+	return fmt.Sprintf("container endpoint not found in the OpenStack catalog: %v", err.wrapped)
+}
+
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
 func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 	cfg, err := GetConfig(d.Listers)
@@ -206,18 +223,18 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
-		return nil, fmt.Errorf("Create new provider client failed: %v", err)
+		return nil, fmt.Errorf("failed to create a new OpenStack provider client: %w", err)
 	}
 
 	cert, err := getCloudProviderCert(d.Listers)
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !apimachineryerrors.IsNotFound(err) {
 		return nil, fmt.Errorf("Failed to get cloud provider CA certificate: %v", err)
 	}
 
 	if cert != "" {
 		certPool, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("Create system cert pool failed: %v", err)
+			return nil, fmt.Errorf("failed to read the system cert pool: %w", err)
 		}
 		certPool.AppendCertsFromPEM([]byte(cert))
 		client := http.Client{
@@ -232,7 +249,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 
 	err = openstack.Authenticate(provider, *opts)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to authenticate provider client: %v", err)
+		return nil, fmt.Errorf("failed to authenticate against OpenStack: %w", err)
 	}
 
 	endpointOpts := gophercloud.EndpointOpts{
@@ -240,16 +257,34 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 		Name:   "swift",
 	}
 
-	var client *gophercloud.ServiceClient
-	client, err = openstack.NewContainerV1(provider, endpointOpts)
-	if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
-		endpointOpts.Type = "object-store"
-		client, err = openstack.NewContainerV1(provider, endpointOpts)
-		if err != nil {
-			return nil, err
+	client, err := openstack.NewContainerV1(provider, endpointOpts)
+	if err != nil {
+		if _, ok := err.(*gophercloud.ErrEndpointNotFound); ok {
+			// In gophercloud the default endpoint type for
+			// containers is "container". However, some OpenStack
+			// clouds are deployed with a single endpoint type for
+			// all Swift entities - "object-store".
+			//
+			// If a "container" endpoint is not found, then try
+			// "object-store".
+			endpointOpts.Type = "object-store"
+
+			var errOnAlternativeEndpoint error
+			client, errOnAlternativeEndpoint = openstack.NewContainerV1(provider, endpointOpts)
+			if errOnAlternativeEndpoint != nil {
+				if _, ok := errOnAlternativeEndpoint.(*gophercloud.ErrEndpointNotFound); ok {
+					// If none of the endpoints is found, then
+					// return the error we got on the default one
+					// so that we limit confusion on the error
+					// trace.
+					return nil, ErrContainerEndpointNotFound{err}
+				} else {
+					return nil, fmt.Errorf("failed to get the object storage alternative endpoint: %w", errOnAlternativeEndpoint)
+				}
+			}
+			return client, nil
 		}
-	} else if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get the object storage endpoint: %w", err)
 	}
 
 	return client, nil
