@@ -1,8 +1,12 @@
 package azure
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -12,6 +16,7 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
+	"github.com/google/go-cmp/cmp"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -326,6 +331,138 @@ func TestConfigEnvWithUserKey(t *testing.T) {
 		if e.Value != value {
 			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
 		}
+	}
+}
+
+// custom sender for mocking
+type sender struct {
+	response []*http.Response
+	body     string
+}
+
+// Do implements the Sender interface for mocking
+// Do accepts the passed request and body, then appends the response and emits it.
+func (s *sender) Do(r *http.Request) (*http.Response, error) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Request:    r,
+		Body:       io.NopCloser(bytes.NewBufferString(s.body)),
+	}
+	s.response = append(s.response, resp)
+	return resp, nil
+}
+
+func TestUserProvidedTags(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		userTags     []configv1.AzureResourceTag
+		expectedTags map[string]string
+		infraName    string
+		responseBody string
+	}{
+		{
+			name:      "no-user-tags",
+			infraName: "some-infra",
+			// only default tags
+			expectedTags: map[string]string{
+				"kubernetes.io_cluster.some-infra": "owned",
+			},
+			responseBody: `{"nameAvailable":true}`,
+		},
+		{
+			name:      "with-user-tags",
+			infraName: "test-infra",
+			userTags: []configv1.AzureResourceTag{
+				{
+					Key:   "tag1",
+					Value: "value1",
+				},
+				{
+					Key:   "tag2",
+					Value: "value2",
+				},
+			},
+			// default tags and user tags
+			expectedTags: map[string]string{
+				"kubernetes.io_cluster.test-infra": "owned",
+				"tag1":                             "value1",
+				"tag2":                             "value2",
+			},
+			responseBody: `{"nameAvailable":true}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := &sender{
+				body: tt.responseBody,
+			}
+
+			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
+
+			drv := NewDriver(context.Background(), storageConfig, nil)
+			drv.authorizer = autorest.NullAuthorizer{}
+			drv.sender = sender
+
+			_, _, err := drv.assureStorageAccount(
+				&Azure{
+					SubscriptionID: "subscription-id",
+					ResourceGroup:  "resource-group",
+				},
+				&configv1.Infrastructure{
+					Status: configv1.InfrastructureStatus{
+						InfrastructureName: tt.infraName,
+						Platform:           configv1.AzurePlatformType,
+						PlatformStatus: &configv1.PlatformStatus{
+							Type: configv1.AzurePlatformType,
+							Azure: &configv1.AzurePlatformStatus{
+								ResourceTags: tt.userTags,
+							},
+						},
+					},
+				},
+			)
+			if err != nil {
+				t.Errorf("unexpected error %q", err)
+			}
+
+			// flag to confirm presence of tags
+			foundTags := false
+
+			for _, resp := range sender.response {
+				if resp != nil && resp.Request != nil && resp.Request.Body != nil {
+
+					reqBody := make(map[string]interface{})
+					if err := json.NewDecoder(resp.Request.Body).Decode(&reqBody); err != nil {
+						t.Fatalf("error decoding request: %q", err)
+					}
+
+					// ignore request without tags
+					if _, ok := reqBody["tags"]; ok {
+						foundTags = true
+
+						tags, ok := reqBody["tags"].(map[string]interface{})
+						if !ok {
+							t.Fatal("unable to type assert tags field")
+						}
+						// convert into correct type
+						receivedTags := make(map[string]string)
+						for k, v := range tags {
+							receivedTags[k] = fmt.Sprintf("%+v", v)
+						}
+
+						// compare the tags
+						if !reflect.DeepEqual(tt.expectedTags, receivedTags) {
+							t.Fatalf(
+								"unexpected tags: %s",
+								cmp.Diff(tt.expectedTags, receivedTags),
+							)
+						}
+					}
+				}
+			}
+			if !foundTags {
+				t.Fatal("no tags present in the request")
+			}
+		})
 	}
 }
 

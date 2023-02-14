@@ -154,7 +154,7 @@ func (d *driver) accountExists(storageAccountsClient storage.AccountsClient, acc
 	)
 }
 
-func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location, cloudName string) error {
+func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location, cloudName string, tagset map[string]*string) error {
 	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
 
 	kind := storage.StorageV2
@@ -181,6 +181,7 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 				Name: storage.StandardLRS,
 			},
 			AccountPropertiesCreateParameters: params,
+			Tags:                              tagset,
 		},
 	)
 	if err != nil {
@@ -485,9 +486,9 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return !reflect.DeepEqual(cr.Status.Storage.Azure, cr.Spec.Storage.Azure)
 }
 
-// assureStorageAccount makes sure there is a storage account in place. If no storage account name
-// is provided it attempts to generate one. Returns the account name (either the one provided or
-// the one generated), if the account was created or was already there and an error.
+// assureStorageAccount makes sure there is a storage account in place and apply any provided tags.
+// If no storage account name is provided it attempts to generate one. Returns the account name
+// (either the one provided or the one generated), if the account was created or was already there and an error.
 func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure) (string, bool, error) {
 	environment, err := getEnvironmentByName(d.Config.CloudName)
 	if err != nil {
@@ -516,13 +517,33 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 		return "", false, fmt.Errorf("create storage account failed, name not available")
 	}
 
+	// Tag the storage account with the openshiftClusterID
+	// along with any user defined tags from the cluster configuration
+	klog.V(2).Info("setting azure storage account tags")
+
+	tagset := map[string]*string{
+		fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
+	}
+
+	// at this stage we are not keeping user tags in sync. as per enhancement proposal
+	// we only set user provided tags when we created the bucket.
+	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
+	if hasAzureStatus {
+		klog.V(5).Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
+		for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
+			klog.V(5).Infof("user has provided storage account tag: %s: %s", tag.Key, tag.Value)
+			tagset[tag.Key] = to.StringPtr(tag.Value)
+		}
+	}
+	klog.V(5).Infof("tagging storage account with tags: %+v", tagset)
+
 	// regardless if the storage account name was provided by the user or we generated it,
 	// if it is available, we do attempt to create it.
 	var storageAccountCreated bool
 	if *result.NameAvailable {
 		storageAccountCreated = true
 		if err := d.createStorageAccount(
-			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName,
+			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName, tagset,
 		); err != nil {
 			return "", false, err
 		}
