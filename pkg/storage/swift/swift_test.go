@@ -2,6 +2,7 @@ package swift
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -889,7 +890,9 @@ func TestSwiftIsAvailable(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	th.AssertEquals(t, true, IsSwiftEnabled(listers))
+	isSwiftEnabled, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, true, isSwiftEnabled)
 }
 
 func TestSwiftIsNotAvailable(t *testing.T) {
@@ -932,8 +935,11 @@ func TestSwiftIsNotAvailable(t *testing.T) {
 
 	_, err := d.getSwiftClient()
 	// if Swift endpoint is not registered, getSwiftClient should return *ErrEndpointNotFound
-	_, ok := err.(*gophercloud.ErrEndpointNotFound)
-	th.AssertEquals(t, true, ok)
+	gophercloudNotFound := new(gophercloud.ErrEndpointNotFound)
+	th.AssertEquals(t, true, errors.As(err, &gophercloudNotFound))
+
+	// ...which should be reported as the sentinel error type ErrContainerEndpointNotFound
+	th.AssertEquals(t, true, errors.As(err, &ErrContainerEndpointNotFound{}))
 
 	// IsSwiftEnabled should return false in this case
 	listers := &regopclient.Listers{
@@ -941,7 +947,9 @@ func TestSwiftIsNotAvailable(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	th.AssertEquals(t, false, IsSwiftEnabled(listers))
+	isSwiftEnabled, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, isSwiftEnabled)
 }
 
 func TestNoPermissionsKeystone(t *testing.T) {
@@ -991,7 +999,9 @@ func TestNoPermissionsKeystone(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	th.AssertEquals(t, false, IsSwiftEnabled(listers))
+	isSwiftEnabled, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, isSwiftEnabled)
 }
 
 func TestNoPermissionsSwauth(t *testing.T) {
@@ -1041,7 +1051,9 @@ func TestNoPermissionsSwauth(t *testing.T) {
 		Infrastructures: fakeInfrastructureLister(cloudName),
 		OpenShiftConfig: MockConfigMapNamespaceLister{},
 	}
-	th.AssertEquals(t, false, IsSwiftEnabled(listers))
+	isSwiftEnabled, err := IsSwiftEnabled(listers)
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, false, isSwiftEnabled)
 }
 
 func TestConfigStatusUpdate(t *testing.T) {
