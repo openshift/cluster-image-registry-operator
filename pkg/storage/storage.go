@@ -185,7 +185,6 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 		configapiv1.NutanixPlatformType,
 		configapiv1.KubevirtPlatformType,
 		configapiv1.EquinixMetalPlatformType,
-		configapiv1.PowerVSPlatformType,
 		configapiv1.ExternalPlatformType:
 		break
 
@@ -201,6 +200,7 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}
 		replicas = 2
 	case configapiv1.IBMCloudPlatformType:
+	case configapiv1.PowerVSPlatformType:
 		cfg.IBMCOS = &imageregistryv1.ImageRegistryConfigStorageIBMCOS{}
 		replicas = 2
 	case configapiv1.OpenStackPlatformType:

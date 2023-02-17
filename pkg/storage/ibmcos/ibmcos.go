@@ -111,8 +111,16 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 	}
 
 	var clusterLocation string
-	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType {
-		clusterLocation = infra.Status.PlatformStatus.IBMCloud.Location
+	if infra.Status.PlatformStatus != nil {
+		if infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType {
+			clusterLocation = infra.Status.PlatformStatus.IBMCloud.Location
+		}
+		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType {
+			clusterLocation, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// Use cluster defaults when custom config doesn't define values
@@ -135,8 +143,19 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Set configs from Infrastructure
-	d.Config.Location = infra.Status.PlatformStatus.IBMCloud.Location
-	d.Config.ResourceGroupName = infra.Status.PlatformStatus.IBMCloud.ResourceGroupName
+	if infra.Status.PlatformStatus != nil {
+		if infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType {
+			d.Config.Location = infra.Status.PlatformStatus.IBMCloud.Location
+			d.Config.ResourceGroupName = infra.Status.PlatformStatus.IBMCloud.ResourceGroupName
+		}
+		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType {
+			d.Config.Location, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			if err != nil {
+				return err
+			}
+			d.Config.ResourceGroupName = infra.Status.PlatformStatus.PowerVS.ResourceGroup
+		}
+	}
 
 	// Initialize IBMCOS status
 	if cr.Status.Storage.IBMCOS == nil {
@@ -672,8 +691,16 @@ func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
 	}
 
 	IBMCOSLocation := imageregistryv1.ImageRegistryConfigStorageIBMCOS{}.Location
-	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType {
-		IBMCOSLocation = infra.Status.PlatformStatus.IBMCloud.Location
+	if infra.Status.PlatformStatus != nil {
+		if infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType {
+			IBMCOSLocation = infra.Status.PlatformStatus.IBMCloud.Location
+		}
+		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType {
+			IBMCOSLocation, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	if IBMCOSLocation == "" {
