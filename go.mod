@@ -27,7 +27,7 @@ require (
 	github.com/gophercloud/utils v0.0.0-20221124081324-7bac6f5cdf99
 	github.com/goware/urlx v0.3.2
 	github.com/jongio/azidext/go/azidext v0.4.0
-	github.com/openshift/api v0.0.0-20230210191657-68f4ffcda083
+	github.com/openshift/api v0.0.0-20230213202419-42edf4f1d905
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
 	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084
 	github.com/openshift/library-go v0.0.0-20230120214501-9bc305884fcb

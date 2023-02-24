@@ -465,7 +465,7 @@ github.com/munnerz/goautoneg
 github.com/oklog/ulid
 # github.com/onsi/ginkgo v1.16.4
 ## explicit; go 1.15
-# github.com/openshift/api v0.0.0-20230210191657-68f4ffcda083
+# github.com/openshift/api v0.0.0-20230213202419-42edf4f1d905
 ## explicit; go 1.19
 github.com/openshift/api
 github.com/openshift/api/apiserver
