@@ -15,6 +15,7 @@ import (
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	imagev1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 	clientimageregistryv1 "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
+	machinev1beta1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 	clientroutev1 "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -30,8 +31,9 @@ type Clientset struct {
 	clientstoragev1.StorageV1Interface
 	clientbatchv1.BatchV1Interface
 	clientcoordinationv1.CoordinationV1Interface
-	ImageInterface imagev1.ImageV1Interface
-	BuildInterface buildv1.BuildV1Interface
+	ImageInterface      imagev1.ImageV1Interface
+	BuildInterface      buildv1.BuildV1Interface
+	MachineSetInterface machinev1beta1.MachineSetInterface
 }
 
 // NewClientset creates a set of Kubernetes clients. The default kubeconfig is
@@ -85,6 +87,11 @@ func NewClientset(kubeconfig *restclient.Config) (clientset *Clientset, err erro
 	if err != nil {
 		return
 	}
+	machineClient, err := machinev1beta1.NewForConfig(kubeconfig)
+	if err != nil {
+		return
+	}
+	clientset.MachineSetInterface = machineClient.MachineSets("openshift-machine-api")
 	return
 }
 

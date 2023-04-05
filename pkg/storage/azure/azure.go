@@ -35,6 +35,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
@@ -173,6 +174,10 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
 
 	kind := storage.StorageV2
+	// NOTE: looks like this legacy version of the storage library does not support
+	// disabling public network access at all... either we update the storage
+	// account after creation using the new sdk, or we use the new sdk to create it
+	// outside of azure stack hub, and the old sdk for azure stack hub.
 	params := &storage.AccountPropertiesCreateParameters{
 		EnableHTTPSTrafficOnly: to.BoolPtr(true),
 		AllowBlobPublicAccess:  to.BoolPtr(false),
@@ -540,10 +545,89 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 	return !reflect.DeepEqual(cr.Status.Storage.Azure, cr.Spec.Storage.Azure)
 }
 
+func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure, tagset map[string]*string, accountName string) (string, error) {
+	if d.Config.NetworkAccess == nil || d.Config.NetworkAccess.Type == imageregistryv1.AzureNetworkAccessTypeExternal {
+		// user did not request private storage account setup - skip.
+		return "", nil
+	}
+	if d.Config.NetworkAccess.Internal.VNetName == "" || d.Config.NetworkAccess.Internal.SubnetName == "" {
+		return "", fmt.Errorf("both vnetName and subnetName are required to setup a private storage account")
+	}
+
+	var privateEndpointName string
+	if d.Config.NetworkAccess.Internal != nil && d.Config.NetworkAccess.Internal.PrivateEndpointName != "" {
+		privateEndpointName = d.Config.NetworkAccess.Internal.PrivateEndpointName
+	} else {
+		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
+	}
+
+	environment, err := getEnvironmentByName(d.Config.CloudName)
+	if err != nil {
+		return "", err
+	}
+
+	azclient, err := azureclient.New(&azureclient.Options{
+		Environment:        environment,
+		TenantID:           cfg.TenantID,
+		ClientID:           cfg.ClientID,
+		ClientSecret:       cfg.ClientSecret,
+		FederatedTokenFile: cfg.FederatedTokenFile,
+		SubscriptionID:     cfg.SubscriptionID,
+		ResourceGroupName:  cfg.ResourceGroup,
+		TagSet:             tagset,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	// the last step in this function is to disable public network for the
+	// storage account - if we already did that, then none of the steps
+	// below need to be executed.
+	if azclient.IsStorageAccountPrivate(d.Context, accountName) {
+		return privateEndpointName, nil
+	}
+
+	klog.V(3).Infof("configuring private endpoint %q for storage account...", privateEndpointName)
+	pe, err := azclient.CreatePrivateEndpoint(
+		d.Context,
+		&azureclient.PrivateEndpointCreateOptions{
+			Location:            cfg.Region,
+			VNetName:            d.Config.NetworkAccess.Internal.VNetName,
+			SubnetName:          d.Config.NetworkAccess.Internal.SubnetName,
+			PrivateEndpointName: privateEndpointName,
+			StorageAccountName:  accountName,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	klog.V(3).Info("private endpoint configured")
+
+	klog.V(3).Info("configuring private DNS...")
+	if err := azclient.ConfigurePrivateDNS(
+		d.Context, pe, d.Config.NetworkAccess.Internal.VNetName, accountName,
+	); err != nil {
+		return privateEndpointName, err
+	}
+	klog.V(3).Info("private DNS configured")
+
+	klog.V(3).Infof("disabling public network access for storage account %q...", accountName)
+	if err := azclient.UpdateStorageAccountNetworkAccess(d.Context, accountName, false); err != nil {
+		return privateEndpointName, err
+	}
+
+	klog.Infof(
+		"storage account %q is now served by private endpoint %q. public network access is disabled",
+		accountName, privateEndpointName,
+	)
+
+	return privateEndpointName, nil
+}
+
 // assureStorageAccount makes sure there is a storage account in place and apply any provided tags.
 // If no storage account name is provided it attempts to generate one. Returns the account name
 // (either the one provided or the one generated), if the account was created or was already there and an error.
-func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure) (string, bool, error) {
+func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure, tagset map[string]*string) (string, bool, error) {
 	environment, err := getEnvironmentByName(d.Config.CloudName)
 	if err != nil {
 		return "", false, err
@@ -570,26 +654,6 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 	if accountNameGenerated && !*result.NameAvailable {
 		return "", false, fmt.Errorf("create storage account failed, name not available")
 	}
-
-	// Tag the storage account with the openshiftClusterID
-	// along with any user defined tags from the cluster configuration
-	klog.V(2).Info("setting azure storage account tags")
-
-	tagset := map[string]*string{
-		fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
-	}
-
-	// at this stage we are not keeping user tags in sync. as per enhancement proposal
-	// we only set user provided tags when we created the bucket.
-	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
-	if hasAzureStatus {
-		klog.V(5).Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
-		for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
-			klog.V(5).Infof("user has provided storage account tag: %s: %s", tag.Key, tag.Value)
-			tagset[tag.Key] = to.StringPtr(tag.Value)
-		}
-	}
-	klog.V(5).Infof("tagging storage account with tags: %+v", tagset)
 
 	// regardless if the storage account name was provided by the user or we generated it,
 	// if it is available, we do attempt to create it.
@@ -743,7 +807,26 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 	}
 
-	storageAccountName, storageAccountCreated, err := d.assureStorageAccount(cfg, infra)
+	// Tag the storage account with the openshiftClusterID
+	// along with any user defined tags from the cluster configuration
+	klog.V(2).Info("setting azure storage account tags")
+	tagset := map[string]*string{
+		fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName): to.StringPtr("owned"),
+	}
+
+	// at this stage we are not keeping user tags in sync. as per enhancement proposal
+	// we only set user provided tags when we created the bucket.
+	hasAzureStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Azure != nil && infra.Status.PlatformStatus.Azure.ResourceTags != nil
+	if hasAzureStatus {
+		klog.V(5).Infof("user has provided %d tags", len(infra.Status.PlatformStatus.Azure.ResourceTags))
+		for _, tag := range infra.Status.PlatformStatus.Azure.ResourceTags {
+			klog.V(5).Infof("user has provided storage account tag: %s: %s", tag.Key, tag.Value)
+			tagset[tag.Key] = to.StringPtr(tag.Value)
+		}
+	}
+	klog.V(5).Infof("tagging storage account with tags: %+v", tagset)
+
+	storageAccountName, storageAccountCreated, err := d.assureStorageAccount(cfg, infra, tagset)
 	if err != nil {
 		util.UpdateCondition(
 			cr,
@@ -768,6 +851,26 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 	d.Config.Container = containerName
+
+	privateEndpointName, err := d.assurePrivateAccount(cfg, infra, tagset, storageAccountName)
+	if err != nil {
+		util.UpdateCondition(
+			cr,
+			defaults.StorageExists,
+			operatorapiv1.ConditionUnknown,
+			storageExistsReasonAzureError,
+			fmt.Sprintf("Unable to process private endpoint: %s", err),
+		)
+		return err
+	}
+	if privateEndpointName != "" {
+		// in most cases, a call to d.assurePrivateAccount will not result
+		// in the creation of a private endpoint. this will only happen
+		// when users explicitly request so by setting
+		// VNetName and SubnetName
+		// in the registry config. only then we set the private endpoint name.
+		d.Config.NetworkAccess.Internal.PrivateEndpointName = privateEndpointName
+	}
 
 	// We only set the storage management if it is not already set.
 	if cr.Spec.Storage.ManagementState == "" {
@@ -819,6 +922,56 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
 		return false, err
+	}
+
+	if d.Config.NetworkAccess != nil && d.Config.NetworkAccess.Internal != nil && d.Config.NetworkAccess.Internal.PrivateEndpointName != "" {
+		azclient, err := azureclient.New(&azureclient.Options{
+			Environment:        environment,
+			TenantID:           cfg.TenantID,
+			ClientID:           cfg.ClientID,
+			ClientSecret:       cfg.ClientSecret,
+			FederatedTokenFile: cfg.FederatedTokenFile,
+			SubscriptionID:     cfg.SubscriptionID,
+			ResourceGroupName:  cfg.ResourceGroup,
+		})
+		if err != nil {
+			util.UpdateCondition(
+				cr,
+				defaults.StorageExists,
+				operatorapiv1.ConditionUnknown,
+				storageExistsReasonAzureError,
+				fmt.Sprintf("Unable to get azure client: %s", err),
+			)
+			return false, err
+		}
+		if err := azclient.DestroyPrivateDNS(
+			d.Context,
+			d.Config.NetworkAccess.Internal.PrivateEndpointName,
+			d.Config.NetworkAccess.Internal.VNetName,
+			d.Config.AccountName,
+		); err != nil {
+			util.UpdateCondition(
+				cr,
+				defaults.StorageExists,
+				operatorapiv1.ConditionUnknown,
+				storageExistsReasonAzureError,
+				fmt.Sprintf("Unable to destroy private dns: %q", err),
+			)
+			return false, err
+		}
+		if err := azclient.DeletePrivateEndpoint(
+			d.Context, d.Config.NetworkAccess.Internal.PrivateEndpointName,
+		); err != nil {
+			util.UpdateCondition(
+				cr,
+				defaults.StorageExists,
+				operatorapiv1.ConditionUnknown,
+				storageExistsReasonAzureError,
+				fmt.Sprintf("Unable to delete private endpoint: %q", err),
+			)
+			return false, err
+		}
+		d.Config.NetworkAccess = nil
 	}
 
 	if d.Config.Container != "" {
