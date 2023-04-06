@@ -4,6 +4,7 @@ kind: Namespace
 metadata:
   name: openshift-image-registry
   annotations:
+    capability.openshift.io/name: ImageRegistry
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
