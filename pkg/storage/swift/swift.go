@@ -39,6 +39,8 @@ type Swift struct {
 	Password                    string
 	Tenant                      string
 	TenantID                    string
+	TenantDomain                string
+	TenantDomainID              string
 	Domain                      string
 	DomainID                    string
 	RegionName                  string
@@ -86,72 +88,85 @@ func IsSwiftEnabled(listers *regopclient.StorageListers) (bool, error) {
 	return true, nil
 }
 
+func getCloudFromSecret(listers *regopclient.StorageListers) (*clientconfig.Cloud, error) {
+	// If no user defined credentials were provided, then try to find them in the secret,
+	// created by cloud-credential-operator.
+	sec, err := listers.Secrets.Get(defaults.CloudCredentialsName)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
+	}
+
+	// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
+	if cloudsData, ok := sec.Data["clouds.yaml"]; ok {
+		var clouds clientconfig.Clouds
+		err = yamlv2.Unmarshal(cloudsData, &clouds)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal clouds credentials: %v", err)
+		}
+
+		var cloudName string
+		cloudInfra, err := util.GetInfrastructure(listers)
+		if err != nil {
+			if !apimachineryerrors.IsNotFound(err) {
+				return nil, fmt.Errorf("failed to get cluster infrastructure info: %v", err)
+			}
+		}
+		if cloudInfra != nil &&
+			cloudInfra.Status.PlatformStatus != nil &&
+			cloudInfra.Status.PlatformStatus.OpenStack != nil {
+			cloudName = cloudInfra.Status.PlatformStatus.OpenStack.CloudName
+		}
+		if len(cloudName) == 0 {
+			cloudName = "openstack"
+		}
+
+		if cloud, ok := clouds.Clouds[cloudName]; ok {
+			return &cloud, nil
+		} else {
+			return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
+		}
+	} else {
+		return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
+	}
+}
+
 // GetConfig reads credentials
 func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 	cfg := &Swift{}
 
-	// Look for a user defined secret to get the Swift credentials
+	// Look first for a user defined secret to get the Swift credentials
 	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil && apimachineryerrors.IsNotFound(err) {
-		// If no user defined credentials were provided, then try to find them in the secret,
-		// created by cloud-credential-operator.
-		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
+		// Get the cloud authentication params from the image-registry managed secret
+		cloud, err := getCloudFromSecret(listers)
 		if err != nil {
-			return nil, fmt.Errorf("unable to get cluster minted credentials %q: %v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName), err)
+			return nil, err
 		}
-
-		// cloud-credential-operator is responsible for generating the clouds.yaml file and placing it in the local cloud creds secret.
-		if cloudsData, ok := sec.Data["clouds.yaml"]; ok {
-			var clouds clientconfig.Clouds
-			err = yamlv2.Unmarshal(cloudsData, &clouds)
-			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal clouds credentials: %v", err)
-			}
-
-			var cloudName string
-			cloudInfra, err := util.GetInfrastructure(listers)
-			if err != nil {
-				if !apimachineryerrors.IsNotFound(err) {
-					return nil, fmt.Errorf("failed to get cluster infrastructure info: %v", err)
-				}
-			}
-			if cloudInfra != nil &&
-				cloudInfra.Status.PlatformStatus != nil &&
-				cloudInfra.Status.PlatformStatus.OpenStack != nil {
-				cloudName = cloudInfra.Status.PlatformStatus.OpenStack.CloudName
-			}
-			if len(cloudName) == 0 {
-				cloudName = "openstack"
-			}
-
-			if cloud, ok := clouds.Clouds[cloudName]; ok {
-				cfg.AuthURL = cloud.AuthInfo.AuthURL
-				cfg.Username = cloud.AuthInfo.Username
-				cfg.Password = cloud.AuthInfo.Password
-				cfg.ApplicationCredentialID = cloud.AuthInfo.ApplicationCredentialID
-				cfg.ApplicationCredentialName = cloud.AuthInfo.ApplicationCredentialName
-				cfg.ApplicationCredentialSecret = cloud.AuthInfo.ApplicationCredentialSecret
-				cfg.Tenant = cloud.AuthInfo.ProjectName
-				cfg.TenantID = cloud.AuthInfo.ProjectID
-				cfg.Domain = cloud.AuthInfo.DomainName
-				cfg.DomainID = cloud.AuthInfo.DomainID
-				if cfg.Domain == "" {
-					cfg.Domain = cloud.AuthInfo.UserDomainName
-				}
-				if cfg.DomainID == "" {
-					cfg.DomainID = cloud.AuthInfo.UserDomainID
-				}
-				cfg.RegionName = cloud.RegionName
-				cfg.IdentityAPIVersion = cloud.IdentityAPIVersion
-			} else {
-				return nil, fmt.Errorf("clouds.yaml does not contain required cloud \"openstack\"")
-			}
-		} else {
-			return nil, fmt.Errorf("secret %q does not contain required key \"clouds.yaml\"", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.CloudCredentialsName))
+		cfg.AuthURL = cloud.AuthInfo.AuthURL
+		cfg.Username = cloud.AuthInfo.Username
+		cfg.Password = cloud.AuthInfo.Password
+		cfg.ApplicationCredentialID = cloud.AuthInfo.ApplicationCredentialID
+		cfg.ApplicationCredentialName = cloud.AuthInfo.ApplicationCredentialName
+		cfg.ApplicationCredentialSecret = cloud.AuthInfo.ApplicationCredentialSecret
+		cfg.Tenant = cloud.AuthInfo.ProjectName
+		cfg.TenantID = cloud.AuthInfo.ProjectID
+		cfg.TenantDomain = cloud.AuthInfo.ProjectDomainName
+		cfg.TenantDomainID = cloud.AuthInfo.ProjectDomainID
+		cfg.Domain = cloud.AuthInfo.DomainName
+		cfg.DomainID = cloud.AuthInfo.DomainID
+		if cfg.Domain == "" {
+			cfg.Domain = cloud.AuthInfo.UserDomainName
 		}
+		if cfg.DomainID == "" {
+			cfg.DomainID = cloud.AuthInfo.UserDomainID
+		}
+		cfg.RegionName = cloud.RegionName
+		cfg.IdentityAPIVersion = cloud.IdentityAPIVersion
 	} else if err != nil {
+		// Failed to retrieve secret
 		return nil, err
 	} else {
+		// Got user-managed secret
 		cfg.Username, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_USERNAME")
 		if err != nil {
 			return nil, err
@@ -205,30 +220,26 @@ func (err ErrContainerEndpointNotFound) Error() string {
 
 // getSwiftClient returns a client that allows to interact with the OpenStack Swift service
 func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
-	cfg, err := GetConfig(d.Listers)
+	clientOpts := new(clientconfig.ClientOpts)
+
+	cloud, err := getCloudFromSecret(d.Listers)
 	if err != nil {
 		return nil, err
 	}
 
-	authURL := replaceEmpty(d.Config.AuthURL, cfg.AuthURL)
-	tenant := replaceEmpty(d.Config.Tenant, cfg.Tenant)
-	tenantID := replaceEmpty(d.Config.TenantID, cfg.TenantID)
-	domain := replaceEmpty(d.Config.Domain, cfg.Domain)
-	domainID := replaceEmpty(d.Config.DomainID, cfg.DomainID)
-	regionName := replaceEmpty(d.Config.RegionName, cfg.RegionName)
-
-	opts := &gophercloud.AuthOptions{
-		IdentityEndpoint:            authURL,
-		Username:                    cfg.Username,
-		Password:                    cfg.Password,
-		ApplicationCredentialID:     cfg.ApplicationCredentialID,
-		ApplicationCredentialName:   cfg.ApplicationCredentialName,
-		ApplicationCredentialSecret: cfg.ApplicationCredentialSecret,
-		DomainID:                    domainID,
-		DomainName:                  domain,
-		TenantID:                    tenantID,
-		TenantName:                  tenant,
+	if cloud.AuthInfo != nil {
+		clientOpts.AuthInfo = cloud.AuthInfo
+		clientOpts.AuthType = cloud.AuthType
+		clientOpts.Cloud = cloud.Cloud
+		clientOpts.RegionName = cloud.RegionName
 	}
+
+	opts, err := clientconfig.AuthOptions(clientOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	opts.AllowReauth = true
 
 	provider, err := openstack.NewClient(opts.IdentityEndpoint)
 	if err != nil {
@@ -263,7 +274,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 	}
 
 	endpointOpts := gophercloud.EndpointOpts{
-		Region: regionName,
+		Region: cloud.RegionName,
 		Name:   "swift",
 	}
 
@@ -355,6 +366,12 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	}
 	if tenantID != "" {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTID", Value: tenantID})
+	}
+	if cfg.TenantDomain != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTDOMAIN", Value: cfg.TenantDomain})
+	}
+	if cfg.TenantDomainID != "" {
+		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TENANTDOMAINID", Value: cfg.TenantDomainID})
 	}
 	if regionName != "" {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_REGION", Value: regionName})
