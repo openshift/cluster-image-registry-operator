@@ -48,7 +48,7 @@ func TestGCSDay2(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(&mockLister.StorageListers)
+	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}

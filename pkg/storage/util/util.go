@@ -12,6 +12,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -60,8 +61,8 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 
 // GetInfrastructure gets information about the cloud platform that the cluster is
 // installed on including the Type, Region, and other platform specific information.
-func GetInfrastructure(listers *regopclient.StorageListers) (*configv1.Infrastructure, error) {
-	return listers.Infrastructures.Get("cluster")
+func GetInfrastructure(lister configlisters.InfrastructureLister) (*configv1.Infrastructure, error) {
+	return lister.Get("cluster")
 }
 
 // GetValueFromSecret gets value for key in a secret
@@ -77,7 +78,7 @@ func GetValueFromSecret(sec *corev1.Secret, key string) (string, error) {
 // medium that the registry will use
 func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...string) (string, error) {
 	// Get the infrastructure name
-	infra, err := GetInfrastructure(listers)
+	infra, err := GetInfrastructure(listers.Infrastructures)
 	if err != nil {
 		return "", err
 	}

@@ -170,7 +170,7 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)
 
-	infra, err := util.GetInfrastructure(listers)
+	infra, err := util.GetInfrastructure(listers.Infrastructures)
 	if err != nil {
 		return imageregistryv1.ImageRegistryConfigStorage{}, replicas, err
 	}

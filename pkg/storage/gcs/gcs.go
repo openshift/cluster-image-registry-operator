@@ -85,7 +85,7 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 func GetConfig(listers *regopclient.StorageListers) (*GCS, error) {
 	gcsConfig := &GCS{}
 
-	infra, err := util.GetInfrastructure(listers)
+	infra, err := util.GetInfrastructure(listers.Infrastructures)
 	if err != nil {
 		return nil, err
 	}

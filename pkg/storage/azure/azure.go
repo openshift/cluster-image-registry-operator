@@ -668,7 +668,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return nil
 	}
 
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(
 			cr,
