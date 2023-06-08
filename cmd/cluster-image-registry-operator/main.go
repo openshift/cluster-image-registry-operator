@@ -4,10 +4,8 @@ import (
 	"context"
 	"flag"
 	"log"
-	"math/rand"
 	"os"
 	"runtime"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -63,7 +61,6 @@ func main() {
 				func(ctx context.Context, cctx *controllercmd.ControllerContext) error {
 					printVersion()
 					klog.Infof("Watching files %v...", filesToWatch)
-					rand.Seed(time.Now().UnixNano())
 					go metrics.RunServer(metricsPort)
 					return operator.RunOperator(ctx, cctx.KubeConfig)
 				},
