@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/go-autorest/autorest/mocks"
 	"github.com/google/go-cmp/cmp"
 
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -159,8 +160,9 @@ func TestGetConfig(t *testing.T) {
 				_ = indexer.Add(o)
 			}
 			lister := corev1listers.NewSecretLister(indexer)
+			infraLister := fakeInfrastructureLister("resource-group-123")
 
-			result, err := GetConfig(lister.Secrets("test"))
+			result, err := GetConfig(lister.Secrets("test"), infraLister)
 			if len(tt.err) != 0 {
 				if err == nil {
 					t.Errorf("expected err %q, nil received instead", tt.err)
@@ -180,6 +182,29 @@ func TestGetConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func fakeInfrastructureLister(resourceGroup string) configlisters.InfrastructureLister {
+	fakeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	err := fakeIndexer.Add(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: "user-j45xj",
+			Platform:           configv1.OpenStackPlatformType,
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AzurePlatformType,
+				Azure: &configv1.AzurePlatformStatus{
+					ResourceGroupName: resourceGroup,
+				},
+			},
+		},
+	})
+	if err != nil {
+		panic(err) // should never happen
+	}
+	return configlisters.NewInfrastructureLister(fakeIndexer)
 }
 
 func TestGenerateAccountName(t *testing.T) {

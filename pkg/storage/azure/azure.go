@@ -30,6 +30,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -82,7 +83,7 @@ func (e *errDoesNotExist) Error() string {
 // load credentials from ImageRegistryPrivateConfigurationUser secret, if this secret is not
 // present this function loads credentials from cluster wide config present on secret
 // CloudCredentialsName.
-func GetConfig(secLister kcorelisters.SecretNamespaceLister) (*Azure, error) {
+func GetConfig(secLister kcorelisters.SecretNamespaceLister, infraLister configlisters.InfrastructureLister) (*Azure, error) {
 	sec, err := secLister.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -361,7 +362,7 @@ func (d *driver) CABundle() (string, bool, error) {
 // ConfigEnv configures the environment variables that will be used in the
 // image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +450,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
@@ -649,7 +650,7 @@ func (d *driver) processUPI(cr *imageregistryv1.Config) {
 
 // CreateStorage attempts to create a storage account and a storage container.
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(
 			cr,
@@ -749,7 +750,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
