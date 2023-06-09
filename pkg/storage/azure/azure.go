@@ -60,12 +60,13 @@ var storageAccountInvalidCharRe = regexp.MustCompile(`[^0-9A-Za-z]`)
 // Azure holds configuration used to reach Azure's endpoints.
 type Azure struct {
 	// IPI
-	SubscriptionID string
-	ClientID       string
-	ClientSecret   string
-	TenantID       string
-	ResourceGroup  string
-	Region         string
+	SubscriptionID     string
+	ClientID           string
+	ClientSecret       string
+	TenantID           string
+	ResourceGroup      string
+	Region             string
+	FederatedTokenFile string
 
 	// UPI
 	AccountKey string
@@ -95,14 +96,27 @@ func GetConfig(secLister kcorelisters.SecretNamespaceLister, infraLister configl
 			return nil, fmt.Errorf("unable to get cluster minted credentials: %s", err)
 		}
 
-		return &Azure{
-			SubscriptionID: string(sec.Data["azure_subscription_id"]),
-			ClientID:       string(sec.Data["azure_client_id"]),
-			ClientSecret:   string(sec.Data["azure_client_secret"]),
-			TenantID:       string(sec.Data["azure_tenant_id"]),
-			ResourceGroup:  string(sec.Data["azure_resourcegroup"]),
-			Region:         string(sec.Data["azure_region"]),
-		}, nil
+		cfg := &Azure{
+			SubscriptionID:     string(sec.Data["azure_subscription_id"]),
+			ClientID:           string(sec.Data["azure_client_id"]),
+			ClientSecret:       string(sec.Data["azure_client_secret"]),
+			TenantID:           string(sec.Data["azure_tenant_id"]),
+			ResourceGroup:      string(sec.Data["azure_resourcegroup"]),
+			Region:             string(sec.Data["azure_region"]),
+			FederatedTokenFile: string(sec.Data["azure_federated_token_file"]),
+		}
+
+		// when using azure workload identities, the secret does not contain
+		// a resource group, as it is not known at the time of its creation.
+		if cfg.ResourceGroup == "" {
+			infra, err := util.GetInfrastructure(infraLister)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get infrastructure object: %s", err)
+			}
+			cfg.ResourceGroup = infra.Status.PlatformStatus.Azure.ResourceGroupName
+		}
+
+		return cfg, nil
 	}
 
 	// loads user provided account key.
@@ -316,15 +330,36 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 			},
 		},
 	}
-	options := azidentity.ClientSecretCredentialOptions{
-		ClientOptions: azcore.ClientOptions{
-			Cloud: cloudConfig,
-		},
+
+	var (
+		cred azcore.TokenCredential
+		err  error
+	)
+	if strings.TrimSpace(cfg.ClientSecret) == "" {
+		options := azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+			ClientID:      cfg.ClientID,
+			TenantID:      cfg.TenantID,
+			TokenFilePath: cfg.FederatedTokenFile,
+		}
+		cred, err = azidentity.NewWorkloadIdentityCredential(&options)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+	} else {
+		options := azidentity.ClientSecretCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+		}
+		cred, err = azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
 	}
-	cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
-	if err != nil {
-		return storage.AccountsClient{}, err
-	}
+
 	scope := environment.TokenAudience
 	if !strings.HasSuffix(scope, "/.default") {
 		scope += "/.default"

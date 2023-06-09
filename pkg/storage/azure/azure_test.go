@@ -153,6 +153,32 @@ func TestGetConfig(t *testing.T) {
 				Region:         "region",
 			},
 		},
+		{
+			name: "cloud credentials workload identity",
+			secrets: []runtime.Object{
+				&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      defaults.CloudCredentialsName,
+						Namespace: "test",
+					},
+					Data: map[string][]byte{
+						"azure_client_id":            []byte("client_id"),
+						"azure_federated_token_file": []byte("/path/to/token"),
+						"azure_region":               []byte("region"),
+						"azure_subscription_id":      []byte("subscription_id"),
+						"azure_tenant_id":            []byte("tenant_id"),
+					},
+				},
+			},
+			result: &Azure{
+				SubscriptionID:     "subscription_id",
+				ClientID:           "client_id",
+				TenantID:           "tenant_id",
+				ResourceGroup:      "resource-group-123",
+				Region:             "region",
+				FederatedTokenFile: "/path/to/token",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
