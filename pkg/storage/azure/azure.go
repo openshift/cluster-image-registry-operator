@@ -301,38 +301,36 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 	storageAccountsClient.RetryAttempts = 1
 	_ = storageAccountsClient.AddToUserAgent(defaults.UserAgent)
 
-	if d.authorizer != nil {
+	if d.authorizer != nil && d.sender != nil {
 		storageAccountsClient.Authorizer = d.authorizer
-	} else {
-		cloudConfig := cloud.Configuration{
-			ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
-			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-				cloud.ResourceManager: {
-					Audience: environment.TokenAudience,
-					Endpoint: environment.ResourceManagerEndpoint,
-				},
-			},
-		}
-		options := azidentity.ClientSecretCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
-		}
-		cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
-		if err != nil {
-			return storage.AccountsClient{}, err
-		}
-		scope := environment.TokenAudience
-		if !strings.HasSuffix(scope, "/.default") {
-			scope += "/.default"
-		}
-
-		storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
-	}
-
-	if d.sender != nil {
 		storageAccountsClient.Sender = d.sender
+		return storageAccountsClient, nil
 	}
+
+	cloudConfig := cloud.Configuration{
+		ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: environment.TokenAudience,
+				Endpoint: environment.ResourceManagerEndpoint,
+			},
+		},
+	}
+	options := azidentity.ClientSecretCredentialOptions{
+		ClientOptions: azcore.ClientOptions{
+			Cloud: cloudConfig,
+		},
+	}
+	cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
+	if err != nil {
+		return storage.AccountsClient{}, err
+	}
+	scope := environment.TokenAudience
+	if !strings.HasSuffix(scope, "/.default") {
+		scope += "/.default"
+	}
+
+	storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
 
 	return storageAccountsClient, nil
 }
