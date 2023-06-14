@@ -406,7 +406,8 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	}
 
 	key := cfg.AccountKey
-	if key == "" {
+	federated_token := cfg.FederatedTokenFile
+	if key == "" && federated_token == "" {
 		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
 		if err != nil {
 			return nil, err
@@ -418,11 +419,30 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		}
 	}
 
+	if key != "" {
+		envs = append(envs,
+			envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: key, Secret: true},
+		)
+	}
+
+	// the AZURE_ vars used to configure workload identity are taken
+	// from https://github.com/distribution/distribution/blob/6a57630cf40122000083e60bcb7e97c50a904c5e/vendor/github.com/Azure/azure-sdk-for-go/sdk/azidentity/default_azure_credential.go#LL86C43-L86C63
+	if federated_token != "" {
+		envs = append(envs,
+			// NOTE: these env vars are not prepended with REGISTRY_STORAGE
+			// because they're exported for the azure-sdk, not the registry.
+			// we do this as a transparent way to support workload identity in the registry.
+			envvar.EnvVar{Name: "AZURE_CLIENT_ID", Value: cfg.ClientID},
+			envvar.EnvVar{Name: "AZURE_TENANT_ID", Value: cfg.TenantID},
+			envvar.EnvVar{Name: "AZURE_FEDERATED_TOKEN_FILE", Value: federated_token},
+			envvar.EnvVar{Name: "AZURE_AUTHORITY_HOST", Value: environment.ActiveDirectoryEndpoint},
+		)
+	}
+
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "azure"},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: d.Config.Container},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME", Value: d.Config.AccountName},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: key, Secret: true},
 	)
 
 	if d.Config.CloudName != "" {

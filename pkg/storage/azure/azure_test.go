@@ -339,6 +339,83 @@ func TestConfigEnv(t *testing.T) {
 	}
 }
 
+func TestConfigEnvWorkloadIdentity(t *testing.T) {
+	ctx := context.Background()
+
+	config := &imageregistryv1.ImageRegistryConfigStorageAzure{}
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AzurePlatformType,
+				Azure: &configv1.AzurePlatformStatus{
+					ResourceGroupName: "resourcegroup",
+					CloudName:         configv1.AzureUSGovernmentCloud,
+				},
+			},
+		},
+	})
+	testBuilder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"azure_client_id":            []byte("client_id"),
+			"azure_federated_token_file": []byte("/path/to/file"),
+			"azure_region":               []byte("region"),
+			"azure_subscription_id":      []byte("subscription_id"),
+			"azure_tenant_id":            []byte("tenant_id"),
+		},
+	})
+
+	listers := testBuilder.BuildListers()
+
+	authorizer := autorest.NullAuthorizer{}
+	sender := mocks.NewSender()
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`?`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+	httpSender := pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
+		return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
+			return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
+		}
+	})
+
+	d := NewDriver(ctx, config, &listers.StorageListers)
+	d.authorizer = authorizer
+	d.sender = sender
+	d.httpSender = httpSender
+
+	envvars, err := d.ConfigEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedVars := map[string]interface{}{
+		"REGISTRY_STORAGE":           "azure",
+		"AZURE_CLIENT_ID":            "client_id",
+		"AZURE_TENANT_ID":            "tenant_id",
+		"AZURE_FEDERATED_TOKEN_FILE": "/path/to/file",
+		"AZURE_AUTHORITY_HOST":       "https://login.microsoftonline.com/", // default for configv1.AzureUSGovernmentCloud
+	}
+	for key, value := range expectedVars {
+		e := findEnvVar(envvars, key)
+		if e == nil {
+			t.Fatalf("envvar %s not found, %v", key, envvars)
+		}
+		if e.Value != value {
+			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
+		}
+	}
+}
+
 func TestConfigEnvWithUserKey(t *testing.T) {
 	ctx := context.Background()
 
