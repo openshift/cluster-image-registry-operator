@@ -105,7 +105,7 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 	}
 
 	// Load infrastructure values
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 // resource key, and bucket.
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	// Get Infrastructure spec
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return err
 	}
@@ -685,7 +685,7 @@ func (d *driver) bucketExists(bucketName string, serviceInstanceCRN string) erro
 // getIBMCOSClient returns a client that allows us to interact
 // with the IBM COS service.
 func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return nil, err
 	}

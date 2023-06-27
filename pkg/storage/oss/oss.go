@@ -70,7 +70,7 @@ func (d *driver) UpdateEffectiveConfig() error {
 	}
 
 	// Load infrastructure values
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return err
 	}
@@ -326,7 +326,7 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 // CreateStorage attempts to create an OSS bucket
 // and apply any provided tags
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return err
 	}

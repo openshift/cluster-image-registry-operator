@@ -131,7 +131,7 @@ func (d *driver) UpdateEffectiveConfig() error {
 	}
 
 	// Load infrastructure values
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return err
 	}
@@ -594,7 +594,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return err
 	}

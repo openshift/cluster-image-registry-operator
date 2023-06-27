@@ -30,6 +30,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
+	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -59,12 +60,13 @@ var storageAccountInvalidCharRe = regexp.MustCompile(`[^0-9A-Za-z]`)
 // Azure holds configuration used to reach Azure's endpoints.
 type Azure struct {
 	// IPI
-	SubscriptionID string
-	ClientID       string
-	ClientSecret   string
-	TenantID       string
-	ResourceGroup  string
-	Region         string
+	SubscriptionID     string
+	ClientID           string
+	ClientSecret       string
+	TenantID           string
+	ResourceGroup      string
+	Region             string
+	FederatedTokenFile string
 
 	// UPI
 	AccountKey string
@@ -82,7 +84,7 @@ func (e *errDoesNotExist) Error() string {
 // load credentials from ImageRegistryPrivateConfigurationUser secret, if this secret is not
 // present this function loads credentials from cluster wide config present on secret
 // CloudCredentialsName.
-func GetConfig(secLister kcorelisters.SecretNamespaceLister) (*Azure, error) {
+func GetConfig(secLister kcorelisters.SecretNamespaceLister, infraLister configlisters.InfrastructureLister) (*Azure, error) {
 	sec, err := secLister.Get(defaults.ImageRegistryPrivateConfigurationUser)
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -94,14 +96,27 @@ func GetConfig(secLister kcorelisters.SecretNamespaceLister) (*Azure, error) {
 			return nil, fmt.Errorf("unable to get cluster minted credentials: %s", err)
 		}
 
-		return &Azure{
-			SubscriptionID: string(sec.Data["azure_subscription_id"]),
-			ClientID:       string(sec.Data["azure_client_id"]),
-			ClientSecret:   string(sec.Data["azure_client_secret"]),
-			TenantID:       string(sec.Data["azure_tenant_id"]),
-			ResourceGroup:  string(sec.Data["azure_resourcegroup"]),
-			Region:         string(sec.Data["azure_region"]),
-		}, nil
+		cfg := &Azure{
+			SubscriptionID:     string(sec.Data["azure_subscription_id"]),
+			ClientID:           string(sec.Data["azure_client_id"]),
+			ClientSecret:       string(sec.Data["azure_client_secret"]),
+			TenantID:           string(sec.Data["azure_tenant_id"]),
+			ResourceGroup:      string(sec.Data["azure_resourcegroup"]),
+			Region:             string(sec.Data["azure_region"]),
+			FederatedTokenFile: string(sec.Data["azure_federated_token_file"]),
+		}
+
+		// when using azure workload identities, the secret does not contain
+		// a resource group, as it is not known at the time of its creation.
+		if cfg.ResourceGroup == "" {
+			infra, err := util.GetInfrastructure(infraLister)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get infrastructure object: %s", err)
+			}
+			cfg.ResourceGroup = infra.Status.PlatformStatus.Azure.ResourceGroupName
+		}
+
+		return cfg, nil
 	}
 
 	// loads user provided account key.
@@ -300,38 +315,57 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 	storageAccountsClient.RetryAttempts = 1
 	_ = storageAccountsClient.AddToUserAgent(defaults.UserAgent)
 
-	if d.authorizer != nil {
+	if d.authorizer != nil && d.sender != nil {
 		storageAccountsClient.Authorizer = d.authorizer
-	} else {
-		cloudConfig := cloud.Configuration{
-			ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
-			Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-				cloud.ResourceManager: {
-					Audience: environment.TokenAudience,
-					Endpoint: environment.ResourceManagerEndpoint,
-				},
+		storageAccountsClient.Sender = d.sender
+		return storageAccountsClient, nil
+	}
+
+	cloudConfig := cloud.Configuration{
+		ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: environment.TokenAudience,
+				Endpoint: environment.ResourceManagerEndpoint,
 			},
+		},
+	}
+
+	var (
+		cred azcore.TokenCredential
+		err  error
+	)
+	if strings.TrimSpace(cfg.ClientSecret) == "" {
+		options := azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+			ClientID:      cfg.ClientID,
+			TenantID:      cfg.TenantID,
+			TokenFilePath: cfg.FederatedTokenFile,
 		}
+		cred, err = azidentity.NewWorkloadIdentityCredential(&options)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+	} else {
 		options := azidentity.ClientSecretCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloudConfig,
 			},
 		}
-		cred, err := azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
+		cred, err = azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}
-		scope := environment.TokenAudience
-		if !strings.HasSuffix(scope, "/.default") {
-			scope += "/.default"
-		}
-
-		storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
 	}
 
-	if d.sender != nil {
-		storageAccountsClient.Sender = d.sender
+	scope := environment.TokenAudience
+	if !strings.HasSuffix(scope, "/.default") {
+		scope += "/.default"
 	}
+
+	storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
 
 	return storageAccountsClient, nil
 }
@@ -361,7 +395,7 @@ func (d *driver) CABundle() (string, bool, error) {
 // ConfigEnv configures the environment variables that will be used in the
 // image registry deployment.
 func (d *driver) ConfigEnv() (envs envvar.List, err error) {
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +406,8 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	}
 
 	key := cfg.AccountKey
-	if key == "" {
+	federated_token := cfg.FederatedTokenFile
+	if key == "" && federated_token == "" {
 		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
 		if err != nil {
 			return nil, err
@@ -384,11 +419,30 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		}
 	}
 
+	if key != "" {
+		envs = append(envs,
+			envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: key, Secret: true},
+		)
+	}
+
+	// the AZURE_ vars used to configure workload identity are taken
+	// from https://github.com/distribution/distribution/blob/6a57630cf40122000083e60bcb7e97c50a904c5e/vendor/github.com/Azure/azure-sdk-for-go/sdk/azidentity/default_azure_credential.go#LL86C43-L86C63
+	if federated_token != "" {
+		envs = append(envs,
+			// NOTE: these env vars are not prepended with REGISTRY_STORAGE
+			// because they're exported for the azure-sdk, not the registry.
+			// we do this as a transparent way to support workload identity in the registry.
+			envvar.EnvVar{Name: "AZURE_CLIENT_ID", Value: cfg.ClientID},
+			envvar.EnvVar{Name: "AZURE_TENANT_ID", Value: cfg.TenantID},
+			envvar.EnvVar{Name: "AZURE_FEDERATED_TOKEN_FILE", Value: federated_token},
+			envvar.EnvVar{Name: "AZURE_AUTHORITY_HOST", Value: environment.ActiveDirectoryEndpoint},
+		)
+	}
+
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "azure"},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_CONTAINER", Value: d.Config.Container},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTNAME", Value: d.Config.AccountName},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY", Value: key, Secret: true},
 	)
 
 	if d.Config.CloudName != "" {
@@ -449,7 +503,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
@@ -649,7 +703,7 @@ func (d *driver) processUPI(cr *imageregistryv1.Config) {
 
 // CreateStorage attempts to create a storage account and a storage container.
 func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(
 			cr,
@@ -668,7 +722,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return nil
 	}
 
-	infra, err := util.GetInfrastructure(d.Listers)
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(
 			cr,
@@ -749,7 +803,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		return false, nil
 	}
 
-	cfg, err := GetConfig(d.Listers.Secrets)
+	cfg, err := GetConfig(d.Listers.Secrets, d.Listers.Infrastructures)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get configuration: %s", err))
 		return false, err
