@@ -6,4 +6,12 @@ updates:
       interval: weekly
     assignees:
       - flavianmissi
-    open-pull-requests-limit: 1
+    groups:
+      openshift-dependencies:
+        patterns:
+          - "github.com/openshift/*"
+        exclude-patterns:
+          - "github.com/openshift/build-machinery-go"
+      k8s-dependencies:
+        patterns:
+          - "k8s.io/*"
