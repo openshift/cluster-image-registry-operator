@@ -17,7 +17,7 @@ require (
 	github.com/IBM/platform-services-go-sdk v0.18.15
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1263
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
-	github.com/aws/aws-sdk-go v1.44.291
+	github.com/aws/aws-sdk-go v1.44.295
 	github.com/davecgh/go-spew v1.1.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
