@@ -27,6 +27,7 @@ var _ Mutator = &generatorImageRegistryCA{}
 
 type generatorImageRegistryCA struct {
 	lister                    corelisters.ConfigMapNamespaceLister
+	managedLister             corelisters.ConfigMapLister
 	imageConfigLister         configlisters.ImageLister
 	openshiftConfigLister     corelisters.ConfigMapNamespaceLister
 	serviceLister             corelisters.ServiceNamespaceLister
@@ -38,6 +39,7 @@ type generatorImageRegistryCA struct {
 
 func NewGeneratorImageRegistryCA(
 	lister corelisters.ConfigMapNamespaceLister,
+	managedLister corelisters.ConfigMapLister,
 	imageConfigLister configlisters.ImageLister,
 	openshiftConfigLister corelisters.ConfigMapNamespaceLister,
 	serviceLister corelisters.ServiceNamespaceLister,
@@ -48,6 +50,7 @@ func NewGeneratorImageRegistryCA(
 ) Mutator {
 	return &generatorImageRegistryCA{
 		lister:                    lister,
+		managedLister:             managedLister,
 		imageConfigLister:         imageConfigLister,
 		openshiftConfigLister:     openshiftConfigLister,
 		serviceLister:             serviceLister,
@@ -157,7 +160,7 @@ func (girca *generatorImageRegistryCA) expected() (runtime.Object, error) {
 }
 
 func (girca *generatorImageRegistryCA) Get() (runtime.Object, error) {
-	return girca.lister.Get(girca.GetName())
+	return girca.managedLister.ConfigMaps(defaults.OpenShiftConfigManagedNamespace).Get(girca.GetName())
 }
 
 func (girca *generatorImageRegistryCA) Create() (runtime.Object, error) {

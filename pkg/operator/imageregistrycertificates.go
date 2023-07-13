@@ -32,7 +32,7 @@ type ImageRegistryCertificatesController struct {
 	coreClient                corev1client.CoreV1Interface
 	operatorClient            v1helpers.OperatorClient
 	configMapLister           corev1listers.ConfigMapNamespaceLister
-	configMapManagedLister    corev1listers.ConfigMapNamespaceLister
+	configMapManagedLister    corev1listers.ConfigMapLister
 	serviceLister             corev1listers.ServiceNamespaceLister
 	imageConfigLister         configv1listers.ImageLister
 	openshiftConfigLister     corev1listers.ConfigMapNamespaceLister
@@ -61,7 +61,7 @@ func NewImageRegistryCertificatesController(
 		coreClient:                coreClient,
 		operatorClient:            operatorClient,
 		configMapLister:           configMapInformer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace),
-		configMapManagedLister:    configMapInformer.Lister().ConfigMaps(defaults.OpenShiftConfigManagedNamespace),
+		configMapManagedLister:    openshiftConfigManagedInformer.Lister(),
 		serviceLister:             serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
 		imageConfigLister:         imageConfigInformer.Lister(),
 		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
@@ -165,6 +165,7 @@ func (c *ImageRegistryCertificatesController) sync() error {
 	}
 
 	g = resource.NewGeneratorImageRegistryCA(
+		c.configMapLister,
 		c.configMapManagedLister,
 		c.imageConfigLister,
 		c.openshiftConfigLister,
