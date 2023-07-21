@@ -32,6 +32,7 @@ type ImageRegistryCertificatesController struct {
 	coreClient                corev1client.CoreV1Interface
 	operatorClient            v1helpers.OperatorClient
 	configMapLister           corev1listers.ConfigMapNamespaceLister
+	configMapManagedLister    corev1listers.ConfigMapLister
 	serviceLister             corev1listers.ServiceNamespaceLister
 	imageConfigLister         configv1listers.ImageLister
 	openshiftConfigLister     corev1listers.ConfigMapNamespaceLister
@@ -60,6 +61,7 @@ func NewImageRegistryCertificatesController(
 		coreClient:                coreClient,
 		operatorClient:            operatorClient,
 		configMapLister:           configMapInformer.Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace),
+		configMapManagedLister:    openshiftConfigManagedInformer.Lister(),
 		serviceLister:             serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
 		imageConfigLister:         imageConfigInformer.Lister(),
 		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
@@ -149,6 +151,31 @@ func (c *ImageRegistryCertificatesController) sync() error {
 
 	g := resource.NewGeneratorCAConfig(c.configMapLister, c.imageConfigLister, c.openshiftConfigLister, c.serviceLister, c.imageRegistryConfigLister, c.storageListers, c.kubeconfig, c.coreClient)
 	err := resource.ApplyMutator(g)
+	if err != nil {
+		_, _, updateError := v1helpers.UpdateStatus(
+			ctx,
+			c.operatorClient,
+			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+				Type:    "ImageRegistryCertificatesControllerDegraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "Error",
+				Message: err.Error(),
+			}))
+		return utilerrors.NewAggregate([]error{err, updateError})
+	}
+
+	g = resource.NewGeneratorImageRegistryCA(
+		c.configMapLister,
+		c.configMapManagedLister,
+		c.imageConfigLister,
+		c.openshiftConfigLister,
+		c.serviceLister,
+		c.imageRegistryConfigLister,
+		c.storageListers,
+		c.kubeconfig,
+		c.coreClient,
+	)
+	err = resource.ApplyMutator(g)
 	if err != nil {
 		_, _, updateError := v1helpers.UpdateStatus(
 			ctx,

@@ -44,6 +44,7 @@ func ApplyMutator(gen Mutator) error {
 
 			klog.Infof("object %s created: %s", Name(gen), str)
 			return nil
+
 		}
 
 		n, updated, err := gen.Update(o.DeepCopyObject())

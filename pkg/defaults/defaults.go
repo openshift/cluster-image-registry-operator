@@ -29,6 +29,12 @@ const (
 	// CAs to be trusted during image pullthrough
 	ImageRegistryCertificatesName = "image-registry-certificates"
 
+	// ImageRegistryCAName is the name of the configmap managed by the registry operator
+	// on the openshift-config-managed namespace. This config map is nearly identical to
+	// ImageRegistryCertificatesName, but it does not include the additionalTrustedCA
+	// from images.config.openshift.io/cluster.
+	ImageRegistryCAName = "image-registry-ca"
+
 	// ImageRegistryPrivateConfiguration is the name of a secret that is managed by the
 	// registry operator and which provides credentials to the registry for things like
 	// accessing S3 storage
