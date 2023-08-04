@@ -95,6 +95,14 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 					"imagecontentsourcepolicies",
 				},
 			},
+			{
+				Verbs:     []string{"list"},
+				APIGroups: []string{"config.openshift.io"},
+				Resources: []string{
+					"imagedigestmirrorsets",
+					"imagetagmirrorsets",
+				},
+			},
 		},
 	}
 
