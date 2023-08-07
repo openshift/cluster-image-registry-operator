@@ -73,24 +73,26 @@ func TestPruneRegistryFlag(t *testing.T) {
 	var errs []error
 
 	// Wait for the cronjob to have an updated --prune-registry flag
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		errs = nil
-		// Get an updated version of the cronjob
-		cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "image-pruner", metav1.GetOptions{},
-		)
-		if err != nil {
-			return true, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			errs = nil
+			// Get an updated version of the cronjob
+			cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, "image-pruner", metav1.GetOptions{},
+			)
+			if err != nil {
+				return true, err
+			}
 
-		// Check if the --prune-registry flag is now false on the pruning cronjob
-		if err = framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "false"); err != nil {
-			errs = append(errs, err)
-			return false, nil
-		}
+			// Check if the --prune-registry flag is now false on the pruning cronjob
+			if err = framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "false"); err != nil {
+				errs = append(errs, err)
+				return false, nil
+			}
 
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -249,23 +251,25 @@ func TestPrunerPodCompletes(t *testing.T) {
 	}()
 
 	t.Logf("waiting the pruner to succeed...")
-	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
 
-		for _, pod := range pods.Items {
-			if !strings.HasPrefix(pod.Name, "image-pruner-") {
-				continue
+			for _, pod := range pods.Items {
+				if !strings.HasPrefix(pod.Name, "image-pruner-") {
+					continue
+				}
+				t.Logf("%s: %s", pod.Name, pod.Status.Phase)
+				if pod.Status.Phase == "Succeeded" {
+					return true, nil
+				}
 			}
-			t.Logf("%s: %s", pod.Name, pod.Status.Phase)
-			if pod.Status.Phase == "Succeeded" {
-				return true, nil
-			}
-		}
-		return false, nil
-	})
+			return false, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,14 +312,16 @@ func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
 	}()
 
 	t.Logf("waiting the pruner config to be observed...")
-	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			cr, err := te.Client().ImagePruners().Get(ctx, "cluster", metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
 
-		return cr.Status.ObservedGeneration == cr.Generation, nil
-	})
+			return cr.Status.ObservedGeneration == cr.Generation, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,28 +337,30 @@ func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
 	}
 
 	t.Logf("waiting the pruner to succeed...")
-	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
 
-		for _, pod := range pods.Items {
-			if !strings.HasPrefix(pod.Name, "image-pruner-") {
-				continue
+			for _, pod := range pods.Items {
+				if !strings.HasPrefix(pod.Name, "image-pruner-") {
+					continue
+				}
+				if !containsString(pod.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
+					// pod from another test?
+					t.Logf("pod %s has wrong arguments", pod.Name)
+					continue
+				}
+				t.Logf("%s: %s", pod.Name, pod.Status.Phase)
+				if pod.Status.Phase == "Succeeded" {
+					return true, nil
+				}
 			}
-			if !containsString(pod.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
-				// pod from another test?
-				t.Logf("pod %s has wrong arguments", pod.Name)
-				continue
-			}
-			t.Logf("%s: %s", pod.Name, pod.Status.Phase)
-			if pod.Status.Phase == "Succeeded" {
-				return true, nil
-			}
-		}
-		return false, nil
-	})
+			return false, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

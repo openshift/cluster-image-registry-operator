@@ -103,12 +103,14 @@ func createPV(te framework.TestEnv, storageClass string) {
 		te.Fatal("unable to create PersistentVolume")
 	}
 
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
-		pv, pvErr := te.Client().PersistentVolumes().Get(
-			context.Background(), name, metav1.GetOptions{},
-		)
-		return (pv != nil && pv.Status.Phase != corev1.VolumePending), pvErr
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (bool, error) {
+			pv, pvErr := te.Client().PersistentVolumes().Get(
+				ctx, name, metav1.GetOptions{},
+			)
+			return (pv != nil && pv.Status.Phase != corev1.VolumePending), pvErr
+		},
+	)
 	if err != nil {
 		te.Fatal(err)
 	}

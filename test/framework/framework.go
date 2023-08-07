@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -45,26 +46,28 @@ func DumpYAML(logger Logger, prefix string, obj interface{}) {
 func WaitUntilFinalized(obj metav1.Object, getObject func() (metav1.Object, error)) error {
 	uid := obj.GetUID()
 
-	return wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		obj, err := getObject()
-		if errors.IsNotFound(err) {
-			return true, nil
-		}
-		if err != nil {
-			return false, err
-		}
+	return wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			obj, err := getObject()
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+			if err != nil {
+				return false, err
+			}
 
-		if obj.GetUID() != uid {
-			// the old object is finalized and a new one is created
-			return true, nil
-		}
+			if obj.GetUID() != uid {
+				// the old object is finalized and a new one is created
+				return true, nil
+			}
 
-		if obj.GetDeletionTimestamp() == nil {
-			return false, fmt.Errorf("waiting until %T %s/%s (%s) is finalized, but its is not deleted", obj, obj.GetNamespace(), obj.GetName(), uid)
-		}
+			if obj.GetDeletionTimestamp() == nil {
+				return false, fmt.Errorf("waiting until %T %s/%s (%s) is finalized, but its is not deleted", obj, obj.GetNamespace(), obj.GetName(), uid)
+			}
 
-		return false, nil
-	})
+			return false, nil
+		},
+	)
 }
 
 // DeleteCompletely sends a delete request and waits until the resource and

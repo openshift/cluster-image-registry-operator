@@ -24,16 +24,18 @@ func isDeploymentRolledOut(deploy *kappsapiv1.Deployment) bool {
 }
 
 func WaitUntilDeploymentIsRolledOut(te TestEnv, namespace, name string) {
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deploy, err := te.Client().Deployments(namespace).Get(
-			context.Background(), name, metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			deploy, err := te.Client().Deployments(namespace).Get(
+				ctx, name, metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
 
-		return isDeploymentRolledOut(deploy), nil
-	})
+			return isDeploymentRolledOut(deploy), nil
+		},
+	)
 	if err != nil {
 		te.Fatalf("failed to wait until deployment %s/%s is rolled out: %v", namespace, name, err)
 	}
@@ -41,16 +43,18 @@ func WaitUntilDeploymentIsRolledOut(te TestEnv, namespace, name string) {
 
 func WaitForRegistryDeployment(client *Clientset) (*kappsapiv1.Deployment, error) {
 	var deployment *kappsapiv1.Deployment
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), defaults.ImageRegistryName, metav1.GetOptions{},
-		)
-		if errors.IsNotFound(err) {
-			return false, nil
-		} else if err != nil {
-			return false, err
-		}
-		return true, nil
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			deployment, err = client.Deployments(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, defaults.ImageRegistryName, metav1.GetOptions{},
+			)
+			if errors.IsNotFound(err) {
+				return false, nil
+			} else if err != nil {
+				return false, err
+			}
+			return true, nil
+		},
+	)
 	return deployment, err
 }

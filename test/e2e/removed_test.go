@@ -104,18 +104,20 @@ func runTestBuild(ctx context.Context, te framework.TestEnv, nsName string) (str
 	}
 
 	te.Logf("waiting for build %s/%s to complete", build.Namespace, build.Name)
-	err = wait.Poll(5*time.Second, 10*time.Minute, func() (bool, error) {
-		runningBuild, err := te.Client().BuildInterface.Builds(nsName).Get(ctx, build.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		for _, cond := range runningBuild.Status.Conditions {
-			if string(cond.Type) == string(buildv1.BuildPhaseComplete) && cond.Status == corev1.ConditionTrue {
-				return true, nil
+	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 10*time.Minute, false,
+		func(ctx context.Context) (bool, error) {
+			runningBuild, err := te.Client().BuildInterface.Builds(nsName).Get(ctx, build.Name, metav1.GetOptions{})
+			if err != nil {
+				return false, err
 			}
-		}
-		return false, nil
-	})
+			for _, cond := range runningBuild.Status.Conditions {
+				if string(cond.Type) == string(buildv1.BuildPhaseComplete) && cond.Status == corev1.ConditionTrue {
+					return true, nil
+				}
+			}
+			return false, nil
+		},
+	)
 	if err != nil {
 		return build.Name, fmt.Errorf("error waiting for build to complete: %v", err)
 	}

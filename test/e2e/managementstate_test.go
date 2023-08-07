@@ -38,20 +38,22 @@ func TestManagementStateUnmanaged(t *testing.T) {
 		t.Fatalf("unable to switch to unmanaged state: %s", err)
 	}
 
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().Configs().Get(
-			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			cr, err := te.Client().Configs().Get(
+				ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
 
-		conds := framework.GetImageRegistryConditions(cr)
-		t.Logf("image registry: %s", conds)
-		return conds.Available.IsTrue() && conds.Available.Reason() == "Unmanaged" &&
-			conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Unmanaged" &&
-			conds.Degraded.IsFalse() && conds.Degraded.Reason() == "Unmanaged", nil
-	})
+			conds := framework.GetImageRegistryConditions(cr)
+			t.Logf("image registry: %s", conds)
+			return conds.Available.IsTrue() && conds.Available.Reason() == "Unmanaged" &&
+				conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Unmanaged" &&
+				conds.Degraded.IsFalse() && conds.Degraded.Reason() == "Unmanaged", nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,21 +79,23 @@ func TestManagementStateRemoved(t *testing.T) {
 		t.Fatalf("unable to switch to removed state: %s", err)
 	}
 
-	err := wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().Configs().Get(
-			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			cr, err := te.Client().Configs().Get(
+				ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
 
-		conds := framework.GetImageRegistryConditions(cr)
-		t.Logf("image registry: %s", conds)
-		return conds.Available.IsTrue() && conds.Available.Reason() == "Removed" &&
-			conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Removed" &&
-			conds.Degraded.IsFalse() &&
-			conds.Removed.IsTrue(), nil
-	})
+			conds := framework.GetImageRegistryConditions(cr)
+			t.Logf("image registry: %s", conds)
+			return conds.Available.IsTrue() && conds.Available.Reason() == "Removed" &&
+				conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Removed" &&
+				conds.Degraded.IsFalse() &&
+				conds.Removed.IsTrue(), nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,12 +128,10 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	})
 
 	t.Log("make sure operator is reporting itself as Removed")
-	err = wait.Poll(
-		time.Second,
-		framework.AsyncOperationTimeout,
-		func() (stop bool, err error) {
+	err = wait.PollUntilContextTimeout(context.Background(), time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
 			cr, err = te.Client().Configs().Get(
-				context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+				ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{},
 			)
 			if err != nil {
 				return false, err

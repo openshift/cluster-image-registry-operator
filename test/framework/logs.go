@@ -45,9 +45,7 @@ func (psl PodSetLogs) Contains(re *regexp.Regexp) bool {
 	return false
 }
 
-func GetLogsByLabelSelector(client *Clientset, namespace string, labelSelector *metav1.LabelSelector, previous bool) (PodSetLogs, error) {
-	ctx := context.Background()
-
+func GetLogsByLabelSelector(ctx context.Context, client *Clientset, namespace string, labelSelector *metav1.LabelSelector, previous bool) (PodSetLogs, error) {
 	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
 	if err != nil {
 		return nil, err

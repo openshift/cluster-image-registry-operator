@@ -452,7 +452,7 @@ func TestSecureRouteConfiguration(t *testing.T) {
 		"tls.key": string(key),
 	}
 
-	if _, err := framework.CreateOrUpdateSecret(tlsSecretName, defaults.ImageRegistryOperatorNamespace, tlsSecretData); err != nil {
+	if _, err := framework.CreateOrUpdateSecret(context.Background(), tlsSecretName, defaults.ImageRegistryOperatorNamespace, tlsSecretData); err != nil {
 		t.Fatalf("unable to create secret: %s", err)
 	}
 
@@ -476,25 +476,27 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureExternalRegistryHostnamesAreSet(te, []string{hostname})
 
-	err = wait.Poll(5*time.Second, 1*time.Minute, func() (done bool, err error) {
-		route, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), routeName, metav1.GetOptions{},
-		)
-		if err != nil {
-			t.Logf("unable to get route: %s", err)
-			return false, nil
-		}
-		if route.Spec.TLS == nil {
-			t.Fatal("route.Spec.TLS is nil, want a configuration")
-		}
-		if route.Spec.TLS.Certificate != string(cert) {
-			t.Errorf("route tls certificate: got %q, want %q", route.Spec.TLS.Certificate, string(cert))
-		}
-		if route.Spec.TLS.Key != string(key) {
-			t.Errorf("route tls key: got %q, want %q", route.Spec.TLS.Key, string(key))
-		}
-		return true, nil
-	})
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 1*time.Minute, false,
+		func(ctx context.Context) (done bool, err error) {
+			route, err := te.Client().Routes(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, routeName, metav1.GetOptions{},
+			)
+			if err != nil {
+				t.Logf("unable to get route: %s", err)
+				return false, nil
+			}
+			if route.Spec.TLS == nil {
+				t.Fatal("route.Spec.TLS is nil, want a configuration")
+			}
+			if route.Spec.TLS.Certificate != string(cert) {
+				t.Errorf("route tls certificate: got %q, want %q", route.Spec.TLS.Certificate, string(cert))
+			}
+			if route.Spec.TLS.Key != string(key) {
+				t.Errorf("route tls key: got %q, want %q", route.Spec.TLS.Key, string(key))
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("failed to observe the route: %s", err)
 	}
@@ -524,26 +526,28 @@ func TestVersionReporting(t *testing.T) {
 
 	framework.WaitUntilDeploymentIsRolledOut(te, framework.OperatorDeploymentNamespace, framework.OperatorDeploymentName)
 
-	err := wait.Poll(5*time.Second, 1*time.Minute, func() (bool, error) {
-		clusterOperatorStatus, err := te.Client().ClusterOperators().Get(
-			context.Background(), defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{},
-		)
-		if err != nil {
-			t.Logf("Could not retrieve cluster operator status: %v", err)
-			return false, nil
-		}
-		if len(clusterOperatorStatus.Status.Versions) == 0 {
-			// We should always have *some* version information in the clusteroperator once we are available,
-			// so we do not retry in this scenario.
-			t.Fatalf("Cluster operator status has no version information: %v", clusterOperatorStatus)
-			return true, err
-		}
-		if clusterOperatorStatus.Status.Versions[0].Name != "operator" || clusterOperatorStatus.Status.Versions[0].Version != "test-v2" {
-			t.Logf("waiting for new version to be reported, saw: %v", clusterOperatorStatus.Status.Versions[0])
-			return false, nil
-		}
-		return true, nil
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 1*time.Minute, false,
+		func(ctx context.Context) (bool, error) {
+			clusterOperatorStatus, err := te.Client().ClusterOperators().Get(
+				ctx, defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{},
+			)
+			if err != nil {
+				t.Logf("Could not retrieve cluster operator status: %v", err)
+				return false, nil
+			}
+			if len(clusterOperatorStatus.Status.Versions) == 0 {
+				// We should always have *some* version information in the clusteroperator once we are available,
+				// so we do not retry in this scenario.
+				t.Fatalf("Cluster operator status has no version information: %v", clusterOperatorStatus)
+				return true, err
+			}
+			if clusterOperatorStatus.Status.Versions[0].Name != "operator" || clusterOperatorStatus.Status.Versions[0].Version != "test-v2" {
+				t.Logf("waiting for new version to be reported, saw: %v", clusterOperatorStatus.Status.Versions[0])
+				return false, nil
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatalf("failed to observe updated version reported in clusteroperator status: %v", err)
 	}

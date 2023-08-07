@@ -98,34 +98,36 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 
 	retryTime := 3 * time.Second
 
-	err = wait.PollInfinite(retryTime, func() (stop bool, err error) {
-		_, err = c.listers.RegistryConfigs.Get(o.Name)
-		if err == nil {
-			return
-		}
+	err = wait.PollUntilContextCancel(context.Background(), retryTime, false,
+		func(context.Context) (stop bool, err error) {
+			_, err = c.listers.RegistryConfigs.Get(o.Name)
+			if err == nil {
+				return
+			}
 
-		if !kerrors.IsNotFound(err) {
-			for _, isRetryError := range errorFuncs {
-				if isRetryError(err) {
+			if !kerrors.IsNotFound(err) {
+				for _, isRetryError := range errorFuncs {
+					if isRetryError(err) {
+						return false, nil
+					}
+				}
+
+				// If the error sends the Retry-After header, we respect it as an explicit confirmation we should retry.
+				if delaySeconds, shouldRetry := kerrors.SuggestsClientDelay(err); shouldRetry {
+					delayTime := time.Duration(delaySeconds) * time.Second
+					if retryTime < delayTime {
+						time.Sleep(delayTime - retryTime)
+					}
 					return false, nil
 				}
+
+				err = fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
+				return
 			}
 
-			// If the error sends the Retry-After header, we respect it as an explicit confirmation we should retry.
-			if delaySeconds, shouldRetry := kerrors.SuggestsClientDelay(err); shouldRetry {
-				delayTime := time.Duration(delaySeconds) * time.Second
-				if retryTime < delayTime {
-					time.Sleep(delayTime - retryTime)
-				}
-				return false, nil
-			}
-
-			err = fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
-			return
-		}
-
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 
 	if err != nil {
 		return fmt.Errorf("unable to wait for %s deletion: %s", utilObjectInfo(o), err)

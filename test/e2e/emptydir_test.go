@@ -41,7 +41,7 @@ func TestBasicEmptyDir(t *testing.T) {
 		t.Errorf("error: the deployment doesn't have available replicas")
 	}
 
-	logs, err := framework.GetOperatorLogs(te.Client())
+	logs, err := framework.GetOperatorLogs(context.Background(), te.Client())
 	if err != nil {
 		t.Fatal(err)
 	}

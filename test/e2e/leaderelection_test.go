@@ -45,7 +45,7 @@ func TestLeaderElection(t *testing.T) {
 	// for the pods to write the logs, so we don't get false positives
 	time.Sleep(time.Second * 2)
 
-	allLogs, err := framework.GetOperatorLogs(te.Client())
+	allLogs, err := framework.GetOperatorLogs(context.Background(), te.Client())
 	if err != nil {
 		t.Fatalf("error reading operator logs: %v", err)
 	}

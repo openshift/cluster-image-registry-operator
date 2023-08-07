@@ -164,18 +164,20 @@ func testSecret(sData map[string][]byte) *corev1.Secret {
 }
 
 func waitForUpdatedSecret(ctx context.Context, kubeClient kubeclient.Interface, expectedData map[string][]byte) error {
-	err := wait.Poll(time.Second, time.Minute, func() (stop bool, err error) {
-		sec, err := kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Get(ctx, defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
-		if err != nil {
-			// Keep waiting
+	err := wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false,
+		func(context.Context) (stop bool, err error) {
+			sec, err := kubeClient.CoreV1().Secrets(defaults.ImageRegistryOperatorNamespace).Get(ctx, defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{})
+			if err != nil {
+				// Keep waiting
+				return false, nil
+			}
+			if reflect.DeepEqual(sec.Data, expectedData) {
+				return true, nil
+			}
+			// Keep trying
 			return false, nil
-		}
-		if reflect.DeepEqual(sec.Data, expectedData) {
-			return true, nil
-		}
-		// Keep trying
-		return false, nil
-	})
+		},
+	)
 	return err
 }
 

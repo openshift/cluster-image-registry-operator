@@ -77,13 +77,11 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 	}
 
 	// wait for the Deployment to be ovewritten by the operator.
-	if err := wait.Poll(
-		time.Second,
-		time.Minute,
-		func() (stop bool, err error) {
+	if err := wait.PollUntilContextTimeout(context.Background(), time.Second, time.Minute, false,
+		func(ctx context.Context) (stop bool, err error) {
 			deployment, err := te.Client().Deployments(
 				framework.OperatorDeploymentNamespace,
-			).Get(context.Background(), "image-registry", metav1.GetOptions{})
+			).Get(ctx, "image-registry", metav1.GetOptions{})
 			if err != nil {
 				return false, err
 			}

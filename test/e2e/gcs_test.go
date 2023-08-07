@@ -108,19 +108,22 @@ func TestGCSDay2(t *testing.T) {
 
 	// Create the image-registry-private-configuration-user secret containing
 	// our tainted credentials.
-	err = wait.PollImmediate(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := framework.CreateOrUpdateSecret(
-			defaults.ImageRegistryPrivateConfigurationUser,
-			defaults.ImageRegistryOperatorNamespace,
-			map[string]string{
-				"REGISTRY_STORAGE_GCS_KEYFILE": string(taintedAuth),
-			},
-		); err != nil {
-			t.Logf("unable to create secret: %s", err)
-			return false, nil
-		}
-		return true, nil
-	})
+	err = wait.PollUntilContextTimeout(ctx, time.Second, framework.AsyncOperationTimeout, true,
+		func(ctx context.Context) (stop bool, err error) {
+			if _, err := framework.CreateOrUpdateSecret(
+				ctx,
+				defaults.ImageRegistryPrivateConfigurationUser,
+				defaults.ImageRegistryOperatorNamespace,
+				map[string]string{
+					"REGISTRY_STORAGE_GCS_KEYFILE": string(taintedAuth),
+				},
+			); err != nil {
+				t.Logf("unable to create secret: %s", err)
+				return false, nil
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
