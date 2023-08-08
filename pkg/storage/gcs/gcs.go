@@ -255,8 +255,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		bucketAttrs := gstorage.BucketAttrs{Location: d.Config.Region}
 		bucket = gclient.Bucket(d.Config.Bucket)
 
-		err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs)
+		labels, err := getUserLabels(d.Listers.Infrastructures)
 		if err != nil {
+			return err
+		}
+		klog.V(1).Infof("createStorage: %v list of labels will be applied to %s bucket", labels, d.Config.Bucket)
+		bucketAttrs.Labels = labels
+
+		if err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs); err != nil {
 			if gerr, ok := err.(*gapi.Error); ok {
 				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, strconv.Itoa(gerr.Code), gerr.Error())
 				return err
@@ -275,6 +281,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		cr.Spec.Storage.GCS = d.Config.DeepCopy()
 
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "GCS bucket was successfully created")
+		if len(bucketAttrs.Labels) > 0 {
+			util.UpdateCondition(cr, defaults.StorageLabeled, operatorapi.ConditionTrue, "Bucket Labeled Successfully",
+				fmt.Sprintf("Successfully added user-defined labels to %s storage bucket", d.Config.Bucket))
+		}
 	}
 
 	// TODO: Wait until the bucket exists
