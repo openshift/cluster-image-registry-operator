@@ -14,7 +14,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
-func CreateOrUpdateSecret(name string, namespace string, data map[string]string) (*corev1.Secret, error) {
+func CreateOrUpdateSecret(ctx context.Context, name string, namespace string, data map[string]string) (*corev1.Secret, error) {
 	kubeconfig, err := regopclient.GetConfig()
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 		// Skip using the cache here so we don't have as many
 		// retries due to slow cache updates
 		cur, err := client.Secrets(namespace).Get(
-			context.Background(), name, metav1.GetOptions{},
+			ctx, name, metav1.GetOptions{},
 		)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -56,12 +56,12 @@ func CreateOrUpdateSecret(name string, namespace string, data map[string]string)
 
 		if errors.IsNotFound(err) {
 			_, err := client.Secrets(namespace).Create(
-				context.Background(), cur, metav1.CreateOptions{},
+				ctx, cur, metav1.CreateOptions{},
 			)
 			return err
 		}
 		updatedSecret, err = client.Secrets(namespace).Update(
-			context.Background(), cur, metav1.UpdateOptions{},
+			ctx, cur, metav1.UpdateOptions{},
 		)
 		return err
 	}); err != nil {

@@ -54,19 +54,21 @@ func CheckAbsenceOfOperatorPods(te TestEnv) {
 func StopDeployment(te TestEnv, namespace, name string) {
 	te.Logf("scaling down the deployment %s/%s...", namespace, name)
 	var realErr error
-	err := wait.Poll(1*time.Second, 30*time.Second, func() (bool, error) {
-		if _, realErr = te.Client().Deployments(namespace).Patch(
-			context.Background(),
-			name,
-			types.MergePatchType,
-			[]byte(`{"spec": {"replicas": 0}}`),
-			metav1.PatchOptions{},
-		); realErr != nil {
-			te.Logf("failed to patch deployment %s/%s to zero replicas: %v", namespace, name, realErr)
-			return false, nil
-		}
-		return true, nil
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 30*time.Second, false,
+		func(ctx context.Context) (bool, error) {
+			if _, realErr = te.Client().Deployments(namespace).Patch(
+				ctx,
+				name,
+				types.MergePatchType,
+				[]byte(`{"spec": {"replicas": 0}}`),
+				metav1.PatchOptions{},
+			); realErr != nil {
+				te.Logf("failed to patch deployment %s/%s to zero replicas: %v", namespace, name, realErr)
+				return false, nil
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		te.Fatalf("unable to patch deployment %s/%s to zero replicas: %v (last error: %v)", namespace, name, err, realErr)
 	}
@@ -74,16 +76,16 @@ func StopDeployment(te TestEnv, namespace, name string) {
 	WaitUntilDeploymentIsRolledOut(te, namespace, name)
 }
 
-func GetOperatorLogs(client *Clientset) (PodSetLogs, error) {
-	return GetLogsByLabelSelector(client, OperatorDeploymentNamespace, &metav1.LabelSelector{
+func GetOperatorLogs(ctx context.Context, client *Clientset) (PodSetLogs, error) {
+	return GetLogsByLabelSelector(ctx, client, OperatorDeploymentNamespace, &metav1.LabelSelector{
 		MatchLabels: map[string]string{
 			"name": "cluster-image-registry-operator",
 		},
 	}, false)
 }
 
-func DumpOperatorLogs(te TestEnv) {
-	podLogs, err := GetOperatorLogs(te.Client())
+func DumpOperatorLogs(ctx context.Context, te TestEnv) {
+	podLogs, err := GetOperatorLogs(ctx, te.Client())
 	if err != nil {
 		te.Logf("failed to get the operator logs: %s", err)
 		return

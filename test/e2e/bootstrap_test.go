@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -11,7 +12,7 @@ func TestBootstrapFailToUpdateSpec(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
-	logs, err := framework.GetOperatorLogs(te.Client())
+	logs, err := framework.GetOperatorLogs(context.Background(), te.Client())
 	if err != nil {
 		t.Fatalf("error reading operator logs: %s", err)
 	}

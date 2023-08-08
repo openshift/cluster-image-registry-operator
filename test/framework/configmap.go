@@ -25,18 +25,20 @@ func EnsureServiceCAConfigMap(te TestEnv) {
 
 func ensureConfigMap(name string, annotations map[string]string, client *Clientset) error {
 	var configMap *corev1.ConfigMap
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		configMap, err = client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), name, metav1.GetOptions{},
-		)
-		if err == nil {
-			return true, nil
-		}
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			configMap, err = client.ConfigMaps(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, name, metav1.GetOptions{},
+			)
+			if err == nil {
+				return true, nil
+			}
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		},
+	)
 	if err != nil {
 		return err
 	}

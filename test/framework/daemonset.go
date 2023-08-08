@@ -21,18 +21,20 @@ func EnsureNodeCADaemonSetIsAvailable(te TestEnv) {
 
 func WaitForNodeCADaemonSet(client *Clientset) (*appsv1.DaemonSet, error) {
 	var ds *appsv1.DaemonSet
-	err := wait.Poll(1*time.Second, AsyncOperationTimeout, func() (stop bool, err error) {
-		ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "node-ca", metav1.GetOptions{},
-		)
-		if err == nil {
-			return ds.Status.NumberAvailable > 0, nil
-		}
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	})
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			ds, err = client.DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, "node-ca", metav1.GetOptions{},
+			)
+			if err == nil {
+				return ds.Status.NumberAvailable > 0, nil
+			}
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		},
+	)
 	return ds, err
 }
 

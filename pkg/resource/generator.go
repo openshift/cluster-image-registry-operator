@@ -298,16 +298,18 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 
 	var derr error
 	var retriable bool
-	err = wait.PollImmediate(1*time.Second, 5*time.Minute, func() (stop bool, err error) {
-		if retriable, derr = driver.RemoveStorage(cr); derr != nil {
-			if retriable {
-				return false, nil
-			} else {
-				return true, derr
+	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 5*time.Minute, true,
+		func(context.Context) (stop bool, err error) {
+			if retriable, derr = driver.RemoveStorage(cr); derr != nil {
+				if retriable {
+					return false, nil
+				} else {
+					return true, derr
+				}
 			}
-		}
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("unable to remove storage: %s, %s", err, derr)
 	}

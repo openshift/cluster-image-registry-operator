@@ -33,24 +33,26 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 	framework.WaitUntilImageRegistryIsAvailable(te)
 
 	t.Log("waiting until the node-ca daemon is deployed")
-	err := wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "node-ca", metav1.GetOptions{},
-		)
-		if errors.IsNotFound(err) {
-			t.Logf("ds/node-ca has not been created yet: %s", err)
-			return false, nil
-		} else if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, "node-ca", metav1.GetOptions{},
+			)
+			if errors.IsNotFound(err) {
+				t.Logf("ds/node-ca has not been created yet: %s", err)
+				return false, nil
+			} else if err != nil {
+				return false, err
+			}
 
-		if ds.Status.NumberAvailable == 0 {
-			t.Logf("ds/node-ca has no available replicas")
-			return false, nil
-		}
+			if ds.Status.NumberAvailable == 0 {
+				t.Logf("ds/node-ca has no available replicas")
+				return false, nil
+			}
 
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,19 +71,21 @@ func TestNodeCADaemonChangesReverted(t *testing.T) {
 	defer framework.TeardownImageRegistry(te)
 
 	t.Log("waiting until the node-ca daemonset is created")
-	err := wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "node-ca", metav1.GetOptions{},
-		)
-		if errors.IsNotFound(err) {
-			t.Logf("ds/node-ca has not been created yet: %s", err)
-			return false, nil
-		} else if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			_, err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, "node-ca", metav1.GetOptions{},
+			)
+			if errors.IsNotFound(err) {
+				t.Logf("ds/node-ca has not been created yet: %s", err)
+				return false, nil
+			} else if err != nil {
+				return false, err
+			}
 
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,23 +106,24 @@ func TestNodeCADaemonChangesReverted(t *testing.T) {
 		t.Fatalf("unable to remove tolerations from node-ca: %s", err)
 	}
 
-	if err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
-			context.Background(), "node-ca", metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, fmt.Errorf("unable to get node-ca: %s", err)
-		}
+	if err := wait.PollUntilContextTimeout(context.Background(), time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				ctx, "node-ca", metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, fmt.Errorf("unable to get node-ca: %s", err)
+			}
 
-		t.Logf("node-ca tolerations: %#v", ds.Spec.Template.Spec.Tolerations)
+			t.Logf("node-ca tolerations: %#v", ds.Spec.Template.Spec.Tolerations)
 
-		return reflect.DeepEqual(
-			ds.Spec.Template.Spec.Tolerations,
-			[]corev1.Toleration{
-				{Operator: corev1.TolerationOpExists},
-			},
-		), nil
-	}); err != nil {
+			return reflect.DeepEqual(
+				ds.Spec.Template.Spec.Tolerations,
+				[]corev1.Toleration{
+					{Operator: corev1.TolerationOpExists},
+				},
+			), nil
+		}); err != nil {
 		t.Fatalf("failed to wait until node-ca is restored: %s", err)
 	}
 }

@@ -212,42 +212,46 @@ func TestImageConfigWhenRemoved(t *testing.T) {
 		t.Fatalf("unable to switch to removed state: %s", err)
 	}
 
-	err := wait.Poll(time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		cr, err := te.Client().Configs().Get(
-			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
-		)
-		if err != nil {
-			return false, err
-		}
+	err := wait.PollUntilContextTimeout(context.Background(), time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			cr, err := te.Client().Configs().Get(
+				ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
 
-		conds := framework.GetImageRegistryConditions(cr)
-		t.Logf("image registry: %s", conds)
-		return conds.Available.IsTrue() && conds.Available.Reason() == "Removed" &&
-			conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Removed" &&
-			conds.Degraded.IsFalse() &&
-			conds.Removed.IsTrue(), nil
-	})
+			conds := framework.GetImageRegistryConditions(cr)
+			t.Logf("image registry: %s", conds)
+			return conds.Available.IsTrue() && conds.Available.Reason() == "Removed" &&
+				conds.Progressing.IsFalse() && conds.Progressing.Reason() == "Removed" &&
+				conds.Degraded.IsFalse() &&
+				conds.Removed.IsTrue(), nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	var imgcfg *configv1.Image
-	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (bool, error) {
-		var err error
-		imgcfg, err = te.Client().Images().Get(
-			context.Background(), "cluster", metav1.GetOptions{},
-		)
-		if errors.IsNotFound(err) {
-			te.Logf("waiting for the image config resource: the resource does not exist")
-			return false, nil
-		} else if err != nil {
-			return false, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(ctx context.Context) (bool, error) {
+			var err error
+			imgcfg, err = te.Client().Images().Get(
+				ctx, "cluster", metav1.GetOptions{},
+			)
+			if errors.IsNotFound(err) {
+				te.Logf("waiting for the image config resource: the resource does not exist")
+				return false, nil
+			} else if err != nil {
+				return false, err
+			}
 
-		noExternalRoutes := len(imgcfg.Status.ExternalRegistryHostnames) == 0
-		noInternalRoute := imgcfg.Status.InternalRegistryHostname == ""
-		return noExternalRoutes && noInternalRoute, nil
-	})
+			noExternalRoutes := len(imgcfg.Status.ExternalRegistryHostnames) == 0
+			noInternalRoute := imgcfg.Status.InternalRegistryHostname == ""
+			return noExternalRoutes && noInternalRoute, nil
+		},
+	)
 	if err != nil {
 		te.Fatalf("cluster image config resource was not updated: %+v, err: %v", imgcfg, err)
 	}

@@ -345,7 +345,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	}
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	if _, err := framework.CreateOrUpdateSecret(defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+	if _, err := framework.CreateOrUpdateSecret(context.Background(), defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
 		t.Fatalf("unable to create secret %q: %#v", fmt.Sprintf("%s/%s", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfigurationUser), err)
 	}
 
@@ -404,13 +404,15 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 
 	// Create the image-registry-private-configuration-user secret using the invalid credentials
-	err = wait.PollImmediate(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		if _, err := framework.CreateOrUpdateSecret(defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
-			t.Logf("unable to create secret: %s", err)
-			return false, nil
-		}
-		return true, nil
-	})
+	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, true,
+		func(ctx context.Context) (stop bool, err error) {
+			if _, err := framework.CreateOrUpdateSecret(ctx, defaults.ImageRegistryPrivateConfigurationUser, defaults.ImageRegistryOperatorNamespace, fakeAWSCredsData); err != nil {
+				t.Logf("unable to create secret: %s", err)
+				return false, nil
+			}
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -580,42 +582,44 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 
 	found := false
-	err = wait.Poll(1*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		// Check that the S3 bucket has the correct encryption configuration
-		getBucketEncryptionResult, err = svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
-			Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
-		})
-		if aerr, ok := err.(awserr.Error); ok {
-			t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())
-		}
-		if err != nil {
-			return true, err
-		}
+	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			// Check that the S3 bucket has the correct encryption configuration
+			getBucketEncryptionResult, err = svc.GetBucketEncryption(&s3.GetBucketEncryptionInput{
+				Bucket: aws.String(cr.Spec.Storage.S3.Bucket),
+			})
+			if aerr, ok := err.(awserr.Error); ok {
+				t.Errorf("%#v, %#v", aerr.Code(), aerr.Error())
+			}
+			if err != nil {
+				return true, err
+			}
 
-		wantedBucketEncryption = &s3.ServerSideEncryptionConfiguration{
-			Rules: []*s3.ServerSideEncryptionRule{
-				{
-					ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
-						SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
-						KMSMasterKeyID: aws.String("testKey"),
+			wantedBucketEncryption = &s3.ServerSideEncryptionConfiguration{
+				Rules: []*s3.ServerSideEncryptionRule{
+					{
+						ApplyServerSideEncryptionByDefault: &s3.ServerSideEncryptionByDefault{
+							SSEAlgorithm:   aws.String(s3.ServerSideEncryptionAwsKms),
+							KMSMasterKeyID: aws.String("testKey"),
+						},
+						BucketKeyEnabled: aws.Bool(false),
 					},
-					BucketKeyEnabled: aws.Bool(false),
 				},
-			},
-		}
+			}
 
-		for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
-			for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
-				if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
-					found = true
-					break
-				} else {
-					return false, nil
+			for _, wantedEncryptionRule := range wantedBucketEncryption.Rules {
+				for _, gotRule := range getBucketEncryptionResult.ServerSideEncryptionConfiguration.Rules {
+					if reflect.DeepEqual(wantedEncryptionRule, gotRule) {
+						found = true
+						break
+					} else {
+						return false, nil
+					}
 				}
 			}
-		}
-		return true, nil
-	})
+			return true, nil
+		},
+	)
 	if err != nil {
 		t.Errorf("an error occurred checking for bucket encryption: %#v", err)
 	}
@@ -732,21 +736,23 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 	}
 	s3Client := s3.New(sess)
 	exists := true
-	err = wait.Poll(5*time.Second, framework.AsyncOperationTimeout, func() (stop bool, err error) {
-		_, err = s3Client.HeadBucket(&s3.HeadBucketInput{
-			Bucket: aws.String(cr.Status.Storage.S3.Bucket),
-		})
+	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
+		func(context.Context) (stop bool, err error) {
+			_, err = s3Client.HeadBucket(&s3.HeadBucketInput{
+				Bucket: aws.String(cr.Status.Storage.S3.Bucket),
+			})
 
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
-				exists = false
-				return true, nil
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
+					exists = false
+					return true, nil
+				}
 			}
-		}
 
-		return false, err
-	})
+			return false, err
+		},
+	)
 	if err != nil {
 		t.Errorf("an error occurred checking for s3 bucket existence: %#v", err)
 	}

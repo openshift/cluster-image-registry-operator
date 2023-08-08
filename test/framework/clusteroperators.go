@@ -38,19 +38,21 @@ func WaitUntilClusterOperatorsAreHealthy(te TestEnv, interval, timeout time.Dura
 	ctx := context.Background()
 	start := time.Now()
 	var lastErr error
-	err := wait.PollImmediate(interval, timeout, func() (stop bool, err error) {
-		operators, err := te.Client().ClusterOperators().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return false, err
-		}
-		lastErr = AreClusterOperatorsHealthy(operators.Items)
-		if lastErr == nil {
-			return true, nil
-		}
-		te.Logf("waiting until cluster operators become healthy: %s", lastErr)
-		return false, nil
-	})
-	if err == wait.ErrWaitTimeout {
+	err := wait.PollUntilContextTimeout(context.Background(), interval, timeout, true,
+		func(context.Context) (stop bool, err error) {
+			operators, err := te.Client().ClusterOperators().List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
+			lastErr = AreClusterOperatorsHealthy(operators.Items)
+			if lastErr == nil {
+				return true, nil
+			}
+			te.Logf("waiting until cluster operators become healthy: %s", lastErr)
+			return false, nil
+		},
+	)
+	if wait.Interrupted(err) {
 		te.Fatalf("cluster operators did not become healthy: %s", lastErr)
 	} else if err != nil {
 		te.Fatalf("error while waiting until cluster operators become healthy: %s", err)

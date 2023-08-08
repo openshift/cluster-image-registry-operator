@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestDegraded(t *testing.T) {
 	}
 	if degraded.Status != operatorv1.ConditionTrue {
 		framework.DumpObject(t, "the latest observed image registry resource", cr)
-		framework.DumpOperatorLogs(te)
+		framework.DumpOperatorLogs(context.Background(), te)
 		t.Fatal("the imageregistry resource is expected to be degraded")
 	}
 
