@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
 	github.com/spf13/cobra v1.6.1
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.11.0
 	golang.org/x/oauth2 v0.8.0
 	google.golang.org/api v0.57.0
