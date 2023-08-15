@@ -35,7 +35,6 @@ func TestPruneRegistryFlag(t *testing.T) {
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
-	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	cr, err := te.Client().Configs().Get(
 		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
@@ -119,7 +118,6 @@ func TestPruner(t *testing.T) {
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
-	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	// Check that the pruner custom resource was created
 	cr, err := te.Client().ImagePruners().Get(
