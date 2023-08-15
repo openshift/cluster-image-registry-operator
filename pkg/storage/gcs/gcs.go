@@ -208,6 +208,12 @@ func (d *driver) StorageChanged(cr *imageregistryv1.Config) bool {
 		return true
 	}
 
+	// Previous status condition was set to failed because, of tag operation failure,
+	// means bucket creation was successful and will retry adding tags.
+	if cond := util.FetchCondition(cr, defaults.StorageTagged); cond.Status != operatorapi.ConditionTrue {
+		return true
+	}
+
 	return false
 }
 
@@ -314,12 +320,19 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				cr.Spec.Storage.GCS = d.Config.DeepCopy()
 			}
 		}
+		return addTagsToStorageBucket(d.Context, cr, d.Listers, d.Config.Bucket, d.Config.Region)
 	} else {
 		if !reflect.DeepEqual(cr.Status.Storage.GCS, d.Config) {
 			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
 				GCS: d.Config.DeepCopy(),
 			}
 		}
+	}
+
+	// Previous status condition was set to failed because, of tag operation failure,
+	// means bucket creation was successful and hence will only try adding tags.
+	if cond := util.FetchCondition(cr, defaults.StorageTagged); cond.Status != operatorapi.ConditionTrue {
+		return addTagsToStorageBucket(d.Context, cr, d.Listers, d.Config.Bucket, d.Config.Region)
 	}
 
 	return nil
