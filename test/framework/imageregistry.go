@@ -232,6 +232,50 @@ func deleteLeaderElectionLease(te TestEnv, name string) {
 	}
 }
 
+func deleteNodeCADaemonSet(te TestEnv) {
+	ds, err := te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+		context.Background(),
+		"node-ca",
+		metav1.GetOptions{},
+	)
+	if errors.IsNotFound(err) {
+		return
+	}
+	if err != nil {
+		te.Fatalf("unable to get the current state of daemonset/node-ca: %s", err)
+	}
+
+	policy := metav1.DeletePropagationBackground
+	err = te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Delete(
+		context.Background(),
+		"node-ca",
+		metav1.DeleteOptions{
+			PropagationPolicy: &policy,
+		},
+	)
+	if errors.IsNotFound(err) {
+		return
+	}
+	if err != nil && !errors.IsNotFound(err) {
+		te.Fatalf("unable to delete daemonset/node-ca: %s", err)
+	}
+
+	err = WaitUntilFinalized(
+		ds,
+		func() (metav1.Object, error) {
+			return te.Client().DaemonSets(defaults.ImageRegistryOperatorNamespace).Get(
+				context.Background(),
+				"node-ca",
+				metav1.GetOptions{},
+			)
+		},
+	)
+	if err != nil {
+		DumpNodeCADaemonSet(te)
+		te.Fatalf("unable to finalize daemonset/node-ca: %s", err)
+	}
+}
+
 func deleteImageRegistryCertificates(te TestEnv) {
 	err := te.Client().ConfigMaps(defaults.ImageRegistryOperatorNamespace).Delete(
 		context.Background(),
@@ -249,6 +293,7 @@ func deleteImageRegistryCertificates(te TestEnv) {
 func deleteImageRegistryAlwaysPresentResources(te TestEnv) {
 	te.Logf("deleting always-present resources...")
 	defer deleteImageRegistryCertificates(te)
+	defer deleteNodeCADaemonSet(te)
 	defer deleteLeaderElectionLease(te, "openshift-master-controllers")
 }
 
