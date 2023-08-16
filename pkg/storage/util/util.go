@@ -59,6 +59,16 @@ func UpdateCondition(cr *imageregistryv1.Config, conditionType string, status op
 	cr.Status.Conditions = conditions
 }
 
+// FetchCondition will return the provided condition.
+func FetchCondition(cr *imageregistryv1.Config, conditionType string) (c operatorapi.OperatorCondition) {
+	for _, c = range cr.Status.Conditions {
+		if conditionType == c.Type {
+			return c
+		}
+	}
+	return
+}
+
 // GetInfrastructure gets information about the cloud platform that the cluster is
 // installed on including the Type, Region, and other platform specific information.
 func GetInfrastructure(lister configlisters.InfrastructureLister) (*configv1.Infrastructure, error) {
