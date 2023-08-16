@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
@@ -121,36 +122,63 @@ func (c *NodeCADaemonController) sync() error {
 		Status: operatorv1.ConditionUnknown,
 	}
 
-	_, err := gen.Get()
+	dsObj, err := gen.Get()
 	if errors.IsNotFound(err) {
-		availableCondition.Status = operatorv1.ConditionTrue
-		availableCondition.Reason = "AsExpected"
-		availableCondition.Message = "The daemon set node-ca is removed"
+		availableCondition.Status = operatorv1.ConditionFalse
+		availableCondition.Reason = "NotFound"
+		availableCondition.Message = "The daemon set node-ca does not exist"
 
-		progressingCondition.Status = operatorv1.ConditionFalse
-		progressingCondition.Reason = "AsExpected"
-		progressingCondition.Message = "The daemon set node-ca is removed"
+		progressingCondition.Status = operatorv1.ConditionTrue
+		progressingCondition.Reason = "NotFound"
+		progressingCondition.Message = "The daemon set node-ca does not exist"
 	} else if err != nil {
 		availableCondition.Reason = "Unknown"
-		availableCondition.Message = fmt.Sprintf("Unable to check daemon set existence: %s", err)
+		availableCondition.Message = fmt.Sprintf("Unable to check daemon set availability: %s", err)
 
 		progressingCondition.Reason = "Unknown"
-		progressingCondition.Message = fmt.Sprintf("Unable to check daemon set existence: %s", err)
+		progressingCondition.Message = fmt.Sprintf("Unable to check daemon set progress: %s", err)
 	} else {
-		gracePeriod := int64(0)
-		propagationPolicy := metav1.DeletePropagationForeground
-		opts := metav1.DeleteOptions{
-			GracePeriodSeconds: &gracePeriod,
-			PropagationPolicy:  &propagationPolicy,
+		ds := dsObj.(*appsv1.DaemonSet)
+		if ds.Status.NumberAvailable > 0 {
+			availableCondition.Status = operatorv1.ConditionTrue
+			availableCondition.Reason = "AsExpected"
+			availableCondition.Message = "The daemon set node-ca has available replicas"
+		} else {
+			availableCondition.Status = operatorv1.ConditionFalse
+			availableCondition.Reason = "NoAvailableReplicas"
+			availableCondition.Message = "The daemon set node-ca does not have available replicas"
 		}
-		err := gen.Delete(opts)
-		if err != nil && !errors.IsNotFound(err) {
-			availableCondition.Reason = "Unknown"
-			availableCondition.Message = fmt.Sprintf("Unable to delete daemon set: %s", err)
 
-			progressingCondition.Reason = "Unknown"
-			progressingCondition.Message = fmt.Sprintf("Unable to delete daemon set: %s", err)
+		if ds.Generation != ds.Status.ObservedGeneration {
+			progressingCondition.Status = operatorv1.ConditionTrue
+			progressingCondition.Reason = "Progressing"
+			progressingCondition.Message = "The daemon set node-ca is updating node pods"
+		} else if ds.Status.NumberUnavailable > 0 {
+			progressingCondition.Status = operatorv1.ConditionTrue
+			progressingCondition.Reason = "Unavailable"
+			progressingCondition.Message = "The daemon set node-ca is deploying node pods"
+		} else {
+			progressingCondition.Status = operatorv1.ConditionFalse
+			progressingCondition.Reason = "AsExpected"
+			progressingCondition.Message = "The daemon set node-ca is deployed"
 		}
+	}
+
+	err = resource.ApplyMutator(gen)
+	if err != nil {
+		_, _, updateError := v1helpers.UpdateStatus(
+			ctx,
+			c.operatorClient,
+			v1helpers.UpdateConditionFn(availableCondition),
+			v1helpers.UpdateConditionFn(progressingCondition),
+			v1helpers.UpdateConditionFn(operatorv1.OperatorCondition{
+				Type:    "NodeCADaemonControllerDegraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "Error",
+				Message: err.Error(),
+			}),
+		)
+		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
 	_, _, err = v1helpers.UpdateStatus(
