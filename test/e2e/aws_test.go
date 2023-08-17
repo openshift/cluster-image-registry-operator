@@ -78,7 +78,6 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
-	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
 	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
 	err = s3Driver.UpdateEffectiveConfig()

@@ -2,7 +2,6 @@ package resource
 
 import (
 	"context"
-	"os"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,14 +10,9 @@ import (
 	appsv1listers "k8s.io/client-go/listers/apps/v1"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 
-	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
-	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceread"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
-	assets "github.com/openshift/cluster-image-registry-operator/bindata"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
@@ -58,52 +52,12 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 	return ds.daemonSetLister.Get(ds.GetName())
 }
 
-func (ds *generatorNodeCADaemonSet) expected() *appsv1.DaemonSet {
-	daemonSet := resourceread.ReadDaemonSetV1OrDie(assets.MustAsset("nodecadaemon.yaml"))
-	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
-	return daemonSet
-}
-
 func (ds *generatorNodeCADaemonSet) Create() (runtime.Object, error) {
-	dep, _, err := ds.Update(nil)
-	return dep, err
+	return nil, nil
 }
 
 func (ds *generatorNodeCADaemonSet) Update(o runtime.Object) (runtime.Object, bool, error) {
-	desiredDaemonSet := ds.expected()
-
-	_, opStatus, _, err := ds.operatorClient.GetOperatorState()
-	if err != nil {
-		return nil, false, err
-	}
-	actualDaemonSet, updated, err := resourceapply.ApplyDaemonSet(
-		context.TODO(),
-		ds.client,
-		ds.eventRecorder,
-		desiredDaemonSet,
-		resourcemerge.ExpectedDaemonSetGeneration(desiredDaemonSet, opStatus.Generations),
-	)
-	if err != nil {
-		return o, updated, err
-	}
-
-	if updated {
-		updateStatusFn := func(newStatus *operatorv1.OperatorStatus) error {
-			resourcemerge.SetDaemonSetGeneration(&newStatus.Generations, actualDaemonSet)
-			return nil
-		}
-
-		_, _, err = v1helpers.UpdateStatus(
-			context.TODO(),
-			ds.operatorClient,
-			updateStatusFn,
-		)
-		if err != nil {
-			return actualDaemonSet, updated, err
-		}
-	}
-
-	return actualDaemonSet, updated, nil
+	return nil, false, nil
 }
 
 func (ds *generatorNodeCADaemonSet) Delete(opts metav1.DeleteOptions) error {
