@@ -12,6 +12,8 @@ spec:
   selector:
     matchLabels:
       name: cluster-image-registry-operator
+  strategy:
+    type: Recreate
   template:
     metadata:
       annotations:
