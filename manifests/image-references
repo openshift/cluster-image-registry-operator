@@ -1,5 +1,8 @@
 kind: ImageStream
 apiVersion: image.openshift.io/v1
+metadata:
+  annotations:
+    capability.openshift.io/name: ImageRegistry
 spec:
   tags:
   - name: cluster-image-registry-operator
