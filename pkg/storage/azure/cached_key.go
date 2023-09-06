@@ -10,6 +10,9 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
 
+// cacheExpiration is the cache expiration duration in minutes.
+const cacheExpiration time.Duration = 20 * time.Minute
+
 // primaryKey keeps account primary key in a cache.
 var primaryKey cachedKey
 
@@ -44,6 +47,6 @@ func (k *cachedKey) get(
 	k.resourceGroup = resourceGroup
 	k.account = account
 	k.value = *(*keysResponse.Keys)[0].Value
-	k.expire = time.Now().Add(5 * time.Minute)
+	k.expire = time.Now().Add(cacheExpiration)
 	return k.value, nil
 }
