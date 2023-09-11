@@ -804,7 +804,11 @@ func (d *driver) VolumeSecrets() (map[string]string, error) {
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get resource key for service instance: %s with resp code: %d", err.Error(), resp.StatusCode)
+		respMsg := ""
+		if resp != nil {
+			respMsg = fmt.Sprintf(" with resp code: %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("unable to get resource key for service instance: %s%s", err.Error(), respMsg)
 	}
 
 	var accessKey string
