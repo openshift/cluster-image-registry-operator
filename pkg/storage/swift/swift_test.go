@@ -48,9 +48,11 @@ const (
 
 var (
 	// Fake Swift credentials map
-	fakeSecretData = map[string][]byte{
-		"REGISTRY_STORAGE_SWIFT_USERNAME":                    []byte(username),
-		"REGISTRY_STORAGE_SWIFT_PASSWORD":                    []byte(password),
+	fakeUserPassSecretData = map[string][]byte{
+		"REGISTRY_STORAGE_SWIFT_USERNAME": []byte(username),
+		"REGISTRY_STORAGE_SWIFT_PASSWORD": []byte(password),
+	}
+	fakeAppCredsSecretData = map[string][]byte{
 		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID":     []byte(applicationCredentialID),
 		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME":   []byte(applicationCredentialName),
 		"REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET": []byte(applicationCredentialSecret),
@@ -63,12 +65,41 @@ type MockSecretNamespaceLister interface {
 	Get(string) (*corev1.Secret, error)
 	List(selector labels.Selector) ([]*corev1.Secret, error)
 }
+
+type MockUPIAppCredsSecretNamespaceLister struct{}
+
+func (m MockUPIAppCredsSecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
+	if name == upiSecretName {
+		return &corev1.Secret{
+			Data: fakeAppCredsSecretData,
+		}, nil
+	}
+
+	return nil, &k8serrors.StatusError{
+		ErrStatus: metav1.Status{
+			Status:  metav1.StatusFailure,
+			Code:    http.StatusNotFound,
+			Reason:  metav1.StatusReasonNotFound,
+			Details: &metav1.StatusDetails{},
+			Message: fmt.Sprintf("No secret with name %v was found", name),
+		},
+	}
+}
+
+func (m MockUPIAppCredsSecretNamespaceLister) List(selector labels.Selector) ([]*corev1.Secret, error) {
+	return []*corev1.Secret{
+		{
+			Data: fakeAppCredsSecretData,
+		},
+	}, nil
+}
+
 type MockUPISecretNamespaceLister struct{}
 
 func (m MockUPISecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
 	if name == upiSecretName {
 		return &corev1.Secret{
-			Data: fakeSecretData,
+			Data: fakeUserPassSecretData,
 		}, nil
 	}
 
@@ -86,7 +117,7 @@ func (m MockUPISecretNamespaceLister) Get(name string) (*corev1.Secret, error) {
 func (m MockUPISecretNamespaceLister) List(selector labels.Selector) ([]*corev1.Secret, error) {
 	return []*corev1.Secret{
 		{
-			Data: fakeSecretData,
+			Data: fakeUserPassSecretData,
 		},
 	}, nil
 }
@@ -542,7 +573,7 @@ func TestSwiftStorageExistsNativeSecret(t *testing.T) {
 	th.AssertEquals(t, true, res)
 }
 
-func TestSwiftSecrets(t *testing.T) {
+func TestSwiftSecretsAppCreds(t *testing.T) {
 	config := imageregistryv1.ImageRegistryConfigStorageSwift{
 		AuthURL:   "http://localhost:5000/v3",
 		Container: container,
@@ -551,7 +582,7 @@ func TestSwiftSecrets(t *testing.T) {
 	}
 	d := driver{
 		Listers: &regopclient.StorageListers{
-			Secrets:         MockUPISecretNamespaceLister{},
+			Secrets:         MockUPIAppCredsSecretNamespaceLister{},
 			Infrastructures: fakeInfrastructureLister(cloudName),
 			OpenShiftConfig: MockConfigMapNamespaceLister{},
 		},
@@ -562,8 +593,8 @@ func TestSwiftSecrets(t *testing.T) {
 	res, err := configenv.SecretData()
 	th.AssertNoErr(t, err)
 	th.AssertEquals(t, 5, len(res))
-	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
-	th.AssertEquals(t, password, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
 	th.AssertEquals(t, applicationCredentialID, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
 	th.AssertEquals(t, applicationCredentialName, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
 	th.AssertEquals(t, applicationCredentialSecret, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
@@ -586,13 +617,75 @@ func TestSwiftSecrets(t *testing.T) {
     auth:
       auth_url: "http://localhost:5000/v3"
       project_name: ` + tenant + `
-      username: ` + username + `
-      password: ` + password + `
       application_credential_id: ` + applicationCredentialID + `
       application_credential_name: ` + applicationCredentialName + `
       application_credential_secret: ` + applicationCredentialSecret + `
       domain_name: ` + domain + `
-    region_name: RegionOne`)
+      region_name: RegionOne`)
+
+	fakeCloudsYAML = map[string][]byte{
+		cloudSecretKey: fakeCloudsYAMLData,
+	}
+	configenv, err = d.ConfigEnv()
+	th.AssertNoErr(t, err)
+	res, err = configenv.SecretData()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, 5, len(res))
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
+	th.AssertEquals(t, applicationCredentialID, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
+	th.AssertEquals(t, applicationCredentialName, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
+	th.AssertEquals(t, applicationCredentialSecret, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
+}
+
+func TestSwiftSecretsUserPass(t *testing.T) {
+	config := imageregistryv1.ImageRegistryConfigStorageSwift{
+		AuthURL:   "http://localhost:5000/v3",
+		Container: container,
+		Domain:    domain,
+		Tenant:    tenant,
+	}
+	d := driver{
+		Listers: &regopclient.StorageListers{
+			Secrets:         MockUPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(cloudName),
+			OpenShiftConfig: MockConfigMapNamespaceLister{},
+		},
+		Config: &config,
+	}
+	configenv, err := d.ConfigEnv()
+	th.AssertNoErr(t, err)
+	res, err := configenv.SecretData()
+	th.AssertNoErr(t, err)
+	th.AssertEquals(t, 5, len(res))
+	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
+	th.AssertEquals(t, password, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
+
+	config = imageregistryv1.ImageRegistryConfigStorageSwift{
+		Container: container,
+	}
+	// Support any cloud name provided by platform status
+	customCloud := "myCloud"
+	d = driver{
+		Listers: &regopclient.StorageListers{
+			Secrets:         MockIPISecretNamespaceLister{},
+			Infrastructures: fakeInfrastructureLister(customCloud),
+			OpenShiftConfig: MockConfigMapNamespaceLister{},
+		},
+		Config: &config,
+	}
+	fakeCloudsYAMLData := []byte(`clouds:
+  ` + customCloud + `:
+    auth:
+      auth_url: "http://localhost:5000/v3"
+      project_name: ` + tenant + `
+      username: ` + username + `
+      password: ` + password + `
+      domain_name: ` + domain + `
+      region_name: RegionOne`)
 
 	fakeCloudsYAML = map[string][]byte{
 		cloudSecretKey: fakeCloudsYAMLData,
@@ -604,9 +697,9 @@ func TestSwiftSecrets(t *testing.T) {
 	th.AssertEquals(t, 5, len(res))
 	th.AssertEquals(t, username, res["REGISTRY_STORAGE_SWIFT_USERNAME"])
 	th.AssertEquals(t, password, res["REGISTRY_STORAGE_SWIFT_PASSWORD"])
-	th.AssertEquals(t, applicationCredentialID, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
-	th.AssertEquals(t, applicationCredentialName, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
-	th.AssertEquals(t, applicationCredentialSecret, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME"])
+	th.AssertEquals(t, `""`, res["REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET"])
 }
 
 func TestSwiftCreateStorageCloudConfig(t *testing.T) {

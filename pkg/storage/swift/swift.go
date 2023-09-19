@@ -152,25 +152,18 @@ func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 	} else if err != nil {
 		return nil, err
 	} else {
-		cfg.Username, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_USERNAME")
-		if err != nil {
-			return nil, err
-		}
-		cfg.Password, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_PASSWORD")
-		if err != nil {
-			return nil, err
-		}
-		cfg.ApplicationCredentialID, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID")
-		if err != nil {
-			return nil, err
-		}
-		cfg.ApplicationCredentialName, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME")
-		if err != nil {
-			return nil, err
-		}
-		cfg.ApplicationCredentialSecret, err = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET")
-		if err != nil {
-			return nil, err
+		cfg.Username, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_USERNAME")
+		cfg.Password, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_PASSWORD")
+		cfg.ApplicationCredentialID, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID")
+		cfg.ApplicationCredentialName, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME")
+		cfg.ApplicationCredentialSecret, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET")
+		userPassValid := len(cfg.Username) > 0 && len(cfg.Password) > 0
+		appCredsValid := len(cfg.ApplicationCredentialID) > 0 && len(cfg.ApplicationCredentialName) > 0 && len(cfg.ApplicationCredentialSecret) > 0
+		if !userPassValid && !appCredsValid {
+			return nil, fmt.Errorf(
+				"secret %q does not contain required keys 'REGISTRY_STORAGE_SWIFT_USERNAME' and 'REGISTRY_STORAGE_SWIFT_PASSWORD'; or 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID', 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME' and 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET'",
+				fmt.Sprintf("%s/%s", sec.Namespace, sec.Name),
+			)
 		}
 	}
 
