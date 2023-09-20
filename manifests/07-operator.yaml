@@ -11,6 +11,8 @@ metadata:
     include.release.openshift.io/single-node-developer: "true"
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       name: cluster-image-registry-operator
@@ -63,7 +65,7 @@ spec:
             - name: POD_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: metadata.name                   
+                  fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "cluster-image-registry-operator"
             - name: IMAGE
