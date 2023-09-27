@@ -26,6 +26,7 @@ type ImagePrunerGenerator struct {
 
 func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator, error) {
 	var mutators []Mutator
+	mutators = append(mutators, newGeneratorPrunerClusterRole(g.listers.ClusterRoles, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
 	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core))
