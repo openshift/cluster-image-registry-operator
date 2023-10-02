@@ -159,8 +159,7 @@ type ImageRegistryConfigStorageS3CloudFront struct {
 
 // ImageRegistryConfigStorageEmptyDir is an place holder to be used when
 // when registry is leveraging ephemeral storage.
-type ImageRegistryConfigStorageEmptyDir struct {
-}
+type ImageRegistryConfigStorageEmptyDir struct{}
 
 // S3TrustedCASource references a config map with a CA certificate bundle in
 // the "openshift-config" namespace. The key for the bundle in the
@@ -303,7 +302,31 @@ type ImageRegistryConfigStorageAzure struct {
 	// object.
 	// +optional
 	CloudName string `json:"cloudName,omitempty"`
+	// networkAccess defines the network access level for the storage account.
+	// "Internal" means the storage account will be private, "External" means
+	// the storage account will be publicly accessible.
+	// Defaults to "External".
+	// +kubebuilder:validation:Enum="Internal";"External"
+	// +kubebuilder:default="External"
+	// +optional
+	NetworkAccess AzureNetworkAccessibility `json:"networkAccess,omitempty"`
+	// vnetName is the name of the vnet the registry operates in.
+	// +optional
+	VNetName string `json:"vnetName,omitempty"`
+	// subnetName is the name of the subnet the registry operates in.
+	// +optional
+	SubnetName string `json:"subnetName,omitempty"`
+	// privateEndpointName is the name of the private endpoint for the registry.
+	// +optional
+	PrivateEndpointName string `json:"privateEndpointName,omitempty"`
 }
+
+type AzureNetworkAccessibility string
+
+const (
+	AzureNetworkAccessInternal AzureNetworkAccessibility = "Internal"
+	AzureNetworkAccessExternal AzureNetworkAccessibility = "External"
+)
 
 // ImageRegistryConfigStorageIBMCOS holds the information to configure
 // the registry to use IBM Cloud Object Storage for backend storage.

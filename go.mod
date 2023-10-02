@@ -183,3 +183,5 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.55.0
+
+replace github.com/openshift/api => github.com/flavianmissi/api v0.0.0-20231030104235-86513c4459f8

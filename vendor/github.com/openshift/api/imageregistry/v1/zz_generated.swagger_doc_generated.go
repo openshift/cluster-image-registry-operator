@@ -112,10 +112,14 @@ func (ImageRegistryConfigStorageAlibabaOSS) SwaggerDoc() map[string]string {
 }
 
 var map_ImageRegistryConfigStorageAzure = map[string]string{
-	"":            "ImageRegistryConfigStorageAzure holds the information to configure the registry to use Azure Blob Storage for backend storage.",
-	"accountName": "accountName defines the account to be used by the registry.",
-	"container":   "container defines Azure's container to be used by registry.",
-	"cloudName":   "cloudName is the name of the Azure cloud environment to be used by the registry. If empty, the operator will set it based on the infrastructure object.",
+	"":                    "ImageRegistryConfigStorageAzure holds the information to configure the registry to use Azure Blob Storage for backend storage.",
+	"accountName":         "accountName defines the account to be used by the registry.",
+	"container":           "container defines Azure's container to be used by registry.",
+	"cloudName":           "cloudName is the name of the Azure cloud environment to be used by the registry. If empty, the operator will set it based on the infrastructure object.",
+	"networkAccess":       "networkAccess defines the network access level for the storage account. \"Internal\" means the storage account will be private, \"External\" means the storage account will be publicly accessible. Defaults to \"External\".",
+	"vnetName":            "vnetName is the name of the vnet the registry operates in.",
+	"subnetName":          "subnetName is the name of the subnet the registry operates in.",
+	"privateEndpointName": "privateEndpointName is the name of the private endpoint for the registry.",
 }
 
 func (ImageRegistryConfigStorageAzure) SwaggerDoc() map[string]string {

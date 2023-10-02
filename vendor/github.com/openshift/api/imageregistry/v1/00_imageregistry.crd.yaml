@@ -680,6 +680,22 @@ spec:
                           minLength: 3
                           pattern: ^[0-9a-z]+(-[0-9a-z]+)*$
                           type: string
+                        networkAccess:
+                          default: External
+                          description: networkAccess defines the network access level for the storage account. "Internal" means the storage account will be private, "External" means the storage account will be publicly accessible. Defaults to "External".
+                          enum:
+                            - Internal
+                            - External
+                          type: string
+                        privateEndpointName:
+                          description: privateEndpointName is the name of the private endpoint for the registry.
+                          type: string
+                        subnetName:
+                          description: subnetName is the name of the subnet the registry operates in.
+                          type: string
+                        vnetName:
+                          description: vnetName is the name of the vnet the registry operates in.
+                          type: string
                       type: object
                     emptyDir:
                       description: 'emptyDir represents ephemeral storage on the pod''s host node. WARNING: this storage cannot be used with more than 1 replica and is not suitable for production use. When the pod is removed from a node for any reason, the data in the emptyDir is deleted forever.'
@@ -1054,6 +1070,22 @@ spec:
                           maxLength: 63
                           minLength: 3
                           pattern: ^[0-9a-z]+(-[0-9a-z]+)*$
+                          type: string
+                        networkAccess:
+                          default: External
+                          description: networkAccess defines the network access level for the storage account. "Internal" means the storage account will be private, "External" means the storage account will be publicly accessible. Defaults to "External".
+                          enum:
+                            - Internal
+                            - External
+                          type: string
+                        privateEndpointName:
+                          description: privateEndpointName is the name of the private endpoint for the registry.
+                          type: string
+                        subnetName:
+                          description: subnetName is the name of the subnet the registry operates in.
+                          type: string
+                        vnetName:
+                          description: vnetName is the name of the vnet the registry operates in.
                           type: string
                       type: object
                     emptyDir:

@@ -538,7 +538,7 @@ github.com/munnerz/goautoneg
 github.com/oklog/ulid
 # github.com/onsi/ginkgo v1.16.4
 ## explicit; go 1.15
-# github.com/openshift/api v0.0.0-20231020115248-f404f2bc3524
+# github.com/openshift/api v0.0.0-20231020115248-f404f2bc3524 => github.com/flavianmissi/api v0.0.0-20231030104235-86513c4459f8
 ## explicit; go 1.20
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -576,7 +576,6 @@ github.com/openshift/api/monitoring
 github.com/openshift/api/monitoring/v1alpha1
 github.com/openshift/api/network
 github.com/openshift/api/network/v1
-github.com/openshift/api/network/v1alpha1
 github.com/openshift/api/networkoperator
 github.com/openshift/api/networkoperator/v1
 github.com/openshift/api/oauth
@@ -664,6 +663,10 @@ github.com/openshift/client-go/imageregistry/informers/externalversions/imagereg
 github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1
 github.com/openshift/client-go/imageregistry/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/imageregistry/listers/imageregistry/v1
+github.com/openshift/client-go/machine/applyconfigurations/internal
+github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1
+github.com/openshift/client-go/machine/clientset/versioned/scheme
+github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/operator/applyconfigurations/internal
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1
 github.com/openshift/client-go/route/applyconfigurations/internal
@@ -1812,3 +1815,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.55.0
+# github.com/openshift/api => github.com/flavianmissi/api v0.0.0-20231030104235-86513c4459f8
