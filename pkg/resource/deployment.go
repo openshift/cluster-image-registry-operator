@@ -14,7 +14,7 @@ import (
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisters "k8s.io/client-go/listers/apps/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -143,7 +143,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			},
 		},
 		Spec: appsapi.DeploymentSpec{
-			ProgressDeadlineSeconds: pointer.Int32(60),
+			ProgressDeadlineSeconds: ptr.To[int32](60),
 			Replicas:                &gd.cr.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
