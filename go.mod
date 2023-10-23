@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-image-registry-operator
 
-go 1.17
+go 1.19
 
 require (
 	cloud.google.com/go/storage v1.10.0
@@ -21,26 +21,26 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/go-cmp v0.5.8
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/gophercloud/gophercloud v0.18.0
 	github.com/gophercloud/utils v0.0.0-20210323225332-7b186010c04f
 	github.com/goware/urlx v0.3.1
-	github.com/openshift/api v0.0.0-20221004161420-ef2c62cf20d0
+	github.com/openshift/api v0.0.0-20230928134114-673ed0cfc7f1
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
-	github.com/openshift/client-go v0.0.0-20221006134153-58ea193f9d20
-	github.com/openshift/library-go v0.0.0-20221004125358-0d713c6520e2
+	github.com/openshift/client-go v0.0.0-20221019143426-16aed247da5c
+	github.com/openshift/library-go v0.0.0-20231020125033-d932feccfc56
 	github.com/prometheus/client_golang v1.12.2
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.32.1
 	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.0
-	golang.org/x/net v0.1.0
+	github.com/stretchr/testify v1.8.0
+	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
 	google.golang.org/api v0.57.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.25.2
-	k8s.io/apimachinery v0.25.2
-	k8s.io/client-go v0.25.2
+	k8s.io/api v0.25.15
+	k8s.io/apimachinery v0.25.15
+	k8s.io/client-go v0.25.15
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
 )
@@ -133,11 +133,11 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
-	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
