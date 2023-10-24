@@ -35,7 +35,6 @@ const (
 	DEFAULT_CREDENTIAL_FILE_NAME = "ibm-credentials.env"
 )
 
-//
 // GetServiceProperties returns a map containing configuration properties for the specified service
 // that are retrieved from external configuration sources in the following precedence order:
 // 1) credential file
@@ -113,13 +112,11 @@ func getServicePropertiesFromCredentialFile(credentialKey string) map[string]str
 
 	// If we found a file to load, then load it.
 	if credentialFilePath != "" {
-		/* #nosec G304 */
-		file, err := os.Open(credentialFilePath)
+		file, err := os.Open(credentialFilePath) // #nosec G304
 		if err != nil {
 			return nil
 		}
-		/* #nosec G307 */
-		defer file.Close()
+		defer file.Close() // #nosec G307
 
 		// Collect the contents of the credential file in a string array.
 		lines := make([]string, 0)
