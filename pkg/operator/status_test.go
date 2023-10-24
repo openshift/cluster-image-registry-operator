@@ -8,7 +8,7 @@ import (
 	appsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -69,7 +69,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
@@ -119,7 +119,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
@@ -206,7 +206,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -250,7 +250,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -301,7 +301,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 			deploy: &appsapi.Deployment{
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
@@ -717,7 +717,7 @@ func Test_syncStatus(t *testing.T) {
 					Generation: 8,
 				},
 				Spec: appsapi.DeploymentSpec{
-					Replicas: pointer.Int32(3),
+					Replicas: ptr.To[int32](3),
 				},
 				Status: appsapi.DeploymentStatus{
 					Replicas:           3,
