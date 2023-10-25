@@ -550,19 +550,11 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		// user did not request private storage account setup - skip.
 		return "", nil
 	}
-	if d.Config.VNetName == "" || d.Config.SubnetName == "" {
-		return "", fmt.Errorf("both vnetName and subnetName are required to setup a private storage account")
-	}
-	privateEndpointName := d.Config.PrivateEndpointName
-	if privateEndpointName == "" {
-		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
-	}
 
 	environment, err := getEnvironmentByName(d.Config.CloudName)
 	if err != nil {
 		return "", err
 	}
-
 	azclient, err := azureclient.New(&azureclient.Options{
 		Environment:        environment,
 		TenantID:           cfg.TenantID,
@@ -577,11 +569,34 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		return "", err
 	}
 
+	privateEndpointName := d.Config.PrivateEndpointName
+	if privateEndpointName == "" {
+		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
+	}
+
 	// the last step in this function is to disable public network for the
 	// storage account - if we already did that, then none of the steps
 	// below need to be executed.
 	if azclient.IsStorageAccountPrivate(d.Context, accountName) {
 		return privateEndpointName, nil
+	}
+
+	if d.Config.VNetName == "" {
+		tagKey := fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName)
+		tagValue := "owned" // TODO: also accept "shared" as value
+		vnet, err := azclient.GetVNetByTag(d.Context, tagKey, tagValue)
+		if err != nil {
+			return "", fmt.Errorf("failed to discover vnet name, please provide network details manually: %q", err)
+		}
+		d.Config.VNetName = *vnet.Name
+	}
+
+	if d.Config.SubnetName == "" {
+		subnet, err := azclient.GetSubnetsByVNet(d.Context, d.Config.VNetName)
+		if err != nil {
+			return "", fmt.Errorf("failed to discover subnet name, please provide network details manually: %q", err)
+		}
+		d.Config.SubnetName = *subnet.Name
 	}
 
 	klog.V(3).Infof("configuring private endpoint %q for storage account...", privateEndpointName)

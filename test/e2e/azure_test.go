@@ -239,6 +239,88 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 	}
 }
 
+func TestPrivateStorageAccountVNetSubnetDiscovery(t *testing.T) {
+	ctx := context.Background()
+
+	kcfg, err := regopclient.GetConfig()
+	if err != nil {
+		t.Fatalf("Error building kubeconfig: %s", err)
+	}
+
+	newMockLister, err := listers.NewMockLister(kcfg)
+	if err != nil {
+		t.Fatalf("unable to create mock lister: %v", err)
+	}
+
+	mockLister, err := newMockLister.GetListers()
+	if err != nil {
+		t.Fatalf("unable to get listers from mock lister: %v", err)
+	}
+
+	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	if err != nil {
+		t.Fatalf("unable to get install configuration: %v", err)
+	}
+
+	if infra.Status.PlatformStatus.Type != configapiv1.AzurePlatformType {
+		t.Skip("skipping on non-Azure platform")
+	}
+
+	te := framework.Setup(t)
+	defer framework.TeardownImageRegistry(te)
+
+	framework.DeployImageRegistry(te, nil)
+	framework.WaitUntilImageRegistryIsAvailable(te)
+	framework.EnsureInternalRegistryHostnameIsSet(te)
+	framework.EnsureClusterOperatorStatusIsSet(te)
+	framework.EnsureOperatorIsNotHotLooping(te)
+
+	patch := fmt.Sprintf(
+		`{"spec": {"storage": {"azure": {"networkAccess": "%s"}}}}`,
+		imageregistryv1.AzureNetworkAccessInternal,
+	)
+	if _, err = te.Client().Configs().Patch(
+		ctx,
+		defaults.ImageRegistryResourceName,
+		types.MergePatchType,
+		[]byte(patch),
+		metav1.PatchOptions{},
+	); err != nil {
+		t.Errorf("unable to patch image registry custom resource: %#v", err)
+	}
+
+	azureConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
+	err = wait.PollUntilContextTimeout(ctx, time.Second, framework.AsyncOperationTimeout, true,
+		func(ctx context.Context) (stop bool, err error) {
+			cr, err := te.Client().Configs().Get(
+				ctx,
+				defaults.ImageRegistryResourceName,
+				metav1.GetOptions{},
+			)
+			if err != nil {
+				t.Logf(
+					"unable to get custom resource %s/%s: %#v",
+					defaults.ImageRegistryOperatorNamespace,
+					defaults.ImageRegistryResourceName,
+					err,
+				)
+				return false, nil
+			}
+			if cr.Spec.Storage.Azure.PrivateEndpointName == "" {
+				// operator has not yet set the name - keep waiting
+				return false, nil
+			}
+			azureConfig = cr.Spec.Storage.Azure
+			t.Logf("PrivateEndpointName is %q", azureConfig.PrivateEndpointName)
+			return true, nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = azureConfig
+}
+
 func getEnvironmentByName(name string) (autorestazure.Environment, error) {
 	if name == "" {
 		return autorestazure.PublicCloud, nil

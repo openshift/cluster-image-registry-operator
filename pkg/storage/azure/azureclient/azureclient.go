@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -136,6 +137,62 @@ func (c *Client) getStorageAccount(ctx context.Context, accountName string) (arm
 		return armstorage.Account{}, err
 	}
 	return resp.Account, nil
+}
+
+func (c *Client) GetVNetByTag(ctx context.Context, tagKey, tagValue string) (armnetwork.VirtualNetwork, error) {
+	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, c.clientOpts)
+	if err != nil {
+		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create accounts client: %q", err)
+	}
+
+	pager := client.NewListPager(c.resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return armnetwork.VirtualNetwork{}, err
+		}
+		for _, vnet := range page.Value {
+			klog.Infof("==== inspecting vnet %q", *vnet.Name)
+			for key, value := range vnet.Tags {
+				klog.Infof("vnet.Tags: %s: %s", key, *value)
+			}
+			tag, ok := vnet.Tags[tagKey]
+			if !ok {
+				continue
+			}
+			if *tag == tagValue {
+				klog.Infof("vnet %q matched requested tag!", *vnet.Name)
+				return *vnet, nil
+			}
+		}
+	}
+
+	return armnetwork.VirtualNetwork{}, fmt.Errorf("vnet with tag '%s: %s' not found", tagKey, tagValue)
+}
+
+func (c *Client) GetSubnetsByVNet(ctx context.Context, vnetName string) (armnetwork.Subnet, error) {
+	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, c.clientOpts)
+	if err != nil {
+		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %q", err)
+	}
+
+	pager := client.NewListPager(c.resourceGroupName, vnetName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return armnetwork.Subnet{}, err
+		}
+		for _, subnet := range page.Value {
+			// should we match the subnet name with the string "worker"?
+			// does it even matter? (don't think so)
+			//
+			// return the first subnet.
+			// unless each subnet in the cluster has strict access groups it
+			// doesn't matter which subnet we choose (worker/master).
+			return *subnet, nil
+		}
+	}
+	return armnetwork.Subnet{}, fmt.Errorf("no subnets found on vnet %q", vnetName)
 }
 
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, accountName string, allowPublicAccess bool) error {
