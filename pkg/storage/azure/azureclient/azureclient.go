@@ -138,6 +138,59 @@ func (c *Client) getStorageAccount(ctx context.Context, accountName string) (arm
 	return resp.Account, nil
 }
 
+func (c *Client) GetVNetByTag(ctx context.Context, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
+	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, c.clientOpts)
+	if err != nil {
+		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create accounts client: %q", err)
+	}
+
+	pager := client.NewListPager(c.resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return armnetwork.VirtualNetwork{}, err
+		}
+		for _, vnet := range page.Value {
+			tag, ok := vnet.Tags[tagKey]
+			if !ok {
+				continue
+			}
+			for _, tagValue := range tagValues {
+				if *tag == tagValue {
+					return *vnet, nil
+				}
+			}
+		}
+	}
+
+	return armnetwork.VirtualNetwork{}, fmt.Errorf("vnet with tag '%s: %v' not found", tagKey, tagValues)
+}
+
+func (c *Client) GetSubnetsByVNet(ctx context.Context, vnetName string) (armnetwork.Subnet, error) {
+	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, c.clientOpts)
+	if err != nil {
+		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %q", err)
+	}
+
+	pager := client.NewListPager(c.resourceGroupName, vnetName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return armnetwork.Subnet{}, err
+		}
+		for _, subnet := range page.Value {
+			// should we match the subnet name with the string "worker"?
+			// does it even matter? (don't think so)
+			//
+			// return the first subnet.
+			// unless each subnet in the cluster has strict access groups it
+			// doesn't matter which subnet we choose (worker/master).
+			return *subnet, nil
+		}
+	}
+	return armnetwork.Subnet{}, fmt.Errorf("no subnets found on vnet %q", vnetName)
+}
+
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, accountName string, allowPublicAccess bool) error {
 	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {

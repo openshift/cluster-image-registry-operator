@@ -550,22 +550,11 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		// user did not request private storage account setup - skip.
 		return "", nil
 	}
-	if d.Config.NetworkAccess.Internal.VNetName == "" || d.Config.NetworkAccess.Internal.SubnetName == "" {
-		return "", fmt.Errorf("both vnetName and subnetName are required to setup a private storage account")
-	}
-
-	var privateEndpointName string
-	if d.Config.NetworkAccess.Internal != nil && d.Config.NetworkAccess.Internal.PrivateEndpointName != "" {
-		privateEndpointName = d.Config.NetworkAccess.Internal.PrivateEndpointName
-	} else {
-		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
-	}
 
 	environment, err := getEnvironmentByName(d.Config.CloudName)
 	if err != nil {
 		return "", err
 	}
-
 	azclient, err := azureclient.New(&azureclient.Options{
 		Environment:        environment,
 		TenantID:           cfg.TenantID,
@@ -580,6 +569,18 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		return "", err
 	}
 
+	internalConfig := d.Config.NetworkAccess.Internal
+	if internalConfig == nil {
+		// avoid nil pointer checks everywhere - this will happen when the user
+		// wants the operator to discover vnet and subnet names.
+		internalConfig = &imageregistryv1.AzureNetworkAccessInternal{}
+	}
+
+	privateEndpointName := internalConfig.PrivateEndpointName
+	if privateEndpointName == "" {
+		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
+	}
+
 	// the last step in this function is to disable public network for the
 	// storage account - if we already did that, then none of the steps
 	// below need to be executed.
@@ -587,13 +588,30 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		return privateEndpointName, nil
 	}
 
+	if internalConfig.VNetName == "" {
+		tagKey := fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName)
+		vnet, err := azclient.GetVNetByTag(d.Context, tagKey, "owned", "shared")
+		if err != nil {
+			return "", fmt.Errorf("failed to discover vnet name, please provide network details manually: %q", err)
+		}
+		internalConfig.VNetName = *vnet.Name
+	}
+
+	if internalConfig.SubnetName == "" {
+		subnet, err := azclient.GetSubnetsByVNet(d.Context, internalConfig.VNetName)
+		if err != nil {
+			return "", fmt.Errorf("failed to discover subnet name, please provide network details manually: %q", err)
+		}
+		internalConfig.SubnetName = *subnet.Name
+	}
+
 	klog.V(3).Infof("configuring private endpoint %q for storage account...", privateEndpointName)
 	pe, err := azclient.CreatePrivateEndpoint(
 		d.Context,
 		&azureclient.PrivateEndpointCreateOptions{
 			Location:            cfg.Region,
-			VNetName:            d.Config.NetworkAccess.Internal.VNetName,
-			SubnetName:          d.Config.NetworkAccess.Internal.SubnetName,
+			VNetName:            internalConfig.VNetName,
+			SubnetName:          internalConfig.SubnetName,
 			PrivateEndpointName: privateEndpointName,
 			StorageAccountName:  accountName,
 		},
@@ -605,7 +623,7 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 
 	klog.V(3).Info("configuring private DNS...")
 	if err := azclient.ConfigurePrivateDNS(
-		d.Context, pe, d.Config.NetworkAccess.Internal.VNetName, accountName,
+		d.Context, pe, internalConfig.VNetName, accountName,
 	); err != nil {
 		return privateEndpointName, err
 	}
@@ -620,6 +638,8 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		"storage account %q is now served by private endpoint %q. public network access is disabled",
 		accountName, privateEndpointName,
 	)
+
+	d.Config.NetworkAccess.Internal = internalConfig
 
 	return privateEndpointName, nil
 }
