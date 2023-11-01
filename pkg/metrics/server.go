@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 
@@ -32,8 +33,9 @@ func RunServer(port int) {
 	router := http.NewServeMux()
 	router.Handle("/metrics", handler)
 	srv := &http.Server{
-		Addr:    bindAddr,
-		Handler: router,
+		Addr:         bindAddr,
+		Handler:      router,
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){}, // disable HTTP/2
 	}
 
 	if err := srv.ListenAndServeTLS(tlsCRT, tlsKey); err != nil {

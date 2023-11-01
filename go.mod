@@ -29,25 +29,25 @@ require (
 	github.com/gophercloud/utils v0.0.0-20221124081324-7bac6f5cdf99
 	github.com/goware/urlx v0.3.2
 	github.com/jongio/azidext/go/azidext v0.4.0
-	github.com/openshift/api v0.0.0-20230804173756-26b8597c4de2
+	github.com/openshift/api v0.0.0-20230807132801-600991d550ac
 	github.com/openshift/build-machinery-go v0.0.0-20220913142420-e25cf57ea46d
-	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084
-	github.com/openshift/library-go v0.0.0-20230120214501-9bc305884fcb
+	github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb
+	github.com/openshift/library-go v0.0.0-20231020125025-211b32f1a1f2
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.4
-	golang.org/x/net v0.11.0
+	golang.org/x/net v0.17.0
 	golang.org/x/oauth2 v0.8.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.126.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.27.4
-	k8s.io/apimachinery v0.27.4
+	k8s.io/apimachinery v0.28.0-alpha.0.0.20231013002001-194b6f8ddf62
 	k8s.io/client-go v0.27.4
 	k8s.io/klog/v2 v2.100.1
-	k8s.io/utils v0.0.0-20230209194617-a36077c30491
+	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 )
 
 require (
@@ -147,11 +147,11 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.0 // indirect
-	golang.org/x/crypto v0.10.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.9.0 // indirect
-	golang.org/x/term v0.9.0 // indirect
-	golang.org/x/text v0.10.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/term v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
@@ -164,15 +164,15 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.26.1 // indirect
+	k8s.io/apiextensions-apiserver v0.27.4 // indirect
 	k8s.io/apiserver v0.27.4 // indirect
 	k8s.io/component-base v0.27.4 // indirect
 	k8s.io/kms v0.27.4 // indirect
-	k8s.io/kube-aggregator v0.26.1 // indirect
+	k8s.io/kube-aggregator v0.27.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
+	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
