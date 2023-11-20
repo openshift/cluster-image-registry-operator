@@ -166,7 +166,9 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 //     This is useful as it easily allows other teams to experiment with OpenShift
 //     in new platforms, if it is LibVirt platform we also return EmptyDir for
 //     historical reasons.
-func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
+func GetPlatformStorage(
+	listers *regopclient.StorageListers, storageConfig *imageregistryv1.ImageRegistryConfigStorage,
+) (imageregistryv1.ImageRegistryConfigStorage, int32, error) {
 	var cfg imageregistryv1.ImageRegistryConfigStorage
 	replicas := int32(1)
 
@@ -194,7 +196,11 @@ func GetPlatformStorage(listers *regopclient.StorageListers) (imageregistryv1.Im
 		cfg.S3 = &imageregistryv1.ImageRegistryConfigStorageS3{}
 		replicas = 2
 	case configapiv1.AzurePlatformType:
-		cfg.Azure = &imageregistryv1.ImageRegistryConfigStorageAzure{}
+		// on private azure installs the installer will pre-create
+		// the CR for us.
+		if storageConfig != nil {
+			cfg.Azure = storageConfig.Azure
+		}
 		replicas = 2
 	case configapiv1.GCPPlatformType:
 		cfg.GCS = &imageregistryv1.ImageRegistryConfigStorageGCS{}

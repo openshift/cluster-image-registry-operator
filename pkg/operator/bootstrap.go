@@ -30,15 +30,28 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("unable to get the registry custom resources: %s", err)
 	}
 
+	installerBootstrapped := false
+
 	// If the registry resource already exists, no bootstrapping is required
 	if cr != nil {
-		return nil
+		// the installer may provide us storage configuration for Azure.
+		// when that's the case, we want to proceed with bootstrapping.
+		_, ok := cr.Annotations["installer-bootstrapped"]
+		if !ok {
+			return nil
+		}
+		installerBootstrapped = true
 	}
 
 	// If no registry resource exists, let's create one with sane defaults
 	klog.Infof("generating registry custom resource")
 
-	platformStorage, replicas, err := storage.GetPlatformStorage(&c.listers.StorageListers)
+	storageConfig := &imageregistryv1.ImageRegistryConfigStorage{}
+	if installerBootstrapped {
+		storageConfig = &cr.Spec.Storage
+	}
+
+	platformStorage, replicas, err := storage.GetPlatformStorage(&c.listers.StorageListers, storageConfig)
 	if err != nil {
 		return err
 	}
@@ -89,10 +102,18 @@ func (c *Controller) Bootstrap() error {
 		Status: imageregistryv1.ImageRegistryStatus{},
 	}
 
-	if _, err = c.clients.RegOp.ImageregistryV1().Configs().Create(
-		context.TODO(), cr, metav1.CreateOptions{},
-	); err != nil {
-		return err
+	if installerBootstrapped {
+		if _, err = c.clients.RegOp.ImageregistryV1().Configs().Update(
+			context.TODO(), cr, metav1.UpdateOptions{},
+		); err != nil {
+			return err
+		}
+	} else {
+		if _, err = c.clients.RegOp.ImageregistryV1().Configs().Create(
+			context.TODO(), cr, metav1.CreateOptions{},
+		); err != nil {
+			return err
+		}
 	}
 
 	return nil
