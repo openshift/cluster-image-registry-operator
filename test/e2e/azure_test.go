@@ -165,17 +165,16 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 		t.Fatalf("failed to get config: %q", err)
 	}
 	azclient, err := azureclient.New(&azureclient.Options{
-		Environment:       environment,
-		TenantID:          cfg.TenantID,
-		ClientID:          cfg.ClientID,
-		ClientSecret:      cfg.ClientSecret,
-		SubscriptionID:    cfg.SubscriptionID,
-		ResourceGroupName: cfg.ResourceGroup,
+		Environment:    environment,
+		TenantID:       cfg.TenantID,
+		ClientID:       cfg.ClientID,
+		ClientSecret:   cfg.ClientSecret,
+		SubscriptionID: cfg.SubscriptionID,
 	})
 	if err != nil {
 		t.Fatalf("failed to get new azure client: %q", err)
 	}
-	exists, err := azclient.PrivateEndpointExists(ctx, azureConfig.NetworkAccess.Internal.PrivateEndpointName)
+	exists, err := azclient.PrivateEndpointExists(ctx, cfg.ResourceGroup, azureConfig.NetworkAccess.Internal.PrivateEndpointName)
 	if err != nil {
 		t.Fatalf("failed to check if private endpoint exists: %q", err)
 	}
@@ -183,7 +182,7 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 		t.Fatal("private endpoint was not created")
 	}
 
-	isPrivate := azclient.IsStorageAccountPrivate(ctx, azureConfig.AccountName)
+	isPrivate := azclient.IsStorageAccountPrivate(ctx, cfg.ResourceGroup, azureConfig.AccountName)
 	if !isPrivate {
 		t.Fatal("storage account network was not made private")
 	}
@@ -228,7 +227,7 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	exists, err = azclient.PrivateEndpointExists(ctx, azureConfig.NetworkAccess.Internal.PrivateEndpointName)
+	exists, err = azclient.PrivateEndpointExists(ctx, cfg.ResourceGroup, azureConfig.NetworkAccess.Internal.PrivateEndpointName)
 	if err != nil {
 		t.Fatalf("failed to check if private endpoint exists: %q", err)
 	}

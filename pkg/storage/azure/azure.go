@@ -562,7 +562,6 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		ClientSecret:       cfg.ClientSecret,
 		FederatedTokenFile: cfg.FederatedTokenFile,
 		SubscriptionID:     cfg.SubscriptionID,
-		ResourceGroupName:  cfg.ResourceGroup,
 		TagSet:             tagset,
 	})
 	if err != nil {
@@ -581,16 +580,21 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		privateEndpointName = generateAccountName(infra.Status.InfrastructureName)
 	}
 
+	networkResourceGroup := cfg.ResourceGroup
+	if internalConfig.NetworkResourceGroupName != "" {
+		networkResourceGroup = internalConfig.NetworkResourceGroupName
+	}
+
 	// the last step in this function is to disable public network for the
 	// storage account - if we already did that, then none of the steps
 	// below need to be executed.
-	if azclient.IsStorageAccountPrivate(d.Context, accountName) {
+	if azclient.IsStorageAccountPrivate(d.Context, cfg.ResourceGroup, accountName) {
 		return privateEndpointName, nil
 	}
 
 	if internalConfig.VNetName == "" {
 		tagKey := fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName)
-		vnet, err := azclient.GetVNetByTag(d.Context, tagKey, "owned", "shared")
+		vnet, err := azclient.GetVNetByTag(d.Context, networkResourceGroup, tagKey, "owned", "shared")
 		if err != nil {
 			return "", fmt.Errorf("failed to discover vnet name, please provide network details manually: %q", err)
 		}
@@ -598,7 +602,7 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 	}
 
 	if internalConfig.SubnetName == "" {
-		subnet, err := azclient.GetSubnetsByVNet(d.Context, internalConfig.VNetName)
+		subnet, err := azclient.GetSubnetsByVNet(d.Context, networkResourceGroup, internalConfig.VNetName)
 		if err != nil {
 			return "", fmt.Errorf("failed to discover subnet name, please provide network details manually: %q", err)
 		}
@@ -609,11 +613,13 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 	pe, err := azclient.CreatePrivateEndpoint(
 		d.Context,
 		&azureclient.PrivateEndpointCreateOptions{
-			Location:            cfg.Region,
-			VNetName:            internalConfig.VNetName,
-			SubnetName:          internalConfig.SubnetName,
-			PrivateEndpointName: privateEndpointName,
-			StorageAccountName:  accountName,
+			Location:                 cfg.Region,
+			ClusterResourceGroupName: cfg.ResourceGroup,
+			NetworkResourceGroupName: networkResourceGroup,
+			VNetName:                 internalConfig.VNetName,
+			SubnetName:               internalConfig.SubnetName,
+			PrivateEndpointName:      privateEndpointName,
+			StorageAccountName:       accountName,
 		},
 	)
 	if err != nil {
@@ -623,14 +629,14 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 
 	klog.V(3).Info("configuring private DNS...")
 	if err := azclient.ConfigurePrivateDNS(
-		d.Context, pe, internalConfig.VNetName, accountName,
+		d.Context, pe, cfg.ResourceGroup, networkResourceGroup, internalConfig.VNetName, accountName,
 	); err != nil {
 		return privateEndpointName, err
 	}
 	klog.V(3).Info("private DNS configured")
 
 	klog.V(3).Infof("disabling public network access for storage account %q...", accountName)
-	if err := azclient.UpdateStorageAccountNetworkAccess(d.Context, accountName, false); err != nil {
+	if err := azclient.UpdateStorageAccountNetworkAccess(d.Context, cfg.ResourceGroup, accountName, false); err != nil {
 		return privateEndpointName, err
 	}
 
@@ -952,7 +958,6 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 			ClientSecret:       cfg.ClientSecret,
 			FederatedTokenFile: cfg.FederatedTokenFile,
 			SubscriptionID:     cfg.SubscriptionID,
-			ResourceGroupName:  cfg.ResourceGroup,
 		})
 		if err != nil {
 			util.UpdateCondition(
@@ -966,6 +971,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		}
 		if err := azclient.DestroyPrivateDNS(
 			d.Context,
+			cfg.ResourceGroup,
 			d.Config.NetworkAccess.Internal.PrivateEndpointName,
 			d.Config.NetworkAccess.Internal.VNetName,
 			d.Config.AccountName,
@@ -980,7 +986,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 			return false, err
 		}
 		if err := azclient.DeletePrivateEndpoint(
-			d.Context, d.Config.NetworkAccess.Internal.PrivateEndpointName,
+			d.Context, cfg.ResourceGroup, d.Config.NetworkAccess.Internal.PrivateEndpointName,
 		); err != nil {
 			util.UpdateCondition(
 				cr,

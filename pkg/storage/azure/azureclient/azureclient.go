@@ -26,11 +26,10 @@ const (
 )
 
 type Client struct {
-	creds             azcore.TokenCredential
-	clientOpts        *arm.ClientOptions
-	tagset            map[string]*string
-	subscriptionID    string
-	resourceGroupName string
+	creds          azcore.TokenCredential
+	clientOpts     *arm.ClientOptions
+	tagset         map[string]*string
+	subscriptionID string
 }
 
 type Doer interface {
@@ -44,7 +43,6 @@ type Options struct {
 	ClientSecret       string
 	FederatedTokenFile string
 	SubscriptionID     string
-	ResourceGroupName  string
 	TagSet             map[string]*string
 	HTTPClient         Doer
 	Creds              azcore.TokenCredential
@@ -55,8 +53,13 @@ type PrivateEndpointCreateOptions struct {
 	VNetName            string
 	SubnetName          string
 	PrivateEndpointName string
+	// The resource group name where the vnet and subnet are.
+	NetworkResourceGroupName string
 	// The name of an existing storage account
 	StorageAccountName string
+	// The resource group name used by the cluster. This is where the
+	// the storage account will be in.
+	ClusterResourceGroupName string
 }
 
 func New(opts *Options) (*Client, error) {
@@ -118,33 +121,32 @@ func New(opts *Options) (*Client, error) {
 	}
 
 	return &Client{
-		creds:             creds,
-		clientOpts:        clientOpts,
-		tagset:            opts.TagSet,
-		subscriptionID:    opts.SubscriptionID,
-		resourceGroupName: opts.ResourceGroupName,
+		creds:          creds,
+		clientOpts:     clientOpts,
+		tagset:         opts.TagSet,
+		subscriptionID: opts.SubscriptionID,
 	}, nil
 }
 
-func (c *Client) getStorageAccount(ctx context.Context, accountName string) (armstorage.Account, error) {
+func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accountName string) (armstorage.Account, error) {
 	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return armstorage.Account{}, fmt.Errorf("failed to create accounts client: %q", err)
 	}
-	resp, err := client.GetProperties(ctx, c.resourceGroupName, accountName, nil)
+	resp, err := client.GetProperties(ctx, resourceGroupName, accountName, nil)
 	if err != nil {
 		return armstorage.Account{}, err
 	}
 	return resp.Account, nil
 }
 
-func (c *Client) GetVNetByTag(ctx context.Context, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
+func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
 	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create accounts client: %q", err)
 	}
 
-	pager := client.NewListPager(c.resourceGroupName, nil)
+	pager := client.NewListPager(resourceGroupName, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -166,13 +168,13 @@ func (c *Client) GetVNetByTag(ctx context.Context, tagKey string, tagValues ...s
 	return armnetwork.VirtualNetwork{}, fmt.Errorf("vnet with tag '%s: %v' not found", tagKey, tagValues)
 }
 
-func (c *Client) GetSubnetsByVNet(ctx context.Context, vnetName string) (armnetwork.Subnet, error) {
+func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
 	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %q", err)
 	}
 
-	pager := client.NewListPager(c.resourceGroupName, vnetName, nil)
+	pager := client.NewListPager(resourceGroupName, vnetName, nil)
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
@@ -191,7 +193,7 @@ func (c *Client) GetSubnetsByVNet(ctx context.Context, vnetName string) (armnetw
 	return armnetwork.Subnet{}, fmt.Errorf("no subnets found on vnet %q", vnetName)
 }
 
-func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, accountName string, allowPublicAccess bool) error {
+func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resourceGroupName, accountName string, allowPublicAccess bool) error {
 	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to create accounts client: %q", err)
@@ -205,7 +207,7 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, accountN
 			PublicNetworkAccess: &publicNetworkAccess,
 		},
 	}
-	if _, err := client.Update(ctx, c.resourceGroupName, accountName, params, nil); err != nil {
+	if _, err := client.Update(ctx, resourceGroupName, accountName, params, nil); err != nil {
 		return err
 	}
 	return nil
@@ -215,8 +217,8 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, accountN
 // network access is disabled, or false if public network access is enabled.
 // Public network access is enabled by default in Azure. In case of any
 // unexpected behaviour this function will return false.
-func (c *Client) IsStorageAccountPrivate(ctx context.Context, accountName string) bool {
-	account, err := c.getStorageAccount(ctx, accountName)
+func (c *Client) IsStorageAccountPrivate(ctx context.Context, resourceGroupName, accountName string) bool {
+	account, err := c.getStorageAccount(ctx, resourceGroupName, accountName)
 	if err != nil {
 		return false
 	}
@@ -230,7 +232,7 @@ func (c *Client) IsStorageAccountPrivate(ctx context.Context, accountName string
 	return *publicNetworkAccess == armstorage.PublicNetworkAccessDisabled
 }
 
-func (c *Client) PrivateEndpointExists(ctx context.Context, privateEndpointName string) (bool, error) {
+func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, privateEndpointName string) (bool, error) {
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.subscriptionID,
 		c.creds,
@@ -239,7 +241,7 @@ func (c *Client) PrivateEndpointExists(ctx context.Context, privateEndpointName 
 	if err != nil {
 		return false, err
 	}
-	if _, err := client.Get(ctx, c.resourceGroupName, privateEndpointName, nil); err != nil {
+	if _, err := client.Get(ctx, resourceGroupName, privateEndpointName, nil); err != nil {
 		respErr, ok := err.(*azcore.ResponseError)
 		if ok && respErr.StatusCode == http.StatusNotFound {
 			return false, nil
@@ -264,13 +266,13 @@ func (c *Client) CreatePrivateEndpoint(
 
 	privateLinkResourceID := formatPrivateLinkResourceID(
 		c.subscriptionID,
-		c.resourceGroupName,
+		opts.ClusterResourceGroupName,
 		opts.StorageAccountName,
 	)
 	subnetID := formatSubnetID(
 		opts.SubnetName,
 		opts.VNetName,
-		c.resourceGroupName,
+		opts.NetworkResourceGroupName,
 		c.subscriptionID,
 	)
 
@@ -294,7 +296,7 @@ func (c *Client) CreatePrivateEndpoint(
 
 	pollersResp, err := client.BeginCreateOrUpdate(
 		ctx,
-		c.resourceGroupName,
+		opts.ClusterResourceGroupName,
 		privateEndpointName,
 		params,
 		nil,
@@ -309,7 +311,7 @@ func (c *Client) CreatePrivateEndpoint(
 	return &resp.PrivateEndpoint, nil
 }
 
-func (c *Client) DeletePrivateEndpoint(ctx context.Context, privateEndpointName string) error {
+func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, privateEndpointName string) error {
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.subscriptionID,
 		c.creds,
@@ -320,7 +322,7 @@ func (c *Client) DeletePrivateEndpoint(ctx context.Context, privateEndpointName 
 	}
 	pollersResp, err := client.BeginDelete(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		privateEndpointName,
 		nil,
 	)
@@ -342,23 +344,27 @@ func (c *Client) DeletePrivateEndpoint(ctx context.Context, privateEndpointName 
 func (c *Client) ConfigurePrivateDNS(
 	ctx context.Context,
 	privateEndpoint *armnetwork.PrivateEndpoint,
+	clusterResourceGroupName,
+	networkResourceGroupName,
 	vnetName,
 	storageAccountName string,
 ) error {
-	if err := c.createPrivateDNSZone(ctx, defaultPrivateZoneName, defaultPrivateZoneLocation); err != nil {
+	if err := c.createPrivateDNSZone(ctx, clusterResourceGroupName, defaultPrivateZoneName, defaultPrivateZoneLocation); err != nil {
 		return err
 	}
 
-	if err := c.createRecordSet(ctx, privateEndpoint, defaultPrivateZoneName, storageAccountName); err != nil {
+	if err := c.createRecordSet(ctx, privateEndpoint, clusterResourceGroupName, defaultPrivateZoneName, storageAccountName); err != nil {
 		return err
 	}
 
-	if err := c.createPrivateDNSZoneGroup(ctx, *privateEndpoint.Name, defaultPrivateZoneName); err != nil {
+	if err := c.createPrivateDNSZoneGroup(ctx, clusterResourceGroupName, *privateEndpoint.Name, defaultPrivateZoneName); err != nil {
 		return err
 	}
 
 	if err := c.createVirtualNetworkLink(
 		ctx,
+		clusterResourceGroupName,
+		networkResourceGroupName,
 		storageAccountName,
 		vnetName,
 		defaultPrivateZoneName,
@@ -381,34 +387,33 @@ func (c *Client) ConfigurePrivateDNS(
 // undo everything ConfigurePrivateDNS does because it's difficult to know
 // whether they are used by other components. We remove the resources we know
 // for sure that the registry is the only one using.
-func (c *Client) DestroyPrivateDNS(ctx context.Context, privateEndpointName, vnetName, storageAccountName string) error {
-	// TODO: ignore not found errors
+func (c *Client) DestroyPrivateDNS(ctx context.Context, resourceGroupName, privateEndpointName, vnetName, storageAccountName string) error {
 	if err := c.deleteRecordSet(
-		ctx, privateEndpointName, defaultPrivateZoneName,
+		ctx, resourceGroupName, privateEndpointName, defaultPrivateZoneName,
 	); err != nil && !c.is404(err) {
 		return err
 	}
 	if err := c.deletePrivateDNSZoneGroup(
-		ctx, privateEndpointName, defaultPrivateZoneName,
+		ctx, resourceGroupName, privateEndpointName, defaultPrivateZoneName,
 	); err != nil && !c.is404(err) {
 		return err
 	}
 	if err := c.deleteVirtualNetworkLink(
-		ctx, storageAccountName, defaultPrivateZoneName,
+		ctx, resourceGroupName, storageAccountName, defaultPrivateZoneName,
 	); err != nil && !c.is404(err) {
 		return err
 	}
 	return nil
 }
 
-func (c *Client) createPrivateDNSZone(ctx context.Context, name, location string) error {
+func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, name, location string) error {
 	client, err := armprivatedns.NewPrivateZonesClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return err
 	}
 	pollersResp, err := client.BeginCreateOrUpdate(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		name,
 		armprivatedns.PrivateZone{
 			Location: to.StringPtr(location),
@@ -428,6 +433,7 @@ func (c *Client) createPrivateDNSZone(ctx context.Context, name, location string
 func (c *Client) createRecordSet(
 	ctx context.Context,
 	privateEndpoint *armnetwork.PrivateEndpoint,
+	resourceGroupName,
 	privateZoneName,
 	relativeRecordSetName string,
 ) error {
@@ -436,7 +442,7 @@ func (c *Client) createRecordSet(
 		return fmt.Errorf("failed to get record sets client: %s", err)
 	}
 
-	nicAddress, err := c.getNICAddress(ctx, privateEndpoint)
+	nicAddress, err := c.getNICAddress(ctx, resourceGroupName, privateEndpoint)
 	if err != nil {
 		return err
 	}
@@ -452,7 +458,7 @@ func (c *Client) createRecordSet(
 
 	if _, err := client.CreateOrUpdate(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		privateZoneName,
 		armprivatedns.RecordTypeA,
 		relativeRecordSetName,
@@ -465,14 +471,14 @@ func (c *Client) createRecordSet(
 	return nil
 }
 
-func (c *Client) deleteRecordSet(ctx context.Context, privateZoneName, relativeRecordSetName string) error {
+func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, privateZoneName, relativeRecordSetName string) error {
 	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get record sets client: %s", err)
 	}
 	if _, err := client.Delete(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		privateZoneName,
 		armprivatedns.RecordTypeA,
 		relativeRecordSetName,
@@ -484,12 +490,12 @@ func (c *Client) deleteRecordSet(ctx context.Context, privateZoneName, relativeR
 	return nil
 }
 
-func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, privateEndpointName, privateZoneName string) error {
+func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
 	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
 	}
-	privateZoneID := formatPrivateDNSZoneID(c.subscriptionID, c.resourceGroupName, privateZoneName)
+	privateZoneID := formatPrivateDNSZoneID(c.subscriptionID, resourceGroupName, privateZoneName)
 	groupName := strings.Replace(privateZoneName, ".", "-", -1)
 	group := armnetwork.PrivateDNSZoneGroup{
 		Name: to.StringPtr(fmt.Sprintf("%s/default", privateZoneName)),
@@ -504,7 +510,7 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, privateEndpointN
 	}
 	pollersResp, err := client.BeginCreateOrUpdate(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		privateEndpointName,
 		groupName,
 		group,
@@ -519,7 +525,7 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, privateEndpointN
 	return nil
 }
 
-func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, privateEndpointName, privateZoneName string) error {
+func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
 	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
@@ -527,7 +533,7 @@ func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, privateEndpointN
 	groupName := strings.Replace(privateZoneName, ".", "-", -1)
 	pollersResp, err := client.BeginDelete(
 		ctx,
-		c.resourceGroupName,
+		resourceGroupName,
 		privateEndpointName,
 		groupName,
 		nil,
@@ -541,17 +547,25 @@ func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, privateEndpointN
 	return nil
 }
 
-func (c *Client) createVirtualNetworkLink(ctx context.Context, linkName, vnetName, privateZoneName, privateZoneLocation string) error {
+func (c *Client) createVirtualNetworkLink(
+	ctx context.Context,
+	clusterResourceGroupName,
+	networkResourceGroupName,
+	linkName,
+	vnetName,
+	privateZoneName,
+	privateZoneLocation string,
+) error {
 	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get virtual network links client: %s", err)
 	}
 
-	vnetID := formatVNetID(c.subscriptionID, c.resourceGroupName, vnetName)
+	vnetID := formatVNetID(c.subscriptionID, networkResourceGroupName, vnetName)
 
 	pollersResp, err := client.BeginCreateOrUpdate(
 		ctx,
-		c.resourceGroupName,
+		clusterResourceGroupName,
 		privateZoneName,
 		linkName,
 		armprivatedns.VirtualNetworkLink{
@@ -575,7 +589,7 @@ func (c *Client) createVirtualNetworkLink(ctx context.Context, linkName, vnetNam
 	return nil
 }
 
-func (c *Client) deleteVirtualNetworkLink(ctx context.Context, linkName, privateZoneName string) error {
+func (c *Client) deleteVirtualNetworkLink(ctx context.Context, clusterResourceGroupName, linkName, privateZoneName string) error {
 	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return fmt.Errorf("failed to get virtual network links client: %s", err)
@@ -583,7 +597,7 @@ func (c *Client) deleteVirtualNetworkLink(ctx context.Context, linkName, private
 
 	pollersResp, err := client.BeginDelete(
 		ctx,
-		c.resourceGroupName,
+		clusterResourceGroupName,
 		privateZoneName,
 		linkName,
 		nil,
@@ -605,7 +619,7 @@ func (c *Client) is404(err error) bool {
 	return respErr.StatusCode == http.StatusNotFound
 }
 
-func (c *Client) getNICAddress(ctx context.Context, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
+func (c *Client) getNICAddress(ctx context.Context, resourceGroupName string, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
 	client, err := armnetwork.NewInterfacesClient(c.subscriptionID, c.creds, c.clientOpts)
 	if err != nil {
 		return "", err
@@ -619,7 +633,7 @@ func (c *Client) getNICAddress(ctx context.Context, privateEndpoint *armnetwork.
 	nicIDParts := strings.Split(*nicRef.ID, "/")
 	nicName := nicIDParts[len(nicIDParts)-1]
 
-	resp, err := client.Get(ctx, c.resourceGroupName, nicName, nil)
+	resp, err := client.Get(ctx, resourceGroupName, nicName, nil)
 	if err != nil {
 		return "", err
 	}
@@ -696,9 +710,6 @@ func validate(opts *Options) error {
 	}
 	if opts.SubscriptionID == "" {
 		missingOpts = append(missingOpts, "'SubscriptionID'")
-	}
-	if opts.ResourceGroupName == "" {
-		missingOpts = append(missingOpts, "'ResourceGroupName'")
 	}
 	if len(missingOpts) > 0 {
 		missing := strings.Join(missingOpts, ", ")

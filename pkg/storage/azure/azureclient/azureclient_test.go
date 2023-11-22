@@ -34,7 +34,7 @@ func TestNew(t *testing.T) {
 		if err == nil {
 			t.Fatal("new with no options should fail, but error was nil")
 		}
-		msg := "client misconfigured, missing 'Environment.ResourceManagerEndpoint', 'Environment.ActiveDirectoryEndpoint', 'Environment.TokenAudience', 'TenantID', 'ClientID', 'ClientSecret', 'FederatedTokenFile', 'Creds', 'SubscriptionID', 'ResourceGroupName' option(s)"
+		msg := "client misconfigured, missing 'Environment.ResourceManagerEndpoint', 'Environment.ActiveDirectoryEndpoint', 'Environment.TokenAudience', 'TenantID', 'ClientID', 'ClientSecret', 'FederatedTokenFile', 'Creds', 'SubscriptionID' option(s)"
 		if err.Error() != msg {
 			t.Error("client failed with wrong error")
 			t.Logf("want %q", msg)
@@ -48,11 +48,10 @@ func TestNew(t *testing.T) {
 				TokenAudience:           "test-token-audience",
 				ResourceManagerEndpoint: "test-resource-manager-endpoint",
 			},
-			TenantID:          "test-tenant-id",
-			ClientID:          "test-client-id",
-			ClientSecret:      "test-client-secret",
-			SubscriptionID:    "test-subscription-id",
-			ResourceGroupName: "test-resource-group-name",
+			TenantID:       "test-tenant-id",
+			ClientID:       "test-client-id",
+			ClientSecret:   "test-client-secret",
+			SubscriptionID: "test-subscription-id",
 		}
 		_, err := New(opts)
 		if err != nil {
@@ -72,18 +71,17 @@ func TestPrivateEndpointExists(t *testing.T) {
 			TokenAudience:           "test-token-audience",
 			ResourceManagerEndpoint: "https://test-resource-manager-endpoint",
 		},
-		TenantID:          "adfs",
-		ClientID:          "test-client-id",
-		ClientSecret:      "test-client-secret",
-		SubscriptionID:    "test-subscription-id",
-		ResourceGroupName: "test-resource-group-name",
-		HTTPClient:        &testDoer{},
-		Creds:             azfake.NewTokenCredential(),
+		TenantID:       "adfs",
+		ClientID:       "test-client-id",
+		ClientSecret:   "test-client-secret",
+		SubscriptionID: "test-subscription-id",
+		HTTPClient:     &testDoer{},
+		Creds:          azfake.NewTokenCredential(),
 	})
 	if err != nil {
 		t.Fatalf("failed to create client: %q", err)
 	}
-	exists, err := client.PrivateEndpointExists(ctx, "my-private-endpoint")
+	exists, err := client.PrivateEndpointExists(ctx, "test-resource-group", "my-private-endpoint")
 	if err != nil {
 		t.Fatalf("failed to check if private endpoint exists: %q", err)
 	}
@@ -96,11 +94,13 @@ func TestCreatePrivateEndpoint(t *testing.T) {
 	ctx := context.Background()
 	accountName := "imageregistry-abc123"
 	createOpts := &PrivateEndpointCreateOptions{
-		Location:            "global",
-		VNetName:            "ocp-cluster-vnet",
-		SubnetName:          "worker-subnet",
-		PrivateEndpointName: "imageregistry-abc123",
-		StorageAccountName:  accountName,
+		Location:                 "global",
+		NetworkResourceGroupName: "my-rg-2",
+		VNetName:                 "ocp-cluster-vnet",
+		SubnetName:               "worker-subnet",
+		PrivateEndpointName:      "imageregistry-abc123",
+		StorageAccountName:       accountName,
+		ClusterResourceGroupName: "my-rg-1",
 	}
 	client, err := New(&Options{
 		Environment: autorestazure.Environment{
@@ -108,13 +108,12 @@ func TestCreatePrivateEndpoint(t *testing.T) {
 			TokenAudience:           "test-token-audience",
 			ResourceManagerEndpoint: "https://test-resource-manager-endpoint",
 		},
-		TenantID:          "test-tenant-id",
-		ClientID:          "test-client-id",
-		ClientSecret:      "test-client-secret",
-		SubscriptionID:    "test-subscription-id",
-		ResourceGroupName: "test-resource-group-name",
-		HTTPClient:        &testDoer{},
-		Creds:             azfake.NewTokenCredential(),
+		TenantID:       "test-tenant-id",
+		ClientID:       "test-client-id",
+		ClientSecret:   "test-client-secret",
+		SubscriptionID: "test-subscription-id",
+		HTTPClient:     &testDoer{},
+		Creds:          azfake.NewTokenCredential(),
 	})
 	if err != nil {
 		t.Errorf("unexpected error: %q", err)
