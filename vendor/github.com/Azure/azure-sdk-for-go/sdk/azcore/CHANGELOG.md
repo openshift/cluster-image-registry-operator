@@ -1,5 +1,109 @@
 # Release History
 
+## 1.8.0-beta.3 (2023-09-07)
+
+### Features Added
+
+* Added function `FetcherForNextLink` and `FetcherForNextLinkOptions` to the `runtime` package to centralize creation of `Pager[T].Fetcher` from a next link URL.
+
+### Bugs Fixed
+
+* Suppress creating spans for nested SDK API calls. The HTTP span will be a child of the outer API span.
+
+### Other Changes
+
+* The following functions in the `runtime` package are now exposed from the `policy` package, and the `runtime` versions have been deprecated.
+  * `WithCaptureResponse`
+  * `WithHTTPHeader`
+  * `WithRetryOptions`
+
+## 1.7.2 (2023-09-06)
+
+### Bugs Fixed
+
+* Fix default HTTP transport to work in WASM modules.
+
+## 1.8.0-beta.2 (2023-08-14)
+
+### Features Added
+
+* Added function `SanitizePagerPollerPath` to the `server` package to centralize sanitization and formalize the contract.
+* Added `TokenRequestOptions.EnableCAE` to indicate whether to request a CAE token.
+
+### Breaking Changes
+
+> This change affects only code written against beta version `v1.8.0-beta.1`.
+* `messaging.CloudEvent` deserializes JSON objects as `[]byte`, instead of `json.RawMessage`. See the documentation for CloudEvent.Data for more information.
+
+> This change affects only code written against beta versions `v1.7.0-beta.2` and `v1.8.0-beta.1`.
+* Removed parameter from method `Span.End()` and its type `tracing.SpanEndOptions`. This API GA'ed in `v1.2.0` so we cannot change it.
+
+### Bugs Fixed
+
+* Propagate any query parameters when constructing a fake poller and/or injecting next links.
+
+## 1.7.1 (2023-08-14)
+
+## Bugs Fixed
+
+* Enable TLS renegotiation in the default transport policy.
+
+## 1.8.0-beta.1 (2023-07-12)
+
+### Features Added
+
+- `messaging/CloudEvent` allows you to serialize/deserialize CloudEvents, as described in the CloudEvents 1.0 specification: [link](https://github.com/cloudevents/spec)
+
+### Other Changes
+
+* The beta features for CAE, tracing, and fakes have been reinstated.
+
+## 1.7.0 (2023-07-12)
+
+### Features Added
+* Added method `WithClientName()` to type `azcore.Client` to support shallow cloning of a client with a new name used for tracing.
+
+### Breaking Changes
+> These changes affect only code written against beta versions v1.7.0-beta.1 or v1.7.0-beta.2
+* The beta features for CAE, tracing, and fakes have been omitted for this release.
+
+## 1.7.0-beta.2 (2023-06-06)
+
+### Breaking Changes
+> These changes affect only code written against beta version v1.7.0-beta.1
+* Method `SpanFromContext()` on type `tracing.Tracer` had the `bool` return value removed.
+  * This includes the field `SpanFromContext` in supporting type `tracing.TracerOptions`.
+* Method `AddError()` has been removed from type `tracing.Span`.
+* Method `Span.End()` now requires an argument of type `*tracing.SpanEndOptions`.
+
+## 1.6.1 (2023-06-06)
+
+### Bugs Fixed
+* Fixed an issue in `azcore.NewClient()` and `arm.NewClient()` that could cause an incorrect module name to be used in telemetry.
+
+### Other Changes
+* This version contains all bug fixes from `v1.7.0-beta.1`
+
+## 1.7.0-beta.1 (2023-05-24)
+
+### Features Added
+* Restored CAE support for ARM clients.
+* Added supporting features to enable distributed tracing.
+  * Added func `runtime.StartSpan()` for use by SDKs to start spans.
+  * Added method `WithContext()` to `runtime.Request` to support shallow cloning with a new context.
+  * Added field `TracingNamespace` to `runtime.PipelineOptions`.
+  * Added field `Tracer` to `runtime.NewPollerOptions` and `runtime.NewPollerFromResumeTokenOptions` types.
+  * Added field `SpanFromContext` to `tracing.TracerOptions`.
+  * Added methods `Enabled()`, `SetAttributes()`, and `SpanFromContext()` to `tracing.Tracer`.
+  * Added supporting pipeline policies to include HTTP spans when creating clients.
+* Added package `fake` to support generated fakes packages in SDKs.
+  * The package contains public surface area exposed by fake servers and supporting APIs intended only for use by the fake server implementations.
+  * Added an internal fake poller implementation.
+
+### Bugs Fixed
+* Retry policy always clones the underlying `*http.Request` before invoking the next policy.
+* Added some non-standard error codes to the list of error codes for unregistered resource providers.
+
 ## 1.6.0 (2023-05-04)
 
 ### Features Added

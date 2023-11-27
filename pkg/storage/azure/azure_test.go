@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/google/go-cmp/cmp"
 
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
@@ -484,7 +485,7 @@ func TestUserProvidedTags(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
 		userTags     []configv1.AzureResourceTag
-		expectedTags map[string]string
+		expectedTags map[string]*string
 		infraName    string
 		responseBody string
 	}{
@@ -492,8 +493,8 @@ func TestUserProvidedTags(t *testing.T) {
 			name:      "no-user-tags",
 			infraName: "some-infra",
 			// only default tags
-			expectedTags: map[string]string{
-				"kubernetes.io_cluster.some-infra": "owned",
+			expectedTags: map[string]*string{
+				"kubernetes.io_cluster.some-infra": to.StringPtr("owned"),
 			},
 			responseBody: `{"nameAvailable":true}`,
 		},
@@ -511,10 +512,10 @@ func TestUserProvidedTags(t *testing.T) {
 				},
 			},
 			// default tags and user tags
-			expectedTags: map[string]string{
-				"kubernetes.io_cluster.test-infra": "owned",
-				"tag1":                             "value1",
-				"tag2":                             "value2",
+			expectedTags: map[string]*string{
+				"kubernetes.io_cluster.test-infra": to.StringPtr("owned"),
+				"tag1":                             to.StringPtr("value1"),
+				"tag2":                             to.StringPtr("value2"),
 			},
 			responseBody: `{"nameAvailable":true}`,
 		},
@@ -547,6 +548,7 @@ func TestUserProvidedTags(t *testing.T) {
 						},
 					},
 				},
+				tt.expectedTags,
 			)
 			if err != nil {
 				t.Errorf("unexpected error %q", err)
@@ -572,9 +574,9 @@ func TestUserProvidedTags(t *testing.T) {
 							t.Fatal("unable to type assert tags field")
 						}
 						// convert into correct type
-						receivedTags := make(map[string]string)
+						receivedTags := make(map[string]*string)
 						for k, v := range tags {
-							receivedTags[k] = fmt.Sprintf("%+v", v)
+							receivedTags[k] = to.StringPtr(fmt.Sprintf("%+v", v))
 						}
 
 						// compare the tags
@@ -683,6 +685,7 @@ func Test_assureStorageAccount(t *testing.T) {
 					ResourceGroup:  "resource_group",
 				},
 				&configv1.Infrastructure{},
+				map[string]*string{},
 			)
 
 			if err != nil {
