@@ -11,6 +11,14 @@ import (
 // to an object in an Amazon S3 bucket. This type is similar to the s3
 // package's PutObjectInput with the exception that the Body member is an
 // io.Reader instead of an io.ReadSeeker.
+//
+// The ContentMD5 member for pre-computed MD5 checksums will be ignored for
+// multipart uploads. Objects that will be uploaded in a single part, the
+// ContentMD5 will be used.
+//
+// The Checksum members for pre-computed checksums will be ignored for
+// multipart uploads. Objects that will be uploaded in a single part, will
+// include the checksum member in the request.
 type UploadInput struct {
 	_ struct{} `locationName:"PutObjectRequest" type:"structure" payload:"Body"`
 
@@ -67,6 +75,9 @@ type UploadInput struct {
 	// it is optional, we recommend using the Content-MD5 mechanism as an end-to-end
 	// integrity check. For more information about REST request authentication,
 	// see REST Authentication (https://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html).
+	//
+	// If the ContentMD5 is provided for a multipart upload, it will be ignored.
+	// Objects that will be uploaded in a single part, the ContentMD5 will be used.
 	ContentMD5 *string `location:"header" locationName:"Content-MD5" type:"string"`
 
 	// A standard MIME type describing the format of the contents. For more information,
@@ -104,6 +115,16 @@ type UploadInput struct {
 
 	// A map of metadata to store with the object in S3.
 	Metadata map[string]*string `location:"headers" locationName:"x-amz-meta-" type:"map"`
+
+	// Specifies whether a legal hold will be applied to this object. For more information
+	// about S3 Object Lock, see Object Lock (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html).
+	ObjectLockLegalHoldStatus *string `location:"header" locationName:"x-amz-object-lock-legal-hold" type:"string" enum:"ObjectLockLegalHoldStatus"`
+
+	// The Object Lock mode that you want to apply to this object.
+	ObjectLockMode *string `location:"header" locationName:"x-amz-object-lock-mode" type:"string" enum:"ObjectLockMode"`
+
+	// The date and time when you want this object's Object Lock to expire.
+	ObjectLockRetainUntilDate *time.Time `location:"header" locationName:"x-amz-object-lock-retain-until-date" type:"timestamp" timestampFormat:"iso8601"`
 
 	// Confirms that the requester knows that they will be charged for the request.
 	// Bucket owners need not specify this parameter in their requests. For information
