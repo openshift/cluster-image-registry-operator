@@ -49,6 +49,7 @@ type Options struct {
 }
 
 type PrivateEndpointCreateOptions struct {
+	Tags                map[string]string
 	Location            string
 	VNetName            string
 	SubnetName          string
@@ -251,6 +252,39 @@ func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, p
 	return true, nil
 }
 
+// PrivateEndpointWithTagExists looks for a private endpoint in Azure API with
+// the given tag key and tag value.
+//
+// Returns the private endpoint name and true if it was found, or an empty string
+// and false when not found.
+func (c *Client) PrivateEndpointWithTagExists(ctx context.Context, resourceGroupName, tagKey, tagValue string) (*armnetwork.PrivateEndpoint, bool) {
+	client, err := armnetwork.NewPrivateEndpointsClient(
+		c.subscriptionID,
+		c.creds,
+		c.clientOpts,
+	)
+	if err != nil {
+		return nil, false
+	}
+	pager := client.NewListPager(resourceGroupName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, false
+		}
+		for _, endpoint := range page.Value {
+			tag, ok := endpoint.Tags[tagKey]
+			if !ok {
+				continue
+			}
+			if *tag == tagValue {
+				return endpoint, true
+			}
+		}
+	}
+	return nil, false
+}
+
 func (c *Client) CreatePrivateEndpoint(
 	ctx context.Context,
 	opts *PrivateEndpointCreateOptions,
@@ -278,9 +312,13 @@ func (c *Client) CreatePrivateEndpoint(
 
 	privateEndpointName := opts.PrivateEndpointName
 
+	tagset := c.tagset
+	for tagKey, tagValue := range opts.Tags {
+		tagset[tagKey] = to.StringPtr(tagValue)
+	}
 	params := armnetwork.PrivateEndpoint{
 		Location: to.StringPtr(opts.Location),
-		Tags:     c.tagset,
+		Tags:     tagset,
 		Properties: &armnetwork.PrivateEndpointProperties{
 			CustomNetworkInterfaceName: to.StringPtr(fmt.Sprintf("%s-nic", privateEndpointName)),
 			Subnet:                     &armnetwork.Subnet{ID: to.StringPtr(subnetID)},

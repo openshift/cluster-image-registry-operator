@@ -76,7 +76,7 @@ func TestPrivateEndpointExists(t *testing.T) {
 		ClientSecret:   "test-client-secret",
 		SubscriptionID: "test-subscription-id",
 		HTTPClient:     &testDoer{},
-		Creds:          azfake.NewTokenCredential(),
+		Creds:          &azfake.TokenCredential{},
 	})
 	if err != nil {
 		t.Fatalf("failed to create client: %q", err)

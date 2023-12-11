@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
@@ -48,6 +49,9 @@ const (
 	storageExistsReasonContainerExists   = "ContainerExists"
 	storageExistsReasonContainerDeleted  = "ContainerDeleted"
 	storageExistsReasonAccountDeleted    = "AccountDeleted"
+
+	privateEndpointTagKeyTemplate = "imageregistry-private-endpoint-%s"
+	privateEndpointTagValue       = "owned"
 )
 
 // storageAccountInvalidCharRe is a regular expression for characters that
@@ -609,27 +613,41 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 		internalConfig.SubnetName = *subnet.Name
 	}
 
-	klog.V(3).Infof("configuring private endpoint %q for storage account...", privateEndpointName)
-	pe, err := azclient.CreatePrivateEndpoint(
-		d.Context,
-		&azureclient.PrivateEndpointCreateOptions{
-			Location:                 cfg.Region,
-			ClusterResourceGroupName: cfg.ResourceGroup,
-			NetworkResourceGroupName: networkResourceGroup,
-			VNetName:                 internalConfig.VNetName,
-			SubnetName:               internalConfig.SubnetName,
-			PrivateEndpointName:      privateEndpointName,
-			StorageAccountName:       accountName,
-		},
-	)
-	if err != nil {
-		return "", err
+	// if private endpoint with tag does not already exist, create one.
+	// we use a well-known tag to avoid creation of multiple private endpoints
+	// in case of failed reconciles, due to a design flaw on the operator.
+	tagKey := fmt.Sprintf(privateEndpointTagKeyTemplate, infra.Status.InfrastructureName)
+	var privateEndpoint *armnetwork.PrivateEndpoint
+	if pe, exists := azclient.PrivateEndpointWithTagExists(d.Context, cfg.ResourceGroup, tagKey, privateEndpointTagValue); exists {
+		// when the endpoint already exists reuse it instead of creating
+		// a new one.
+		privateEndpointName = *pe.Name
+		privateEndpoint = pe
+	} else {
+		klog.V(3).Infof("configuring private endpoint %q for storage account...", privateEndpointName)
+		pe, err := azclient.CreatePrivateEndpoint(
+			d.Context,
+			&azureclient.PrivateEndpointCreateOptions{
+				Tags:                     map[string]string{tagKey: privateEndpointTagValue},
+				Location:                 cfg.Region,
+				ClusterResourceGroupName: cfg.ResourceGroup,
+				NetworkResourceGroupName: networkResourceGroup,
+				VNetName:                 internalConfig.VNetName,
+				SubnetName:               internalConfig.SubnetName,
+				PrivateEndpointName:      privateEndpointName,
+				StorageAccountName:       accountName,
+			},
+		)
+		if err != nil {
+			return "", err
+		}
+		privateEndpoint = pe
+		klog.V(3).Info("private endpoint configured")
 	}
-	klog.V(3).Info("private endpoint configured")
 
 	klog.V(3).Info("configuring private DNS...")
 	if err := azclient.ConfigurePrivateDNS(
-		d.Context, pe, cfg.ResourceGroup, networkResourceGroup, internalConfig.VNetName, accountName,
+		d.Context, privateEndpoint, cfg.ResourceGroup, networkResourceGroup, internalConfig.VNetName, accountName,
 	); err != nil {
 		return privateEndpointName, err
 	}
