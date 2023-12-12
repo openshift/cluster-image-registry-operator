@@ -167,7 +167,7 @@ func TestCreatePrivateEndpoint(t *testing.T) {
 		ClientSecret:   "test-client-secret",
 		SubscriptionID: "test-subscription-id",
 		HTTPClient:     &testDoer{},
-		Creds:          azfake.NewTokenCredential(),
+		Creds:          &azfake.TokenCredential{},
 	})
 	if err != nil {
 		t.Errorf("unexpected error: %q", err)
