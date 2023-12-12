@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 
 	"github.com/IBM/go-sdk-core/v5/core"
 	"github.com/IBM/ibm-cos-sdk-go/aws"
@@ -40,7 +41,12 @@ import (
 )
 
 const (
-	IAMEndpoint                   = "https://iam.cloud.ibm.com/identity/token"
+	// IBMTokenPath is the URI path for the token endpoint
+	IAMTokenPath = "/identity/token"
+	// IAMEndpoint is the default IAM token endpoint
+	IAMEndpoint = "https://iam.cloud.ibm.com/identity/token"
+
+	cosEndpointTemplate           = "s3.%s.cloud-object-storage.appdomain.cloud"
 	imageRegistrySecretDataKey    = "credentials"
 	imageRegistrySecretMountpoint = "/var/run/secrets/cloud"
 )
@@ -57,6 +63,12 @@ type driver struct {
 	// IBM Services used only during tests.
 	resourceController *resourcecontrollerv2.ResourceControllerV2
 	resourceManager    *resourcemanagerv2.ResourceManagerV2
+
+	// Endpoints to use for IBM Cloud Services
+	iamServiceEndpoint string
+	cosServiceEndpoint string
+	rcServiceEndpoint  string
+	rmServiceEndpoint  string
 }
 
 // NewDriver creates a new IBM COS storage driver.
@@ -81,12 +93,18 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	if err != nil {
 		return
 	}
+	// Build the regional COS endpoint, or use the override endpoint if one was provided
+	regionEndpoint := fmt.Sprintf(cosEndpointTemplate, d.Config.Location)
+	if d.cosServiceEndpoint != "" {
+		// We expect the override already is region specific
+		regionEndpoint = d.cosServiceEndpoint
+	}
 
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Location},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: fmt.Sprintf("s3.%s.cloud-object-storage.appdomain.cloud", d.Config.Location)},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: regionEndpoint},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: false},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: false},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: false},
@@ -122,6 +140,7 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 			}
 		}
 	}
+	d.setServiceEndpointOverrides(infra)
 
 	// Use cluster defaults when custom config doesn't define values
 	if d.Config == nil || (len(effectiveConfig.Location) == 0) {
@@ -163,7 +182,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 
 	// Get resource controller service
-	rc, err := d.getResouceControllerService()
+	rc, err := d.getResourceControllerService()
 	if err != nil {
 		return err
 	}
@@ -237,7 +256,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			},
 		)
 		if resourceGroups == nil || err != nil {
-			return fmt.Errorf("unable to get resource groups: %s with resp code: %d", err.Error(), resp.StatusCode)
+			if resp != nil {
+				return fmt.Errorf("unable to get resource groups: %s with resp code: %d", err.Error(), resp.StatusCode)
+			}
+			return fmt.Errorf("unable to get resource groups: %w using ResourceManager endpoint: %s", err, rm.GetServiceURL())
 		} else if len(resourceGroups.Resources) == 0 {
 			return fmt.Errorf("unable to find any resource groups with resp code: %d", resp.StatusCode)
 		}
@@ -444,6 +466,35 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	return nil
 }
 
+// setServiceEndpointOverrides will collect any necessary IBM Cloud Service endpoint overrides and set them for the driver to use for IBM Cloud Services
+func (d *driver) setServiceEndpointOverrides(infra *configapiv1.Infrastructure) {
+	// We currently only handle overrides for IBMCloud (api/config/v1/IBMCloudPlatformType), not PowerVS
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType && infra.Status.PlatformStatus.IBMCloud != nil {
+		if len(infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints) > 0 {
+			for _, endpoint := range infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints {
+				switch endpoint.Name {
+				case configapiv1.IBMCloudServiceCOS:
+					klog.Infof("found override for ibmcloud cos endpoint: %s", endpoint.URL)
+					d.cosServiceEndpoint = endpoint.URL
+				case configapiv1.IBMCloudServiceIAM:
+					klog.Infof("found override for ibmcloud iam endpoint: %s", endpoint.URL)
+					d.iamServiceEndpoint = endpoint.URL
+				case configapiv1.IBMCloudServiceResourceController:
+					klog.Infof("found override for ibmcloud resource controller endpoint: %s", endpoint.URL)
+					d.rcServiceEndpoint = endpoint.URL
+				case configapiv1.IBMCloudServiceResourceManager:
+					klog.Infof("found override for ibmcloud resource manager endpoint: %s", endpoint.URL)
+					d.rmServiceEndpoint = endpoint.URL
+				case configapiv1.IBMCloudServiceCIS, configapiv1.IBMCloudServiceDNSServices, configapiv1.IBMCloudServiceGlobalSearch, configapiv1.IBMCloudServiceGlobalTagging, configapiv1.IBMCloudServiceHyperProtect, configapiv1.IBMCloudServiceKeyProtect, configapiv1.IBMCloudServiceVPC:
+					klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
+				default:
+					klog.Infof("ignoring unknown service: %s", endpoint.Name)
+				}
+			}
+		}
+	}
+}
+
 // getAccountID returns the IBM Cloud account ID associated with the
 // IAM API key.
 func (d *driver) getAccountID() (string, error) {
@@ -454,6 +505,10 @@ func (d *driver) getAccountID() (string, error) {
 
 	iamAuthenticator := &core.IamAuthenticator{
 		ApiKey: IAMAPIKey,
+	}
+
+	if d.iamServiceEndpoint != "" {
+		iamAuthenticator.URL = d.iamServiceEndpoint
 	}
 
 	// Get IAM token
@@ -480,25 +535,40 @@ func (d *driver) getAccountID() (string, error) {
 	return accountID, nil
 }
 
-// getResouceControllerService returns the IBM Cloud resource controller
-// client.
-func (d *driver) getResouceControllerService() (*resourcecontrollerv2.ResourceControllerV2, error) {
+// getResourceControllerService returns the IBM Cloud resource controller client.
+func (d *driver) getResourceControllerService() (*resourcecontrollerv2.ResourceControllerV2, error) {
 	if d.resourceController != nil {
 		return d.resourceController, nil
 	}
+
+	// Fetch the latest Infrastructure Status, for any endpoint changes
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
+	if err != nil {
+		return nil, err
+	}
+	d.setServiceEndpointOverrides(infra)
 
 	IAMAPIKey, err := d.getCredentialsConfigData()
 	if err != nil {
 		return nil, err
 	}
 
-	service, err := resourcecontrollerv2.NewResourceControllerV2(
-		&resourcecontrollerv2.ResourceControllerV2Options{
-			Authenticator: &core.IamAuthenticator{
-				ApiKey: IAMAPIKey,
-			},
-		},
-	)
+	authenticator := &core.IamAuthenticator{
+		ApiKey: IAMAPIKey,
+	}
+
+	if d.iamServiceEndpoint != "" {
+		authenticator.URL = d.iamServiceEndpoint
+	}
+
+	rcOptions := &resourcecontrollerv2.ResourceControllerV2Options{
+		Authenticator: authenticator,
+	}
+	if d.rcServiceEndpoint != "" {
+		rcOptions.URL = d.rcServiceEndpoint
+	}
+
+	service, err := resourcecontrollerv2.NewResourceControllerV2(rcOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -506,25 +576,40 @@ func (d *driver) getResouceControllerService() (*resourcecontrollerv2.ResourceCo
 	return service, nil
 }
 
-// getResouceManagerService returns the IBM Cloud resource manager
-// client.
+// getResourceManagerService returns the IBM Cloud resource manager client.
 func (d *driver) getResourceManagerService() (*resourcemanagerv2.ResourceManagerV2, error) {
 	if d.resourceManager != nil {
 		return d.resourceManager, nil
 	}
+
+	// Fetch the latest Infrastructure Status, for any endpoint changes
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
+	if err != nil {
+		return nil, err
+	}
+	d.setServiceEndpointOverrides(infra)
 
 	IAMAPIKey, err := d.getCredentialsConfigData()
 	if err != nil {
 		return nil, err
 	}
 
-	service, err := resourcemanagerv2.NewResourceManagerV2(
-		&resourcemanagerv2.ResourceManagerV2Options{
-			Authenticator: &core.IamAuthenticator{
-				ApiKey: IAMAPIKey,
-			},
-		},
-	)
+	authenticator := &core.IamAuthenticator{
+		ApiKey: IAMAPIKey,
+	}
+
+	if d.iamServiceEndpoint != "" {
+		authenticator.URL = d.iamServiceEndpoint
+	}
+
+	rmOptions := &resourcemanagerv2.ResourceManagerV2Options{
+		Authenticator: authenticator,
+	}
+	if d.rmServiceEndpoint != "" {
+		rmOptions.URL = d.rmServiceEndpoint
+	}
+
+	service, err := resourcemanagerv2.NewResourceManagerV2(rmOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -685,6 +770,7 @@ func (d *driver) bucketExists(bucketName string, serviceInstanceCRN string) erro
 // getIBMCOSClient returns a client that allows us to interact
 // with the IBM COS service.
 func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
+	// Fetch the latest Infrastructure Status, for any endpoint changes
 	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
 	if err != nil {
 		return nil, err
@@ -702,12 +788,21 @@ func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
 			}
 		}
 	}
+	d.setServiceEndpointOverrides(infra)
 
 	if IBMCOSLocation == "" {
 		return nil, fmt.Errorf("unable to get location from infrastructure")
 	}
 
-	serviceEndpoint := fmt.Sprintf("s3.%s.cloud-object-storage.appdomain.cloud", IBMCOSLocation)
+	cosServiceEndpoint := fmt.Sprintf(cosEndpointTemplate, IBMCOSLocation)
+	iamTokenEndpoint := IAMEndpoint
+	if d.cosServiceEndpoint != "" {
+		cosServiceEndpoint = d.cosServiceEndpoint
+	}
+	if d.iamServiceEndpoint != "" {
+		iamTokenEndpoint = fmt.Sprintf("%s%s", d.iamServiceEndpoint, IAMTokenPath)
+	}
+
 	IAMAPIKey, err := d.getCredentialsConfigData()
 	if err != nil {
 		return nil, err
@@ -715,7 +810,7 @@ func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
 
 	awsOptions := session.Options{
 		Config: aws.Config{
-			Endpoint: &serviceEndpoint,
+			Endpoint: &cosServiceEndpoint,
 			Region:   &d.Config.Location,
 			HTTPClient: &http.Client{
 				Transport: &http.Transport{
@@ -742,7 +837,7 @@ func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
 		awsOptions.Config.Credentials = credentials.AnonymousCredentials
 		awsOptions.Config.HTTPClient.Transport = d.roundTripper
 	} else {
-		awsOptions.Config.Credentials = ibmiam.NewStaticCredentials(aws.NewConfig(), IAMEndpoint, IAMAPIKey, serviceInstanceCRN)
+		awsOptions.Config.Credentials = ibmiam.NewStaticCredentials(aws.NewConfig(), iamTokenEndpoint, IAMAPIKey, serviceInstanceCRN)
 	}
 
 	sess, err := session.NewSessionWithOptions(awsOptions)
@@ -791,7 +886,7 @@ func (d *driver) VolumeSecrets() (map[string]string, error) {
 	}
 
 	// Get resource controller service
-	rc, err := d.getResouceControllerService()
+	rc, err := d.getResourceControllerService()
 	if err != nil {
 		return nil, err
 	}
