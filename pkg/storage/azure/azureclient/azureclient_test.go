@@ -8,7 +8,10 @@ import (
 	"testing"
 
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
+	networkfake "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4/fake"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
+	"github.com/Azure/go-autorest/autorest/to"
 )
 
 type testDoer struct {
@@ -60,7 +63,58 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestUpdateStorageAccountNetworkAccess(t *testing.T) {}
+func TestPrivateEndpointWithTagExists(t *testing.T) {
+	tagKey := "test-tagkey"
+	tagValue := "test-tagvalue"
+	ctx := context.Background()
+	fakeSvr := networkfake.PrivateEndpointsServer{}
+	fakeSvr.NewListPager = func(
+		resourceGroupName string,
+		options *armnetwork.PrivateEndpointsClientListOptions,
+	) (resp azfake.PagerResponder[armnetwork.PrivateEndpointsClientListResponse]) {
+		peResp := armnetwork.PrivateEndpointsClientListResponse{
+			PrivateEndpointListResult: armnetwork.PrivateEndpointListResult{
+				Value: []*armnetwork.PrivateEndpoint{{
+					Tags: map[string]*string{
+						"foo":   to.StringPtr("bar"),
+						tagKey:  to.StringPtr(tagValue),
+						"test1": to.StringPtr("testvalue1"),
+					},
+				}},
+			},
+		}
+		resp.AddPage(http.StatusOK, peResp, nil)
+		return resp
+	}
+	fakeTransport := networkfake.NewPrivateEndpointsServerTransport(&fakeSvr)
+	client, err := New(&Options{
+		Environment: autorestazure.Environment{
+			ActiveDirectoryEndpoint: "https://test-active-directory-endpoint",
+			TokenAudience:           "test-token-audience",
+			ResourceManagerEndpoint: "https://test-resource-manager-endpoint",
+		},
+		TenantID:       "test-tenant-id",
+		ClientID:       "test-client-id",
+		ClientSecret:   "test-client-secret",
+		SubscriptionID: "test-subscription-id",
+		Creds:          &azfake.TokenCredential{},
+		HTTPClient:     fakeTransport,
+	})
+	if err != nil {
+		t.Errorf("unexpected error: %q", err)
+	}
+	_, exists := client.PrivateEndpointWithTagExists(ctx, "resource-group", tagKey, tagValue)
+	if !exists {
+		t.Fatalf("expected private endpoint with tag key %q and value %q to exist, but it didn't", tagKey, tagValue)
+	}
+
+	// now attempt to get a tag that the endpoint does not have and assert
+	// the function returns false
+	_, exists = client.PrivateEndpointWithTagExists(ctx, "resource-group", "tag-key-not-there", "no-tag-with-this-value")
+	if exists {
+		t.Fatal("expected private endpoint to not exist, but it did")
+	}
+}
 
 func TestPrivateEndpointExists(t *testing.T) {
 	ctx := context.Background()

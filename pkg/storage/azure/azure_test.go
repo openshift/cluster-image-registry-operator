@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -33,6 +34,7 @@ import (
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 )
 
 func TestGetConfig(t *testing.T) {
@@ -1397,5 +1399,171 @@ func Test_storageManagementState(t *testing.T) {
 
 			tt.checkFn(tt.registryConfig)
 		})
+	}
+}
+
+type azclientMock struct {
+	createPrivateEndpointCalls int
+}
+
+func (azclient *azclientMock) ConfigurePrivateDNS(ctx context.Context, pe *armnetwork.PrivateEndpoint, crg string, nrg string, vnet string, account string) error {
+	return nil
+}
+
+func (azclient *azclientMock) CreatePrivateEndpoint(context.Context, *azureclient.PrivateEndpointCreateOptions) (*armnetwork.PrivateEndpoint, error) {
+	azclient.createPrivateEndpointCalls += 1
+	return &armnetwork.PrivateEndpoint{}, nil
+}
+
+func (azclient *azclientMock) DeletePrivateEndpoint(context.Context, string, string) error {
+	return nil
+}
+
+func (azclient *azclientMock) DestroyPrivateDNS(context.Context, string, string, string, string) error {
+	return nil
+}
+
+func (azclient *azclientMock) GetSubnetsByVNet(context.Context, string, string) (armnetwork.Subnet, error) {
+	return armnetwork.Subnet{}, nil
+}
+
+func (azclient *azclientMock) GetVNetByTag(context.Context, string, string, ...string) (armnetwork.VirtualNetwork, error) {
+	return armnetwork.VirtualNetwork{}, nil
+}
+
+func (azclient *azclientMock) IsStorageAccountPrivate(context.Context, string, string) bool {
+	return false
+}
+
+func (azclient *azclientMock) PrivateEndpointWithTagExists(context.Context, string, string, string) (*armnetwork.PrivateEndpoint, bool) {
+	return &armnetwork.PrivateEndpoint{}, false
+}
+
+func (azclient *azclientMock) UpdateStorageAccountNetworkAccess(context.Context, string, string, bool) error {
+	return nil
+}
+
+type azclientMockExistingEndpoint struct {
+	createPrivateEndpointCalls int
+}
+
+func (azclient *azclientMockExistingEndpoint) ConfigurePrivateDNS(ctx context.Context, pe *armnetwork.PrivateEndpoint, crg string, nrg string, vnet string, account string) error {
+	return nil
+}
+
+func (azclient *azclientMockExistingEndpoint) CreatePrivateEndpoint(context.Context, *azureclient.PrivateEndpointCreateOptions) (*armnetwork.PrivateEndpoint, error) {
+	azclient.createPrivateEndpointCalls += 1
+	return &armnetwork.PrivateEndpoint{}, nil
+}
+
+func (azclient *azclientMockExistingEndpoint) DeletePrivateEndpoint(context.Context, string, string) error {
+	return nil
+}
+
+func (azclient *azclientMockExistingEndpoint) DestroyPrivateDNS(context.Context, string, string, string, string) error {
+	return nil
+}
+
+func (azclient *azclientMockExistingEndpoint) GetSubnetsByVNet(context.Context, string, string) (armnetwork.Subnet, error) {
+	return armnetwork.Subnet{}, nil
+}
+
+func (azclient *azclientMockExistingEndpoint) GetVNetByTag(context.Context, string, string, ...string) (armnetwork.VirtualNetwork, error) {
+	return armnetwork.VirtualNetwork{}, nil
+}
+
+func (azclient *azclientMockExistingEndpoint) IsStorageAccountPrivate(context.Context, string, string) bool {
+	return false
+}
+
+func (azclient *azclientMockExistingEndpoint) PrivateEndpointWithTagExists(context.Context, string, string, string) (*armnetwork.PrivateEndpoint, bool) {
+	return &armnetwork.PrivateEndpoint{Name: to.StringPtr("existing-private-endpoint")}, true
+}
+
+func (azclient *azclientMockExistingEndpoint) UpdateStorageAccountNetworkAccess(context.Context, string, string, bool) error {
+	return nil
+}
+
+func Test_assurePrivateAccountOnlyCreatesEndpointOnce(t *testing.T) {
+	networkAccess := &imageregistryv1.AzureNetworkAccess{
+		Type: imageregistryv1.AzureNetworkAccessTypeInternal,
+		Internal: &imageregistryv1.AzureNetworkAccessInternal{
+			NetworkResourceGroupName: "network-testrg",
+			VNetName:                 "test-vnet",
+			SubnetName:               "test-subnet",
+		},
+	}
+	storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{
+		NetworkAccess: networkAccess,
+	}
+
+	drv := NewDriver(context.Background(), storageConfig, nil)
+	azclient := &azclientMock{}
+	drv.azclient = azclient
+
+	accountName := "imageregistrystorageaccount"
+	infraName := "infraname-abc123"
+	tagKey := fmt.Sprintf("kubernetes.io_cluster.%s", infraName)
+	expectedTags := map[string]*string{
+		"user-tagkey": to.StringPtr("user-tagvalue"),
+		tagKey:        to.StringPtr(privateEndpointTagValue),
+	}
+	_, err := drv.assurePrivateAccount(
+		&Azure{
+			SubscriptionID: "subscription-id",
+			ResourceGroup:  "resource-group",
+		},
+		&configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				InfrastructureName: infraName,
+				Platform:           configv1.AzurePlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.AzurePlatformType,
+					Azure: &configv1.AzurePlatformStatus{
+						ResourceTags: []configv1.AzureResourceTag{{Key: "user-tagkey", Value: "user-tagvalue"}},
+					},
+				},
+			},
+		},
+		expectedTags,
+		accountName,
+	)
+	if err != nil {
+		t.Errorf("unexpected error %q", err)
+	}
+
+	if azclient.createPrivateEndpointCalls != 1 {
+		t.Errorf("expected azclient.CreatePrivateEndpoint to be called once, got %d", azclient.createPrivateEndpointCalls)
+	}
+
+	// call again, using mock that fakes the private endpoint already existing
+	azclient2 := &azclientMockExistingEndpoint{}
+	drv.azclient = azclient2
+	_, err = drv.assurePrivateAccount(
+		&Azure{
+			SubscriptionID: "subscription-id",
+			ResourceGroup:  "resource-group",
+		},
+		&configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				InfrastructureName: infraName,
+				Platform:           configv1.AzurePlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.AzurePlatformType,
+					Azure: &configv1.AzurePlatformStatus{
+						ResourceTags: []configv1.AzureResourceTag{{Key: "user-tagkey", Value: "user-tagvalue"}},
+					},
+				},
+			},
+		},
+		expectedTags,
+		accountName,
+	)
+	if err != nil {
+		t.Errorf("unexpected error %q", err)
+	}
+
+	if azclient2.createPrivateEndpointCalls != 0 {
+		t.Errorf("expected azclient.CreatePrivateEndpoint not to be called, but was called %d time(s)", azclient2.createPrivateEndpointCalls)
 	}
 }
