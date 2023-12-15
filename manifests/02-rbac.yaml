@@ -17,15 +17,25 @@ rules:
   - "imagepruners"
   - "imagepruners/status"
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
-  - "clusteroperators"
   - "images"
   - "images/status"
   verbs:
-  - "*"
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
@@ -37,29 +47,40 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - configmaps
-  - endpoints
-  - events
   - namespaces
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
   - persistentvolumeclaims
   - pods
   - secrets
   - services
-  verbs:
-  - "*"
-- apiGroups:
-  - ""
-  resources:
   - serviceaccounts
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
   - clusterroles
   - clusterrolebindings
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - ""
   resources:
@@ -69,18 +90,18 @@ rules:
   verbs:
   - list
 - apiGroups:
-  - image.openshift.io
-  resources:
-  - "*"
-  verbs:
-  - "*"
-- apiGroups:
   - route.openshift.io
   resources:
   - routes
   - routes/custom-host
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:
@@ -89,7 +110,10 @@ rules:
   verbs:
   - create
   - get
+  - list
+  - watch
   - update
+  - delete
 - apiGroups:
   - config.openshift.io
   resources:
@@ -98,6 +122,106 @@ rules:
   - list
   - get
   - watch
+# permissions required to grant image-registry permissions
+- apiGroups:
+  - "batch"
+  resources:
+  - cronjobs
+  - jobs
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - daemonsets
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - replicationcontrollers
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - "apps.openshift.io"
+  resources:
+  - deploymentconfigs
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - "build.openshift.io"
+  resources:
+  - buildconfigs
+  - builds
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - images
+  verbs:
+  - get
+  - update
+  - create
+  - delete
+  - list
+  - watch
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - imagestreams
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - imagestreams/status
+  verbs:
+  - update
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - imagestreamimages
+  - imagestreams/layers
+  - imagestreams/secrets
+  verbs:
+  - get
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - imagestreammappings
+  verbs:
+  - create
+- apiGroups:
+  - "image.openshift.io"
+  resources:
+  - imagestreamtags
+  verbs:
+  - delete
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - imagedigestmirrorsets
+  - imagetagmirrorsets
+  verbs:
+  - list
+- apiGroups:
+  - "operator.openshift.io"
+  resources:
+  - imagecontentsourcepolicies
+  verbs:
+  - list
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -118,26 +242,50 @@ rules:
   - replicasets
   - statefulsets
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - batch
   resources:
   - cronjobs
   - jobs
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - coordination.k8s.io
   resources:
   - leases
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - policy
   resources:
   - poddisruptionbudgets
   verbs:
-  - "*"
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

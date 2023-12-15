@@ -60,7 +60,7 @@ func (gcr *generatorPrunerClusterRole) expected() (runtime.Object, error) {
 			},
 			{
 				Verbs:     []string{"get", "list"},
-				APIGroups: []string{"build.openshift.io", ""},
+				APIGroups: []string{"build.openshift.io"},
 				Resources: []string{
 					"buildconfigs",
 					"builds",
@@ -68,7 +68,7 @@ func (gcr *generatorPrunerClusterRole) expected() (runtime.Object, error) {
 			},
 			{
 				Verbs:     []string{"get", "list"},
-				APIGroups: []string{"apps.openshift.io", ""},
+				APIGroups: []string{"apps.openshift.io"},
 				Resources: []string{
 					"deploymentconfigs",
 				},
@@ -93,14 +93,14 @@ func (gcr *generatorPrunerClusterRole) expected() (runtime.Object, error) {
 			},
 			{
 				Verbs:     []string{"delete"},
-				APIGroups: []string{"image.openshift.io", ""},
+				APIGroups: []string{"image.openshift.io"},
 				Resources: []string{
 					"images",
 				},
 			},
 			{
 				Verbs:     []string{"get", "list", "watch"},
-				APIGroups: []string{"image.openshift.io", ""},
+				APIGroups: []string{"image.openshift.io"},
 				Resources: []string{
 					"images",
 					"imagestreams",
@@ -108,7 +108,7 @@ func (gcr *generatorPrunerClusterRole) expected() (runtime.Object, error) {
 			},
 			{
 				Verbs:     []string{"update"},
-				APIGroups: []string{"image.openshift.io", ""},
+				APIGroups: []string{"image.openshift.io"},
 				Resources: []string{
 					"imagestreams/status",
 				},
