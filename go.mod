@@ -18,7 +18,7 @@ require (
 	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/IBM/go-sdk-core/v5 v5.14.1
 	github.com/IBM/ibm-cos-sdk-go v1.10.0
-	github.com/IBM/platform-services-go-sdk v0.52.1
+	github.com/IBM/platform-services-go-sdk v0.55.0
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.637
 	github.com/aliyun/aliyun-oss-go-sdk v2.2.7+incompatible
 	github.com/aws/aws-sdk-go v1.44.298
