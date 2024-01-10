@@ -38,6 +38,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/pkg/version"
+	powerUtils "github.com/ppc64le-cloud/powervs-utils"
 )
 
 const (
@@ -134,7 +135,7 @@ func (d *driver) UpdateEffectiveConfig() (*imageregistryv1.ImageRegistryConfigSt
 			clusterLocation = infra.Status.PlatformStatus.IBMCloud.Location
 		}
 		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType && infra.Status.PlatformStatus.PowerVS != nil {
-			clusterLocation, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			clusterLocation, err = powerUtils.COSRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
 			if err != nil {
 				return nil, err
 			}
@@ -168,7 +169,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			d.Config.ResourceGroupName = infra.Status.PlatformStatus.IBMCloud.ResourceGroupName
 		}
 		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType && infra.Status.PlatformStatus.PowerVS != nil {
-			d.Config.Location, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			d.Config.Location, err = powerUtils.COSRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
 			if err != nil {
 				return err
 			}
@@ -782,7 +783,7 @@ func (d *driver) getIBMCOSClient(serviceInstanceCRN string) (*s3.S3, error) {
 			IBMCOSLocation = infra.Status.PlatformStatus.IBMCloud.Location
 		}
 		if infra.Status.PlatformStatus.Type == configapiv1.PowerVSPlatformType && infra.Status.PlatformStatus.PowerVS != nil {
-			IBMCOSLocation, err = cosRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
+			IBMCOSLocation, err = powerUtils.COSRegionForPowerVSRegion(infra.Status.PlatformStatus.PowerVS.Region)
 			if err != nil {
 				return nil, err
 			}
