@@ -36,6 +36,7 @@ require (
 	github.com/openshift/build-machinery-go v0.0.0-20230816154005-5a38e1bfd880
 	github.com/openshift/client-go v0.0.0-20231018150822-6e226e2825a6
 	github.com/openshift/library-go v0.0.0-20231020125034-5a2d9fe760b3
+	github.com/ppc64le-cloud/powervs-utils v0.0.0-20240105123432-7588e9595c17
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
