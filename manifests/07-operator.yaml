@@ -74,6 +74,7 @@ spec:
               value: quay.io/openshift/origin-cli:v4.0
             - name: AZURE_ENVIRONMENT_FILEPATH
               value: /tmp/azurestackcloud.json
+          terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: trusted-ca
               mountPath: /var/run/configmaps/trusted-ca/

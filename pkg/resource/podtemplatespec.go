@@ -510,6 +510,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 							},
 						},
 					},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 				},
 			},
 			Volumes:                       volumes,

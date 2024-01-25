@@ -65,6 +65,7 @@ spec:
             done
             sleep 60 & wait ${!}
           done
+        terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: serviceca
           mountPath: /tmp/serviceca
