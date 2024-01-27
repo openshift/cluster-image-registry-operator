@@ -1,9 +1,12 @@
-FROM registry.ci.openshift.org/openshift/release:golang-1.17 AS builder
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS builder
 WORKDIR /go/src/github.com/openshift/cluster-image-registry-operator
+RUN set -ex\
+	; microdnf -y --setopt=tsflags=nodocs install golang which git findutils\
+	; microdnf -y clean all && rm -rf /var/cache/yum
 COPY . .
 RUN make build
 
-FROM registry.ci.openshift.org/origin/4.9:base
+FROM quay.io/centos/centos:stream9
 COPY images/bin/entrypoint.sh /usr/bin/
 COPY manifests/image-references manifests/0* /manifests/
 COPY vendor/github.com/openshift/api/imageregistry/v1/*crd.yaml /manifests/
