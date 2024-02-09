@@ -168,6 +168,15 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
+	azurePathFixController, err := NewAzurePathFixController(
+		kubeClient.BatchV1(),
+		configOperatorClient,
+		kubeInformers.Batch().V1().Jobs(),
+	)
+	if err != nil {
+		return err
+	}
+
 	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
 
 	kubeInformers.Start(ctx.Done())
@@ -187,6 +196,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
 	go azureStackCloudController.Run(ctx)
+	go azurePathFixController.Run(ctx.Done())
 	go metricsController.Run(ctx)
 
 	<-ctx.Done()
