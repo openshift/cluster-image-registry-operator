@@ -24,7 +24,10 @@ import (
 
 const metricsPort = 60000
 
-var filesToWatch []string
+var (
+	kubeconfig   string
+	filesToWatch []string
+)
 
 func printVersion() {
 	klog.Infof("Cluster Image Registry Operator Version: %s", version.Version)
@@ -64,6 +67,8 @@ func main() {
 					go metrics.RunServer(metricsPort)
 					return operator.RunOperator(ctx, cctx.KubeConfig)
 				},
+			).WithKubeConfigFile(
+				kubeconfig, nil,
 			).WithLeaderElection(
 				configv1.LeaderElection{},
 				defaults.ImageRegistryOperatorNamespace,
@@ -78,6 +83,7 @@ func main() {
 		},
 	}
 
+	cmd.Flags().StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster")
 	cmd.Flags().StringArrayVar(&filesToWatch, "files", []string{}, "List of files to watch")
 
 	if err := cmd.Execute(); err != nil {
