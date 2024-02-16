@@ -68,6 +68,8 @@ spec:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
               value: "cluster-image-registry-operator"
+            - name: OPERATOR_IMAGE
+              value: docker.io/openshift/origin-cluster-image-registry-operator:latest
             - name: IMAGE
               value: docker.io/openshift/origin-docker-registry:latest
             - name: IMAGE_PRUNER
