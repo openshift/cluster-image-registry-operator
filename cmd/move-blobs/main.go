@@ -31,6 +31,10 @@ func main() {
 		opts.environment = "AZUREPUBLICCLOUD"
 	}
 
+	if err := createASHEnvironmentFile(opts); err != nil {
+		panic(err)
+	}
+
 	cloudConfig, err := getCloudConfig(opts.environment)
 	if err != nil {
 		panic(err)
@@ -218,6 +222,34 @@ type configOpts struct {
 	federatedTokenFile string
 	accountKey         string
 	environment        string
+	// environmentFilePath and environmentFileContents are specific
+	// for Azure Stack Hub
+	environmentFilePath     string
+	environmentFileContents string
+}
+
+func createASHEnvironmentFile(opts *configOpts) error {
+	if len(opts.environmentFilePath) == 0 || len(opts.environmentFileContents) == 0 {
+		klog.Info("Azure Stack Hub environment variables not present in current environment, skipping setup...")
+		return nil
+	}
+	f, err := os.Create(opts.environmentFilePath)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.WriteString(opts.environmentFileContents)
+	if err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return err
+	}
+
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getCloudConfig(environment string) (cloud.Configuration, error) {
@@ -238,14 +270,16 @@ func getCloudConfig(environment string) (cloud.Configuration, error) {
 
 func getConfigOpts() *configOpts {
 	return &configOpts{
-		storageAccountName: strings.TrimSpace(os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")),
-		containerName:      strings.TrimSpace(os.Getenv("AZURE_CONTAINER_NAME")),
-		clientID:           strings.TrimSpace(os.Getenv("AZURE_CLIENT_ID")),
-		tenantID:           strings.TrimSpace(os.Getenv("AZURE_TENANT_ID")),
-		clientSecret:       strings.TrimSpace(os.Getenv("AZURE_CLIENT_SECRET")),
-		federatedTokenFile: strings.TrimSpace(os.Getenv("AZURE_FEDERATED_TOKEN_FILE")),
-		accountKey:         strings.TrimSpace(os.Getenv("AZURE_ACCOUNTKEY")),
-		environment:        strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT")),
+		storageAccountName:      strings.TrimSpace(os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")),
+		containerName:           strings.TrimSpace(os.Getenv("AZURE_CONTAINER_NAME")),
+		clientID:                strings.TrimSpace(os.Getenv("AZURE_CLIENT_ID")),
+		tenantID:                strings.TrimSpace(os.Getenv("AZURE_TENANT_ID")),
+		clientSecret:            strings.TrimSpace(os.Getenv("AZURE_CLIENT_SECRET")),
+		federatedTokenFile:      strings.TrimSpace(os.Getenv("AZURE_FEDERATED_TOKEN_FILE")),
+		accountKey:              strings.TrimSpace(os.Getenv("AZURE_ACCOUNTKEY")),
+		environment:             strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT")),
+		environmentFilePath:     strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILEPATH")),
+		environmentFileContents: strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILECONTENTS")),
 	}
 }
 
