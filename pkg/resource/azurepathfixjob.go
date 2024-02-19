@@ -86,6 +86,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		return nil, fmt.Errorf("storage not yet provisioned")
 	}
 
+	optional := true
 	envs := []corev1.EnvVar{
 		{Name: "AZURE_STORAGE_ACCOUNT_NAME", Value: azureStorage.AccountName},
 		{Name: "AZURE_CONTAINER_NAME", Value: azureStorage.Container},
@@ -95,6 +96,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		{Name: "AZURE_FEDERATED_TOKEN_FILE", Value: azureCfg.FederatedTokenFile},
 		{Name: "AZURE_ACCOUNTKEY", ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
+				Optional: &optional,
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: defaults.ImageRegistryPrivateConfiguration,
 				},
@@ -130,7 +132,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 	// merges the registry CAs with the cluster's trusted CAs into a single CA bundle.
 	//
 	// See man update-ca-trust for more information.
-	optional := true
+	optional = true
 	trustedCAVolume := corev1.Volume{
 		Name: "trusted-ca",
 		VolumeSource: corev1.VolumeSource{
