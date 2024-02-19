@@ -254,9 +254,14 @@ func getConfigOpts() *configOpts {
 // this function is basically copy of what the operator itself does,
 // as a way to ensure that it will work in the same way as the operator.
 func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Client, error) {
+	env, err := azure.EnvironmentFromName(opts.environment)
+	if err != nil {
+		return nil, err
+	}
 	containerURL := fmt.Sprintf(
-		"https://%s.blob.core.windows.net/%s",
+		"https://%s.blob.%s/%s",
 		opts.storageAccountName,
+		env.StorageEndpointSuffix,
 		opts.containerName,
 	)
 	var client *container.Client
