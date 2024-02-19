@@ -184,6 +184,27 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		Name:      "ca-trust-extracted",
 		MountPath: "/etc/pki/ca-trust/extracted",
 	}
+	saVol := corev1.Volume{
+		Name: "bound-sa-token",
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Audience: "openshift",
+							Path:     "token",
+						},
+					},
+				},
+			},
+		},
+	}
+	saMount := corev1.VolumeMount{
+		Name: saVol.Name,
+		// Default (by convention) location for mounting projected ServiceAccounts
+		MountPath: "/var/run/secrets/openshift/serviceaccount",
+		ReadOnly:  true,
+	}
 
 	backoffLimit := int32(0)
 	cj := &batchv1.Job{
@@ -209,16 +230,24 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 							},
 							TerminationMessagePolicy: kcorev1.TerminationMessageFallbackToLogsOnError,
 							Env:                      envs,
-							VolumeMounts:             []corev1.VolumeMount{trustedCAMount, caTrustExtractedMount},
-							Name:                     gapfj.GetName(),
-							Command:                  []string{"/bin/sh"},
+							VolumeMounts: []corev1.VolumeMount{
+								trustedCAMount,
+								caTrustExtractedMount,
+								saMount,
+							},
+							Name:    gapfj.GetName(),
+							Command: []string{"/bin/sh"},
 							Args: []string{
 								"-c",
 								"mkdir -p /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && /usr/bin/move-blobs",
 							},
 						},
 					},
-					Volumes: []corev1.Volume{trustedCAVolume, caTrustExtractedVolume},
+					Volumes: []corev1.Volume{
+						trustedCAVolume,
+						caTrustExtractedVolume,
+						saVol,
+					},
 				},
 			},
 		},
