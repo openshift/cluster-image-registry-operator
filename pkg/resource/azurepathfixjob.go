@@ -27,13 +27,14 @@ import (
 var _ Mutator = &generatorAzurePathFixJob{}
 
 type generatorAzurePathFixJob struct {
-	lister               batchlisters.JobNamespaceLister
-	secretLister         corev1listers.SecretNamespaceLister
-	infrastructureLister configlisters.InfrastructureLister
-	proxyLister          configlisters.ProxyLister
-	client               batchset.BatchV1Interface
-	cr                   *imageregistryv1.Config
-	kubeconfig           *restclient.Config
+	lister                batchlisters.JobNamespaceLister
+	secretLister          corev1listers.SecretNamespaceLister
+	infrastructureLister  configlisters.InfrastructureLister
+	proxyLister           configlisters.ProxyLister
+	openshiftConfigLister corev1listers.ConfigMapNamespaceLister
+	client                batchset.BatchV1Interface
+	cr                    *imageregistryv1.Config
+	kubeconfig            *restclient.Config
 }
 
 func NewGeneratorAzurePathFixJob(
@@ -42,17 +43,19 @@ func NewGeneratorAzurePathFixJob(
 	secretLister corev1listers.SecretNamespaceLister,
 	infrastructureLister configlisters.InfrastructureLister,
 	proxyLister configlisters.ProxyLister,
+	openshiftConfigLister corev1listers.ConfigMapNamespaceLister,
 	cr *imageregistryv1.Config,
 	kubeconfig *restclient.Config,
 ) *generatorAzurePathFixJob {
 	return &generatorAzurePathFixJob{
-		lister:               lister,
-		client:               client,
-		cr:                   cr,
-		infrastructureLister: infrastructureLister,
-		secretLister:         secretLister,
-		proxyLister:          proxyLister,
-		kubeconfig:           kubeconfig,
+		lister:                lister,
+		client:                client,
+		cr:                    cr,
+		infrastructureLister:  infrastructureLister,
+		secretLister:          secretLister,
+		proxyLister:           proxyLister,
+		openshiftConfigLister: openshiftConfigLister,
+		kubeconfig:            kubeconfig,
 	}
 }
 
@@ -88,6 +91,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 
 	optional := true
 	envs := []corev1.EnvVar{
+		{Name: "AZURE_ENVIRONMENT_FILEPATH", Value: os.Getenv("AZURE_ENVIRONMENT_FILEPATH")},
 		{Name: "AZURE_STORAGE_ACCOUNT_NAME", Value: azureStorage.AccountName},
 		{Name: "AZURE_CONTAINER_NAME", Value: azureStorage.Container},
 		{Name: "AZURE_CLIENT_ID", Value: azureCfg.ClientID},
@@ -103,6 +107,17 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 				Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
 			},
 		}},
+	}
+
+	// for Azure Stack Hub, the move-blobs command needs to know the endpoints,
+	// and those come from the cloud-provider-config in the openshift-config
+	// namespace.
+	cm, err := gapfj.openshiftConfigLister.Get("cloud-provider-config")
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, err
+	}
+	if cm != nil {
+		envs = append(envs, corev1.EnvVar{Name: "AZURE_ENVIRONMENT_FILECONTENTS", Value: cm.Data["endpoints"]})
 	}
 
 	if len(azureStorage.CloudName) > 0 {
