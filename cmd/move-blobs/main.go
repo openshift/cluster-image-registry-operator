@@ -299,12 +299,16 @@ func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Cl
 		opts.containerName,
 	)
 	var client *container.Client
+	clientOpts := azcore.ClientOptions{
+		Cloud: cloudConfig,
+	}
+
 	if len(opts.accountKey) > 0 {
 		cred, err := container.NewSharedKeyCredential(opts.storageAccountName, opts.accountKey)
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClientWithSharedKeyCredential(containerURL, cred, nil)
+		client, err = container.NewClientWithSharedKeyCredential(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +322,7 @@ func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Cl
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
@@ -335,16 +339,21 @@ func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Cl
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		options := azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+		}
+		cred, err := azidentity.NewDefaultAzureCredential(&options)
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
