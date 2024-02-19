@@ -45,6 +45,7 @@ type AzurePathFixController struct {
 	podLister                 corev1listers.PodNamespaceLister
 	infrastructureLister      configlisters.InfrastructureLister
 	proxyLister               configlisters.ProxyLister
+	openshiftConfigLister     corev1listers.ConfigMapNamespaceLister
 	kubeconfig                *restclient.Config
 
 	cachesToSync []cache.InformerSynced
@@ -60,6 +61,7 @@ func NewAzurePathFixController(
 	infrastructureInformer configv1informers.InfrastructureInformer,
 	secretInformer corev1informers.SecretInformer,
 	proxyInformer configv1informers.ProxyInformer,
+	openshiftConfigInformer corev1informers.ConfigMapInformer,
 	podInformer corev1informers.PodInformer,
 ) (*AzurePathFixController, error) {
 	c := &AzurePathFixController{
@@ -71,6 +73,7 @@ func NewAzurePathFixController(
 		secretLister:              secretInformer.Lister().Secrets(defaults.ImageRegistryOperatorNamespace),
 		podLister:                 podInformer.Lister().Pods(defaults.ImageRegistryOperatorNamespace),
 		proxyLister:               proxyInformer.Lister(),
+		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		kubeconfig:                kubeconfig,
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
 	}
@@ -104,6 +107,11 @@ func NewAzurePathFixController(
 		return nil, err
 	}
 	c.cachesToSync = append(c.cachesToSync, proxyInformer.Informer().HasSynced)
+
+	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
+	c.cachesToSync = append(c.cachesToSync, openshiftConfigInformer.Informer().HasSynced)
 
 	// bootstrap the job if it doesn't exist
 	c.queue.Add("instance")
@@ -182,6 +190,7 @@ func (c *AzurePathFixController) sync() error {
 		c.secretLister,
 		c.infrastructureLister,
 		c.proxyLister,
+		c.openshiftConfigLister,
 		imageRegistryConfig,
 		c.kubeconfig,
 	)
