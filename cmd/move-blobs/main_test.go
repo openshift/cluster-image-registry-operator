@@ -74,6 +74,7 @@ func TestMoveBlobs(t *testing.T) {
 		defer client.DeleteBlob(ctx, opts.containerName, "/"+blobName, nil)
 	}
 
+	opts.environment = "AZUREPUBLICCLOUD"
 	cloudConfig, err := getCloudConfig(opts.environment)
 	if err != nil {
 		t.Fatal(err)
