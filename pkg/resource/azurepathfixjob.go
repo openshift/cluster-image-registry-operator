@@ -208,7 +208,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		ReadOnly:  true,
 	}
 
-	backoffLimit := int32(0)
+	backoffLimit := int32(6)
 	cj := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gapfj.GetName(),
