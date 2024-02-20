@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
@@ -269,11 +271,39 @@ func (gapfj *generatorAzurePathFixJob) Create() (runtime.Object, error) {
 }
 
 func (gapfj *generatorAzurePathFixJob) Update(o runtime.Object) (runtime.Object, bool, error) {
-	return commonUpdate(gapfj, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gapfj.client.Jobs(gapfj.GetNamespace()).Update(
-			context.TODO(), obj.(*batchv1.Job), metav1.UpdateOptions{},
-		)
-	})
+	// updating jobs doesn't work like other objects - we get validation errors
+	// if we try. in our case, we only care about the job container's env vars,
+	// so we check if the existing job's container env vars match the expected,
+	// and if they don't we recreate the job.
+	exp, err := gapfj.expected()
+	if err != nil {
+		return nil, false, err
+	}
+	expectedJob := exp.(*batchv1.Job)
+	job := o.(*batchv1.Job)
+	expectedEnvs := expectedJob.Spec.Template.Spec.Containers[0].Env
+	actualEnvs := job.Spec.Template.Spec.Containers[0].Env
+
+	if reflect.DeepEqual(expectedEnvs, actualEnvs) {
+		return o, false, nil
+	}
+
+	// if we are here it means the expected container envs differed from
+	// the actual container envs, so we recreate the job.
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+	opts := metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	}
+	if err := gapfj.Delete(opts); err != nil {
+		return nil, false, err
+	}
+	createdObj, err := gapfj.Create()
+	if err != nil {
+		return nil, false, err
+	}
+	return createdObj, true, nil
 }
 
 func (gapfj *generatorAzurePathFixJob) Delete(opts metav1.DeleteOptions) error {
