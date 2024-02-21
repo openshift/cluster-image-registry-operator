@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"strings"
@@ -74,6 +75,7 @@ func TestMoveBlobs(t *testing.T) {
 		defer client.DeleteBlob(ctx, opts.containerName, "/"+blobName, nil)
 	}
 
+	opts.environment = "AZUREPUBLICCLOUD"
 	cloudConfig, err := getCloudConfig(opts.environment)
 	if err != nil {
 		t.Fatal(err)
@@ -241,5 +243,32 @@ func TestValidation(t *testing.T) {
 				t.Errorf("unexpected validation error %v", err)
 			}
 		})
+	}
+}
+
+func TestStackHubEnvironmentFile(t *testing.T) {
+	path := strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILEPATH"))
+	contents := strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILECONTENTS"))
+	if len(path) == 0 || len(contents) == 0 {
+		t.Fatal("both AZURE_ENVIRONMENT_FILEPATH and AZURE_ENVIRONMENT_FILECONTENTS must be set")
+	}
+	opts := getConfigOpts()
+	err := createASHEnvironmentFile(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("error opening file %q: %v", path, err)
+	}
+	b, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatalf("error reading file %q: %v", path, err)
+	}
+	if string(b) != contents {
+		t.Logf("AZURE_ENVIRONMENT_FILECONTENTS: %s", contents)
+		t.Logf("%s: %s", path, string(b))
+		t.Fatalf("file contents differed from AZURE_ENVIRONMENT_FILECONTENTS")
 	}
 }

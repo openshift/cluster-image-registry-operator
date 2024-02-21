@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -45,6 +46,7 @@ type AzurePathFixController struct {
 	podLister                 corev1listers.PodNamespaceLister
 	infrastructureLister      configlisters.InfrastructureLister
 	proxyLister               configlisters.ProxyLister
+	openshiftConfigLister     corev1listers.ConfigMapNamespaceLister
 	kubeconfig                *restclient.Config
 
 	cachesToSync []cache.InformerSynced
@@ -60,6 +62,7 @@ func NewAzurePathFixController(
 	infrastructureInformer configv1informers.InfrastructureInformer,
 	secretInformer corev1informers.SecretInformer,
 	proxyInformer configv1informers.ProxyInformer,
+	openshiftConfigInformer corev1informers.ConfigMapInformer,
 	podInformer corev1informers.PodInformer,
 ) (*AzurePathFixController, error) {
 	c := &AzurePathFixController{
@@ -71,6 +74,7 @@ func NewAzurePathFixController(
 		secretLister:              secretInformer.Lister().Secrets(defaults.ImageRegistryOperatorNamespace),
 		podLister:                 podInformer.Lister().Pods(defaults.ImageRegistryOperatorNamespace),
 		proxyLister:               proxyInformer.Lister(),
+		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		kubeconfig:                kubeconfig,
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
 	}
@@ -104,6 +108,11 @@ func NewAzurePathFixController(
 		return nil, err
 	}
 	c.cachesToSync = append(c.cachesToSync, proxyInformer.Informer().HasSynced)
+
+	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
+		return nil, err
+	}
+	c.cachesToSync = append(c.cachesToSync, openshiftConfigInformer.Informer().HasSynced)
 
 	// bootstrap the job if it doesn't exist
 	c.queue.Add("instance")
@@ -168,6 +177,7 @@ func (c *AzurePathFixController) sync() error {
 	if err != nil {
 		return err
 	}
+
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
 	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
 		return fmt.Errorf("storage account not yet provisioned")
@@ -176,12 +186,19 @@ func (c *AzurePathFixController) sync() error {
 		return fmt.Errorf("storage container not yet provisioned")
 	}
 
+	// the move-blobs cmd does not work on Azure Stack Hub. Users on ASH
+	// will have to copy the blobs on their own using something like az copy.
+	if strings.EqualFold(azureStorage.CloudName, "AZURESTACKCLOUD") {
+		return nil
+	}
+
 	gen := resource.NewGeneratorAzurePathFixJob(
 		c.jobLister,
 		c.batchClient,
 		c.secretLister,
 		c.infrastructureLister,
 		c.proxyLister,
+		c.openshiftConfigLister,
 		imageRegistryConfig,
 		c.kubeconfig,
 	)

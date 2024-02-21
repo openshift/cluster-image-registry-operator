@@ -31,6 +31,10 @@ func main() {
 		opts.environment = "AZUREPUBLICCLOUD"
 	}
 
+	if err := createASHEnvironmentFile(opts); err != nil {
+		panic(err)
+	}
+
 	cloudConfig, err := getCloudConfig(opts.environment)
 	if err != nil {
 		panic(err)
@@ -218,6 +222,34 @@ type configOpts struct {
 	federatedTokenFile string
 	accountKey         string
 	environment        string
+	// environmentFilePath and environmentFileContents are specific
+	// for Azure Stack Hub
+	environmentFilePath     string
+	environmentFileContents string
+}
+
+func createASHEnvironmentFile(opts *configOpts) error {
+	if len(opts.environmentFilePath) == 0 || len(opts.environmentFileContents) == 0 {
+		klog.Info("Azure Stack Hub environment variables not present in current environment, skipping setup...")
+		return nil
+	}
+	f, err := os.Create(opts.environmentFilePath)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.WriteString(opts.environmentFileContents)
+	if err != nil {
+		f.Close()
+		os.Remove(f.Name())
+		return err
+	}
+
+	err = f.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func getCloudConfig(environment string) (cloud.Configuration, error) {
@@ -238,14 +270,16 @@ func getCloudConfig(environment string) (cloud.Configuration, error) {
 
 func getConfigOpts() *configOpts {
 	return &configOpts{
-		storageAccountName: strings.TrimSpace(os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")),
-		containerName:      strings.TrimSpace(os.Getenv("AZURE_CONTAINER_NAME")),
-		clientID:           strings.TrimSpace(os.Getenv("AZURE_CLIENT_ID")),
-		tenantID:           strings.TrimSpace(os.Getenv("AZURE_TENANT_ID")),
-		clientSecret:       strings.TrimSpace(os.Getenv("AZURE_CLIENT_SECRET")),
-		federatedTokenFile: strings.TrimSpace(os.Getenv("AZURE_FEDERATED_TOKEN_FILE")),
-		accountKey:         strings.TrimSpace(os.Getenv("AZURE_ACCOUNTKEY")),
-		environment:        strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT")),
+		storageAccountName:      strings.TrimSpace(os.Getenv("AZURE_STORAGE_ACCOUNT_NAME")),
+		containerName:           strings.TrimSpace(os.Getenv("AZURE_CONTAINER_NAME")),
+		clientID:                strings.TrimSpace(os.Getenv("AZURE_CLIENT_ID")),
+		tenantID:                strings.TrimSpace(os.Getenv("AZURE_TENANT_ID")),
+		clientSecret:            strings.TrimSpace(os.Getenv("AZURE_CLIENT_SECRET")),
+		federatedTokenFile:      strings.TrimSpace(os.Getenv("AZURE_FEDERATED_TOKEN_FILE")),
+		accountKey:              strings.TrimSpace(os.Getenv("AZURE_ACCOUNTKEY")),
+		environment:             strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT")),
+		environmentFilePath:     strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILEPATH")),
+		environmentFileContents: strings.TrimSpace(os.Getenv("AZURE_ENVIRONMENT_FILECONTENTS")),
 	}
 }
 
@@ -254,18 +288,27 @@ func getConfigOpts() *configOpts {
 // this function is basically copy of what the operator itself does,
 // as a way to ensure that it will work in the same way as the operator.
 func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Client, error) {
+	env, err := azure.EnvironmentFromName(opts.environment)
+	if err != nil {
+		return nil, err
+	}
 	containerURL := fmt.Sprintf(
-		"https://%s.blob.core.windows.net/%s",
+		"https://%s.blob.%s/%s",
 		opts.storageAccountName,
+		env.StorageEndpointSuffix,
 		opts.containerName,
 	)
 	var client *container.Client
+	clientOpts := azcore.ClientOptions{
+		Cloud: cloudConfig,
+	}
+
 	if len(opts.accountKey) > 0 {
 		cred, err := container.NewSharedKeyCredential(opts.storageAccountName, opts.accountKey)
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClientWithSharedKeyCredential(containerURL, cred, nil)
+		client, err = container.NewClientWithSharedKeyCredential(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +322,7 @@ func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Cl
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
@@ -296,16 +339,21 @@ func getClient(cloudConfig cloud.Configuration, opts *configOpts) (*container.Cl
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		options := azidentity.DefaultAzureCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+		}
+		cred, err := azidentity.NewDefaultAzureCredential(&options)
 		if err != nil {
 			return nil, err
 		}
-		client, err = container.NewClient(containerURL, cred, nil)
+		client, err = container.NewClient(containerURL, cred, &container.ClientOptions{ClientOptions: clientOpts})
 		if err != nil {
 			return nil, err
 		}
