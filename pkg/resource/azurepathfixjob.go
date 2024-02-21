@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
@@ -27,13 +29,14 @@ import (
 var _ Mutator = &generatorAzurePathFixJob{}
 
 type generatorAzurePathFixJob struct {
-	lister               batchlisters.JobNamespaceLister
-	secretLister         corev1listers.SecretNamespaceLister
-	infrastructureLister configlisters.InfrastructureLister
-	proxyLister          configlisters.ProxyLister
-	client               batchset.BatchV1Interface
-	cr                   *imageregistryv1.Config
-	kubeconfig           *restclient.Config
+	lister                batchlisters.JobNamespaceLister
+	secretLister          corev1listers.SecretNamespaceLister
+	infrastructureLister  configlisters.InfrastructureLister
+	proxyLister           configlisters.ProxyLister
+	openshiftConfigLister corev1listers.ConfigMapNamespaceLister
+	client                batchset.BatchV1Interface
+	cr                    *imageregistryv1.Config
+	kubeconfig            *restclient.Config
 }
 
 func NewGeneratorAzurePathFixJob(
@@ -42,17 +45,19 @@ func NewGeneratorAzurePathFixJob(
 	secretLister corev1listers.SecretNamespaceLister,
 	infrastructureLister configlisters.InfrastructureLister,
 	proxyLister configlisters.ProxyLister,
+	openshiftConfigLister corev1listers.ConfigMapNamespaceLister,
 	cr *imageregistryv1.Config,
 	kubeconfig *restclient.Config,
 ) *generatorAzurePathFixJob {
 	return &generatorAzurePathFixJob{
-		lister:               lister,
-		client:               client,
-		cr:                   cr,
-		infrastructureLister: infrastructureLister,
-		secretLister:         secretLister,
-		proxyLister:          proxyLister,
-		kubeconfig:           kubeconfig,
+		lister:                lister,
+		client:                client,
+		cr:                    cr,
+		infrastructureLister:  infrastructureLister,
+		secretLister:          secretLister,
+		proxyLister:           proxyLister,
+		openshiftConfigLister: openshiftConfigLister,
+		kubeconfig:            kubeconfig,
 	}
 }
 
@@ -86,7 +91,9 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		return nil, fmt.Errorf("storage not yet provisioned")
 	}
 
+	optional := true
 	envs := []corev1.EnvVar{
+		{Name: "AZURE_ENVIRONMENT_FILEPATH", Value: os.Getenv("AZURE_ENVIRONMENT_FILEPATH")},
 		{Name: "AZURE_STORAGE_ACCOUNT_NAME", Value: azureStorage.AccountName},
 		{Name: "AZURE_CONTAINER_NAME", Value: azureStorage.Container},
 		{Name: "AZURE_CLIENT_ID", Value: azureCfg.ClientID},
@@ -95,12 +102,24 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		{Name: "AZURE_FEDERATED_TOKEN_FILE", Value: azureCfg.FederatedTokenFile},
 		{Name: "AZURE_ACCOUNTKEY", ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
+				Optional: &optional,
 				LocalObjectReference: corev1.LocalObjectReference{
 					Name: defaults.ImageRegistryPrivateConfiguration,
 				},
 				Key: "REGISTRY_STORAGE_AZURE_ACCOUNTKEY",
 			},
 		}},
+	}
+
+	// for Azure Stack Hub, the move-blobs command needs to know the endpoints,
+	// and those come from the cloud-provider-config in the openshift-config
+	// namespace.
+	cm, err := gapfj.openshiftConfigLister.Get("cloud-provider-config")
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, err
+	}
+	if cm != nil {
+		envs = append(envs, corev1.EnvVar{Name: "AZURE_ENVIRONMENT_FILECONTENTS", Value: cm.Data["endpoints"]})
 	}
 
 	if len(azureStorage.CloudName) > 0 {
@@ -130,7 +149,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 	// merges the registry CAs with the cluster's trusted CAs into a single CA bundle.
 	//
 	// See man update-ca-trust for more information.
-	optional := true
+	optional = true
 	trustedCAVolume := corev1.Volume{
 		Name: "trusted-ca",
 		VolumeSource: corev1.VolumeSource{
@@ -167,8 +186,29 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		Name:      "ca-trust-extracted",
 		MountPath: "/etc/pki/ca-trust/extracted",
 	}
+	saVol := corev1.Volume{
+		Name: "bound-sa-token",
+		VolumeSource: corev1.VolumeSource{
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					{
+						ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+							Audience: "openshift",
+							Path:     "token",
+						},
+					},
+				},
+			},
+		},
+	}
+	saMount := corev1.VolumeMount{
+		Name: saVol.Name,
+		// Default (by convention) location for mounting projected ServiceAccounts
+		MountPath: "/var/run/secrets/openshift/serviceaccount",
+		ReadOnly:  true,
+	}
 
-	backoffLimit := int32(0)
+	backoffLimit := int32(6)
 	cj := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gapfj.GetName(),
@@ -192,16 +232,24 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 							},
 							TerminationMessagePolicy: kcorev1.TerminationMessageFallbackToLogsOnError,
 							Env:                      envs,
-							VolumeMounts:             []corev1.VolumeMount{trustedCAMount, caTrustExtractedMount},
-							Name:                     gapfj.GetName(),
-							Command:                  []string{"/bin/sh"},
+							VolumeMounts: []corev1.VolumeMount{
+								trustedCAMount,
+								caTrustExtractedMount,
+								saMount,
+							},
+							Name:    gapfj.GetName(),
+							Command: []string{"/bin/sh"},
 							Args: []string{
 								"-c",
 								"mkdir -p /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && /usr/bin/move-blobs",
 							},
 						},
 					},
-					Volumes: []corev1.Volume{trustedCAVolume, caTrustExtractedVolume},
+					Volumes: []corev1.Volume{
+						trustedCAVolume,
+						caTrustExtractedVolume,
+						saVol,
+					},
 				},
 			},
 		},
@@ -223,11 +271,39 @@ func (gapfj *generatorAzurePathFixJob) Create() (runtime.Object, error) {
 }
 
 func (gapfj *generatorAzurePathFixJob) Update(o runtime.Object) (runtime.Object, bool, error) {
-	return commonUpdate(gapfj, o, func(obj runtime.Object) (runtime.Object, error) {
-		return gapfj.client.Jobs(gapfj.GetNamespace()).Update(
-			context.TODO(), obj.(*batchv1.Job), metav1.UpdateOptions{},
-		)
-	})
+	// updating jobs doesn't work like other objects - we get validation errors
+	// if we try. in our case, we only care about the job container's env vars,
+	// so we check if the existing job's container env vars match the expected,
+	// and if they don't we recreate the job.
+	exp, err := gapfj.expected()
+	if err != nil {
+		return nil, false, err
+	}
+	expectedJob := exp.(*batchv1.Job)
+	job := o.(*batchv1.Job)
+	expectedEnvs := expectedJob.Spec.Template.Spec.Containers[0].Env
+	actualEnvs := job.Spec.Template.Spec.Containers[0].Env
+
+	if reflect.DeepEqual(expectedEnvs, actualEnvs) {
+		return o, false, nil
+	}
+
+	// if we are here it means the expected container envs differed from
+	// the actual container envs, so we recreate the job.
+	gracePeriod := int64(0)
+	propagationPolicy := metaapi.DeletePropagationForeground
+	opts := metaapi.DeleteOptions{
+		GracePeriodSeconds: &gracePeriod,
+		PropagationPolicy:  &propagationPolicy,
+	}
+	if err := gapfj.Delete(opts); err != nil {
+		return nil, false, err
+	}
+	createdObj, err := gapfj.Create()
+	if err != nil {
+		return nil, false, err
+	}
+	return createdObj, true, nil
 }
 
 func (gapfj *generatorAzurePathFixJob) Delete(opts metav1.DeleteOptions) error {
