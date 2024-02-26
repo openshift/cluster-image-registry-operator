@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -22,7 +23,7 @@ import (
 func main() {
 	opts := getConfigOpts()
 	if err := validate(opts); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// if the environment specific configs are not given, assume
@@ -32,17 +33,17 @@ func main() {
 	}
 
 	if err := createASHEnvironmentFile(opts); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	cloudConfig, err := getCloudConfig(opts.environment)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	client, err := getClient(cloudConfig, opts)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	ctx := context.Background()
 	_, err = moveBlobs(ctx, client, &moveBlobOpts{
@@ -50,7 +51,7 @@ func main() {
 		dest:   "/docker",
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
