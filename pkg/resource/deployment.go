@@ -18,6 +18,7 @@ import (
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -94,6 +95,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 		podTemplateSpec.Annotations = map[string]string{}
 	}
 	podTemplateSpec.Annotations[defaults.ChecksumOperatorDepsAnnotation] = depsChecksum
+	podTemplateSpec.Annotations[securityv1.RequiredSCCAnnotation] = "restricted-v2"
 
 	// Strategy defaults to RollingUpdate
 	deployStrategy := appsapi.DeploymentStrategyType(gd.cr.Spec.RolloutStrategy)
