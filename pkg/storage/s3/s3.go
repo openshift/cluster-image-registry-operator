@@ -794,12 +794,14 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			encryptionType = s3.ServerSideEncryptionAes256
 		}
 
+		enableBucketKey := true
 		_, err = svc.PutBucketEncryptionWithContext(d.Context, &s3.PutBucketEncryptionInput{
 			Bucket: aws.String(d.Config.Bucket),
 			ServerSideEncryptionConfiguration: &s3.ServerSideEncryptionConfiguration{
 				Rules: []*s3.ServerSideEncryptionRule{
 					{
 						ApplyServerSideEncryptionByDefault: encryption,
+						BucketKeyEnabled:                   &enableBucketKey,
 					},
 				},
 			},
