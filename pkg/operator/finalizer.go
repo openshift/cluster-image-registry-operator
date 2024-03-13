@@ -128,7 +128,6 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 			return true, nil
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("unable to wait for %s deletion: %s", utilObjectInfo(o), err)
 	}
