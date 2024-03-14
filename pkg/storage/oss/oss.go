@@ -281,7 +281,6 @@ func (d *driver) bucketExists(bucketName string) (bool, error) {
 	}
 
 	_, err = svc.GetBucketInfo(bucketName)
-
 	if err != nil {
 		return false, err
 	}
@@ -625,7 +624,6 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 
 	// Delete bucket
 	err = svc.DeleteBucket(d.Config.Bucket)
-
 	if err != nil {
 		if oerr, ok := err.(oss.ServiceError); ok {
 			if oerr.Code == "NoSuchBucket" {

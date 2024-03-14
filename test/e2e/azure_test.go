@@ -137,7 +137,6 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 			return true, nil
 		},
 	)
-
 	if err != nil {
 		t.Fatalf("failed to poll CR: %q", err)
 	}

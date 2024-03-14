@@ -886,7 +886,6 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	_, err = svc.DeleteBucketWithContext(d.Context, &s3.DeleteBucketInput{
 		Bucket: aws.String(d.Config.Bucket),
 	})
-
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == s3.ErrCodeNoSuchBucket {

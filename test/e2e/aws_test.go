@@ -795,7 +795,6 @@ func createAWSConfigFile(awsSecret *corev1.Secret, kubeClient *framework.Clients
 				ExpirationSeconds: &twoHoursAsSeconds,
 			},
 		}, metav1.CreateOptions{})
-
 		if err != nil {
 			return
 		}
