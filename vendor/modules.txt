@@ -200,8 +200,8 @@ github.com/antlr/antlr4/runtime/Go/antlr
 # github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef
 ## explicit; go 1.13
 github.com/asaskevich/govalidator
-# github.com/aws/aws-sdk-go v1.44.298
-## explicit; go 1.11
+# github.com/aws/aws-sdk-go v1.50.35
+## explicit; go 1.19
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
 github.com/aws/aws-sdk-go/aws/auth/bearer
