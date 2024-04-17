@@ -366,10 +366,10 @@ func validate(opts *configOpts) error {
 	if len(opts.clientSecret) == 0 && len(opts.federatedTokenFile) == 0 && len(opts.accountKey) == 0 {
 		return fmt.Errorf("One of AZURE_CLIENT_SECRET or AZURE_FEDERATED_TOKEN_FILE or AZURE_ACCOUNTKEY is required for authentication")
 	}
-	if len(opts.clientID) == 0 {
+	if len(opts.clientID) == 0 && len(opts.accountKey) == 0 {
 		return fmt.Errorf("AZURE_CLIENT_ID is required for authentication")
 	}
-	if len(opts.tenantID) == 0 {
+	if len(opts.tenantID) == 0 && len(opts.accountKey) == 0 {
 		return fmt.Errorf("AZURE_TENANT_ID is required for authentication")
 	}
 	if len(opts.storageAccountName) == 0 {
