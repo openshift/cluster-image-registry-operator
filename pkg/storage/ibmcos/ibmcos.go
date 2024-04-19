@@ -469,29 +469,58 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 // setServiceEndpointOverrides will collect any necessary IBM Cloud Service endpoint overrides and set them for the driver to use for IBM Cloud Services
 func (d *driver) setServiceEndpointOverrides(infra *configapiv1.Infrastructure) {
-	// We currently only handle overrides for IBMCloud (api/config/v1/IBMCloudPlatformType), not PowerVS
-	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.IBMCloudPlatformType && infra.Status.PlatformStatus.IBMCloud != nil {
-		if len(infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints) > 0 {
-			for _, endpoint := range infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints {
-				switch endpoint.Name {
-				case configapiv1.IBMCloudServiceCOS:
-					klog.Infof("found override for ibmcloud cos endpoint: %s", endpoint.URL)
-					d.cosServiceEndpoint = endpoint.URL
-				case configapiv1.IBMCloudServiceIAM:
-					klog.Infof("found override for ibmcloud iam endpoint: %s", endpoint.URL)
-					d.iamServiceEndpoint = endpoint.URL
-				case configapiv1.IBMCloudServiceResourceController:
-					klog.Infof("found override for ibmcloud resource controller endpoint: %s", endpoint.URL)
-					d.rcServiceEndpoint = endpoint.URL
-				case configapiv1.IBMCloudServiceResourceManager:
-					klog.Infof("found override for ibmcloud resource manager endpoint: %s", endpoint.URL)
-					d.rmServiceEndpoint = endpoint.URL
-				case configapiv1.IBMCloudServiceCIS, configapiv1.IBMCloudServiceDNSServices, configapiv1.IBMCloudServiceGlobalSearch, configapiv1.IBMCloudServiceGlobalTagging, configapiv1.IBMCloudServiceHyperProtect, configapiv1.IBMCloudServiceKeyProtect, configapiv1.IBMCloudServiceVPC:
-					klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
-				default:
-					klog.Infof("ignoring unknown service: %s", endpoint.Name)
+	if infra.Status.PlatformStatus != nil {
+		switch infra.Status.PlatformStatus.Type {
+		case configapiv1.IBMCloudPlatformType:
+			if infra.Status.PlatformStatus.IBMCloud != nil && len(infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints) > 0 {
+				for _, endpoint := range infra.Status.PlatformStatus.IBMCloud.ServiceEndpoints {
+					switch endpoint.Name {
+					case configapiv1.IBMCloudServiceCOS:
+						klog.Infof("found override for ibmcloud cos endpoint: %s", endpoint.URL)
+						d.cosServiceEndpoint = endpoint.URL
+					case configapiv1.IBMCloudServiceIAM:
+						klog.Infof("found override for ibmcloud iam endpoint: %s", endpoint.URL)
+						d.iamServiceEndpoint = endpoint.URL
+					case configapiv1.IBMCloudServiceResourceController:
+						klog.Infof("found override for ibmcloud resource controller endpoint: %s", endpoint.URL)
+						d.rcServiceEndpoint = endpoint.URL
+					case configapiv1.IBMCloudServiceResourceManager:
+						klog.Infof("found override for ibmcloud resource manager endpoint: %s", endpoint.URL)
+						d.rmServiceEndpoint = endpoint.URL
+					case configapiv1.IBMCloudServiceCIS, configapiv1.IBMCloudServiceDNSServices, configapiv1.IBMCloudServiceGlobalSearch, configapiv1.IBMCloudServiceGlobalTagging, configapiv1.IBMCloudServiceHyperProtect, configapiv1.IBMCloudServiceKeyProtect, configapiv1.IBMCloudServiceVPC:
+						klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
+					default:
+						klog.Infof("ignoring unknown service: %s", endpoint.Name)
+					}
 				}
 			}
+		case configapiv1.PowerVSPlatformType:
+			if infra.Status.PlatformStatus.PowerVS != nil && len(infra.Status.PlatformStatus.PowerVS.ServiceEndpoints) > 0 {
+				for _, endpoint := range infra.Status.PlatformStatus.PowerVS.ServiceEndpoints {
+					switch endpoint.Name {
+					case string(configapiv1.IBMCloudServiceCOS):
+						klog.Infof("found override for ibmcloud cos endpoint: %s", endpoint.URL)
+						d.cosServiceEndpoint = endpoint.URL
+					case string(configapiv1.IBMCloudServiceIAM):
+						klog.Infof("found override for ibmcloud iam endpoint: %s", endpoint.URL)
+						d.iamServiceEndpoint = endpoint.URL
+					case string(configapiv1.IBMCloudServiceResourceController):
+						klog.Infof("found override for ibmcloud resource controller endpoint: %s", endpoint.URL)
+						d.rcServiceEndpoint = endpoint.URL
+					case string(configapiv1.IBMCloudServiceResourceManager):
+						klog.Infof("found override for ibmcloud resource manager endpoint: %s", endpoint.URL)
+						d.rmServiceEndpoint = endpoint.URL
+					case string(configapiv1.IBMCloudServiceCIS), string(configapiv1.IBMCloudServiceDNSServices), string(configapiv1.IBMCloudServiceGlobalSearch), string(configapiv1.IBMCloudServiceGlobalTagging), string(configapiv1.IBMCloudServiceHyperProtect), string(configapiv1.IBMCloudServiceKeyProtect), string(configapiv1.IBMCloudServiceVPC):
+						klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
+					default:
+						klog.Infof("ignoring unknown service: %s", endpoint.Name)
+					}
+				}
+			}
+		case configapiv1.AWSPlatformType, configapiv1.AzurePlatformType, configapiv1.BareMetalPlatformType, configapiv1.GCPPlatformType, configapiv1.LibvirtPlatformType, configapiv1.OpenStackPlatformType, configapiv1.NonePlatformType, configapiv1.VSpherePlatformType, configapiv1.OvirtPlatformType, configapiv1.KubevirtPlatformType, configapiv1.EquinixMetalPlatformType, configapiv1.AlibabaCloudPlatformType, configapiv1.NutanixPlatformType, configapiv1.ExternalPlatformType:
+			klog.Infof("provider type unsupported by IBM Cloud: %s", infra.Status.PlatformStatus.Type)
+		default:
+			klog.Infof("ignoring unknown provider type: %s", infra.Status.PlatformStatus.Type)
 		}
 	}
 }
