@@ -3,6 +3,7 @@
   value:
     capability.openshift.io/name: ImageRegistry
     config.openshift.io/inject-proxy: cluster-image-registry-operator
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
 - op: remove
   path: /spec/template/spec/nodeSelector
