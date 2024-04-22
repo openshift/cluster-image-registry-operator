@@ -5,6 +5,7 @@ metadata:
   annotations:
     capability.openshift.io/name: ImageRegistry
     config.openshift.io/inject-proxy: cluster-image-registry-operator
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
   name: cluster-image-registry-operator
   namespace: openshift-image-registry

@@ -5,6 +5,7 @@ metadata:
   name: cluster-image-registry-operator
   annotations:
     capability.openshift.io/name: ImageRegistry
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
@@ -230,6 +231,7 @@ metadata:
   namespace: openshift-image-registry
   annotations:
     capability.openshift.io/name: ImageRegistry
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
@@ -293,6 +295,7 @@ metadata:
   name: default-account-cluster-image-registry-operator
   annotations:
     capability.openshift.io/name: ImageRegistry
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
@@ -312,6 +315,7 @@ metadata:
   namespace: openshift-image-registry
   annotations:
     capability.openshift.io/name: ImageRegistry
+    include.release.openshift.io/hypershift: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
