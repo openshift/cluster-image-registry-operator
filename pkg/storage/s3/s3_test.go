@@ -267,7 +267,7 @@ func TestConfigEnv(t *testing.T) {
 		"REGISTRY_STORAGE":                          "s3",
 		"REGISTRY_STORAGE_S3_REGION":                "us-east-1",
 		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_FORCEPATHSTYLE":        true,
 		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
@@ -331,7 +331,7 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 		"REGISTRY_STORAGE":                          "s3",
 		"REGISTRY_STORAGE_S3_REGION":                "us-west-1",
 		"REGISTRY_STORAGE_S3_USEDUALSTACK":          true,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_FORCEPATHSTYLE":        true,
 		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
 	for key, value := range expectedVars {
