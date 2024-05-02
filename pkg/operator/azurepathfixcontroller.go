@@ -30,6 +30,7 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -51,6 +52,8 @@ type AzurePathFixController struct {
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
+
+	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 func NewAzurePathFixController(
@@ -64,6 +67,7 @@ func NewAzurePathFixController(
 	proxyInformer configv1informers.ProxyInformer,
 	openshiftConfigInformer corev1informers.ConfigMapInformer,
 	podInformer corev1informers.PodInformer,
+	featureGateAccessor featuregates.FeatureGateAccess,
 ) (*AzurePathFixController, error) {
 	c := &AzurePathFixController{
 		batchClient:               batchClient,
@@ -77,6 +81,7 @@ func NewAzurePathFixController(
 		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		kubeconfig:                kubeconfig,
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
+		featureGateAccessor:       featureGateAccessor,
 	}
 
 	if _, err := jobInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {

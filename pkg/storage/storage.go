@@ -9,6 +9,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -88,7 +89,7 @@ type Driver interface {
 	ID() string
 }
 
-func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.StorageListers) (Driver, error) {
+func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest.Config, listers *regopclient.StorageListers, fg featuregates.FeatureGateAccess) (Driver, error) {
 	var names []string
 	var drivers []Driver
 
@@ -100,7 +101,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.S3 != nil {
 		names = append(names, "S3")
 		ctx := context.Background()
-		drivers = append(drivers, s3.NewDriver(ctx, cfg.S3, listers))
+		drivers = append(drivers, s3.NewDriver(ctx, cfg.S3, listers, fg))
 	}
 
 	if cfg.Swift != nil {
