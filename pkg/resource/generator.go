@@ -98,7 +98,7 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 }
 
 func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
 	if err != nil && err != storage.ErrStorageNotConfigured {
 		return nil, err
 	} else if err == storage.ErrStorageNotConfigured {
@@ -128,13 +128,13 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
 	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers)
+	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
 	if err == storage.ErrStorageNotConfigured {
 		cr.Spec.Storage, _, err = storage.GetPlatformStorage(&g.listers.StorageListers)
 		if err != nil {
 			return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
 		}
-		driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers)
+		driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
 	}
 	if err != nil {
 		return err
@@ -172,11 +172,11 @@ func (g *Generator) storageReconfigured(
 	restCfg *rest.Config,
 	listers *client.Listers,
 ) bool {
-	prev, err := storage.NewDriver(&regCfg.Status.Storage, restCfg, &listers.StorageListers)
+	prev, err := storage.NewDriver(&regCfg.Status.Storage, restCfg, &listers.StorageListers, g.featureGateAccessor)
 	if err != nil {
 		return false
 	}
-	cur, err := storage.NewDriver(&regCfg.Spec.Storage, restCfg, &listers.StorageListers)
+	cur, err := storage.NewDriver(&regCfg.Spec.Storage, restCfg, &listers.StorageListers, g.featureGateAccessor)
 	if err != nil {
 		return false
 	}
@@ -292,7 +292,7 @@ func (g *Generator) Remove(cr *imageregistryv1.Config) error {
 		klog.Infof("object %s deleted", Name(gen))
 	}
 
-	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, &g.listers.StorageListers)
+	driver, err := storage.NewDriver(&cr.Status.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
 	if err == storage.ErrStorageNotConfigured {
 		return nil
 	} else if err != nil {

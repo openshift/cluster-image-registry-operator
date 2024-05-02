@@ -202,6 +202,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configInformers.Config().V1().Proxies(),
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
 		kubeInformers.Core().V1().Pods(),
+		featureGateAccessor,
 	)
 	if err != nil {
 		return err
