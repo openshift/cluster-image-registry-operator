@@ -168,7 +168,7 @@ func (c *AzurePathFixController) sync() error {
 	if err != nil {
 		return fmt.Errorf("unable to get infrastructure object: %s", err)
 	}
-	if infra.Status.PlatformStatus.Type != configapiv1.AzurePlatformType {
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type != configapiv1.AzurePlatformType {
 		return nil
 	}
 
