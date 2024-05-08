@@ -28,6 +28,7 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -78,12 +79,13 @@ func NewController(
 	configInformerFactory configinformers.SharedInformerFactory,
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
 	routeInformerFactory routeinformers.SharedInformerFactory,
+	featureGateAccessor featuregates.FeatureGateAccess,
 ) (*Controller, error) {
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
 	c := &Controller{
 		kubeconfig: kubeconfig,
-		generator:  resource.NewGenerator(eventRecorder, kubeconfig, clients, listers),
+		generator:  resource.NewGenerator(eventRecorder, kubeconfig, clients, listers, featureGateAccessor),
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
 		listers:    listers,
 		clients:    clients,
