@@ -8,5 +8,6 @@ package tools
 
 import (
 	// Makefile
+	_ "github.com/openshift/api/imageregistry/v1/zz_generated.crd-manifests"
 	_ "github.com/openshift/build-machinery-go"
 )
