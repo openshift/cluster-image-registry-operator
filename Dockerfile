@@ -8,7 +8,7 @@ RUN go build -o ../../tmp/_output/bin/move-blobs
 FROM registry.ci.openshift.org/ocp/4.16:base-rhel9
 COPY images/bin/entrypoint.sh /usr/bin/
 COPY manifests/image-references manifests/0* /manifests/
-COPY vendor/github.com/openshift/api/imageregistry/v1/*.crd.yaml /manifests/
+COPY vendor/github.com/openshift/api/imageregistry/v1/**/*.crd.yaml /manifests/
 COPY --from=builder /go/src/github.com/openshift/cluster-image-registry-operator/tmp/_output/bin/cluster-image-registry-operator /usr/bin/
 COPY --from=builder /go/src/github.com/openshift/cluster-image-registry-operator/tmp/_output/bin/move-blobs /usr/bin/
 RUN chmod -R g+w /etc/pki/ca-trust/extracted/pem/
