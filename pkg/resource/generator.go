@@ -15,6 +15,7 @@ import (
 	"k8s.io/klog/v2"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -65,20 +66,22 @@ func ApplyMutator(gen Mutator) error {
 	})
 }
 
-func NewGenerator(eventRecorder events.Recorder, kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers) *Generator {
+func NewGenerator(eventRecorder events.Recorder, kubeconfig *rest.Config, clients *client.Clients, listers *client.Listers, featureGateAccessor featuregates.FeatureGateAccess) *Generator {
 	return &Generator{
-		eventRecorder: eventRecorder,
-		kubeconfig:    kubeconfig,
-		listers:       listers,
-		clients:       clients,
+		eventRecorder:       eventRecorder,
+		kubeconfig:          kubeconfig,
+		listers:             listers,
+		clients:             clients,
+		featureGateAccessor: featureGateAccessor,
 	}
 }
 
 type Generator struct {
-	eventRecorder events.Recorder
-	kubeconfig    *rest.Config
-	listers       *client.Listers
-	clients       *client.Clients
+	eventRecorder       events.Recorder
+	kubeconfig          *rest.Config
+	listers             *client.Listers
+	clients             *client.Clients
+	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
