@@ -581,7 +581,7 @@ func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageReg
 }
 
 func TeardownImageRegistry(te TestEnv) {
-	defer WaitUntilClusterOperatorsAreHealthy(te, 10*time.Second, AsyncOperationTimeout)
+	defer WaitUntilClusterOperatorsAreHealthy(te, 30*time.Second, AsyncOperationTimeout)
 	defer CheckAbsenceOfOperatorPods(te)
 	defer RemoveImageRegistry(te)
 	defer CheckPodsAreNotRestarted(te, labels.Everything())
