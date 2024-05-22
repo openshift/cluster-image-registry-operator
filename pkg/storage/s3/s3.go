@@ -409,12 +409,31 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
 	}
 
+	// virtualHostedStyle tells the registry to use urls in the form of
+	// bucket-name.s3-endpoint.etc.
+	// the forcePathStyle setting was introduced to control the same
+	// behaviour, but it's named after the opposite setting (path style
+	// instead of virtual hosted style):
+	// s3-endpoint.etc/bucket-name.
+	// the PR that introduced virtual hosted style to upstream distribution
+	// was never merged: https://github.com/distribution/distribution/pull/3131/files
+	// and it's only present in our fork:
+	//  * https://github.com/openshift/docker-distribution/commit/e33e2357eb705f2ed7481e3510fceedb01a95bb6
+	//  * https://github.com/openshift/docker-distribution/commit/063574e3222f00556ec5113dddca9a0ac28ed4cb
+	// the upstream introduction of the force path style config happened in:
+	//  * https://github.com/distribution/distribution/commit/15de9e21bad774b24e48a46d9238a5714e7ceb6c
+	// and it's also present in our fork.
+	// TODO: drop commits from openshift/docker-distribution during next rebase:
+	//  * https://github.com/openshift/docker-distribution/commit/e33e2357eb705f2ed7481e3510fceedb01a95bb6
+	//  * https://github.com/openshift/docker-distribution/commit/063574e3222f00556ec5113dddca9a0ac28ed4cb
+	// Jira tracker: https://issues.redhat.com/browse/IR-470
+	forcePathStyle := !d.Config.VirtualHostedStyle
 	envs = append(envs,
 		envvar.EnvVar{Name: "REGISTRY_STORAGE", Value: "s3"},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_BUCKET", Value: d.Config.Bucket},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Region},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: d.Config.Encrypt},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: d.Config.VirtualHostedStyle},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_FORCEPATHSTYLE", Value: forcePathStyle},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey)},
 	)
 

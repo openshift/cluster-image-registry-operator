@@ -60,7 +60,7 @@ func TestConfigEnv(t *testing.T) {
 		"REGISTRY_STORAGE_S3_REGION":                "us-east",
 		"REGISTRY_STORAGE_S3_REGIONENDPOINT":        "s3.us-east.cloud-object-storage.appdomain.cloud",
 		"REGISTRY_STORAGE_S3_ENCRYPT":               false,
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    false,
+		"REGISTRY_STORAGE_S3_FORCEPATHSTYLE":        true,
 		"REGISTRY_STORAGE_S3_USEDUALSTACK":          false,
 		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey),
 	}
