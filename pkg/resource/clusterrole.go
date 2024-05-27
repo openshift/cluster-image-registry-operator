@@ -103,6 +103,13 @@ func (gcr *generatorClusterRole) expected() (runtime.Object, error) {
 					"imagetagmirrorsets",
 				},
 			},
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{"authorization.k8s.io"},
+				Resources: []string{
+					"subjectaccessreviews",
+				},
+			},
 		},
 	}
 
