@@ -223,6 +223,12 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		return err
 	}
 
+	tagMgr, err := NewTagManager(d.Context, d.Listers, d.Config.Region)
+	if err != nil {
+		return err
+	}
+	defer tagMgr.Close()
+
 	// If a bucket name is supplied, and it already exists and we can access it
 	// just update the config
 	var bucket *gstorage.BucketHandle
@@ -320,7 +326,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 				cr.Spec.Storage.GCS = d.Config.DeepCopy()
 			}
 		}
-		return addTagsToStorageBucket(d.Context, cr, d.Listers, d.Config.Bucket, d.Config.Region)
+		// add user-defined tags to the created storage bucket and update `StorageTagged` condition.
+		err = tagMgr.AddTagsToStorageBucket(d.Context, cr)
+		return updateTagCondition(cr, err)
 	} else {
 		if !reflect.DeepEqual(cr.Status.Storage.GCS, d.Config) {
 			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
@@ -331,8 +339,9 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// Previous status condition was set to failed because, of tag operation failure,
 	// means bucket creation was successful and hence will only try adding tags.
-	if cond := util.FetchCondition(cr, defaults.StorageTagged); cond.Status != operatorapi.ConditionTrue {
-		return addTagsToStorageBucket(d.Context, cr, d.Listers, d.Config.Bucket, d.Config.Region)
+	if cond := util.FetchCondition(cr, defaults.StorageTagged); cond.Reason == gcpTagsFailedStatusReason && cond.Status == operatorapi.ConditionTrue {
+		err = tagMgr.AddTagsToStorageBucket(d.Context, cr)
+		return updateTagCondition(cr, err)
 	}
 
 	return nil
