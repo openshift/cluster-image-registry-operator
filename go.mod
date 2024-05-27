@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-image-registry-operator
 
-go 1.21
+go 1.22
 
 require (
 	cloud.google.com/go/resourcemanager v1.9.6
