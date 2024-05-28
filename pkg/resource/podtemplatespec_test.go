@@ -521,7 +521,7 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 		"REGISTRY_STORAGE_S3_BUCKET":                {Value: "bucket"},
 		"REGISTRY_STORAGE_S3_REGION":                {Value: "region"},
 		"REGISTRY_STORAGE_S3_ENCRYPT":               {Value: "true"},
-		"REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE":    {Value: "true"},
+		"REGISTRY_STORAGE_S3_FORCEPATHSTYLE":        {Value: "false"},
 		"REGISTRY_STORAGE_S3_USEDUALSTACK":          {Value: "true"},
 		"REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH": {Value: "/var/run/secrets/cloud/credentials"},
 		"REGISTRY_MIDDLEWARE_STORAGE": {Value: `- name: cloudfront
