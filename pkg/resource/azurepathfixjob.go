@@ -99,7 +99,15 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		{Name: "AZURE_CONTAINER_NAME", Value: azureStorage.Container},
 		{Name: "AZURE_CLIENT_ID", Value: azureCfg.ClientID},
 		{Name: "AZURE_TENANT_ID", Value: azureCfg.TenantID},
-		{Name: "AZURE_CLIENT_SECRET", Value: azureCfg.ClientSecret},
+		{Name: "AZURE_CLIENT_SECRET", ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				Optional: &optional,
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: defaults.CloudCredentialsName,
+				},
+				Key: "azure_client_secret",
+			},
+		}},
 		{Name: "AZURE_FEDERATED_TOKEN_FILE", Value: azureCfg.FederatedTokenFile},
 		{Name: "AZURE_ACCOUNTKEY", ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
