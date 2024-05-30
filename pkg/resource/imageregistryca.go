@@ -17,7 +17,6 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -36,7 +35,6 @@ type generatorImageRegistryCA struct {
 	storageListers            *client.StorageListers
 	kubeconfig                *restclient.Config
 	client                    coreset.CoreV1Interface
-	featureGateAccessor       featuregates.FeatureGateAccess
 }
 
 func NewGeneratorImageRegistryCA(
@@ -49,7 +47,6 @@ func NewGeneratorImageRegistryCA(
 	storageListers *client.StorageListers,
 	kubeconfig *restclient.Config,
 	client coreset.CoreV1Interface,
-	featureGateAccessor featuregates.FeatureGateAccess,
 ) Mutator {
 	return &generatorImageRegistryCA{
 		lister:                    lister,
@@ -61,7 +58,6 @@ func NewGeneratorImageRegistryCA(
 		storageListers:            storageListers,
 		kubeconfig:                kubeconfig,
 		client:                    client,
-		featureGateAccessor:       featureGateAccessor,
 	}
 }
 
@@ -91,7 +87,7 @@ func (girca *generatorImageRegistryCA) storageDriver() (storage.Driver, bool, er
 		return nil, false, nil
 	}
 
-	driver, err := storage.NewDriver(&imageRegistryConfig.Spec.Storage, girca.kubeconfig, girca.storageListers, girca.featureGateAccessor)
+	driver, err := storage.NewDriver(&imageRegistryConfig.Spec.Storage, girca.kubeconfig, girca.storageListers)
 	if err == storage.ErrStorageNotConfigured || storage.IsMultiStoragesError(err) {
 		return nil, false, nil
 	} else if err != nil {

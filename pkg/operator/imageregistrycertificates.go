@@ -20,7 +20,6 @@ import (
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -42,8 +41,6 @@ type ImageRegistryCertificatesController struct {
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
-
-	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 func NewImageRegistryCertificatesController(
@@ -152,7 +149,7 @@ func (c *ImageRegistryCertificatesController) processNextWorkItem() bool {
 func (c *ImageRegistryCertificatesController) sync() error {
 	ctx := context.TODO()
 
-	g := resource.NewGeneratorCAConfig(c.configMapLister, c.imageConfigLister, c.openshiftConfigLister, c.serviceLister, c.imageRegistryConfigLister, c.storageListers, c.kubeconfig, c.coreClient, c.featureGateAccessor)
+	g := resource.NewGeneratorCAConfig(c.configMapLister, c.imageConfigLister, c.openshiftConfigLister, c.serviceLister, c.imageRegistryConfigLister, c.storageListers, c.kubeconfig, c.coreClient)
 	err := resource.ApplyMutator(g)
 	if err != nil {
 		_, _, updateError := v1helpers.UpdateStatus(
@@ -177,7 +174,6 @@ func (c *ImageRegistryCertificatesController) sync() error {
 		c.storageListers,
 		c.kubeconfig,
 		c.coreClient,
-		c.featureGateAccessor,
 	)
 	err = resource.ApplyMutator(g)
 	if err != nil {
