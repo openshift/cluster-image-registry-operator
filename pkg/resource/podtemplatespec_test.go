@@ -11,13 +11,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
-	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/emptydir"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func buildFakeClient(config *v1.Config, nodes []*corev1.Node) *cirofake.Fixtures {
@@ -114,7 +115,7 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 		},
 		"testOmitsDefaultsWithNodeSelector": {
 			nodes: []*corev1.Node{nodeMasterA, nodeWorkerA, nodeWorkerB},
-			spec: imageregistryapiv1.ImageRegistrySpec{
+			spec: v1.ImageRegistrySpec{
 				NodeSelector: map[string]string{
 					"node-role.kubernetes.io/master": "",
 				},
@@ -464,9 +465,10 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 			Storage: v1.ImageRegistryConfigStorage{
 				ManagementState: "Unmanaged",
 				S3: &v1.ImageRegistryConfigStorageS3{
-					Bucket:  "bucket",
-					Region:  "region",
-					Encrypt: true,
+					Bucket:       "bucket",
+					Region:       "region",
+					ChunkSizeMiB: 10,
+					Encrypt:      true,
 					CloudFront: &v1.ImageRegistryConfigStorageS3CloudFront{
 						BaseURL:   "https://cloudfront.example.com",
 						KeypairID: "keypair-id",
@@ -507,7 +509,11 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	testBuilder.AddNamespaces(imageRegNs)
 
 	fixture := testBuilder.Build()
-	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, &fixture.Listers.StorageListers)
+	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+		[]configv1.FeatureGateName{},
+	)
+	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, &fixture.Listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
 	pod, _, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, s3Storage, config)
 	if err != nil {
 		t.Fatalf("error creating pod template: %v", err)
@@ -516,9 +522,11 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	ignoreEnvVar := func(name string) bool {
 		return !strings.HasPrefix(name, "REGISTRY_STORAGE") && !strings.HasPrefix(name, "REGISTRY_MIDDLEWARE")
 	}
+
 	expectedEnvVars := map[string]corev1.EnvVar{
 		"REGISTRY_STORAGE":                          {Value: "s3"},
 		"REGISTRY_STORAGE_S3_BUCKET":                {Value: "bucket"},
+		"REGISTRY_STORAGE_S3_CHUNKSIZE":             {Value: "10485760"},
 		"REGISTRY_STORAGE_S3_REGION":                {Value: "region"},
 		"REGISTRY_STORAGE_S3_ENCRYPT":               {Value: "true"},
 		"REGISTRY_STORAGE_S3_FORCEPATHSTYLE":        {Value: "false"},
