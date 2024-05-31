@@ -22,12 +22,10 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
-	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 func TestEndpointsResolver(t *testing.T) {
@@ -258,12 +256,7 @@ func TestConfigEnv(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
-		[]configv1.FeatureGateName{},
-	)
-
-	d := NewDriver(ctx, config, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -327,12 +320,7 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
-		[]configv1.FeatureGateName{},
-	)
-
-	d := NewDriver(ctx, config, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	d := NewDriver(ctx, config, &listers.StorageListers)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -516,11 +504,8 @@ func TestStorageManagementState(t *testing.T) {
 					rt.AddResponse(code)
 				}
 			}
-			ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-				[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
-				[]configv1.FeatureGateName{},
-			)
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers)
 
 			drv.roundTripper = rt
 
@@ -750,11 +735,8 @@ func TestUserProvidedTags(t *testing.T) {
 				},
 			})
 			listers := builder.BuildListers()
-			ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-				[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
-				[]configv1.FeatureGateName{},
-			)
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers)
 			rt := &tripper{}
 			if len(tt.responseCodes) > 0 {
 				for _, code := range tt.responseCodes {

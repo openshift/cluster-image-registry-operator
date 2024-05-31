@@ -543,7 +543,6 @@ github.com/oklog/ulid
 # github.com/openshift/api v0.0.0-20240508125607-95e22923d553
 ## explicit; go 1.21
 github.com/openshift/api
-github.com/openshift/api/annotations
 github.com/openshift/api/apiserver
 github.com/openshift/api/apiserver/v1
 github.com/openshift/api/apps
@@ -687,7 +686,6 @@ github.com/openshift/client-go/route/listers/route/v1
 # github.com/openshift/library-go v0.0.0-20240508091607-5fface69be35
 ## explicit; go 1.21
 github.com/openshift/library-go/pkg/authorization/hardcodedauthorizer
-github.com/openshift/library-go/pkg/certs
 github.com/openshift/library-go/pkg/config/client
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/config/clusterstatus
@@ -699,10 +697,6 @@ github.com/openshift/library-go/pkg/controller/factory
 github.com/openshift/library-go/pkg/controller/fileobserver
 github.com/openshift/library-go/pkg/crypto
 github.com/openshift/library-go/pkg/network
-github.com/openshift/library-go/pkg/operator/certrotation
-github.com/openshift/library-go/pkg/operator/condition
-github.com/openshift/library-go/pkg/operator/configobserver
-github.com/openshift/library-go/pkg/operator/configobserver/featuregates
 github.com/openshift/library-go/pkg/operator/events
 github.com/openshift/library-go/pkg/operator/loglevel
 github.com/openshift/library-go/pkg/operator/management
@@ -710,8 +704,6 @@ github.com/openshift/library-go/pkg/operator/resource/resourceapply
 github.com/openshift/library-go/pkg/operator/resource/resourcehelper
 github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 github.com/openshift/library-go/pkg/operator/resource/resourceread
-github.com/openshift/library-go/pkg/operator/resourcesynccontroller
-github.com/openshift/library-go/pkg/operator/status
 github.com/openshift/library-go/pkg/operator/v1helpers
 github.com/openshift/library-go/pkg/serviceability
 # github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b

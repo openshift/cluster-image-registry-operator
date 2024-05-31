@@ -2,8 +2,6 @@ package operator
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
@@ -19,10 +17,8 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/loglevel"
-	"github.com/openshift/library-go/pkg/operator/status"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -72,24 +68,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	}
 	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(defaults.ImageRegistryOperatorNamespace), "image-registry-operator", controllerRef)
 
-	desiredVersion := status.VersionForOperatorFromEnv()
-	missingVersion := "0.0.1-snapshot"
-
-	// By default, this will exit(0) the process if the featuregates ever change to a different set of values.
-	featureGateAccessor := featuregates.NewFeatureGateAccess(desiredVersion, missingVersion, configInformers.Config().V1().ClusterVersions(), configInformers.Config().V1().FeatureGates(), eventRecorder)
-
-	go featureGateAccessor.Run(ctx)
-	configInformers.Start(ctx.Done())
-
-	select {
-	case <-featureGateAccessor.InitialFeatureGatesObserved():
-		featureGates, _ := featureGateAccessor.CurrentFeatureGates()
-		klog.Infof("FeatureGates initialized: knownFeatureGates=%v", featureGates.KnownFeatures())
-	case <-time.After(1 * time.Minute):
-		klog.Errorf("timed out waiting for FeatureGate detection")
-		return fmt.Errorf("timed out waiting for FeatureGate detection")
-	}
-
 	controller, err := NewController(
 		eventRecorder,
 		kubeconfig,
@@ -104,7 +82,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configInformers,
 		imageregistryInformers,
 		routeInformers,
-		featureGateAccessor,
 	)
 	if err != nil {
 		return err
@@ -202,7 +179,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configInformers.Config().V1().Proxies(),
 		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
 		kubeInformers.Core().V1().Pods(),
-		featureGateAccessor,
 	)
 	if err != nil {
 		return err

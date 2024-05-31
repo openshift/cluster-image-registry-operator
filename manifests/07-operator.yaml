@@ -77,8 +77,6 @@ spec:
               value: quay.io/openshift/origin-cli:v4.0
             - name: AZURE_ENVIRONMENT_FILEPATH
               value: /tmp/azurestackcloud.json
-            - name: OPERATOR_IMAGE_VERSION
-              value: 0.0.1-snapshot
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: trusted-ca

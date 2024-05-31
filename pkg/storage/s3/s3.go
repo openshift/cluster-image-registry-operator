@@ -31,7 +31,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -110,19 +109,15 @@ type driver struct {
 
 	// roundTripper is used only during tests.
 	roundTripper http.RoundTripper
-
-	// featureGateAccessor is used to get a list of enabled and disabled featuregates
-	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 // NewDriver creates a new s3 storage driver
 // Used during bootstrapping
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.StorageListers, fg featuregates.FeatureGateAccess) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageS3, listers *regopclient.StorageListers) *driver {
 	return &driver{
-		Context:             ctx,
-		Config:              c,
-		Listers:             listers,
-		featureGateAccessor: fg,
+		Context: ctx,
+		Config:  c,
+		Listers: listers,
 	}
 }
 
@@ -412,16 +407,6 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 
 	if len(d.Config.KeyID) != 0 {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
-	}
-
-	currentFeatureGates, err := d.featureGateAccessor.CurrentFeatureGates()
-	if err != nil {
-		return
-	}
-
-	if currentFeatureGates.Enabled(util.ChunkSizeMiBFeatureGateName) && d.Config.ChunkSizeMiB > 0 {
-		chunksize := int64(d.Config.ChunkSizeMiB) * 1024 * 1024
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CHUNKSIZE", Value: chunksize})
 	}
 
 	// virtualHostedStyle tells the registry to use urls in the form of
