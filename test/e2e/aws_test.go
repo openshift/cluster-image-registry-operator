@@ -23,6 +23,7 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -80,7 +81,11 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
+	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+		[]configapiv1.FeatureGateName{},
+	)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
@@ -417,8 +422,12 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+		[]configapiv1.FeatureGateName{},
+	)
 	// Check that the user provided credentials override the system provided ones
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
 
 	sharedCredentialsFile, err := s3Driver.GetCredentialsFile()
 	if err != nil {
@@ -509,7 +518,11 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 	defer awsCleanup()
 
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers)
+	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+		[]configapiv1.FeatureGateName{},
+	)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
