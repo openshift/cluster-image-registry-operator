@@ -440,9 +440,9 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 
 	// if user has provided an affinity through config spec we use it here, if not
 	// then we fallback to a preferred affinity configuration. we only require a
-	// certain affinity during schedule if the number of replicas is defined to two.
+	// certain affinity during schedule if the number of replicas is 2 or more.
 	affinity := cr.Spec.Affinity
-	if affinity == nil && cr.Spec.Replicas == 2 {
+	if affinity == nil && cr.Spec.Replicas >= 2 {
 		affinity = &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
