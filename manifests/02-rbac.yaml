@@ -40,6 +40,8 @@ rules:
 - apiGroups:
   - config.openshift.io
   resources:
+  - clusterversions
+  - featuregates
   - infrastructures
   verbs:
   - get
