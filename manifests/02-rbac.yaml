@@ -40,6 +40,8 @@ rules:
 - apiGroups:
   - config.openshift.io
   resources:
+  - clusterversions
+  - featuregates
   - infrastructures
   verbs:
   - get
@@ -223,6 +225,12 @@ rules:
   - imagecontentsourcepolicies
   verbs:
   - list
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
