@@ -88,7 +88,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGION", Value: d.Config.Location},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: fmt.Sprintf("s3.%s.cloud-object-storage.appdomain.cloud", d.Config.Location)},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_ENCRYPT", Value: false},
-		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_VIRTUALHOSTEDSTYLE", Value: false},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_FORCEPATHSTYLE", Value: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_USEDUALSTACK", Value: false},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CREDENTIALSCONFIGPATH", Value: filepath.Join(imageRegistrySecretMountpoint, imageRegistrySecretDataKey)},
 	)
