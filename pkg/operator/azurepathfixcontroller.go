@@ -1,10 +1,12 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -201,6 +203,33 @@ func (c *AzurePathFixController) sync() error {
 	// this job is no longer needed. on OCP versions >=4.17 we can be certain that
 	// this has already migrated the blobs to the correct place, and we can now
 	// safely remove the job. see OCPBUGS-29003 for details.
+	progressing := "AzurePathFixProgressing"
+	degraded := "AzurePathFixControllerDegraded"
+	removeConditionFn := func(conditionType string) v1helpers.UpdateStatusFunc {
+		return func(oldStatus *operatorv1.OperatorStatus) error {
+			v1helpers.RemoveOperatorCondition(&oldStatus.Conditions, conditionType)
+			return nil
+		}
+	}
+	removeConditionFns := []v1helpers.UpdateStatusFunc{}
+	progressingConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, progressing) != nil
+	if progressingConditionFound {
+		removeConditionFns = append(removeConditionFns, removeConditionFn(progressing))
+	}
+	degradedConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, degraded) != nil
+	if degradedConditionFound {
+		removeConditionFns = append(removeConditionFns, removeConditionFn(degraded))
+	}
+	if len(removeConditionFns) > 0 {
+		if _, _, err := v1helpers.UpdateStatus(
+			context.TODO(),
+			c.operatorClient,
+			removeConditionFns...,
+		); err != nil {
+			return err
+		}
+	}
+
 	_, err = gen.Get()
 	if errors.IsNotFound(err) {
 		return nil
