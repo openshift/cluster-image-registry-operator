@@ -6,12 +6,9 @@ import (
 	"strings"
 	"time"
 
-	batchv1 "k8s.io/api/batch/v1"
-	corev1 "k8s.io/api/core/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchv1informers "k8s.io/client-go/informers/batch/v1"
@@ -25,7 +22,6 @@ import (
 	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
-	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
@@ -177,7 +173,6 @@ func (c *AzurePathFixController) sync() error {
 		return nil
 	}
 
-	ctx := context.TODO()
 	imageRegistryConfig, err := c.imageRegistryConfigLister.Get("cluster")
 	if err != nil {
 		return err
@@ -208,110 +203,54 @@ func (c *AzurePathFixController) sync() error {
 		c.kubeconfig,
 	)
 
-	progressingCondition := operatorv1.OperatorCondition{
-		Type:   "AzurePathFixProgressing",
-		Status: operatorv1.ConditionUnknown,
-	}
-	degradedCondition := operatorv1.OperatorCondition{
-		Type:   "AzurePathFixControllerDegraded",
-		Status: operatorv1.ConditionFalse,
-		Reason: "AsExpected",
-	}
-
-	jobObj, err := gen.Get()
-	if errors.IsNotFound(err) {
-		progressingCondition.Status = operatorv1.ConditionTrue
-		progressingCondition.Reason = "NotFound"
-		progressingCondition.Message = "The job does not exist"
-	} else if err != nil {
-		progressingCondition.Reason = "Unknown"
-		progressingCondition.Message = fmt.Sprintf("Unable to check job progress: %s", err)
-	} else {
-		job := jobObj.(*batchv1.Job)
-		jobProgressing := true
-		var jobCondition batchv1.JobConditionType
-		for _, cond := range job.Status.Conditions {
-			if (cond.Type == batchv1.JobComplete || cond.Type == batchv1.JobFailed) && cond.Status == corev1.ConditionTrue {
-				jobProgressing = false
-				jobCondition = cond.Type
-				break
-			}
-		}
-
-		if jobProgressing {
-			progressingCondition.Reason = "Migrating"
-			progressingCondition.Message = fmt.Sprintf("Azure path fix job is progressing: %d pods active; %d pods failed", job.Status.Active, job.Status.Failed)
-			progressingCondition.Status = operatorv1.ConditionTrue
-		}
-
-		if jobCondition == batchv1.JobComplete {
-			progressingCondition.Reason = "AsExpected"
-			progressingCondition.Status = operatorv1.ConditionFalse
-		}
-
-		if jobCondition == batchv1.JobFailed {
-			progressingCondition.Reason = "Failed"
-			progressingCondition.Status = operatorv1.ConditionFalse
-			degradedCondition.Reason = "Failed"
-			degradedCondition.Status = operatorv1.ConditionTrue
-
-			// if the job still executing (i.e there are attempts left before backoff),
-			// we don't want to report degraded, but we let users know that some attempt(s)
-			// failed, and the job is still progressing.
-
-			requirement, err := labels.NewRequirement("batch.kubernetes.io/job-name", selection.Equals, []string{gen.GetName()})
-			if err != nil {
-				// this is extremely unlikely to happen
-				return err
-			}
-			pods, err := c.podLister.List(labels.NewSelector().Add(*requirement))
-			if err != nil {
-				// there's not much that can be done about an error here,
-				// the next reconciliation(s) are likely to succeed.
-				return err
-			}
-
-			if len(pods) == 0 {
-				msg := "Migration failed but no job pods are left to inspect"
-				progressingCondition.Message = msg
-				degradedCondition.Message = msg
-			}
-
-			if len(pods) > 0 {
-				mostRecentPod := pods[0]
-				for _, pod := range pods {
-					if mostRecentPod.CreationTimestamp.Before(&pod.CreationTimestamp) {
-						mostRecentPod = pod
-					}
-				}
-
-				if len(mostRecentPod.Status.ContainerStatuses) > 0 {
-					status := mostRecentPod.Status.ContainerStatuses[0]
-					msg := fmt.Sprintf("Migration failed: %s", status.State.Terminated.Message)
-					progressingCondition.Message = msg
-					degradedCondition.Message = msg
-				}
-			}
+	// this controller was created to aid users migrating from 4.13.z to >=4.14.z.
+	// once users have migrated to an OCP version and have run this job at least once,
+	// this job is no longer needed. on OCP versions >=4.17 we can be certain that
+	// this has already migrated the blobs to the correct place, and we can now
+	// safely remove the job. see OCPBUGS-29003 for details.
+	progressing := "AzurePathFixProgressing"
+	degraded := "AzurePathFixControllerDegraded"
+	removeConditionFn := func(conditionType string) v1helpers.UpdateStatusFunc {
+		return func(oldStatus *operatorv1.OperatorStatus) error {
+			v1helpers.RemoveOperatorCondition(&oldStatus.Conditions, conditionType)
+			return nil
 		}
 	}
-
-	err = resource.ApplyMutator(gen)
-	if err != nil {
-		_, _, updateError := v1helpers.UpdateStatus(
-			ctx,
+	removeConditionFns := []v1helpers.UpdateStatusFunc{}
+	progressingConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, progressing) != nil
+	if progressingConditionFound {
+		removeConditionFns = append(removeConditionFns, removeConditionFn(progressing))
+	}
+	degradedConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, degraded) != nil
+	if degradedConditionFound {
+		removeConditionFns = append(removeConditionFns, removeConditionFn(degraded))
+	}
+	if len(removeConditionFns) > 0 {
+		if _, _, err := v1helpers.UpdateStatus(
+			context.TODO(),
 			c.operatorClient,
-			v1helpers.UpdateConditionFn(progressingCondition),
-			v1helpers.UpdateConditionFn(degradedCondition),
-		)
-		return utilerrors.NewAggregate([]error{err, updateError})
+			removeConditionFns...,
+		); err != nil {
+			return err
+		}
 	}
 
-	_, _, err = v1helpers.UpdateStatus(
-		ctx,
-		c.operatorClient,
-		v1helpers.UpdateConditionFn(progressingCondition),
-		v1helpers.UpdateConditionFn(degradedCondition),
-	)
+	_, err = gen.Get()
+	if errors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		return err
+	} else {
+		gracePeriod := int64(0)
+		propagationPolicy := metav1.DeletePropagationForeground
+		opts := metav1.DeleteOptions{
+			GracePeriodSeconds: &gracePeriod,
+			PropagationPolicy:  &propagationPolicy,
+		}
+		if err := gen.Delete(opts); err != nil {
+			return err
+		}
+	}
 	return err
 }
 

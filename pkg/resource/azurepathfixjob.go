@@ -11,7 +11,6 @@ import (
 	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
@@ -305,8 +304,8 @@ func (gapfj *generatorAzurePathFixJob) Update(o runtime.Object) (runtime.Object,
 	// if we are here it means the expected container envs differed from
 	// the actual container envs, so we recreate the job.
 	gracePeriod := int64(0)
-	propagationPolicy := metaapi.DeletePropagationForeground
-	opts := metaapi.DeleteOptions{
+	propagationPolicy := metav1.DeletePropagationForeground
+	opts := metav1.DeleteOptions{
 		GracePeriodSeconds: &gracePeriod,
 		PropagationPolicy:  &propagationPolicy,
 	}
