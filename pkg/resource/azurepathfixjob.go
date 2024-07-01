@@ -21,6 +21,7 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure"
@@ -225,6 +226,11 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		Spec: batchv1.JobSpec{
 			BackoffLimit: &backoffLimit,
 			Template: kcorev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						securityv1.RequiredSCCAnnotation: "restricted-v2",
+					},
+				},
 				Spec: kcorev1.PodSpec{
 					RestartPolicy:      kcorev1.RestartPolicyNever,
 					ServiceAccountName: defaults.ServiceAccountName,

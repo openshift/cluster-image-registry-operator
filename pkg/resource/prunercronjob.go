@@ -15,6 +15,7 @@ import (
 	batchlisters "k8s.io/client-go/listers/batch/v1"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
+	securityv1 "github.com/openshift/api/security/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	"github.com/openshift/library-go/pkg/operator/loglevel"
@@ -174,6 +175,7 @@ done
 		},
 	}
 	cj.Spec.JobTemplate.Labels = map[string]string{"created-by": gcj.GetName()}
+	cj.Spec.JobTemplate.Annotations = map[string]string{securityv1.RequiredSCCAnnotation: "restricted-v2"}
 	return cj, nil
 }
 
