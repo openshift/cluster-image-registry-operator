@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"golang.org/x/net/http/httpproxy"
@@ -498,19 +499,19 @@ func (d *driver) setServiceEndpointOverrides(infra *configapiv1.Infrastructure) 
 			if infra.Status.PlatformStatus.PowerVS != nil && len(infra.Status.PlatformStatus.PowerVS.ServiceEndpoints) > 0 {
 				for _, endpoint := range infra.Status.PlatformStatus.PowerVS.ServiceEndpoints {
 					switch endpoint.Name {
-					case string(configapiv1.IBMCloudServiceCOS):
+					case strings.ToLower(string(configapiv1.IBMCloudServiceCOS)):
 						klog.Infof("found override for ibmcloud cos endpoint: %s", endpoint.URL)
 						d.cosServiceEndpoint = endpoint.URL
-					case string(configapiv1.IBMCloudServiceIAM):
+					case strings.ToLower(string(configapiv1.IBMCloudServiceIAM)):
 						klog.Infof("found override for ibmcloud iam endpoint: %s", endpoint.URL)
 						d.iamServiceEndpoint = endpoint.URL
-					case string(configapiv1.IBMCloudServiceResourceController):
+					case strings.ToLower(string(configapiv1.IBMCloudServiceResourceController)):
 						klog.Infof("found override for ibmcloud resource controller endpoint: %s", endpoint.URL)
 						d.rcServiceEndpoint = endpoint.URL
-					case string(configapiv1.IBMCloudServiceResourceManager):
+					case strings.ToLower(string(configapiv1.IBMCloudServiceResourceManager)):
 						klog.Infof("found override for ibmcloud resource manager endpoint: %s", endpoint.URL)
 						d.rmServiceEndpoint = endpoint.URL
-					case string(configapiv1.IBMCloudServiceCIS), string(configapiv1.IBMCloudServiceDNSServices), string(configapiv1.IBMCloudServiceGlobalSearch), string(configapiv1.IBMCloudServiceGlobalTagging), string(configapiv1.IBMCloudServiceHyperProtect), string(configapiv1.IBMCloudServiceKeyProtect), string(configapiv1.IBMCloudServiceVPC):
+					case strings.ToLower(string(configapiv1.IBMCloudServiceCIS)), strings.ToLower(string(configapiv1.IBMCloudServiceDNSServices)), strings.ToLower(string(configapiv1.IBMCloudServiceGlobalSearch)), strings.ToLower(string(configapiv1.IBMCloudServiceGlobalTagging)), strings.ToLower(string(configapiv1.IBMCloudServiceHyperProtect)), strings.ToLower(string(configapiv1.IBMCloudServiceKeyProtect)), strings.ToLower(string(configapiv1.IBMCloudServiceVPC)):
 						klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
 					default:
 						klog.Infof("ignoring unknown service: %s", endpoint.Name)
