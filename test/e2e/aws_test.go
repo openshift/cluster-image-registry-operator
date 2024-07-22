@@ -81,11 +81,11 @@ func TestAWSDefaults(t *testing.T) {
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.TestFeatureGateName},
 		[]configapiv1.FeatureGateName{},
 	)
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, TestFeatureGateAccessor)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
@@ -422,12 +422,12 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.TestFeatureGateName},
 		[]configapiv1.FeatureGateName{},
 	)
 	// Check that the user provided credentials override the system provided ones
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, TestFeatureGateAccessor)
 
 	sharedCredentialsFile, err := s3Driver.GetCredentialsFile()
 	if err != nil {
@@ -518,11 +518,11 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 	defer awsCleanup()
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configapiv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configapiv1.FeatureGateName{util.TestFeatureGateName},
 		[]configapiv1.FeatureGateName{},
 	)
-	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	s3Driver := storages3.NewDriver(context.Background(), nil, &mockLister.StorageListers, TestFeatureGateAccessor)
 	err = s3Driver.UpdateEffectiveConfig()
 	if err != nil {
 		t.Errorf("unable to get cluster configuration: %#v", err)
