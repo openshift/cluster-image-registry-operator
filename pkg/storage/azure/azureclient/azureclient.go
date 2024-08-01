@@ -15,6 +15,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
 )
@@ -218,6 +221,23 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resource
 	params := armstorage.AccountUpdateParameters{
 		Properties: &armstorage.AccountPropertiesUpdateParameters{
 			PublicNetworkAccess: &publicNetworkAccess,
+		},
+	}
+	if _, err := client.Update(ctx, resourceGroupName, accountName, params, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) DisableStorageAccountAccessKeyAccess(ctx context.Context, resourceGroupName, accountName string) error {
+	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
+	if err != nil {
+		return fmt.Errorf("failed to create accounts client: %q", err)
+	}
+
+	params := armstorage.AccountUpdateParameters{
+		Properties: &armstorage.AccountPropertiesUpdateParameters{
+			AllowSharedKeyAccess: to.BoolPtr(false),
 		},
 	}
 	if _, err := client.Update(ctx, resourceGroupName, accountName, params, nil); err != nil {
@@ -729,4 +749,54 @@ func validate(opts *Options) error {
 		return fmt.Errorf("client misconfigured, missing %s option(s)", missing)
 	}
 	return nil
+}
+
+func (c *Client) NewBlobClient(environment autorestazure.Environment, accountName, key, blobURL string) (*BlobClient, error) {
+	if key != "" {
+		cred, err := azblob.NewSharedKeyCredential(accountName, key)
+		if err != nil {
+			return nil, err
+		}
+		client, err := azblob.NewClientWithSharedKeyCredential(blobURL, cred, nil)
+		return &BlobClient{
+			client: client,
+		}, err
+	}
+
+	client, err := azblob.NewClient(blobURL, c.creds, nil)
+	return &BlobClient{
+		client: client,
+	}, err
+}
+
+type BlobClient struct {
+	client *azblob.Client
+}
+
+// containerExists determines whether or not an azure container exists
+func (client *BlobClient) ContainerExists(ctx context.Context, accountName, containerName string) (bool, error) {
+	if accountName == "" || containerName == "" {
+		return false, nil
+	}
+
+	c := client.client.ServiceClient().NewContainerClient(containerName)
+	_, err := c.GetProperties(ctx, &container.GetPropertiesOptions{})
+	if err != nil {
+		if !bloberror.HasCode(err, bloberror.ContainerNotFound) {
+			return false, fmt.Errorf("unable to get the storage container %s: %s", containerName, err)
+		} else {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (client *BlobClient) CreateStorageContainer(ctx context.Context, containerName string) error {
+	_, err := client.client.CreateContainer(ctx, containerName, &azblob.CreateContainerOptions{})
+	return err
+}
+
+func (client *BlobClient) DeleteStorageContainer(ctx context.Context, containerName string) error {
+	_, err := client.client.DeleteContainer(ctx, containerName, &azblob.DeleteContainerOptions{})
+	return err
 }
