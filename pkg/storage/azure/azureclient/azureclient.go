@@ -86,15 +86,31 @@ func New(opts *Options) (*Client, error) {
 	if creds == nil {
 		var err error
 		if strings.TrimSpace(opts.ClientSecret) == "" {
-			options := azidentity.WorkloadIdentityCredentialOptions{
-				ClientOptions: coreOpts,
-				ClientID:      opts.ClientID,
-				TenantID:      opts.TenantID,
-				TokenFilePath: opts.FederatedTokenFile,
-			}
-			creds, err = azidentity.NewWorkloadIdentityCredential(&options)
-			if err != nil {
-				return nil, err
+			if strings.TrimSpace(opts.FederatedTokenFile) != "" {
+				options := azidentity.WorkloadIdentityCredentialOptions{
+					ClientOptions: coreOpts,
+					ClientID:      opts.ClientID,
+					TenantID:      opts.TenantID,
+					TokenFilePath: opts.FederatedTokenFile,
+				}
+				creds, err = azidentity.NewWorkloadIdentityCredential(&options)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				options := azidentity.ManagedIdentityCredentialOptions{
+					ClientOptions: azcore.ClientOptions{
+						Cloud: cloudConfig,
+					},
+				}
+				if opts.ClientID != "" {
+					options.ID = azidentity.ClientID(opts.ClientID)
+				}
+				var err error
+				creds, err = azidentity.NewManagedIdentityCredential(&options)
+				if err != nil {
+					return nil, err
+				}
 			}
 		} else {
 			options := azidentity.ClientSecretCredentialOptions{
