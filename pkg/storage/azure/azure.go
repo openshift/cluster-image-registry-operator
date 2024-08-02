@@ -341,33 +341,17 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		err  error
 	)
 	if strings.TrimSpace(cfg.ClientSecret) == "" {
-		if strings.TrimSpace(cfg.FederatedTokenFile) != "" {
-			options := azidentity.WorkloadIdentityCredentialOptions{
-				ClientOptions: azcore.ClientOptions{
-					Cloud: cloudConfig,
-				},
-				ClientID:      cfg.ClientID,
-				TenantID:      cfg.TenantID,
-				TokenFilePath: cfg.FederatedTokenFile,
-			}
-			cred, err = azidentity.NewWorkloadIdentityCredential(&options)
-			if err != nil {
-				return storage.AccountsClient{}, err
-			}
-		} else {
-			options := azidentity.ManagedIdentityCredentialOptions{
-				ClientOptions: azcore.ClientOptions{
-					Cloud: cloudConfig,
-				},
-			}
-			if cfg.ClientID != "" {
-				options.ID = azidentity.ClientID(cfg.ClientID)
-			}
-			var err error
-			cred, err = azidentity.NewManagedIdentityCredential(&options)
-			if err != nil {
-				return storage.AccountsClient{}, err
-			}
+		options := azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+			ClientID:      cfg.ClientID,
+			TenantID:      cfg.TenantID,
+			TokenFilePath: cfg.FederatedTokenFile,
+		}
+		cred, err = azidentity.NewWorkloadIdentityCredential(&options)
+		if err != nil {
+			return storage.AccountsClient{}, err
 		}
 	} else {
 		options := azidentity.ClientSecretCredentialOptions{
