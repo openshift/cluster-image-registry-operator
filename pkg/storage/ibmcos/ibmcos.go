@@ -30,16 +30,18 @@ import (
 	"github.com/IBM/platform-services-go-sdk/resourcecontrollerv2"
 	"github.com/IBM/platform-services-go-sdk/resourcemanagerv2"
 	"github.com/golang-jwt/jwt"
+
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+
+	powerUtils "github.com/ppc64le-cloud/powervs-utils"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 	"github.com/openshift/cluster-image-registry-operator/pkg/version"
-	powerUtils "github.com/ppc64le-cloud/powervs-utils"
 )
 
 const (
@@ -518,7 +520,7 @@ func (d *driver) setServiceEndpointOverrides(infra *configapiv1.Infrastructure) 
 					}
 				}
 			}
-		case configapiv1.AWSPlatformType, configapiv1.AzurePlatformType, configapiv1.BareMetalPlatformType, configapiv1.GCPPlatformType, configapiv1.LibvirtPlatformType, configapiv1.OpenStackPlatformType, configapiv1.NonePlatformType, configapiv1.VSpherePlatformType, configapiv1.OvirtPlatformType, configapiv1.KubevirtPlatformType, configapiv1.EquinixMetalPlatformType, configapiv1.AlibabaCloudPlatformType, configapiv1.NutanixPlatformType, configapiv1.ExternalPlatformType:
+		case configapiv1.AWSPlatformType, configapiv1.AzurePlatformType, configapiv1.BareMetalPlatformType, configapiv1.GCPPlatformType, configapiv1.LibvirtPlatformType, configapiv1.OpenStackPlatformType, configapiv1.NonePlatformType, configapiv1.VSpherePlatformType, configapiv1.OvirtPlatformType, configapiv1.KubevirtPlatformType, configapiv1.EquinixMetalPlatformType, configapiv1.NutanixPlatformType, configapiv1.ExternalPlatformType, configapiv1.AlibabaCloudPlatformType:
 			klog.Infof("provider type unsupported by IBM Cloud: %s", infra.Status.PlatformStatus.Type)
 		default:
 			klog.Infof("ignoring unknown provider type: %s", infra.Status.PlatformStatus.Type)
