@@ -258,12 +258,12 @@ func TestConfigEnv(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{util.TestFeatureGateName},
 		[]configv1.FeatureGateName{},
 	)
 
-	d := NewDriver(ctx, config, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	d := NewDriver(ctx, config, &listers.StorageListers, TestFeatureGateAccessor)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -327,12 +327,12 @@ func TestServiceEndpointCanBeOverwritten(t *testing.T) {
 	})
 	listers := testBuilder.BuildListers()
 
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{util.TestFeatureGateName},
 		[]configv1.FeatureGateName{},
 	)
 
-	d := NewDriver(ctx, config, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	d := NewDriver(ctx, config, &listers.StorageListers, TestFeatureGateAccessor)
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -516,11 +516,11 @@ func TestStorageManagementState(t *testing.T) {
 					rt.AddResponse(code)
 				}
 			}
-			ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-				[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+			TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+				[]configv1.FeatureGateName{util.TestFeatureGateName},
 				[]configv1.FeatureGateName{},
 			)
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, TestFeatureGateAccessor)
 
 			drv.roundTripper = rt
 
@@ -750,11 +750,11 @@ func TestUserProvidedTags(t *testing.T) {
 				},
 			})
 			listers := builder.BuildListers()
-			ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-				[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+			TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+				[]configv1.FeatureGateName{util.TestFeatureGateName},
 				[]configv1.FeatureGateName{},
 			)
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.S3, &listers.StorageListers, TestFeatureGateAccessor)
 			rt := &tripper{}
 			if len(tt.responseCodes) > 0 {
 				for _, code := range tt.responseCodes {

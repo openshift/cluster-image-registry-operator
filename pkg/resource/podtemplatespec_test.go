@@ -509,11 +509,11 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	testBuilder.AddNamespaces(imageRegNs)
 
 	fixture := testBuilder.Build()
-	ChunkSizeMiBFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
-		[]configv1.FeatureGateName{util.ChunkSizeMiBFeatureGateName},
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{util.TestFeatureGateName},
 		[]configv1.FeatureGateName{},
 	)
-	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, &fixture.Listers.StorageListers, ChunkSizeMiBFeatureGateAccessor)
+	s3Storage := s3.NewDriver(ctx, config.Spec.Storage.S3, &fixture.Listers.StorageListers, TestFeatureGateAccessor)
 	pod, _, err := makePodTemplateSpec(fixture.KubeClient.CoreV1(), fixture.Listers.ProxyConfigs, s3Storage, config)
 	if err != nil {
 		t.Fatalf("error creating pod template: %v", err)

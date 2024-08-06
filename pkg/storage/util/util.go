@@ -18,8 +18,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
-// ChunkSizeMiBFeatureGateName is a constant use in helper function for testing
-const ChunkSizeMiBFeatureGateName = "ChunkSizeMiB"
+// TestFeatureGateName is a constant use in helper function for testing
+const TestFeatureGateName = "TestFeatureGate"
 
 // multiDashes is a regexp matching multiple dashes in a sequence.
 var multiDashes = regexp.MustCompile(`-{2,}`)
