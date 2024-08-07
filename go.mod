@@ -173,3 +173,5 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.55.0
+
+replace github.com/openshift/docker-distribution => github.com/deepsm007/docker-distribution v0.0.0-20240807133402-005353c0abeb

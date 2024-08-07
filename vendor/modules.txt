@@ -1821,3 +1821,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # google.golang.org/grpc => google.golang.org/grpc v1.55.0
+# github.com/openshift/docker-distribution => github.com/deepsm007/docker-distribution v0.0.0-20240807133402-005353c0abeb
