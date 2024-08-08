@@ -39,6 +39,11 @@ func main() {
 		_ = logstderr.Value.Set("true")
 	}
 
+	if err := klogFlags.Set("v", "5"); err != nil {
+		klog.Errorf("%v", err)
+		os.Exit(1)
+	}
+
 	watchedFileChanged := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	stopCh := signals.SetupSignalHandler()
