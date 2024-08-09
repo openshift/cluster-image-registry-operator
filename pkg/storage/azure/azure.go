@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
@@ -308,6 +309,10 @@ type driver struct {
 	// httpSender is for Azure Pipeline.
 	// Added as a member to the struct to allow injection for testing.
 	httpSender pipeline.Factory
+
+	// policies is for new Azure Client Pipeline execution.
+	// Added as a member to the struct to allow injection for testing.
+	policies []policy.Policy
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
@@ -328,6 +333,7 @@ func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, 
 		FederatedTokenFile: cfg.FederatedTokenFile,
 		SubscriptionID:     cfg.SubscriptionID,
 		TagSet:             tagset,
+		Policies:           d.policies,
 	})
 	if err != nil {
 		return nil, err
