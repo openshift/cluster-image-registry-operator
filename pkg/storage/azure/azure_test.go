@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/mocks"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -34,6 +35,32 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 )
+
+const mockTenantID = "00000000-0000-0000-0000-000000000000"
+
+type testDoer struct {
+	response   *http.Response
+	body       string
+	statusCode int
+	header     http.Header
+}
+
+// Do implements the Doer interface for mocking.
+// Do accepts the passed policy request and body, then appends the response and emits it.
+func (td *testDoer) Do(r *policy.Request) (resp *http.Response, err error) {
+	// Helps in emitting sequential Responses for the same client
+	if td.response != nil {
+		return r.Next()
+	}
+	resp = &http.Response{
+		StatusCode: td.statusCode,
+		Request:    r.Raw(),
+		Body:       io.NopCloser(bytes.NewBufferString(td.body)),
+		Header:     td.header,
+	}
+	td.response = resp
+	return resp, nil
+}
 
 func TestGetConfig(t *testing.T) {
 	for _, tt := range []struct {
@@ -261,7 +288,7 @@ func findEnvVar(envvars envvar.List, name string) *envvar.EnvVar {
 	return nil
 }
 
-func TestConfigEnv(t *testing.T) {
+func TestConfigEnvNonAzureStackHub(t *testing.T) {
 	ctx := context.Background()
 
 	cr := &imageregistryv1.Config{}
@@ -290,6 +317,7 @@ func TestConfigEnv(t *testing.T) {
 		Data: map[string][]byte{
 			"azure_subscription_id": []byte("subscription_id"),
 			"azure_client_id":       []byte("client_id"),
+			"azure_tenant_id":       []byte(mockTenantID),
 			"azure_client_secret":   []byte("client_secret"),
 			"azure_resourcegroup":   []byte("resourcegroup"),
 		},
@@ -305,16 +333,12 @@ func TestConfigEnv(t *testing.T) {
 	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
 	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
 
-	httpSender := pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
-		return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
-			return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
-		}
-	})
-
 	d := NewDriver(ctx, config, &listers.StorageListers)
 	d.authorizer = authorizer
 	d.sender = sender
-	d.httpSender = httpSender
+	d.policies = []policy.Policy{
+		&testDoer{statusCode: http.StatusCreated},
+	}
 	err := d.CreateStorage(cr)
 	if err != nil {
 		t.Fatal(err)
@@ -340,7 +364,7 @@ func TestConfigEnv(t *testing.T) {
 	}
 }
 
-func TestConfigEnvWorkloadIdentity(t *testing.T) {
+func TestConfigEnvWorkloadIdentityNonAzureStackHub(t *testing.T) {
 	ctx := context.Background()
 
 	config := &imageregistryv1.ImageRegistryConfigStorageAzure{}
@@ -383,16 +407,15 @@ func TestConfigEnvWorkloadIdentity(t *testing.T) {
 	sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
 	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
 	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
-	httpSender := pipeline.FactoryFunc(func(next pipeline.Policy, po *pipeline.PolicyOptions) pipeline.PolicyFunc {
-		return func(ctx context.Context, request pipeline.Request) (pipeline.Response, error) {
-			return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
-		}
-	})
 
 	d := NewDriver(ctx, config, &listers.StorageListers)
 	d.authorizer = authorizer
 	d.sender = sender
-	d.httpSender = httpSender
+	d.policies = []policy.Policy{
+		&testDoer{
+			statusCode: http.StatusAccepted,
+		},
+	}
 
 	envvars, err := d.ConfigEnv()
 	if err != nil {
@@ -1157,7 +1180,7 @@ func Test_containerExists(t *testing.T) {
 	}
 }
 
-func Test_storageManagementState(t *testing.T) {
+func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 	builder := cirofake.NewFixturesBuilder()
 	builder.AddInfraConfig(&configv1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1181,17 +1204,20 @@ func Test_storageManagementState(t *testing.T) {
 		Data: map[string][]byte{
 			"azure_subscription_id": []byte("subscription_id"),
 			"azure_client_id":       []byte("client_id"),
+			"azure_tenant_id":       []byte(mockTenantID),
 			"azure_client_secret":   []byte("client_secret"),
 			"azure_resourcegroup":   []byte("resourcegroup"),
 		},
 	})
 	listers := builder.BuildListers()
+	containerNotFoundHeader := http.Header{}
+	containerNotFoundHeader.Add("x-ms-error-code", "ContainerNotFound")
 
 	for _, tt := range []struct {
 		name           string
 		registryConfig *imageregistryv1.Config
 		mockResponses  []*http.Response
-		httpSender     func(int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error)
+		policies       []policy.Policy
 		err            string
 		checkFn        func(*imageregistryv1.Config)
 	}{
@@ -1208,6 +1234,11 @@ func Test_storageManagementState(t *testing.T) {
 				if cr.Spec.Storage.Azure.Container == "" {
 					t.Error("unexpected empty container")
 				}
+			},
+			policies: []policy.Policy{
+				&testDoer{
+					statusCode: http.StatusCreated,
+				},
 			},
 		},
 		{
@@ -1237,6 +1268,11 @@ func Test_storageManagementState(t *testing.T) {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
 			},
+			policies: []policy.Policy{
+				&testDoer{
+					statusCode: http.StatusOK,
+				},
+			},
 		},
 		{
 			name: "user providing container and account name (both don't exist)",
@@ -1250,19 +1286,6 @@ func Test_storageManagementState(t *testing.T) {
 					},
 				},
 			},
-			httpSender: func(req int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-				if req == 0 {
-					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-						r := mocks.NewResponseWithStatus("", http.StatusNotFound)
-						r.Header = map[string][]string{}
-						r.Header.Add("x-ms-error-code", "ContainerNotFound")
-						return pipeline.NewHTTPResponse(r), nil
-					}
-				}
-				return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-					return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
-				}
-			},
 			checkFn: func(cr *imageregistryv1.Config) {
 				if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
 					t.Errorf("expected to be managed, %q instead", cr.Spec.Storage.ManagementState)
@@ -1273,6 +1296,15 @@ func Test_storageManagementState(t *testing.T) {
 				if cr.Spec.Storage.Azure.Container != "foo_container" {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
+			},
+			policies: []policy.Policy{
+				&testDoer{
+					statusCode: http.StatusNotFound,
+					header:     containerNotFoundHeader,
+				},
+				&testDoer{
+					statusCode: http.StatusCreated,
+				},
 			},
 		},
 		{
@@ -1298,22 +1330,18 @@ func Test_storageManagementState(t *testing.T) {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
 			},
-			httpSender: func(req int) func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-				if req == 0 {
-					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-						r := mocks.NewResponseWithStatus("", http.StatusNotFound)
-						r.Header = map[string][]string{}
-						r.Header.Add("x-ms-error-code", "ContainerNotFound")
-						return pipeline.NewHTTPResponse(r), nil
-					}
-				}
-				return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-					return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
-				}
-			},
 			mockResponses: []*http.Response{
 				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
 				mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`),
+			},
+			policies: []policy.Policy{
+				&testDoer{
+					statusCode: http.StatusNotFound,
+					header:     containerNotFoundHeader,
+				},
+				&testDoer{
+					statusCode: http.StatusCreated,
+				},
 			},
 		},
 		{
@@ -1335,6 +1363,9 @@ func Test_storageManagementState(t *testing.T) {
 				if cr.Spec.Storage.Azure.Container == "" {
 					t.Error("unexpected empty container")
 				}
+			},
+			policies: []policy.Policy{
+				&testDoer{statusCode: http.StatusCreated},
 			},
 		},
 	} {
@@ -1363,23 +1394,9 @@ func Test_storageManagementState(t *testing.T) {
 			)
 			drv.authorizer = autorest.NullAuthorizer{}
 			drv.sender = sender
-
-			var requestCounter int
-			drv.httpSender = pipeline.FactoryFunc(
-				func(_ pipeline.Policy, _ *pipeline.PolicyOptions) pipeline.PolicyFunc {
-					defer func() {
-						requestCounter++
-					}()
-
-					if tt.httpSender != nil {
-						return tt.httpSender(requestCounter)
-					}
-
-					return func(_ context.Context, _ pipeline.Request) (pipeline.Response, error) {
-						return pipeline.NewHTTPResponse(mocks.NewResponseWithContent(`{}`)), nil
-					}
-				},
-			)
+			if tt.policies != nil {
+				drv.policies = tt.policies
+			}
 
 			if err := drv.CreateStorage(tt.registryConfig); err != nil {
 				if len(tt.err) == 0 {
