@@ -1,6 +1,7 @@
 package swift
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
-	th "github.com/gophercloud/gophercloud/testhelper"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack/objectstorage/v1/containers"
+	th "github.com/gophercloud/gophercloud/v2/testhelper"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1101,10 +1102,10 @@ func TestNoPermissionsKeystone(t *testing.T) {
 	conn, err := d.getSwiftClient()
 	th.AssertNoErr(t, err)
 
-	// if the user doesn't have permissions, gophercloud should return ErrDefault403
-	listOpts := containers.ListOpts{Full: false}
-	_, err = containers.List(conn, listOpts).AllPages()
-	_, ok := err.(gophercloud.ErrDefault403)
+	// if the user doesn't have permissions, gophercloud should return StatusForbidden
+	listOpts := containers.ListOpts{}
+	_, err = containers.List(conn, listOpts).AllPages(context.TODO())
+	ok := gophercloud.ResponseCodeIs(err, http.StatusForbidden)
 	th.AssertEquals(t, true, ok)
 
 	// IsSwiftEnabled should return false in this case
@@ -1153,10 +1154,10 @@ func TestNoPermissionsSwauth(t *testing.T) {
 	conn, err := d.getSwiftClient()
 	th.AssertNoErr(t, err)
 
-	// if the user doesn't have permissions, gophercloud should return ErrDefault401
-	listOpts := containers.ListOpts{Full: false}
-	_, err = containers.List(conn, listOpts).AllPages()
-	_, ok := err.(gophercloud.ErrDefault401)
+	// if the user doesn't have permissions, gophercloud should return Status.Unauthorized
+	listOpts := containers.ListOpts{}
+	_, err = containers.List(conn, listOpts).AllPages(context.TODO())
+	ok := gophercloud.ResponseCodeIs(err, http.StatusUnauthorized)
 	th.AssertEquals(t, true, ok)
 
 	// IsSwiftEnabled should return false in this case

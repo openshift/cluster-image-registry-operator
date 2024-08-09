@@ -1,6 +1,7 @@
 package swift
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -10,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
-	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
-	"github.com/gophercloud/gophercloud/pagination"
-	"github.com/gophercloud/utils/openstack/clientconfig"
+	"github.com/gophercloud/gophercloud/v2"
+	"github.com/gophercloud/gophercloud/v2/openstack"
+	"github.com/gophercloud/gophercloud/v2/openstack/objectstorage/v1/containers"
+	"github.com/gophercloud/gophercloud/v2/openstack/objectstorage/v1/objects"
+	"github.com/gophercloud/gophercloud/v2/pagination"
+	"github.com/gophercloud/utils/v2/openstack/clientconfig"
 	"github.com/goware/urlx"
 	yamlv2 "gopkg.in/yaml.v2"
 
@@ -77,7 +78,7 @@ func IsSwiftEnabled(listers *regopclient.StorageListers) (bool, error) {
 	}
 
 	// Try to list containers to make sure the user has required permissions to do that
-	if err := containers.List(conn, containers.ListOpts{}).EachPage(func(_ pagination.Page) (bool, error) {
+	if err := containers.List(conn, containers.ListOpts{}).EachPage(context.TODO(), func(ctx context.Context, _ pagination.Page) (bool, error) {
 		return false, nil
 	}); err != nil {
 		klog.Errorf("error listing swift containers: %v", err)
@@ -250,7 +251,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 		provider.HTTPClient = client
 	}
 
-	err = openstack.Authenticate(provider, *opts)
+	err = openstack.Authenticate(context.TODO(), provider, *opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate against OpenStack: %w", err)
 	}
@@ -388,7 +389,7 @@ func ensureAuthURLHasAPIVersion(authURL, authVersion string) (string, error) {
 }
 
 func (d *driver) containerExists(client *gophercloud.ServiceClient, containerName string) error {
-	_, err := containers.Get(client, containerName, containers.GetOpts{}).Extract()
+	_, err := containers.Get(context.TODO(), client, containerName, containers.GetOpts{}).Extract()
 	return err
 }
 
@@ -448,7 +449,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		if err != nil {
 			// If the error is not ErrResourceNotFound
 			// return the error
-			if _, ok := err.(gophercloud.ErrDefault404); !ok {
+			if !gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
 				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to check if container exists", fmt.Sprintf("Error occurred checking if container exists: %v", err))
 				return err
 			}
@@ -481,7 +482,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			},
 		}
 
-		_, err = containers.Create(client, cr.Spec.Storage.Swift.Container, createOps).Extract()
+		_, err = containers.Create(context.TODO(), client, cr.Spec.Storage.Swift.Container, createOps).Extract()
 		if err != nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Creation Failed", err.Error())
 			return err
@@ -517,12 +518,12 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 	pager := objects.List(client, cr.Spec.Storage.Swift.Container, &objects.ListOpts{
 		Limit: 50,
 	})
-	if err := pager.EachPage(func(page pagination.Page) (bool, error) {
+	if err := pager.EachPage(context.TODO(), func(ctx context.Context, page pagination.Page) (bool, error) {
 		objectsOnPage, err := objects.ExtractNames(page)
 		if err != nil {
 			return false, err
 		}
-		resp, err := objects.BulkDelete(client, cr.Spec.Storage.Swift.Container, objectsOnPage).Extract()
+		resp, err := objects.BulkDelete(ctx, client, cr.Spec.Storage.Swift.Container, objectsOnPage).Extract()
 		if err != nil {
 			return false, err
 		}
@@ -540,14 +541,14 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (bool, error) {
 
 		return true, nil
 	}); err != nil {
-		if _, ok := err.(gophercloud.ErrDefault404); !ok {
+		if !gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
 			return false, err
 		}
 	}
 
-	_, err = containers.Delete(client, cr.Spec.Storage.Swift.Container).Extract()
+	_, err = containers.Delete(context.TODO(), client, cr.Spec.Storage.Swift.Container).Extract()
 	if err != nil {
-		if _, ok := err.(gophercloud.ErrDefault404); !ok {
+		if !gophercloud.ResponseCodeIs(err, http.StatusNotFound) {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, err.Error(), err.Error())
 			return false, err
 		}
