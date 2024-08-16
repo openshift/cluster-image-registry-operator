@@ -23,6 +23,7 @@ import (
 	configapi "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	routev1informers "github.com/openshift/client-go/route/informers/externalversions/route/v1"
 	routev1lister "github.com/openshift/client-go/route/listers/route/v1"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
@@ -36,12 +37,13 @@ import (
 // Watches for changes on image registry routes and services, updating
 // the resource status appropriately.
 type ImageConfigController struct {
-	configClient   configset.ConfigV1Interface
-	operatorClient v1helpers.OperatorClient
-	routeLister    routev1lister.RouteNamespaceLister
-	serviceLister  corev1listers.ServiceNamespaceLister
-	cachesToSync   []cache.InformerSynced
-	queue          workqueue.RateLimitingInterface
+	configClient                 configset.ConfigV1Interface
+	operatorClient               v1helpers.OperatorClient
+	routeLister                  routev1lister.RouteNamespaceLister
+	serviceLister                corev1listers.ServiceNamespaceLister
+	cachesToSync                 []cache.InformerSynced
+	queue                        workqueue.RateLimitingInterface
+	imageStreamImportModeEnabled bool
 }
 
 func NewImageConfigController(
@@ -49,13 +51,16 @@ func NewImageConfigController(
 	operatorClient v1helpers.OperatorClient,
 	routeInformer routev1informers.RouteInformer,
 	serviceInformer corev1informers.ServiceInformer,
+	imageConfigInformer configv1informers.ImageInformer,
+	imageStreamImportModeEnabled bool,
 ) (*ImageConfigController, error) {
 	icc := &ImageConfigController{
-		configClient:   configClient,
-		operatorClient: operatorClient,
-		routeLister:    routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
-		serviceLister:  serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
+		configClient:                 configClient,
+		operatorClient:               operatorClient,
+		routeLister:                  routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
+		serviceLister:                serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
+		queue:                        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
+		imageStreamImportModeEnabled: imageStreamImportModeEnabled,
 	}
 
 	if _, err := serviceInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
@@ -68,6 +73,12 @@ func NewImageConfigController(
 	}
 	icc.cachesToSync = append(icc.cachesToSync, routeInformer.Informer().HasSynced)
 
+	if imageStreamImportModeEnabled {
+		if _, err := imageConfigInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
+			return nil, err
+		}
+		icc.cachesToSync = append(icc.cachesToSync, imageConfigInformer.Informer().HasSynced)
+	}
 	return icc, nil
 }
 
@@ -158,6 +169,20 @@ func (icc *ImageConfigController) syncImageStatus() error {
 	if cfg.Status.InternalRegistryHostname != internalHostname {
 		cfg.Status.InternalRegistryHostname = internalHostname
 		modified = true
+	}
+	if icc.imageStreamImportModeEnabled {
+		var importmode configapi.ImportModeType
+		if cfg.Spec.ImageStreamImportMode != "" {
+			importmode = cfg.Spec.ImageStreamImportMode
+		} else {
+			// TODO: once clusterversion reports the type of payload in its status, use that to determine what the default will be
+			// i.e, multi payload => PreserveOriginal, single arch payload => Legacy
+			importmode = configapi.ImportModeLegacy
+		}
+		if cfg.Status.ImageStreamImportMode != importmode {
+			cfg.Status.ImageStreamImportMode = importmode
+			modified = true
+		}
 	}
 
 	if modified {
