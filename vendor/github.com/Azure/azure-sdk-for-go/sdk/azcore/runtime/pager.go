@@ -59,6 +59,8 @@ func (p *Pager[T]) More() bool {
 
 // NextPage advances the pager to the next page.
 func (p *Pager[T]) NextPage(ctx context.Context) (T, error) {
+	var resp T
+	var err error
 	if p.current != nil {
 		if p.firstPage {
 			// we get here if it's an LRO-pager, we already have the first page
@@ -67,16 +69,16 @@ func (p *Pager[T]) NextPage(ctx context.Context) (T, error) {
 		} else if !p.handler.More(*p.current) {
 			return *new(T), errors.New("no more pages")
 		}
+		ctx, endSpan := StartSpan(ctx, fmt.Sprintf("%s.NextPage", shortenTypeName(reflect.TypeOf(*p).Name())), p.tracer, nil)
+		defer endSpan(err)
+		resp, err = p.handler.Fetcher(ctx, p.current)
 	} else {
 		// non-LRO case, first page
 		p.firstPage = false
+		ctx, endSpan := StartSpan(ctx, fmt.Sprintf("%s.NextPage", shortenTypeName(reflect.TypeOf(*p).Name())), p.tracer, nil)
+		defer endSpan(err)
+		resp, err = p.handler.Fetcher(ctx, nil)
 	}
-
-	var err error
-	ctx, endSpan := StartSpan(ctx, fmt.Sprintf("%s.NextPage", shortenTypeName(reflect.TypeOf(*p).Name())), p.tracer, nil)
-	defer func() { endSpan(err) }()
-
-	resp, err := p.handler.Fetcher(ctx, p.current)
 	if err != nil {
 		return *new(T), err
 	}
@@ -94,10 +96,6 @@ type FetcherForNextLinkOptions struct {
 	// NextReq is the func to be called when requesting subsequent pages.
 	// Used for paged operations that have a custom next link operation.
 	NextReq func(context.Context, string) (*policy.Request, error)
-
-	// StatusCodes contains additional HTTP status codes indicating success.
-	// The default value is http.StatusOK.
-	StatusCodes []int
 }
 
 // FetcherForNextLink is a helper containing boilerplate code to simplify creating a PagingHandler[T].Fetcher from a next link URL.
@@ -109,13 +107,10 @@ type FetcherForNextLinkOptions struct {
 func FetcherForNextLink(ctx context.Context, pl Pipeline, nextLink string, firstReq func(context.Context) (*policy.Request, error), options *FetcherForNextLinkOptions) (*http.Response, error) {
 	var req *policy.Request
 	var err error
-	if options == nil {
-		options = &FetcherForNextLinkOptions{}
-	}
 	if nextLink == "" {
 		req, err = firstReq(ctx)
 	} else if nextLink, err = EncodeQueryParams(nextLink); err == nil {
-		if options.NextReq != nil {
+		if options != nil && options.NextReq != nil {
 			req, err = options.NextReq(ctx, nextLink)
 		} else {
 			req, err = NewRequest(ctx, http.MethodGet, nextLink)
@@ -128,9 +123,7 @@ func FetcherForNextLink(ctx context.Context, pl Pipeline, nextLink string, first
 	if err != nil {
 		return nil, err
 	}
-	successCodes := []int{http.StatusOK}
-	successCodes = append(successCodes, options.StatusCodes...)
-	if !HasStatusCode(resp, successCodes...) {
+	if !HasStatusCode(resp, http.StatusOK) {
 		return nil, NewResponseError(resp)
 	}
 	return resp, nil

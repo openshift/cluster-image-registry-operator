@@ -1,10 +1,11 @@
 package jwt
 
 import (
+	"errors"
+
 	"crypto"
 	"crypto/ed25519"
 	"crypto/rand"
-	"errors"
 )
 
 var (
@@ -38,7 +39,7 @@ func (m *SigningMethodEd25519) Verify(signingString string, sig []byte, key inte
 	var ok bool
 
 	if ed25519Key, ok = key.(ed25519.PublicKey); !ok {
-		return newError("Ed25519 verify expects ed25519.PublicKey", ErrInvalidKeyType)
+		return ErrInvalidKeyType
 	}
 
 	if len(ed25519Key) != ed25519.PublicKeySize {
@@ -60,7 +61,7 @@ func (m *SigningMethodEd25519) Sign(signingString string, key interface{}) ([]by
 	var ok bool
 
 	if ed25519Key, ok = key.(crypto.Signer); !ok {
-		return nil, newError("Ed25519 sign expects crypto.Signer", ErrInvalidKeyType)
+		return nil, ErrInvalidKeyType
 	}
 
 	if _, ok := ed25519Key.Public().(ed25519.PublicKey); !ok {

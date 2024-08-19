@@ -34,14 +34,8 @@ type PipelineOptions struct {
 	// Each policy is executed once per request, and for each retry of that request.
 	PerRetry []policy.Policy
 
-	// Tracing contains options used to configure distributed tracing.
-	Tracing TracingOptions
-}
-
-// TracingOptions contains tracing options for SDK developers.
-type TracingOptions struct {
-	// Namespace contains the value to use for the az.namespace span attribute.
-	Namespace string
+	// TracingNamespace contains the value to use for the az.namespace span attribute.
+	TracingNamespace string
 }
 
 // Pipeline represents a primitive for sending HTTP requests and receiving responses.

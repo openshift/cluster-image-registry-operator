@@ -12,7 +12,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential"
 )
 
@@ -21,11 +20,12 @@ const credNameAssertion = "ClientAssertionCredential"
 // ClientAssertionCredential authenticates an application with assertions provided by a callback function.
 // This credential is for advanced scenarios. [ClientCertificateCredential] has a more convenient API for
 // the most common assertion scenario, authenticating a service principal with a certificate. See
-// [Microsoft Entra ID documentation] for details of the assertion format.
+// [Azure AD documentation] for details of the assertion format.
 //
-// [Microsoft Entra ID documentation]: https://learn.microsoft.com/entra/identity-platform/certificate-credentials#assertion-format
+// [Azure AD documentation]: https://docs.microsoft.com/azure/active-directory/develop/active-directory-certificate-credentials#assertion-format
 type ClientAssertionCredential struct {
-	client *confidentialClient
+	client confidentialClient
+	s      *syncer
 }
 
 // ClientAssertionCredentialOptions contains optional parameters for ClientAssertionCredential.
@@ -36,15 +36,11 @@ type ClientAssertionCredentialOptions struct {
 	// Add the wildcard value "*" to allow the credential to acquire tokens for any tenant in which the
 	// application is registered.
 	AdditionallyAllowedTenants []string
-
 	// DisableInstanceDiscovery should be set true only by applications authenticating in disconnected clouds, or
-	// private clouds such as Azure Stack. It determines whether the credential requests Microsoft Entra instance metadata
+	// private clouds such as Azure Stack. It determines whether the credential requests Azure AD instance metadata
 	// from https://login.microsoft.com before authenticating. Setting this to true will skip this request, making
 	// the application responsible for ensuring the configured authority is valid and trustworthy.
 	DisableInstanceDiscovery bool
-
-	// tokenCachePersistenceOptions enables persistent token caching when not nil.
-	tokenCachePersistenceOptions *tokenCachePersistenceOptions
 }
 
 // NewClientAssertionCredential constructs a ClientAssertionCredential. The getAssertion function must be thread safe. Pass nil for options to accept defaults.
@@ -60,26 +56,28 @@ func NewClientAssertionCredential(tenantID, clientID string, getAssertion func(c
 			return getAssertion(ctx)
 		},
 	)
-	msalOpts := confidentialClientOptions{
-		AdditionallyAllowedTenants:   options.AdditionallyAllowedTenants,
-		ClientOptions:                options.ClientOptions,
-		DisableInstanceDiscovery:     options.DisableInstanceDiscovery,
-		tokenCachePersistenceOptions: options.tokenCachePersistenceOptions,
-	}
-	c, err := newConfidentialClient(tenantID, clientID, credNameAssertion, cred, msalOpts)
+	c, err := getConfidentialClient(clientID, tenantID, cred, &options.ClientOptions, confidential.WithInstanceDiscovery(!options.DisableInstanceDiscovery))
 	if err != nil {
 		return nil, err
 	}
-	return &ClientAssertionCredential{client: c}, nil
+	cac := ClientAssertionCredential{client: c}
+	cac.s = newSyncer(credNameAssertion, tenantID, options.AdditionallyAllowedTenants, cac.requestToken, cac.silentAuth)
+	return &cac, nil
 }
 
-// GetToken requests an access token from Microsoft Entra ID. This method is called automatically by Azure SDK clients.
+// GetToken requests an access token from Azure Active Directory. This method is called automatically by Azure SDK clients.
 func (c *ClientAssertionCredential) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	var err error
-	ctx, endSpan := runtime.StartSpan(ctx, credNameAssertion+"."+traceOpGetToken, c.client.azClient.Tracer(), nil)
-	defer func() { endSpan(err) }()
-	tk, err := c.client.GetToken(ctx, opts)
-	return tk, err
+	return c.s.GetToken(ctx, opts)
+}
+
+func (c *ClientAssertionCredential) silentAuth(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	ar, err := c.client.AcquireTokenSilent(ctx, opts.Scopes, confidential.WithTenantID(opts.TenantID))
+	return azcore.AccessToken{Token: ar.AccessToken, ExpiresOn: ar.ExpiresOn.UTC()}, err
+}
+
+func (c *ClientAssertionCredential) requestToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	ar, err := c.client.AcquireTokenByCredential(ctx, opts.Scopes, confidential.WithTenantID(opts.TenantID))
+	return azcore.AccessToken{Token: ar.AccessToken, ExpiresOn: ar.ExpiresOn.UTC()}, err
 }
 
 var _ azcore.TokenCredential = (*ClientAssertionCredential)(nil)
