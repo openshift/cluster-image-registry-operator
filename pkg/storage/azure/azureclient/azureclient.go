@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -85,7 +86,20 @@ func New(opts *Options) (*Client, error) {
 	creds := opts.Creds
 	if creds == nil {
 		var err error
-		if strings.TrimSpace(opts.ClientSecret) == "" {
+
+		// MSI Override for ARO HCP
+		msi := os.Getenv("AZURE_MSI_AUTHENTICATION")
+		if msi == "true" {
+			options := azidentity.ManagedIdentityCredentialOptions{
+				ClientOptions: azcore.ClientOptions{
+					Cloud: cloudConfig,
+				},
+			}
+			creds, err = azidentity.NewManagedIdentityCredential(&options)
+			if err != nil {
+				return nil, err
+			}
+		} else if strings.TrimSpace(opts.ClientSecret) == "" {
 			options := azidentity.WorkloadIdentityCredentialOptions{
 				ClientOptions: coreOpts,
 				ClientID:      opts.ClientID,
@@ -110,7 +124,6 @@ func New(opts *Options) (*Client, error) {
 				return nil, err
 			}
 		}
-
 	}
 
 	coreOpts.Retry = policy.RetryOptions{

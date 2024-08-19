@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -340,7 +341,21 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
-	if strings.TrimSpace(cfg.ClientSecret) == "" {
+	// MSI Override for ARO HCP
+	msi := os.Getenv("AZURE_MSI_AUTHENTICATION")
+	if msi == "true" {
+		options := azidentity.ManagedIdentityCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+		}
+
+		var err error
+		cred, err = azidentity.NewManagedIdentityCredential(&options)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+	} else if strings.TrimSpace(cfg.ClientSecret) == "" {
 		options := azidentity.WorkloadIdentityCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloudConfig,
