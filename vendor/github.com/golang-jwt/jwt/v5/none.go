@@ -32,7 +32,7 @@ func (m *signingMethodNone) Verify(signingString string, sig []byte, key interfa
 		return NoneSignatureTypeDisallowedError
 	}
 	// If signing method is none, signature must be an empty string
-	if len(sig) != 0 {
+	if string(sig) != "" {
 		return newError("'none' signing method with non-empty signature", ErrTokenUnverifiable)
 	}
 

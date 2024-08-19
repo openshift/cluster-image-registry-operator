@@ -28,21 +28,19 @@ type ClaimsValidator interface {
 	Validate() error
 }
 
-// Validator is the core of the new Validation API. It is automatically used by
+// validator is the core of the new Validation API. It is automatically used by
 // a [Parser] during parsing and can be modified with various parser options.
 //
-// The [NewValidator] function should be used to create an instance of this
-// struct.
-type Validator struct {
+// Note: This struct is intentionally not exported (yet) as we want to
+// internally finalize its API. In the future, we might make it publicly
+// available.
+type validator struct {
 	// leeway is an optional leeway that can be provided to account for clock skew.
 	leeway time.Duration
 
 	// timeFunc is used to supply the current time that is needed for
 	// validation. If unspecified, this defaults to time.Now.
 	timeFunc func() time.Time
-
-	// requireExp specifies whether the exp claim is required
-	requireExp bool
 
 	// verifyIat specifies whether the iat (Issued At) claim will be verified.
 	// According to https://www.rfc-editor.org/rfc/rfc7519#section-4.1.6 this
@@ -64,28 +62,16 @@ type Validator struct {
 	expectedSub string
 }
 
-// NewValidator can be used to create a stand-alone validator with the supplied
+// newValidator can be used to create a stand-alone validator with the supplied
 // options. This validator can then be used to validate already parsed claims.
-//
-// Note: Under normal circumstances, explicitly creating a validator is not
-// needed and can potentially be dangerous; instead functions of the [Parser]
-// class should be used.
-//
-// The [Validator] is only checking the *validity* of the claims, such as its
-// expiration time, but it does NOT perform *signature verification* of the
-// token.
-func NewValidator(opts ...ParserOption) *Validator {
+func newValidator(opts ...ParserOption) *validator {
 	p := NewParser(opts...)
 	return p.validator
 }
 
 // Validate validates the given claims. It will also perform any custom
 // validation if claims implements the [ClaimsValidator] interface.
-//
-// Note: It will NOT perform any *signature verification* on the token that
-// contains the claims and expects that the [Claim] was already successfully
-// verified.
-func (v *Validator) Validate(claims Claims) error {
+func (v *validator) Validate(claims Claims) error {
 	var (
 		now  time.Time
 		errs []error = make([]error, 0, 6)
@@ -100,9 +86,8 @@ func (v *Validator) Validate(claims Claims) error {
 	}
 
 	// We always need to check the expiration time, but usage of the claim
-	// itself is OPTIONAL by default. requireExp overrides this behavior
-	// and makes the exp claim mandatory.
-	if err = v.verifyExpiresAt(claims, now, v.requireExp); err != nil {
+	// itself is OPTIONAL.
+	if err = v.verifyExpiresAt(claims, now, false); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -164,7 +149,7 @@ func (v *Validator) Validate(claims Claims) error {
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifyExpiresAt(claims Claims, cmp time.Time, required bool) error {
+func (v *validator) verifyExpiresAt(claims Claims, cmp time.Time, required bool) error {
 	exp, err := claims.GetExpirationTime()
 	if err != nil {
 		return err
@@ -185,7 +170,7 @@ func (v *Validator) verifyExpiresAt(claims Claims, cmp time.Time, required bool)
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifyIssuedAt(claims Claims, cmp time.Time, required bool) error {
+func (v *validator) verifyIssuedAt(claims Claims, cmp time.Time, required bool) error {
 	iat, err := claims.GetIssuedAt()
 	if err != nil {
 		return err
@@ -206,7 +191,7 @@ func (v *Validator) verifyIssuedAt(claims Claims, cmp time.Time, required bool) 
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifyNotBefore(claims Claims, cmp time.Time, required bool) error {
+func (v *validator) verifyNotBefore(claims Claims, cmp time.Time, required bool) error {
 	nbf, err := claims.GetNotBefore()
 	if err != nil {
 		return err
@@ -226,7 +211,7 @@ func (v *Validator) verifyNotBefore(claims Claims, cmp time.Time, required bool)
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifyAudience(claims Claims, cmp string, required bool) error {
+func (v *validator) verifyAudience(claims Claims, cmp string, required bool) error {
 	aud, err := claims.GetAudience()
 	if err != nil {
 		return err
@@ -262,7 +247,7 @@ func (v *Validator) verifyAudience(claims Claims, cmp string, required bool) err
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifyIssuer(claims Claims, cmp string, required bool) error {
+func (v *validator) verifyIssuer(claims Claims, cmp string, required bool) error {
 	iss, err := claims.GetIssuer()
 	if err != nil {
 		return err
@@ -282,7 +267,7 @@ func (v *Validator) verifyIssuer(claims Claims, cmp string, required bool) error
 //
 // Additionally, if any error occurs while retrieving the claim, e.g., when its
 // the wrong type, an ErrTokenUnverifiable error will be returned.
-func (v *Validator) verifySubject(claims Claims, cmp string, required bool) error {
+func (v *validator) verifySubject(claims Claims, cmp string, required bool) error {
 	sub, err := claims.GetSubject()
 	if err != nil {
 		return err

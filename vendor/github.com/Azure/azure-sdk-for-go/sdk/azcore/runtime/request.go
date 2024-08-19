@@ -11,21 +11,19 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
-	"net/textproto"
 	"net/url"
+	"os"
 	"path"
+	"reflect"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/exported"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
-	"github.com/Azure/azure-sdk-for-go/sdk/internal/uuid"
 )
 
 // Base64Encoding is usesd to specify which base-64 encoder/decoder to use when
@@ -46,25 +44,13 @@ func NewRequest(ctx context.Context, httpMethod string, endpoint string) (*polic
 	return exported.NewRequest(ctx, httpMethod, endpoint)
 }
 
-// NewRequestFromRequest creates a new policy.Request with an existing *http.Request
-func NewRequestFromRequest(req *http.Request) (*policy.Request, error) {
-	return exported.NewRequestFromRequest(req)
-}
-
 // EncodeQueryParams will parse and encode any query parameters in the specified URL.
-// Any semicolons will automatically be escaped.
 func EncodeQueryParams(u string) (string, error) {
 	before, after, found := strings.Cut(u, "?")
 	if !found {
 		return u, nil
 	}
-	// starting in Go 1.17, url.ParseQuery will reject semicolons in query params.
-	// so, we must escape them first. note that this assumes that semicolons aren't
-	// being used as query param separators which is per the current RFC.
-	// for more info:
-	// https://github.com/golang/go/issues/25192
-	// https://github.com/golang/go/issues/50034
-	qp, err := url.ParseQuery(strings.ReplaceAll(after, ";", "%3B"))
+	qp, err := url.ParseQuery(after)
 	if err != nil {
 		return "", err
 	}
@@ -114,22 +100,23 @@ func EncodeByteArray(v []byte, format Base64Encoding) string {
 func MarshalAsByteArray(req *policy.Request, v []byte, format Base64Encoding) error {
 	// send as a JSON string
 	encode := fmt.Sprintf("\"%s\"", EncodeByteArray(v, format))
-	// tsp generated code can set Content-Type so we must prefer that
-	return exported.SetBody(req, exported.NopCloser(strings.NewReader(encode)), shared.ContentTypeAppJSON, false)
+	return req.SetBody(exported.NopCloser(strings.NewReader(encode)), shared.ContentTypeAppJSON)
 }
 
 // MarshalAsJSON calls json.Marshal() to get the JSON encoding of v then calls SetBody.
-func MarshalAsJSON(req *policy.Request, v any) error {
+func MarshalAsJSON(req *policy.Request, v interface{}) error {
+	if omit := os.Getenv("AZURE_SDK_GO_OMIT_READONLY"); omit == "true" {
+		v = cloneWithoutReadOnlyFields(v)
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("error marshalling type %T: %s", v, err)
 	}
-	// tsp generated code can set Content-Type so we must prefer that
-	return exported.SetBody(req, exported.NopCloser(bytes.NewReader(b)), shared.ContentTypeAppJSON, false)
+	return req.SetBody(exported.NopCloser(bytes.NewReader(b)), shared.ContentTypeAppJSON)
 }
 
 // MarshalAsXML calls xml.Marshal() to get the XML encoding of v then calls SetBody.
-func MarshalAsXML(req *policy.Request, v any) error {
+func MarshalAsXML(req *policy.Request, v interface{}) error {
 	b, err := xml.Marshal(v)
 	if err != nil {
 		return fmt.Errorf("error marshalling type %T: %s", v, err)
@@ -139,10 +126,10 @@ func MarshalAsXML(req *policy.Request, v any) error {
 	return req.SetBody(exported.NopCloser(bytes.NewReader(b)), shared.ContentTypeAppXML)
 }
 
-// SetMultipartFormData writes the specified keys/values as multi-part form fields with the specified value.
-// File content must be specified as an [io.ReadSeekCloser] or [streaming.MultipartContent].
-// Byte slices will be treated as JSON. All other values are treated as string values.
-func SetMultipartFormData(req *policy.Request, formData map[string]any) error {
+// SetMultipartFormData writes the specified keys/values as multi-part form
+// fields with the specified value.  File content must be specified as a ReadSeekCloser.
+// All other values are treated as string values.
+func SetMultipartFormData(req *policy.Request, formData map[string]interface{}) error {
 	body := bytes.Buffer{}
 	writer := multipart.NewWriter(&body)
 
@@ -153,60 +140,6 @@ func SetMultipartFormData(req *policy.Request, formData map[string]any) error {
 		}
 		// copy the data to the form file
 		if _, err = io.Copy(fd, src); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	quoteEscaper := strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
-
-	writeMultipartContent := func(fieldname string, mpc streaming.MultipartContent) error {
-		if mpc.Body == nil {
-			return errors.New("streaming.MultipartContent.Body cannot be nil")
-		}
-
-		// use fieldname for the file name when unspecified
-		filename := fieldname
-
-		if mpc.ContentType == "" && mpc.Filename == "" {
-			return writeContent(fieldname, filename, mpc.Body)
-		}
-		if mpc.Filename != "" {
-			filename = mpc.Filename
-		}
-		// this is pretty much copied from multipart.Writer.CreateFormFile
-		// but lets us set the caller provided Content-Type and filename
-		h := make(textproto.MIMEHeader)
-		h.Set("Content-Disposition",
-			fmt.Sprintf(`form-data; name="%s"; filename="%s"`,
-				quoteEscaper.Replace(fieldname), quoteEscaper.Replace(filename)))
-		contentType := "application/octet-stream"
-		if mpc.ContentType != "" {
-			contentType = mpc.ContentType
-		}
-		h.Set("Content-Type", contentType)
-		fd, err := writer.CreatePart(h)
-		if err != nil {
-			return err
-		}
-		// copy the data to the form file
-		if _, err = io.Copy(fd, mpc.Body); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	// the same as multipart.Writer.WriteField but lets us specify the Content-Type
-	writeField := func(fieldname, contentType string, value string) error {
-		h := make(textproto.MIMEHeader)
-		h.Set("Content-Disposition",
-			fmt.Sprintf(`form-data; name="%s"`, quoteEscaper.Replace(fieldname)))
-		h.Set("Content-Type", contentType)
-		fd, err := writer.CreatePart(h)
-		if err != nil {
-			return err
-		}
-		if _, err = fd.Write([]byte(value)); err != nil {
 			return err
 		}
 		return nil
@@ -225,35 +158,13 @@ func SetMultipartFormData(req *policy.Request, formData map[string]any) error {
 				}
 			}
 			continue
-		} else if mpc, ok := v.(streaming.MultipartContent); ok {
-			if err := writeMultipartContent(k, mpc); err != nil {
-				return err
-			}
-			continue
-		} else if mpcs, ok := v.([]streaming.MultipartContent); ok {
-			for _, mpc := range mpcs {
-				if err := writeMultipartContent(k, mpc); err != nil {
-					return err
-				}
-			}
-			continue
 		}
-
-		var content string
-		contentType := shared.ContentTypeTextPlain
-		switch tt := v.(type) {
-		case []byte:
-			// JSON, don't quote it
-			content = string(tt)
-			contentType = shared.ContentTypeAppJSON
-		case string:
-			content = tt
-		default:
-			// ensure the value is in string format
-			content = fmt.Sprintf("%v", v)
+		// ensure the value is in string format
+		s, ok := v.(string)
+		if !ok {
+			s = fmt.Sprintf("%v", v)
 		}
-
-		if err := writeField(k, contentType, content); err != nil {
+		if err := writer.WriteField(k, s); err != nil {
 			return err
 		}
 	}
@@ -271,11 +182,80 @@ func SkipBodyDownload(req *policy.Request) {
 // CtxAPINameKey is used as a context key for adding/retrieving the API name.
 type CtxAPINameKey = shared.CtxAPINameKey
 
-// NewUUID returns a new UUID using the RFC4122 algorithm.
-func NewUUID() (string, error) {
-	u, err := uuid.New()
-	if err != nil {
-		return "", err
+// returns a clone of the object graph pointed to by v, omitting values of all read-only
+// fields. if there are no read-only fields in the object graph, no clone is created.
+func cloneWithoutReadOnlyFields(v interface{}) interface{} {
+	val := reflect.Indirect(reflect.ValueOf(v))
+	if val.Kind() != reflect.Struct {
+		// not a struct, skip
+		return v
 	}
-	return u.String(), nil
+	// first walk the graph to find any R/O fields.
+	// if there aren't any, skip cloning the graph.
+	if !recursiveFindReadOnlyField(val) {
+		return v
+	}
+	return recursiveCloneWithoutReadOnlyFields(val)
+}
+
+// returns true if any field in the object graph of val contains the `azure:"ro"` tag value
+func recursiveFindReadOnlyField(val reflect.Value) bool {
+	t := val.Type()
+	// iterate over the fields, looking for the "azure" tag.
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		aztag := field.Tag.Get("azure")
+		if azureTagIsReadOnly(aztag) {
+			return true
+		} else if reflect.Indirect(val.Field(i)).Kind() == reflect.Struct && recursiveFindReadOnlyField(reflect.Indirect(val.Field(i))) {
+			return true
+		}
+	}
+	return false
+}
+
+// clones the object graph of val.  all non-R/O properties are copied to the clone
+func recursiveCloneWithoutReadOnlyFields(val reflect.Value) interface{} {
+	t := val.Type()
+	clone := reflect.New(t)
+	// iterate over the fields, looking for the "azure" tag.
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		aztag := field.Tag.Get("azure")
+		if azureTagIsReadOnly(aztag) {
+			// omit from payload
+			continue
+		}
+		// clone field will receive the same value as the source field...
+		value := val.Field(i)
+		v := reflect.Indirect(value)
+		if v.IsValid() && v.Type() != reflect.TypeOf(time.Time{}) && v.Kind() == reflect.Struct {
+			// ...unless the source value is a struct, in which case we recurse to clone that struct.
+			// (We can't recursively clone time.Time because it contains unexported fields.)
+			c := recursiveCloneWithoutReadOnlyFields(v)
+			if field.Anonymous {
+				// NOTE: this does not handle the case of embedded fields of unexported struct types.
+				// this should be ok as we don't generate any code like this at present
+				value = reflect.Indirect(reflect.ValueOf(c))
+			} else {
+				value = reflect.ValueOf(c)
+			}
+		}
+		reflect.Indirect(clone).Field(i).Set(value)
+	}
+	return clone.Interface()
+}
+
+// returns true if the "azure" tag contains the option "ro"
+func azureTagIsReadOnly(tag string) bool {
+	if tag == "" {
+		return false
+	}
+	parts := strings.Split(tag, ",")
+	for _, part := range parts {
+		if part == "ro" {
+			return true
+		}
+	}
+	return false
 }

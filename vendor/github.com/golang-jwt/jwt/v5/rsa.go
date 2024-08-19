@@ -51,7 +51,7 @@ func (m *SigningMethodRSA) Verify(signingString string, sig []byte, key interfac
 	var ok bool
 
 	if rsaKey, ok = key.(*rsa.PublicKey); !ok {
-		return newError("RSA verify expects *rsa.PublicKey", ErrInvalidKeyType)
+		return ErrInvalidKeyType
 	}
 
 	// Create hasher
@@ -73,7 +73,7 @@ func (m *SigningMethodRSA) Sign(signingString string, key interface{}) ([]byte, 
 
 	// Validate type of key
 	if rsaKey, ok = key.(*rsa.PrivateKey); !ok {
-		return nil, newError("RSA sign expects *rsa.PrivateKey", ErrInvalidKeyType)
+		return nil, ErrInvalidKey
 	}
 
 	// Create the hasher
