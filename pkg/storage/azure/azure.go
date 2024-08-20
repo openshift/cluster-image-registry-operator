@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
@@ -50,6 +51,7 @@ const (
 	storageExistsReasonContainerExists   = "ContainerExists"
 	storageExistsReasonContainerDeleted  = "ContainerDeleted"
 	storageExistsReasonAccountDeleted    = "AccountDeleted"
+	storageExistsReasonAccountNotFound   = "AccountNotFound"
 )
 
 // storageAccountInvalidCharRe is a regular expression for characters that
@@ -1082,7 +1084,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	return nil
 }
 
-func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (exists bool, err error) {
+func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
 	key := cfg.AccountKey
 	federated_token := cfg.FederatedTokenFile
 	azClient, err := d.newAzClient(cfg, environment, nil)
@@ -1096,8 +1098,27 @@ func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, 
 			d.Config.AccountName = ""
 			cr.Spec.Storage.Azure.AccountName = "" // TODO
 			cr.Status.Storage.Azure.AccountName = ""
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
-			return false, nil
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountNotFound, fmt.Sprintf("Account has been already deleted: %s", err))
+			return true, nil
+		}
+		if err != nil {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
+			return false, err
+		}
+	} else {
+		result, err := d.accountExists(storageAccountsClient, d.Config.AccountName)
+		if err != nil {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to check account existence: %s", err))
+			return false, err
+		}
+
+		// if the storage account is not available we return no error.
+		if *result.NameAvailable {
+			d.Config.AccountName = ""
+			cr.Spec.Storage.Azure.AccountName = ""
+			cr.Status.Storage.Azure.AccountName = ""
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountNotFound, fmt.Sprintf("Account has been already deleted: %s", err))
+			return true, nil
 		}
 	}
 
@@ -1113,25 +1134,36 @@ func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, 
 	}
 	err = blobClient.DeleteStorageContainer(d.Context, d.Config.Container)
 	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
-		return false, err // TODO: is it retryable?
+		if bloberror.HasCode(err, bloberror.AuthorizationPermissionMismatch) {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container due to delete container permission missing, trying account deletion: %s", err))
+			return false, nil
+		} else if bloberror.HasCode(err, "AccountNotFound") {
+			d.Config.AccountName = ""
+			cr.Spec.Storage.Azure.AccountName = ""
+			cr.Status.Storage.Azure.AccountName = ""
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountNotFound, fmt.Sprintf("Account has been already deleted: %s", err))
+			return true, nil
+		} else if !bloberror.HasCode(err, bloberror.ContainerNotFound) {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
+			return false, err
+		}
 	}
 
 	d.Config.Container = ""
 	cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
 	cr.Status.Storage.Azure.Container = ""
 	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
-	return true, nil
+	return false, nil
 }
 
-func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (exists bool, err error) {
+func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
 	key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
 	if _, ok := err.(*errDoesNotExist); ok {
 		d.Config.AccountName = ""
 		cr.Spec.Storage.Azure.AccountName = "" // TODO
 		cr.Status.Storage.Azure.AccountName = ""
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
-		return false, nil
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountNotFound, fmt.Sprintf("Account has been already deleted: %s", err))
+		return true, nil
 	}
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
@@ -1148,7 +1180,7 @@ func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, 
 	cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
 	cr.Status.Storage.Azure.Container = ""
 	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
-	return true, nil
+	return false, nil
 }
 
 // RemoveStorage deletes the storage medium that was created.
@@ -1230,16 +1262,16 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	}
 
 	if d.Config.Container != "" {
-		var exists bool
+		var accountNotFound bool
 		if isAzureStackCloud(d.Config.CloudName) {
-			exists, err = d.removeStorageContainer(cr, cfg, environment, storageAccountsClient)
+			accountNotFound, err = d.removeStorageContainer(cr, cfg, environment, storageAccountsClient)
 		} else {
-			exists, err = d.removeStorageContainerViaTrack2SDK(cr, cfg, environment, storageAccountsClient)
+			accountNotFound, err = d.removeStorageContainerViaTrack2SDK(cr, cfg, environment, storageAccountsClient)
 		}
 		if err != nil {
 			return false, err
 		}
-		if !exists {
+		if accountNotFound {
 			return false, nil
 		}
 	}
