@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	azfake "github.com/Azure/azure-sdk-for-go/sdk/azcore/fake"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 )
 
@@ -18,10 +19,10 @@ type testDoer struct {
 
 // Do implements the Doer interface for mocking.
 // Do accepts the passed request and body, then appends the response and emits it.
-func (td *testDoer) Do(r *http.Request) (*http.Response, error) {
+func (td *testDoer) Do(r *policy.Request) (*http.Response, error) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
-		Request:    r,
+		Request:    r.Raw(),
 		Body:       io.NopCloser(bytes.NewBufferString(td.body)),
 	}
 	td.response = append(td.response, resp)
@@ -75,8 +76,10 @@ func TestPrivateEndpointExists(t *testing.T) {
 		ClientID:       "test-client-id",
 		ClientSecret:   "test-client-secret",
 		SubscriptionID: "test-subscription-id",
-		HTTPClient:     &testDoer{},
-		Creds:          azfake.NewTokenCredential(),
+		Policies: []policy.Policy{
+			&testDoer{},
+		},
+		Creds: &azfake.TokenCredential{},
 	})
 	if err != nil {
 		t.Fatalf("failed to create client: %q", err)
@@ -112,8 +115,10 @@ func TestCreatePrivateEndpoint(t *testing.T) {
 		ClientID:       "test-client-id",
 		ClientSecret:   "test-client-secret",
 		SubscriptionID: "test-subscription-id",
-		HTTPClient:     &testDoer{},
-		Creds:          azfake.NewTokenCredential(),
+		Policies: []policy.Policy{
+			&testDoer{},
+		},
+		Creds: &azfake.TokenCredential{},
 	})
 	if err != nil {
 		t.Errorf("unexpected error: %q", err)
