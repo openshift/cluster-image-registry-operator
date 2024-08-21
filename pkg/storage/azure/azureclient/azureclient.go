@@ -14,6 +14,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/privatedns/armprivatedns"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
 )
@@ -27,13 +30,9 @@ const (
 
 type Client struct {
 	creds          azcore.TokenCredential
-	clientOpts     *arm.ClientOptions
+	clientOpts     *policy.ClientOptions
 	tagset         map[string]*string
 	subscriptionID string
-}
-
-type Doer interface {
-	Do(req *http.Request) (*http.Response, error)
 }
 
 type Options struct {
@@ -44,7 +43,7 @@ type Options struct {
 	FederatedTokenFile string
 	SubscriptionID     string
 	TagSet             map[string]*string
-	HTTPClient         Doer
+	Policies           []policy.Policy
 	Creds              azcore.TokenCredential
 }
 
@@ -79,9 +78,7 @@ func New(opts *Options) (*Client, error) {
 	coreOpts := azcore.ClientOptions{
 		Cloud: cloudConfig,
 	}
-	if opts.HTTPClient != nil {
-		coreOpts.Transport = opts.HTTPClient
-	}
+	coreOpts.PerCallPolicies = opts.Policies
 	creds := opts.Creds
 	if creds == nil {
 		var err error
@@ -116,20 +113,19 @@ func New(opts *Options) (*Client, error) {
 	coreOpts.Retry = policy.RetryOptions{
 		MaxRetries: -1, // try once
 	}
-	clientOpts := &arm.ClientOptions{
-		ClientOptions: coreOpts,
-	}
 
 	return &Client{
 		creds:          creds,
-		clientOpts:     clientOpts,
+		clientOpts:     &coreOpts,
 		tagset:         opts.TagSet,
 		subscriptionID: opts.SubscriptionID,
 	}, nil
 }
 
 func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accountName string) (armstorage.Account, error) {
-	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return armstorage.Account{}, fmt.Errorf("failed to create accounts client: %q", err)
 	}
@@ -141,7 +137,9 @@ func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accou
 }
 
 func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
-	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create accounts client: %q", err)
 	}
@@ -169,7 +167,9 @@ func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey str
 }
 
 func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
-	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %q", err)
 	}
@@ -194,7 +194,9 @@ func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetNa
 }
 
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resourceGroupName, accountName string, allowPublicAccess bool) error {
-	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create accounts client: %q", err)
 	}
@@ -205,6 +207,25 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resource
 	params := armstorage.AccountUpdateParameters{
 		Properties: &armstorage.AccountPropertiesUpdateParameters{
 			PublicNetworkAccess: &publicNetworkAccess,
+		},
+	}
+	if _, err := client.Update(ctx, resourceGroupName, accountName, params, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Client) DisableStorageAccountAccessKeyAccess(ctx context.Context, resourceGroupName, accountName string) error {
+	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create accounts client: %q", err)
+	}
+
+	params := armstorage.AccountUpdateParameters{
+		Properties: &armstorage.AccountPropertiesUpdateParameters{
+			AllowSharedKeyAccess: to.BoolPtr(false),
 		},
 	}
 	if _, err := client.Update(ctx, resourceGroupName, accountName, params, nil); err != nil {
@@ -236,7 +257,9 @@ func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, p
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.subscriptionID,
 		c.creds,
-		c.clientOpts,
+		&arm.ClientOptions{
+			ClientOptions: *c.clientOpts,
+		},
 	)
 	if err != nil {
 		return false, err
@@ -258,7 +281,9 @@ func (c *Client) CreatePrivateEndpoint(
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.subscriptionID,
 		c.creds,
-		c.clientOpts,
+		&arm.ClientOptions{
+			ClientOptions: *c.clientOpts,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get private endpoints client: %q", err)
@@ -315,7 +340,9 @@ func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, p
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.subscriptionID,
 		c.creds,
-		c.clientOpts,
+		&arm.ClientOptions{
+			ClientOptions: *c.clientOpts,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get private endpoints client: %q", err)
@@ -407,7 +434,9 @@ func (c *Client) DestroyPrivateDNS(ctx context.Context, resourceGroupName, priva
 }
 
 func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, name, location string) error {
-	client, err := armprivatedns.NewPrivateZonesClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armprivatedns.NewPrivateZonesClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return err
 	}
@@ -437,7 +466,9 @@ func (c *Client) createRecordSet(
 	privateZoneName,
 	relativeRecordSetName string,
 ) error {
-	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get record sets client: %s", err)
 	}
@@ -472,7 +503,9 @@ func (c *Client) createRecordSet(
 }
 
 func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, privateZoneName, relativeRecordSetName string) error {
-	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get record sets client: %s", err)
 	}
@@ -491,7 +524,9 @@ func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, private
 }
 
 func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
 	}
@@ -526,7 +561,9 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 }
 
 func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
 	}
@@ -556,7 +593,9 @@ func (c *Client) createVirtualNetworkLink(
 	privateZoneName,
 	privateZoneLocation string,
 ) error {
-	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get virtual network links client: %s", err)
 	}
@@ -590,7 +629,9 @@ func (c *Client) createVirtualNetworkLink(
 }
 
 func (c *Client) deleteVirtualNetworkLink(ctx context.Context, clusterResourceGroupName, linkName, privateZoneName string) error {
-	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to get virtual network links client: %s", err)
 	}
@@ -620,7 +661,9 @@ func (c *Client) is404(err error) bool {
 }
 
 func (c *Client) getNICAddress(ctx context.Context, resourceGroupName string, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
-	client, err := armnetwork.NewInterfacesClient(c.subscriptionID, c.creds, c.clientOpts)
+	client, err := armnetwork.NewInterfacesClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -716,4 +759,58 @@ func validate(opts *Options) error {
 		return fmt.Errorf("client misconfigured, missing %s option(s)", missing)
 	}
 	return nil
+}
+
+func (c *Client) NewBlobClient(environment autorestazure.Environment, accountName, key, blobURL string) (*BlobClient, error) {
+	if key != "" {
+		cred, err := azblob.NewSharedKeyCredential(accountName, key)
+		if err != nil {
+			return nil, err
+		}
+		client, err := azblob.NewClientWithSharedKeyCredential(blobURL, cred, &azblob.ClientOptions{
+			ClientOptions: *c.clientOpts,
+		})
+		return &BlobClient{
+			client: client,
+		}, err
+	}
+
+	client, err := azblob.NewClient(blobURL, c.creds, &azblob.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	return &BlobClient{
+		client: client,
+	}, err
+}
+
+type BlobClient struct {
+	client *azblob.Client
+}
+
+// containerExists determines whether or not an azure container exists
+func (client *BlobClient) ContainerExists(ctx context.Context, accountName, containerName string) (bool, error) {
+	if accountName == "" || containerName == "" {
+		return false, nil
+	}
+
+	c := client.client.ServiceClient().NewContainerClient(containerName)
+	_, err := c.GetProperties(ctx, &container.GetPropertiesOptions{})
+	if err != nil {
+		if !bloberror.HasCode(err, bloberror.ContainerNotFound) {
+			return false, fmt.Errorf("unable to get the storage container %s: %s", containerName, err)
+		} else {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (client *BlobClient) CreateStorageContainer(ctx context.Context, containerName string) error {
+	_, err := client.client.CreateContainer(ctx, containerName, &azblob.CreateContainerOptions{})
+	return err
+}
+
+func (client *BlobClient) DeleteStorageContainer(ctx context.Context, containerName string) error {
+	_, err := client.client.DeleteContainer(ctx, containerName, &azblob.DeleteContainerOptions{})
+	return err
 }
