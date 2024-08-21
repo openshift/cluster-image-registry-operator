@@ -10,6 +10,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
 )
 
 // PagingHandler contains the required data for constructing a Pager.
@@ -48,8 +50,6 @@ func (p *Pager[T]) More() bool {
 
 // NextPage advances the pager to the next page.
 func (p *Pager[T]) NextPage(ctx context.Context) (T, error) {
-	var resp T
-	var err error
 	if p.current != nil {
 		if p.firstPage {
 			// we get here if it's an LRO-pager, we already have the first page
@@ -64,6 +64,12 @@ func (p *Pager[T]) NextPage(ctx context.Context) (T, error) {
 		p.firstPage = false
 		resp, err = p.handler.Fetcher(ctx, nil)
 	}
+
+	var err error
+	ctx, endSpan := StartSpan(ctx, fmt.Sprintf("%s.NextPage", shortenTypeName(reflect.TypeOf(*p).Name())), p.tracer, nil)
+	defer func() { endSpan(err) }()
+
+	resp, err := p.handler.Fetcher(ctx, p.current)
 	if err != nil {
 		return *new(T), err
 	}

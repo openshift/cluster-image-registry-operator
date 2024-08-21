@@ -490,6 +490,9 @@ func terminalReadFrameError(err error) bool {
 // returned error is ErrFrameTooLarge. Other errors may be of type
 // ConnectionError, StreamError, or anything else from the underlying
 // reader.
+//
+// If ReadFrame returns an error and a non-nil Frame, the Frame's StreamID
+// indicates the stream responsible for the error.
 func (fr *Framer) ReadFrame() (Frame, error) {
 	fr.errDetail = nil
 	if fr.lastFrame != nil {
@@ -1522,7 +1525,7 @@ func (fr *Framer) maxHeaderStringLen() int {
 // readMetaFrame returns 0 or more CONTINUATION frames from fr and
 // merge them into the provided hf and returns a MetaHeadersFrame
 // with the decoded hpack values.
-func (fr *Framer) readMetaFrame(hf *HeadersFrame) (*MetaHeadersFrame, error) {
+func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 	if fr.AllowIllegalReads {
 		return nil, errors.New("illegal use of AllowIllegalReads with ReadMetaHeaders")
 	}
@@ -1578,7 +1581,7 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (*MetaHeadersFrame, error) {
 	for {
 		frag := hc.HeaderBlockFragment()
 		if _, err := hdec.Write(frag); err != nil {
-			return nil, ConnectionError(ErrCodeCompression)
+			return mh, ConnectionError(ErrCodeCompression)
 		}
 
 		if hc.HeadersEnded() {
@@ -1595,7 +1598,7 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (*MetaHeadersFrame, error) {
 	mh.HeadersFrame.invalidate()
 
 	if err := hdec.Close(); err != nil {
-		return nil, ConnectionError(ErrCodeCompression)
+		return mh, ConnectionError(ErrCodeCompression)
 	}
 	if invalid != nil {
 		fr.errDetail = invalid

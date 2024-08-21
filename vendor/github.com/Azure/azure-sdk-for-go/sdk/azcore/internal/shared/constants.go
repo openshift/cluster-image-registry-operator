@@ -20,12 +20,15 @@ const (
 	HeaderLocation               = "Location"
 	HeaderOperationLocation      = "Operation-Location"
 	HeaderRetryAfter             = "Retry-After"
+	HeaderRetryAfterMS           = "Retry-After-Ms"
 	HeaderUserAgent              = "User-Agent"
 	HeaderWWWAuthenticate        = "WWW-Authenticate"
 	HeaderXMSClientRequestID     = "x-ms-client-request-id"
 )
 
 const BearerTokenPrefix = "Bearer "
+
+const TracingNamespaceAttrName = "az.namespace"
 
 const (
 	// Module is the name of the calling module used in telemetry data.

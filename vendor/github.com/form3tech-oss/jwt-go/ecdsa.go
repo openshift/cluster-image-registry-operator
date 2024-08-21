@@ -70,7 +70,7 @@ func (m *SigningMethodECDSA) Verify(signingString, signature string, key interfa
 	case *ecdsa.PublicKey:
 		ecdsaKey = k
 	default:
-		return ErrInvalidKeyType
+		return newError("ECDSA verify expects *ecdsa.PublicKey", ErrInvalidKeyType)
 	}
 
 	if len(sig) != 2*m.KeySize {

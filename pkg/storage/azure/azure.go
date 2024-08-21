@@ -13,7 +13,9 @@ import (
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
 	"github.com/Azure/go-autorest/autorest"
@@ -47,6 +49,7 @@ const (
 	storageExistsReasonContainerExists   = "ContainerExists"
 	storageExistsReasonContainerDeleted  = "ContainerDeleted"
 	storageExistsReasonAccountDeleted    = "AccountDeleted"
+	storageExistsReasonAccountNotFound   = "AccountNotFound"
 )
 
 // storageAccountInvalidCharRe is a regular expression for characters that
@@ -136,6 +139,10 @@ func GetConfig(secLister kcorelisters.SecretNamespaceLister, infraLister configl
 	}, nil
 }
 
+func isAzureStackCloud(name string) bool {
+	return strings.EqualFold(name, "AZURESTACKCLOUD")
+}
+
 func getEnvironmentByName(name string) (autorestazure.Environment, error) {
 	if name == "" {
 		return autorestazure.PublicCloud, nil
@@ -179,7 +186,7 @@ func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClie
 		MinimumTLSVersion:      storage.TLS12,
 	}
 
-	if strings.EqualFold(cloudName, "AZURESTACKCLOUD") {
+	if isAzureStackCloud(cloudName) {
 		// It seems Azure Stack Hub does not support new API.
 		kind = storage.Storage
 		params = &storage.AccountPropertiesCreateParameters{}
@@ -297,6 +304,10 @@ type driver struct {
 	// httpSender is for Azure Pipeline.
 	// Added as a member to the struct to allow injection for testing.
 	httpSender pipeline.Factory
+
+	// policies is for new Azure Client Pipeline execution.
+	// Added as a member to the struct to allow injection for testing.
+	policies []policy.Policy
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
@@ -306,6 +317,23 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 		Config:  c,
 		Listers: listers,
 	}
+}
+
+func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, tagset map[string]*string) (*azureclient.Client, error) {
+	client, err := azureclient.New(&azureclient.Options{
+		Environment:        environment,
+		TenantID:           cfg.TenantID,
+		ClientID:           cfg.ClientID,
+		ClientSecret:       cfg.ClientSecret,
+		FederatedTokenFile: cfg.FederatedTokenFile,
+		SubscriptionID:     cfg.SubscriptionID,
+		TagSet:             tagset,
+		Policies:           d.policies,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Environment) (storage.AccountsClient, error) {
@@ -496,6 +524,48 @@ func (d *driver) containerExists(ctx context.Context, environment autorestazure.
 	return true, nil
 }
 
+func (d *driver) storageExistsViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment) (exists bool, err error) {
+	key := cfg.AccountKey
+	federated_token := cfg.FederatedTokenFile
+	azClient, err := d.newAzClient(cfg, environment, nil)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create azure client: %s", err))
+		return false, err
+	}
+	if key == "" && federated_token == "" {
+		key, err = d.getKey(cfg, environment)
+		if err != nil {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get storage account key: %s", err))
+			return false, err
+		}
+
+	}
+
+	u, err := getBlobServiceURL(environment, d.Config.AccountName)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to parse blob url: %s", err))
+		return false, err
+	}
+	blobClient, err := azClient.NewBlobClient(environment, d.Config.AccountName, key, fmt.Sprintf("%s://%s/", u.Scheme, u.Host))
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create blob client: %s", err))
+		return false, err
+	}
+
+	exists, err = blobClient.ContainerExists(d.Context, d.Config.AccountName, d.Config.Container)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("%s", err))
+		return false, err
+	}
+	if !exists {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Could not find storage container %s", d.Config.Container))
+		return false, nil
+	}
+
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionTrue, storageExistsReasonContainerExists, "Storage container exists")
+	return true, nil
+}
+
 // StorageExists checks if the storage container exists and is accessible.
 func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	if d.Config.AccountName == "" || d.Config.Container == "" {
@@ -513,6 +583,10 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to get cloud environment: %s", err))
 		return false, err
+	}
+
+	if !isAzureStackCloud(d.Config.CloudName) {
+		return d.storageExistsViaTrack2SDK(cr, cfg, environment)
 	}
 
 	key, err := d.getKey(cfg, environment)
@@ -603,7 +677,81 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 		}
 	}
 
+	if !isAzureStackCloud(d.Config.CloudName) && cfg.FederatedTokenFile != "" {
+		azClient, err := d.newAzClient(cfg, environment, tagset)
+		if err != nil {
+			return "", false, err
+		}
+		err = azClient.DisableStorageAccountAccessKeyAccess(d.Context, cfg.ResourceGroup, accountName)
+		if err != nil {
+			return "", false, err
+		}
+	}
+
 	return accountName, storageAccountCreated, nil
+}
+
+func (d *driver) assureContainerViaTrack2SDK(cfg *Azure) (string, bool, error) {
+	environment, err := getEnvironmentByName(d.Config.CloudName)
+	if err != nil {
+		return "", false, err
+	}
+	key := cfg.AccountKey
+	federated_token := cfg.FederatedTokenFile
+	azClient, err := d.newAzClient(cfg, environment, nil)
+	if err != nil {
+		return "", false, err
+	}
+	if key == "" && federated_token == "" {
+		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+		if err != nil {
+			return "", false, err
+		}
+		key, err = d.getAccountPrimaryKey(
+			storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName,
+		)
+		if err != nil {
+			return "", false, err
+		}
+	}
+
+	u, err := getBlobServiceURL(environment, d.Config.AccountName)
+	if err != nil {
+		return "", false, err
+	}
+	blobClient, err := azClient.NewBlobClient(environment, d.Config.AccountName, key, fmt.Sprintf("%s://%s/", u.Scheme, u.Host))
+	if err != nil {
+		return "", false, err
+	}
+	if d.Config.Container == "" {
+		containerName, err := util.GenerateStorageName(d.Listers, "")
+		if err != nil {
+			return "", false, err
+		}
+
+		if err = blobClient.CreateStorageContainer(
+			d.Context, containerName,
+		); err != nil {
+			return "", false, err
+		}
+
+		return containerName, true, nil
+	}
+
+	if exists, err := blobClient.ContainerExists(
+		d.Context, d.Config.AccountName, d.Config.Container,
+	); err != nil {
+		return "", false, err
+	} else if exists {
+		return d.Config.Container, false, nil
+	}
+
+	if err = blobClient.CreateStorageContainer(
+		d.Context, d.Config.Container,
+	); err != nil {
+		return "", false, err
+	}
+	return d.Config.Container, true, nil
 }
 
 // assureContainer makes sure we have a container in place. Container name may be provided or
@@ -756,7 +904,13 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	}
 	d.Config.AccountName = storageAccountName
 
-	containerName, containerCreated, err := d.assureContainer(cfg)
+	var containerName string
+	var containerCreated bool
+	if isAzureStackCloud(d.Config.CloudName) {
+		containerName, containerCreated, err = d.assureContainer(cfg)
+	} else {
+		containerName, containerCreated, err = d.assureContainerViaTrack2SDK(cfg)
+	}
 	if err != nil {
 		util.UpdateCondition(
 			cr,
@@ -793,6 +947,108 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	return nil
 }
 
+func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
+	key := cfg.AccountKey
+	federated_token := cfg.FederatedTokenFile
+	azClient, err := d.newAzClient(cfg, environment, nil)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create azure client: %s", err))
+		return false, err
+	}
+	if key == "" && federated_token == "" {
+		key, err = d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		if _, ok := err.(*errDoesNotExist); ok {
+			d.Config.AccountName = ""
+			cr.Spec.Storage.Azure.AccountName = "" // TODO
+			cr.Status.Storage.Azure.AccountName = ""
+			// TODO: The update condition should suggest Account doesn't exist rather than Container
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
+			return true, nil
+		}
+		if err != nil {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
+			return false, err
+		}
+	} else {
+		result, err := d.accountExists(storageAccountsClient, d.Config.AccountName)
+		if err != nil {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to check account existence: %s", err))
+			return false, err
+		}
+
+		// if the storage account is not available we return no error.
+		if *result.NameAvailable {
+			d.Config.AccountName = ""
+			cr.Spec.Storage.Azure.AccountName = ""
+			cr.Status.Storage.Azure.AccountName = ""
+			// TODO: The update condition should suggest Account doesn't exist rather than Container
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
+			return true, nil
+		}
+	}
+
+	u, err := getBlobServiceURL(environment, d.Config.AccountName)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonConfigError, fmt.Sprintf("Unable to parse blob url: %s", err))
+		return false, err
+	}
+	blobClient, err := azClient.NewBlobClient(environment, d.Config.AccountName, key, fmt.Sprintf("%s://%s/", u.Scheme, u.Host))
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create blob client: %s", err))
+		return false, err
+	}
+	err = blobClient.DeleteStorageContainer(d.Context, d.Config.Container)
+	if err != nil {
+		if bloberror.HasCode(err, bloberror.AuthorizationPermissionMismatch) {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container due to delete container permission missing, trying account deletion: %s", err))
+			return false, nil
+		} else if bloberror.HasCode(err, "AccountNotFound") {
+			d.Config.AccountName = ""
+			cr.Spec.Storage.Azure.AccountName = ""
+			cr.Status.Storage.Azure.AccountName = ""
+			// TODO: The update condition should suggest Account doesn't exist rather than Container
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
+			return true, nil
+		} else if !bloberror.HasCode(err, bloberror.ContainerNotFound) {
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
+			return false, err
+		}
+	}
+
+	d.Config.Container = ""
+	cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
+	cr.Status.Storage.Azure.Container = ""
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
+	return false, nil
+}
+
+func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
+	key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+	if _, ok := err.(*errDoesNotExist); ok {
+		d.Config.AccountName = ""
+		cr.Spec.Storage.Azure.AccountName = "" // TODO
+		cr.Status.Storage.Azure.AccountName = ""
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAccountNotFound, fmt.Sprintf("Account has been already deleted: %s", err))
+		return true, nil
+	}
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
+		return false, err
+	}
+
+	err = d.deleteStorageContainer(environment, d.Config.AccountName, key, d.Config.Container)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
+		return false, err // TODO: is it retryable?
+	}
+
+	d.Config.Container = ""
+	cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
+	cr.Status.Storage.Azure.Container = ""
+	util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
+	return false, nil
+}
+
 // RemoveStorage deletes the storage medium that was created.
 func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err error) {
 	if cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateManaged {
@@ -822,29 +1078,18 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	}
 
 	if d.Config.Container != "" {
-		key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
-		if _, ok := err.(*errDoesNotExist); ok {
-			d.Config.AccountName = ""
-			cr.Spec.Storage.Azure.AccountName = "" // TODO
-			cr.Status.Storage.Azure.AccountName = ""
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
-			return false, nil
+		var accountNotFound bool
+		if isAzureStackCloud(d.Config.CloudName) {
+			accountNotFound, err = d.removeStorageContainer(cr, cfg, environment, storageAccountsClient)
+		} else {
+			accountNotFound, err = d.removeStorageContainerViaTrack2SDK(cr, cfg, environment, storageAccountsClient)
 		}
 		if err != nil {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get account primary keys: %s", err))
 			return false, err
 		}
-
-		err = d.deleteStorageContainer(environment, d.Config.AccountName, key, d.Config.Container)
-		if err != nil {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container: %s", err))
-			return false, err // TODO: is it retryable?
+		if accountNotFound {
+			return false, nil
 		}
-
-		d.Config.Container = ""
-		cr.Spec.Storage.Azure.Container = "" // TODO: what if it was provided by a user?
-		cr.Status.Storage.Azure.Container = ""
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerDeleted, "Storage container has been deleted")
 	}
 
 	_, err = storageAccountsClient.Delete(d.Context, cfg.ResourceGroup, d.Config.AccountName)

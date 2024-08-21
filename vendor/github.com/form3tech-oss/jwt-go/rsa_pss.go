@@ -1,3 +1,4 @@
+//go:build go1.4
 // +build go1.4
 
 package jwt
@@ -95,7 +96,7 @@ func (m *SigningMethodRSAPSS) Verify(signingString, signature string, key interf
 	case *rsa.PublicKey:
 		rsaKey = k
 	default:
-		return ErrInvalidKey
+		return newError("RSA-PSS verify expects *rsa.PublicKey", ErrInvalidKeyType)
 	}
 
 	// Create hasher
