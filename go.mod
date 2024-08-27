@@ -39,7 +39,7 @@ require (
 	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
-	github.com/spf13/cobra v1.7.0
+	github.com/spf13/cobra v1.8.1
 	golang.org/x/net v0.27.0
 	golang.org/x/oauth2 v0.18.0
 	golang.org/x/time v0.5.0
