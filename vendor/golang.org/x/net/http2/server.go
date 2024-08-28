@@ -124,6 +124,7 @@ type Server struct {
 	// IdleTimeout specifies how long until idle clients should be
 	// closed with a GOAWAY frame. PING frames are not considered
 	// activity for the purposes of IdleTimeout.
+	// If zero or negative, there is no timeout.
 	IdleTimeout time.Duration
 
 	// MaxUploadBufferPerConnection is the size of the initial flow
@@ -474,7 +475,7 @@ func (s *Server) serveConn(c net.Conn, opts *ServeConnOpts, newf func(*serverCon
 	// passes the connection off to us with the deadline already set.
 	// Write deadlines are set per stream in serverConn.newStream.
 	// Disarm the net.Conn write deadline here.
-	if sc.hs.WriteTimeout != 0 {
+	if sc.hs.WriteTimeout > 0 {
 		sc.conn.SetWriteDeadline(time.Time{})
 	}
 
@@ -962,13 +963,8 @@ func (sc *serverConn) serve() {
 	sc.setConnState(http.StateActive)
 	sc.setConnState(http.StateIdle)
 
-<<<<<<< HEAD
-	if sc.srv.IdleTimeout != 0 {
-		sc.idleTimer = time.AfterFunc(sc.srv.IdleTimeout, sc.onIdleTimer)
-=======
 	if sc.srv.IdleTimeout > 0 {
 		sc.idleTimer = sc.srv.afterFunc(sc.srv.IdleTimeout, sc.onIdleTimer)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		defer sc.idleTimer.Stop()
 	}
 
@@ -1685,11 +1681,7 @@ func (sc *serverConn) closeStream(st *stream, err error) {
 	delete(sc.streams, st.id)
 	if len(sc.streams) == 0 {
 		sc.setConnState(http.StateIdle)
-<<<<<<< HEAD
-		if sc.srv.IdleTimeout != 0 {
-=======
 		if sc.srv.IdleTimeout > 0 && sc.idleTimer != nil {
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 			sc.idleTimer.Reset(sc.srv.IdleTimeout)
 		}
 		if h1ServerKeepAlivesDisabled(sc.hs) {
@@ -2070,7 +2062,7 @@ func (sc *serverConn) processHeaders(f *MetaHeadersFrame) error {
 	// similar to how the http1 server works. Here it's
 	// technically more like the http1 Server's ReadHeaderTimeout
 	// (in Go 1.8), though. That's a more sane option anyway.
-	if sc.hs.ReadTimeout != 0 {
+	if sc.hs.ReadTimeout > 0 {
 		sc.conn.SetReadDeadline(time.Time{})
 		st.readDeadline = sc.srv.afterFunc(sc.hs.ReadTimeout, st.onReadTimeout)
 	}
@@ -2091,7 +2083,7 @@ func (sc *serverConn) upgradeRequest(req *http.Request) {
 
 	// Disable any read deadline set by the net/http package
 	// prior to the upgrade.
-	if sc.hs.ReadTimeout != 0 {
+	if sc.hs.ReadTimeout > 0 {
 		sc.conn.SetReadDeadline(time.Time{})
 	}
 
@@ -2169,13 +2161,8 @@ func (sc *serverConn) newStream(id, pusherID uint32, state streamState) *stream 
 	st.flow.conn = &sc.flow // link to conn-level counter
 	st.flow.add(sc.initialStreamSendWindowSize)
 	st.inflow.init(sc.srv.initialStreamRecvWindowSize())
-<<<<<<< HEAD
-	if sc.hs.WriteTimeout != 0 {
-		st.writeDeadline = time.AfterFunc(sc.hs.WriteTimeout, st.onWriteTimeout)
-=======
 	if sc.hs.WriteTimeout > 0 {
 		st.writeDeadline = sc.srv.afterFunc(sc.hs.WriteTimeout, st.onWriteTimeout)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	}
 
 	sc.streams[id] = st

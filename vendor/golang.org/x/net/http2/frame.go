@@ -1567,6 +1567,7 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 		if size > remainSize {
 			hdec.SetEmitEnabled(false)
 			mh.Truncated = true
+			remainSize = 0
 			return
 		}
 		remainSize -= size
@@ -1579,8 +1580,6 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 	var hc headersOrContinuation = hf
 	for {
 		frag := hc.HeaderBlockFragment()
-<<<<<<< HEAD
-=======
 
 		// Avoid parsing large amounts of headers that we will then discard.
 		// If the sender exceeds the max header list size by too much,
@@ -1611,7 +1610,6 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 			return mh, ConnectionError(ErrCodeProtocol)
 		}
 
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		if _, err := hdec.Write(frag); err != nil {
 			return mh, ConnectionError(ErrCodeCompression)
 		}

@@ -147,6 +147,12 @@ type Transport struct {
 	// waiting for their turn.
 	StrictMaxConcurrentStreams bool
 
+	// IdleConnTimeout is the maximum amount of time an idle
+	// (keep-alive) connection will remain idle before closing
+	// itself.
+	// Zero means no limit.
+	IdleConnTimeout time.Duration
+
 	// ReadIdleTimeout is the timeout after which a health check using ping
 	// frame will be carried out if no frame is received on the connection.
 	// Note that a ping response will is considered a received frame, so if
@@ -178,8 +184,6 @@ type Transport struct {
 
 	connPoolOnce  sync.Once
 	connPoolOrDef ClientConnPool // non-nil version of ConnPool
-<<<<<<< HEAD
-=======
 
 	*transportTestHooks
 }
@@ -220,7 +224,6 @@ func (t *Transport) contextWithTimeout(ctx context.Context, d time.Duration) (co
 		return t.transportTestHooks.group.ContextWithTimeout(ctx, d)
 	}
 	return context.WithTimeout(ctx, d)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 }
 
 func (t *Transport) maxHeaderListSize() uint32 {
@@ -345,7 +348,7 @@ type ClientConn struct {
 	readerErr  error         // set before readerDone is closed
 
 	idleTimeout time.Duration // or 0 for never
-	idleTimer   *time.Timer
+	idleTimer   timer
 
 	mu              sync.Mutex // guards following
 	cond            *sync.Cond // hold mu; broadcast on flow/closed changes
@@ -489,10 +492,7 @@ func (cs *clientStream) closeReqBodyLocked() {
 	cs.reqBodyClosed = make(chan struct{})
 	reqBodyClosed := cs.reqBodyClosed
 	go func() {
-<<<<<<< HEAD
-=======
 		cs.cc.t.markNewGoroutine()
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		cs.reqBody.Close()
 		close(reqBodyClosed)
 	}()
@@ -584,15 +584,6 @@ func authorityAddr(scheme string, authority string) (addr string) {
 	return net.JoinHostPort(host, port)
 }
 
-var retryBackoffHook func(time.Duration) *time.Timer
-
-func backoffNewTimer(d time.Duration) *time.Timer {
-	if retryBackoffHook != nil {
-		return retryBackoffHook(d)
-	}
-	return time.NewTimer(d)
-}
-
 // RoundTripOpt is like RoundTrip, but takes options.
 func (t *Transport) RoundTripOpt(req *http.Request, opt RoundTripOpt) (*http.Response, error) {
 	if !(req.URL.Scheme == "https" || (req.URL.Scheme == "http" && t.AllowHTTP)) {
@@ -620,17 +611,13 @@ func (t *Transport) RoundTripOpt(req *http.Request, opt RoundTripOpt) (*http.Res
 				backoff := float64(uint(1) << (uint(retry) - 1))
 				backoff += backoff * (0.1 * mathrand.Float64())
 				d := time.Second * time.Duration(backoff)
-<<<<<<< HEAD
-				timer := backoffNewTimer(d)
-=======
 				tm := t.newTimer(d)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 				select {
-				case <-timer.C:
+				case <-tm.C():
 					t.vlogf("RoundTrip retrying after failure: %v", roundTripErr)
 					continue
 				case <-req.Context().Done():
-					timer.Stop()
+					tm.Stop()
 					err = req.Context().Err()
 				}
 			}
@@ -709,12 +696,9 @@ func canRetryError(err error) bool {
 }
 
 func (t *Transport) dialClientConn(ctx context.Context, addr string, singleUse bool) (*ClientConn, error) {
-<<<<<<< HEAD
-=======
 	if t.transportTestHooks != nil {
 		return t.newClientConn(nil, singleUse)
 	}
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -807,20 +791,12 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool) (*ClientConn, erro
 		wantSettingsAck:       true,
 		pings:                 make(map[[8]byte]chan struct{}),
 		reqHeaderMu:           make(chan struct{}, 1),
-<<<<<<< HEAD
-	}
-	if d := t.idleConnTimeout(); d != 0 {
-		cc.idleTimeout = d
-		cc.idleTimer = time.AfterFunc(d, cc.onIdleTimeout)
-	}
-=======
 	}
 	if t.transportTestHooks != nil {
 		t.markNewGoroutine()
 		t.transportTestHooks.newclientconn(cc)
 		c = cc.tconn
 	}
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	if VerboseLogs {
 		t.vlogf("http2: Transport creating client conn %p to %v", cc, c.RemoteAddr())
 	}
@@ -880,15 +856,12 @@ func (t *Transport) newClientConn(c net.Conn, singleUse bool) (*ClientConn, erro
 		return nil, cc.werr
 	}
 
-<<<<<<< HEAD
-=======
 	// Start the idle timer after the connection is fully initialized.
 	if d := t.idleConnTimeout(); d != 0 {
 		cc.idleTimeout = d
 		cc.idleTimer = t.afterFunc(d, cc.onIdleTimeout)
 	}
 
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	go cc.readLoop()
 	return cc, nil
 }
@@ -897,11 +870,7 @@ func (cc *ClientConn) healthCheck() {
 	pingTimeout := cc.t.pingTimeout()
 	// We don't need to periodically ping in the health check, because the readLoop of ClientConn will
 	// trigger the healthCheck again if there is no frame received.
-<<<<<<< HEAD
-	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
-=======
 	ctx, cancel := cc.t.contextWithTimeout(context.Background(), pingTimeout)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	defer cancel()
 	cc.vlogf("http2: Transport sending health check")
 	err := cc.Ping(ctx)
@@ -1145,10 +1114,7 @@ func (cc *ClientConn) Shutdown(ctx context.Context) error {
 	done := make(chan struct{})
 	cancelled := false // guarded by cc.mu
 	go func() {
-<<<<<<< HEAD
-=======
 		cc.t.markNewGoroutine()
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		cc.mu.Lock()
 		defer cc.mu.Unlock()
 		for {
@@ -1307,6 +1273,10 @@ func (cc *ClientConn) decrStreamReservationsLocked() {
 }
 
 func (cc *ClientConn) RoundTrip(req *http.Request) (*http.Response, error) {
+	return cc.roundTrip(req, nil)
+}
+
+func (cc *ClientConn) roundTrip(req *http.Request, streamf func(*clientStream)) (*http.Response, error) {
 	ctx := req.Context()
 	cs := &clientStream{
 		cc:                   cc,
@@ -1321,9 +1291,6 @@ func (cc *ClientConn) RoundTrip(req *http.Request) (*http.Response, error) {
 		respHeaderRecv:       make(chan struct{}),
 		donec:                make(chan struct{}),
 	}
-<<<<<<< HEAD
-	go cs.doRequest(req)
-=======
 
 	// TODO(bradfitz): this is a copy of the logic in net/http. Unify somewhere?
 	if !cc.t.disableCompression() &&
@@ -1346,7 +1313,6 @@ func (cc *ClientConn) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	go cs.doRequest(req, streamf)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 
 	waitDone := func() error {
 		select {
@@ -1490,29 +1456,8 @@ func (cs *clientStream) writeRequest(req *http.Request, streamf func(*clientStre
 	}
 	cc.mu.Unlock()
 
-<<<<<<< HEAD
-	// TODO(bradfitz): this is a copy of the logic in net/http. Unify somewhere?
-	if !cc.t.disableCompression() &&
-		req.Header.Get("Accept-Encoding") == "" &&
-		req.Header.Get("Range") == "" &&
-		!cs.isHead {
-		// Request gzip only, not deflate. Deflate is ambiguous and
-		// not as universally supported anyway.
-		// See: https://zlib.net/zlib_faq.html#faq39
-		//
-		// Note that we don't request this for HEAD requests,
-		// due to a bug in nginx:
-		//   http://trac.nginx.org/nginx/ticket/358
-		//   https://golang.org/issue/5522
-		//
-		// We don't request gzip if the request is for a range, since
-		// auto-decoding a portion of a gzipped document will just fail
-		// anyway. See https://golang.org/issue/8923
-		cs.requestedGzip = true
-=======
 	if streamf != nil {
 		streamf(cs)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	}
 
 	continueTimeout := cc.t.expectContinueTimeout()
@@ -1575,13 +1520,9 @@ func (cs *clientStream) writeRequest(req *http.Request, streamf func(*clientStre
 	var respHeaderTimer <-chan time.Time
 	var respHeaderRecv chan struct{}
 	if d := cc.responseHeaderTimeout(); d != 0 {
-<<<<<<< HEAD
-		timer := time.NewTimer(d)
-=======
 		timer := cc.t.newTimer(d)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		defer timer.Stop()
-		respHeaderTimer = timer.C
+		respHeaderTimer = timer.C()
 		respHeaderRecv = cs.respHeaderRecv
 	}
 	// Wait until the peer half-closes its end of the stream,
@@ -2002,6 +1943,22 @@ func (cs *clientStream) awaitFlowControl(maxBytes int) (taken int32, err error) 
 	}
 }
 
+func validateHeaders(hdrs http.Header) string {
+	for k, vv := range hdrs {
+		if !httpguts.ValidHeaderFieldName(k) {
+			return fmt.Sprintf("name %q", k)
+		}
+		for _, v := range vv {
+			if !httpguts.ValidHeaderFieldValue(v) {
+				// Don't include the value in the error,
+				// because it may be sensitive.
+				return fmt.Sprintf("value for header %q", k)
+			}
+		}
+	}
+	return ""
+}
+
 var errNilRequestURL = errors.New("http2: Request.URI is nil")
 
 // requires cc.wmu be held.
@@ -2039,19 +1996,14 @@ func (cc *ClientConn) encodeHeaders(req *http.Request, addGzipHeader bool, trail
 		}
 	}
 
-	// Check for any invalid headers and return an error before we
+	// Check for any invalid headers+trailers and return an error before we
 	// potentially pollute our hpack state. (We want to be able to
 	// continue to reuse the hpack encoder for future requests)
-	for k, vv := range req.Header {
-		if !httpguts.ValidHeaderFieldName(k) {
-			return nil, fmt.Errorf("invalid HTTP header name %q", k)
-		}
-		for _, v := range vv {
-			if !httpguts.ValidHeaderFieldValue(v) {
-				// Don't include the value in the error, because it may be sensitive.
-				return nil, fmt.Errorf("invalid HTTP header value for header %q", k)
-			}
-		}
+	if err := validateHeaders(req.Header); err != "" {
+		return nil, fmt.Errorf("invalid HTTP header %s", err)
+	}
+	if err := validateHeaders(req.Trailer); err != "" {
+		return nil, fmt.Errorf("invalid HTTP trailer %s", err)
 	}
 
 	enumerateHeaders := func(f func(name, value string)) {
@@ -2394,14 +2346,9 @@ func (rl *clientConnReadLoop) run() error {
 	cc := rl.cc
 	gotSettings := false
 	readIdleTimeout := cc.t.ReadIdleTimeout
-	var t *time.Timer
+	var t timer
 	if readIdleTimeout != 0 {
-<<<<<<< HEAD
-		t = time.AfterFunc(readIdleTimeout, cc.healthCheck)
-		defer t.Stop()
-=======
 		t = cc.t.afterFunc(readIdleTimeout, cc.healthCheck)
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 	}
 	for {
 		f, err := cc.fr.ReadFrame()
@@ -2816,7 +2763,7 @@ func (rl *clientConnReadLoop) processData(f *DataFrame) error {
 		})
 		return nil
 	}
-	if !cs.firstByte {
+	if !cs.pastHeaders {
 		cc.logf("protocol error: received DATA before a HEADERS frame")
 		rl.endStreamError(cs, StreamError{
 			StreamID: f.StreamID,
@@ -3096,31 +3043,26 @@ func (cc *ClientConn) Ping(ctx context.Context) error {
 		}
 		cc.mu.Unlock()
 	}
-<<<<<<< HEAD
-	errc := make(chan error, 1)
-	go func() {
-=======
 	var pingError error
 	errc := make(chan struct{})
 	go func() {
 		cc.t.markNewGoroutine()
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		cc.wmu.Lock()
 		defer cc.wmu.Unlock()
-		if err := cc.fr.WritePing(false, p); err != nil {
-			errc <- err
+		if pingError = cc.fr.WritePing(false, p); pingError != nil {
+			close(errc)
 			return
 		}
-		if err := cc.bw.Flush(); err != nil {
-			errc <- err
+		if pingError = cc.bw.Flush(); pingError != nil {
+			close(errc)
 			return
 		}
 	}()
 	select {
 	case <-c:
 		return nil
-	case err := <-errc:
-		return err
+	case <-errc:
+		return pingError
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-cc.readerDone:
@@ -3289,9 +3231,17 @@ func (rt noDialH2RoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 func (t *Transport) idleConnTimeout() time.Duration {
+	// to keep things backwards compatible, we use non-zero values of
+	// IdleConnTimeout, followed by using the IdleConnTimeout on the underlying
+	// http1 transport, followed by 0
+	if t.IdleConnTimeout != 0 {
+		return t.IdleConnTimeout
+	}
+
 	if t.t1 != nil {
 		return t.t1.IdleConnTimeout
 	}
+
 	return 0
 }
 
