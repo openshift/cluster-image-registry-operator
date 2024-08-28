@@ -255,7 +255,7 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 							Command: []string{"/bin/sh"},
 							Args: []string{
 								"-c",
-								"mkdir -p /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract && /usr/bin/move-blobs",
+								"mkdir -p /etc/pki/ca-trust/extracted/edk2 /etc/pki/ca-trust/extracted/java /etc/pki/ca-trust/extracted/openssl /etc/pki/ca-trust/extracted/pem && update-ca-trust extract --output /etc/pki/ca-trust/extracted/ && /usr/bin/move-blobs",
 							},
 						},
 					},
