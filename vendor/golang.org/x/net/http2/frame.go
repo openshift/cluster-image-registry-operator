@@ -1513,13 +1513,12 @@ func (mh *MetaHeadersFrame) checkPseudos() error {
 }
 
 func (fr *Framer) maxHeaderStringLen() int {
-	v := fr.maxHeaderListSize()
-	if uint32(int(v)) == v {
-		return int(v)
+	v := int(fr.maxHeaderListSize())
+	if v < 0 {
+		// If maxHeaderListSize overflows an int, use no limit (0).
+		return 0
 	}
-	// They had a crazy big number for MaxHeaderBytes anyway,
-	// so give them unlimited header lengths:
-	return 0
+	return v
 }
 
 // readMetaFrame returns 0 or more CONTINUATION frames from fr and
@@ -1568,6 +1567,7 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 		if size > remainSize {
 			hdec.SetEmitEnabled(false)
 			mh.Truncated = true
+			remainSize = 0
 			return
 		}
 		remainSize -= size
@@ -1580,8 +1580,6 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 	var hc headersOrContinuation = hf
 	for {
 		frag := hc.HeaderBlockFragment()
-<<<<<<< HEAD
-=======
 
 		// Avoid parsing large amounts of headers that we will then discard.
 		// If the sender exceeds the max header list size by too much,
@@ -1612,7 +1610,6 @@ func (fr *Framer) readMetaFrame(hf *HeadersFrame) (Frame, error) {
 			return mh, ConnectionError(ErrCodeProtocol)
 		}
 
->>>>>>> 4915fdd19 (ARO-9391 Remerge original PR with additional fixes)
 		if _, err := hdec.Write(frag); err != nil {
 			return mh, ConnectionError(ErrCodeCompression)
 		}
