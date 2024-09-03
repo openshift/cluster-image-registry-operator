@@ -20,10 +20,10 @@ var defaultHTTPClient *http.Client
 func init() {
 	defaultTransport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
+		DialContext: defaultTransportDialContext(&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
-		}).DialContext,
+		}),
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
@@ -31,7 +31,8 @@ func init() {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
+			MinVersion:    tls.VersionTLS12,
+			Renegotiation: tls.RenegotiateFreelyAsClient,
 		},
 	}
 	// TODO: evaluate removing this once https://github.com/golang/go/issues/59690 has been fixed

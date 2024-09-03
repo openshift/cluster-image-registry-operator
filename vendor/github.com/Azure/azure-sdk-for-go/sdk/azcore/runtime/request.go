@@ -9,14 +9,15 @@ package runtime
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
-	"os"
+	"net/http"
+	"net/textproto"
+	"net/url"
 	"path"
 	"strings"
 
@@ -29,20 +30,45 @@ import (
 
 // Base64Encoding is usesd to specify which base-64 encoder/decoder to use when
 // encoding/decoding a slice of bytes to/from a string.
-type Base64Encoding int
+type Base64Encoding = exported.Base64Encoding
 
 const (
 	// Base64StdFormat uses base64.StdEncoding for encoding and decoding payloads.
-	Base64StdFormat Base64Encoding = 0
+	Base64StdFormat Base64Encoding = exported.Base64StdFormat
 
 	// Base64URLFormat uses base64.RawURLEncoding for encoding and decoding payloads.
-	Base64URLFormat Base64Encoding = 1
+	Base64URLFormat Base64Encoding = exported.Base64URLFormat
 )
 
 // NewRequest creates a new policy.Request with the specified input.
 // The endpoint MUST be properly encoded before calling this function.
 func NewRequest(ctx context.Context, httpMethod string, endpoint string) (*policy.Request, error) {
 	return exported.NewRequest(ctx, httpMethod, endpoint)
+}
+
+// NewRequestFromRequest creates a new policy.Request with an existing *http.Request
+func NewRequestFromRequest(req *http.Request) (*policy.Request, error) {
+	return exported.NewRequestFromRequest(req)
+}
+
+// EncodeQueryParams will parse and encode any query parameters in the specified URL.
+// Any semicolons will automatically be escaped.
+func EncodeQueryParams(u string) (string, error) {
+	before, after, found := strings.Cut(u, "?")
+	if !found {
+		return u, nil
+	}
+	// starting in Go 1.17, url.ParseQuery will reject semicolons in query params.
+	// so, we must escape them first. note that this assumes that semicolons aren't
+	// being used as query param separators which is per the current RFC.
+	// for more info:
+	// https://github.com/golang/go/issues/25192
+	// https://github.com/golang/go/issues/50034
+	qp, err := url.ParseQuery(strings.ReplaceAll(after, ";", "%3B"))
+	if err != nil {
+		return "", err
+	}
+	return before + "?" + qp.Encode(), nil
 }
 
 // JoinPaths concatenates multiple URL path segments into one path,
@@ -80,10 +106,7 @@ func JoinPaths(root string, paths ...string) string {
 
 // EncodeByteArray will base-64 encode the byte slice v.
 func EncodeByteArray(v []byte, format Base64Encoding) string {
-	if format == Base64URLFormat {
-		return base64.RawURLEncoding.EncodeToString(v)
-	}
-	return base64.StdEncoding.EncodeToString(v)
+	return exported.EncodeByteArray(v, format)
 }
 
 // MarshalAsByteArray will base-64 encode the byte slice v, then calls SetBody.
@@ -245,13 +268,14 @@ func SkipBodyDownload(req *policy.Request) {
 	req.SetOperationValue(bodyDownloadPolicyOpValues{Skip: true})
 }
 
-// returns a clone of the object graph pointed to by v, omitting values of all read-only
-// fields. if there are no read-only fields in the object graph, no clone is created.
-func cloneWithoutReadOnlyFields(v interface{}) interface{} {
-	val := reflect.Indirect(reflect.ValueOf(v))
-	if val.Kind() != reflect.Struct {
-		// not a struct, skip
-		return v
+// CtxAPINameKey is used as a context key for adding/retrieving the API name.
+type CtxAPINameKey = shared.CtxAPINameKey
+
+// NewUUID returns a new UUID using the RFC4122 algorithm.
+func NewUUID() (string, error) {
+	u, err := uuid.New()
+	if err != nil {
+		return "", err
 	}
 	return u.String(), nil
 }

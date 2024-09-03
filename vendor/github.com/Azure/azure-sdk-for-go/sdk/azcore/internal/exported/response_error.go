@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/log"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared"
 	"github.com/Azure/azure-sdk-for-go/sdk/internal/exported"
 )
 
@@ -20,9 +22,8 @@ import (
 // Exported as runtime.NewResponseError().
 func NewResponseError(resp *http.Response) error {
 	// prefer the error code in the response header
-	if ec := resp.Header.Get("x-ms-error-code"); ec != "" {
-		respErr.ErrorCode = ec
-		return respErr
+	if ec := resp.Header.Get(shared.HeaderXMSErrorCode); ec != "" {
+		return NewResponseErrorWithErrorCode(resp, ec)
 	}
 
 	// if we didn't get x-ms-error-code, check in the response body

@@ -37,6 +37,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
