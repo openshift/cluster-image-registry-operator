@@ -178,12 +178,6 @@ func (c *AzurePathFixController) sync() error {
 		return err
 	}
 
-	// skip this controller entirely if in Azure but storage is configured to anything other
-	// Azure storage, or if the operator is removed
-	if imageRegistryConfig.Spec.ManagementState == operatorv1.Removed || imageRegistryConfig.Status.Storage.PVC != nil || imageRegistryConfig.Status.Storage.EmptyDir != nil || imageRegistryConfig.Status.Storage.S3 != nil || imageRegistryConfig.Status.Storage.GCS != nil || imageRegistryConfig.Status.Storage.Swift != nil || imageRegistryConfig.Status.Storage.IBMCOS != nil || imageRegistryConfig.Status.Storage.OSS != nil {
-		return nil
-	}
-
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
 	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
 		return fmt.Errorf("storage account not yet provisioned")
