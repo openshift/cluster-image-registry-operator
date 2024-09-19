@@ -136,7 +136,22 @@ func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accou
 	return resp.Account, nil
 }
 
-func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
+func (c *Client) vnetHasAnyTag(vnet armnetwork.VirtualNetwork, tagFilter map[string][]string) bool {
+	for tagKey, tagValues := range tagFilter {
+		tag, ok := vnet.Tags[tagKey]
+		if !ok {
+			continue
+		}
+		for _, tagValue := range tagValues {
+			if *tag == tagValue {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (c *Client) GetVNetByTags(ctx context.Context, resourceGroupName string, tagFilter map[string][]string) (armnetwork.VirtualNetwork, error) {
 	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
@@ -151,19 +166,13 @@ func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey str
 			return armnetwork.VirtualNetwork{}, err
 		}
 		for _, vnet := range page.Value {
-			tag, ok := vnet.Tags[tagKey]
-			if !ok {
-				continue
-			}
-			for _, tagValue := range tagValues {
-				if *tag == tagValue {
-					return *vnet, nil
-				}
+			if c.vnetHasAnyTag(*vnet, tagFilter) {
+				return *vnet, nil
 			}
 		}
 	}
 
-	return armnetwork.VirtualNetwork{}, fmt.Errorf("vnet with tag '%s: %v' not found", tagKey, tagValues)
+	return armnetwork.VirtualNetwork{}, fmt.Errorf("vnet with tags '%+v' not found", tagFilter)
 }
 
 func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
