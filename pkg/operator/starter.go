@@ -2,7 +2,7 @@ package operator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
@@ -88,7 +88,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		klog.Infof("FeatureGates initialized: knownFeatureGates=%v", featureGates.KnownFeatures())
 	case <-time.After(1 * time.Minute):
 		klog.Errorf("timed out waiting for FeatureGate detection")
-		return fmt.Errorf("timed out waiting for FeatureGate detection")
+		return errors.New("timed out waiting for FeatureGate detection")
 	}
 
 	controller, err := NewController(
@@ -217,6 +217,22 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
+	awsController, err := NewAWSController(
+		configClient.ConfigV1().Infrastructures(),
+		imageregistryClient.ImageregistryV1().Configs(),
+		kubeInformers,
+		imageregistryInformers,
+		routeInformers,
+		configInformers,
+		kubeInformersForOpenShiftConfig,
+		kubeInformersForOpenShiftConfigManaged,
+		eventRecorder,
+		featureGateAccessor,
+	)
+	if err != nil {
+		return err
+	}
+
 	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
 
 	kubeInformers.Start(ctx.Done())
@@ -235,9 +251,33 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imageConfigStatusController.Run(ctx.Done())
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
+	go metricsController.Run(ctx)
 	go azureStackCloudController.Run(ctx)
 	go azurePathFixController.Run(ctx.Done())
-	go metricsController.Run(ctx)
+	go awsController.Run(ctx)
+
+	//// Fetch on Infrastructure resource is trivial and failure to fetch
+	//// shouldn't be a reason to shutdown operator. Starting an unnecessary
+	//// routine can be avoided if fetch is successful.
+	//var platformType configv1.PlatformType
+	//infra, err := configClient.ConfigV1().Infrastructures().Get(
+	//	context.Background(),
+	//	defaults.InfrastructureResourceName,
+	//	metav1.GetOptions{},
+	//)
+	//if err != nil {
+	//	klog.Errorf("failed to fetch Infrastructure resource: %v", err)
+	//}
+	//if infra != nil {
+	//	platformType = infra.Status.PlatformStatus.Type
+	//}
+	//if platformType == configv1.AzurePlatformType || platformType == "" {
+	//	go azureStackCloudController.Run(ctx)
+	//	go azurePathFixController.Run(ctx.Done())
+	//}
+	//if platformType == configv1.AWSPlatformType || platformType == "" {
+	//	go awsController.Run(ctx)
+	//}
 
 	<-ctx.Done()
 	return nil
