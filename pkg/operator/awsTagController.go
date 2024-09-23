@@ -30,9 +30,9 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/s3"
 )
 
-// AWSController is for storing internal data required for
+// AWSTagController is for storing internal data required for
 // performing AWS controller operations
-type AWSController struct {
+type AWSTagController struct {
 	infraConfigClient         configv1client.InfrastructureInterface
 	imageRegistryConfigClient imageregistryv1client.ConfigInterface
 	listers                   *regopclient.Listers
@@ -55,9 +55,9 @@ var kubernetesNamespaceRegex = regexp.MustCompile(`^([^/]*\.)?kubernetes.io/`)
 // openshiftNamespaceRegex is used to check that a tag key is not in the openshift.io namespace.
 var openshiftNamespaceRegex = regexp.MustCompile(`^([^/]*\.)?openshift.io/`)
 
-// NewAWSController is for obtaining AWSController object
-// required for invoking AWS controller methods.
-func NewAWSController(
+// NewAWSTagController is for obtaining AWSTagController object
+// required for invoking AWS Tag controller methods.
+func NewAWSTagController(
 	infraConfigClient configv1client.InfrastructureInterface,
 	imageRegistryConfigClient imageregistryv1client.ConfigInterface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
@@ -68,15 +68,15 @@ func NewAWSController(
 	openshiftConfigManagedKubeInformerFactory kubeinformers.SharedInformerFactory,
 	eventRecorder events.Recorder,
 	featureGateAccessor featuregates.FeatureGateAccess,
-) (*AWSController, error) {
-	c := &AWSController{
+) (*AWSTagController, error) {
+	c := &AWSTagController{
 		infraConfigClient:         infraConfigClient,
 		imageRegistryConfigClient: imageRegistryConfigClient,
 		featureGateAccessor:       featureGateAccessor,
 		event:                     eventRecorder,
 		queue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(),
-			"AWSController"),
+			"AWSTagController"),
 	}
 
 	infraConfig := configInformerFactory.Config().V1().Infrastructures()
@@ -118,7 +118,7 @@ func NewAWSController(
 }
 
 // eventHandler is the callback method for handling events from informer
-func (c *AWSController) eventHandler() cache.ResourceEventHandler {
+func (c *AWSTagController) eventHandler() cache.ResourceEventHandler {
 	const workQueueKey = "aws"
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -126,7 +126,8 @@ func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 			if !ok || infra == nil {
 				return
 			}
-			if infra.Status.PlatformStatus.AWS != nil && len(infra.Status.PlatformStatus.AWS.ResourceTags) != 0 {
+			if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil &&
+				len(infra.Status.PlatformStatus.AWS.ResourceTags) != 0 {
 				c.queue.Add(workQueueKey)
 				return
 			}
@@ -140,7 +141,8 @@ func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 			if !ok || newInfra == nil {
 				return
 			}
-			if oldInfra.Status.PlatformStatus.AWS != nil && newInfra.Status.PlatformStatus.AWS != nil {
+			if oldInfra.Status.PlatformStatus != nil && oldInfra.Status.PlatformStatus.AWS != nil &&
+				newInfra.Status.PlatformStatus != nil && newInfra.Status.PlatformStatus.AWS != nil {
 				if !reflect.DeepEqual(oldInfra.Status.PlatformStatus.AWS.ResourceTags, newInfra.Status.PlatformStatus.AWS.ResourceTags) {
 					c.queue.Add(workQueueKey)
 					return
@@ -151,7 +153,7 @@ func (c *AWSController) eventHandler() cache.ResourceEventHandler {
 }
 
 // Run is the main method for starting the AWS controller
-func (c *AWSController) Run(ctx context.Context) {
+func (c *AWSTagController) Run(ctx context.Context) {
 	defer k8sruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
@@ -167,14 +169,14 @@ func (c *AWSController) Run(ctx context.Context) {
 	klog.Infof("Shutting down AWS Controller")
 }
 
-func (c *AWSController) runWorker() {
+func (c *AWSTagController) runWorker() {
 	for c.processNextWorkItem() {
 	}
 }
 
 // processNextWorkItem is for prcessing the event received
 // which blocks until a new item is received
-func (c *AWSController) processNextWorkItem() bool {
+func (c *AWSTagController) processNextWorkItem() bool {
 	obj, shutdown := c.queue.Get()
 	if shutdown {
 		return false
@@ -196,14 +198,14 @@ func (c *AWSController) processNextWorkItem() bool {
 // on receiving a informer event.
 // Fetches image registry config data, required for obtaining
 // the S3 bucket configuration and creating a driver out of it
-func (c *AWSController) sync() error {
+func (c *AWSTagController) sync() error {
 	return c.syncTags()
 }
 
 // syncTags fetches user tags from Infrastructure resource, which
 // is then compared with the tags configured for the created S3 bucket
 // fetched using the driver object passed and updates if any new tags.
-func (c *AWSController) syncTags() error {
+func (c *AWSTagController) syncTags() error {
 	cr, err := c.imageRegistryConfigClient.Get(
 		context.Background(),
 		defaults.ImageRegistryResourceName,

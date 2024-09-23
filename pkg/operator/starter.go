@@ -217,7 +217,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
-	awsController, err := NewAWSController(
+	awsTagController, err := NewAWSTagController(
 		configClient.ConfigV1().Infrastructures(),
 		imageregistryClient.ImageregistryV1().Configs(),
 		kubeInformers,
@@ -251,10 +251,10 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go imageConfigStatusController.Run(ctx.Done())
 	go imagePrunerController.Run(ctx.Done())
 	go loggingController.Run(ctx, 1)
-	go metricsController.Run(ctx)
 	go azureStackCloudController.Run(ctx)
 	go azurePathFixController.Run(ctx.Done())
-	go awsController.Run(ctx)
+	go awsTagController.Run(ctx)
+	go metricsController.Run(ctx)
 
 	//// Fetch on Infrastructure resource is trivial and failure to fetch
 	//// shouldn't be a reason to shutdown operator. Starting an unnecessary
