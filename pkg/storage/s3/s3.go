@@ -773,12 +773,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
-		tagsInSpec := make(map[string]*struct{})
 		if infra.Status.PlatformStatus.AWS != nil && len(infra.Status.PlatformStatus.AWS.ResourceTags) != 0 {
-			klog.V(5).Infof("infra.Spec has %d user provided tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
+			klog.V(5).Infof("infra.Status has %d user provided tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
 			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
-				klog.Infof("user provided bucket tag in infra.Spec: %s: %s", tag.Key, tag.Value)
-				tagsInSpec[tag.Key] = nil
+				klog.Infof("user provided bucket tag in infra.Status: %s: %s", tag.Key, tag.Value)
 				tagset = append(tagset, &s3.Tag{
 					Key:   aws.String(tag.Key),
 					Value: aws.String(tag.Value),
@@ -1001,10 +999,10 @@ func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte
 }
 
 // PutStorageTags is for adding/overwriting tags of the S3 bucket
-// which name is obtained using the ID() method.
-func (d *driver) PutStorageTags(tagList map[string]string) error {
-	if len(tagList) == 0 {
-		klog.Info("TagSet is empty, no action taken")
+// which name is obtained using this driver's ID() method.
+func (d *driver) PutStorageTags(tagMap map[string]string) error {
+	if len(tagMap) == 0 {
+		klog.Info("Tags is empty, no action taken")
 		return nil
 	}
 
@@ -1013,9 +1011,9 @@ func (d *driver) PutStorageTags(tagList map[string]string) error {
 		return err
 	}
 
-	tagset := make([]*s3.Tag, 0, len(tagList))
-	for key, value := range tagList {
-		tagset = append(tagset, &s3.Tag{
+	tags := make([]*s3.Tag, 0, len(tagMap))
+	for key, value := range tagMap {
+		tags = append(tags, &s3.Tag{
 			Key:   aws.String(key),
 			Value: aws.String(value),
 		})
@@ -1024,7 +1022,7 @@ func (d *driver) PutStorageTags(tagList map[string]string) error {
 	_, err = svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
 		Bucket: aws.String(d.ID()),
 		Tagging: &s3.Tagging{
-			TagSet: tagset,
+			TagSet: tags,
 		},
 	})
 	if err != nil {
@@ -1065,10 +1063,10 @@ func (d *driver) GetStorageTags() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to fetch s3 bucket tags: %s", errMsg)
 	}
 
-	tagList := make(map[string]string)
-	for _, tags := range output.TagSet {
-		tagList[aws.StringValue(tags.Key)] = aws.StringValue(tags.Value)
+	tags := make(map[string]string)
+	for _, tag := range output.TagSet {
+		tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
 	}
 
-	return tagList, nil
+	return tags, nil
 }

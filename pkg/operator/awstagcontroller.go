@@ -299,7 +299,7 @@ func validateUserTag(key, value string) error {
 		return fmt.Errorf("key has invalid characters or length")
 	}
 	if strings.EqualFold(key, "Name") {
-		return fmt.Errorf("key cannot be customized by user")
+		return fmt.Errorf("name key is not allowed for user defined tags")
 	}
 	if !tagValRegex.MatchString(value) {
 		return fmt.Errorf("value has invalid characters or length")
