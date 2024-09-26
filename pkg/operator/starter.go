@@ -256,29 +256,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go awsTagController.Run(ctx)
 	go metricsController.Run(ctx)
 
-	//// Fetch on Infrastructure resource is trivial and failure to fetch
-	//// shouldn't be a reason to shutdown operator. Starting an unnecessary
-	//// routine can be avoided if fetch is successful.
-	//var platformType configv1.PlatformType
-	//infra, err := configClient.ConfigV1().Infrastructures().Get(
-	//	context.Background(),
-	//	defaults.InfrastructureResourceName,
-	//	metav1.GetOptions{},
-	//)
-	//if err != nil {
-	//	klog.Errorf("failed to fetch Infrastructure resource: %v", err)
-	//}
-	//if infra != nil {
-	//	platformType = infra.Status.PlatformStatus.Type
-	//}
-	//if platformType == configv1.AzurePlatformType || platformType == "" {
-	//	go azureStackCloudController.Run(ctx)
-	//	go azurePathFixController.Run(ctx.Done())
-	//}
-	//if platformType == configv1.AWSPlatformType || platformType == "" {
-	//	go awsController.Run(ctx)
-	//}
-
 	<-ctx.Done()
 	return nil
 }

@@ -157,16 +157,16 @@ func (c *AWSTagController) Run(ctx context.Context) {
 	defer k8sruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.Infof("Starting AWS Controller")
+	klog.Infof("Starting AWS Tag Controller")
 	if !cache.WaitForCacheSync(ctx.Done(), c.cachesToSync...) {
 		return
 	}
 
 	go wait.Until(c.runWorker, time.Second, ctx.Done())
 
-	klog.Infof("Started AWS Controller")
+	klog.Infof("Started AWS Tag Controller")
 	<-ctx.Done()
-	klog.Infof("Shutting down AWS Controller")
+	klog.Infof("Shutting down AWS Tag Controller")
 }
 
 func (c *AWSTagController) runWorker() {
@@ -183,13 +183,13 @@ func (c *AWSTagController) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(obj)
 
-	klog.V(5).Infof("AWSController: got event from workqueue")
+	klog.V(5).Infof("AWSTagController: got event from workqueue")
 	if err := c.sync(); err != nil {
 		c.queue.AddRateLimited(workqueueKey)
-		klog.Errorf("AWSController: failed to process event: %s, requeuing", err)
+		klog.Errorf("AWSTagController: failed to process event: %s, requeuing", err)
 	} else {
 		c.queue.Forget(obj)
-		klog.V(5).Infof("AWSController: event from workqueue successfully processed")
+		klog.V(5).Infof("AWSTagController: event from workqueue successfully processed")
 	}
 	return true
 }
@@ -234,10 +234,8 @@ func (c *AWSTagController) syncTags() error {
 		return err
 	}
 
-	// tags deletion is not supported. Should the user remove it from
-	// PlatformStatus will be looked up for retaining the tag
-	infraTagSet := make(map[string]string)
-	mergePlatformStatusTags(infra, infraTagSet)
+	// Filtering tags based on validation
+	infraTagSet := filterPlatformStatusTags(infra)
 	klog.V(5).Infof("tags read from Infrastructure resource: %v", infraTagSet)
 
 	// Create a driver with the current configuration
@@ -249,29 +247,27 @@ func (c *AWSTagController) syncTags() error {
 		klog.Errorf("failed to fetch storage tags: %v", err)
 		return err
 	}
-	klog.V(5).Infof("tags read from storage resource: %v", s3TagSet)
+	klog.Infof("tags read from storage resource: %v", s3TagSet)
 
-	tagUpdatedCount := compareS3InfraTagSet(s3TagSet, infraTagSet)
+	tagUpdatedCount := syncInfraTags(s3TagSet, infraTagSet)
 	if tagUpdatedCount > 0 {
 		if err := driver.PutStorageTags(s3TagSet); err != nil {
-			klog.Errorf("failed to update/delete tagset of %s s3 bucket: %v", driver.ID(), err)
+			klog.Errorf("failed to update/append tagset of %s s3 bucket: %v", driver.ID(), err)
 			c.event.Warningf("UpdateAWSTags",
-				"Failed to update/delete tagset of %s s3 bucket", driver.ID())
+				"Failed to update/append tagset of %s s3 bucket", driver.ID())
 		}
-		klog.Infof("successfully updated/deleted %d tags, tagset: %+v", tagUpdatedCount, s3TagSet)
+		klog.Infof("successfully updated/appended %d tags, tagset: %+v", tagUpdatedCount, s3TagSet)
 		c.event.Eventf("UpdateAWSTags",
-			"Successfully updated/deleted tagset of %s s3 bucket", driver.ID())
+			"Successfully updated tagset of %s s3 bucket", driver.ID())
 	}
 
 	return nil
 }
 
-// mergePlatformStatusTags is for reading and merging user tags present in both
+// filterPlatformStatusTags is for reading and filter user tags present in
 // Platform Status of Infrastructure config.
-// There could be scenarios(upgrade, user deletes) where user tags could be missing
-// from the Platform Status, hence using Status too to avoid said scenarios.
-// If a tag exists in Status.
-func mergePlatformStatusTags(infra *configv1.Infrastructure, infraTagSet map[string]string) {
+func filterPlatformStatusTags(infra *configv1.Infrastructure) map[string]string {
+	infraTagSet := map[string]string{}
 	for _, statusTags := range infra.Status.PlatformStatus.AWS.ResourceTags {
 		if err := validateUserTag(statusTags.Key, statusTags.Value); err != nil {
 			klog.Warningf("validation failed for tag(%s:%s): %v", statusTags.Key, statusTags.Value, err)
@@ -279,20 +275,14 @@ func mergePlatformStatusTags(infra *configv1.Infrastructure, infraTagSet map[str
 		}
 		infraTagSet[statusTags.Key] = statusTags.Value
 	}
+	return infraTagSet
 }
 
-// compareS3InfraTagSet is for comparing the tags obtained from S3 bucket and Infrastructure CR
-// to find if any new tags have been deleted, added or existing tags modified.
-func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]string) (tagUpdatedCount int) {
+// syncInfraTags synchronizes the tags obtained from S3 bucket and Infrastructure CR.
+// this modifies the s3TagSet based on new tags which are added and update the value to a key if it has changed.
+func syncInfraTags(s3TagSet map[string]string, infraTagSet map[string]string) int {
+	tagUpdatedCount := 0
 	for key, value := range infraTagSet {
-		// If a tag is value is empty, it's marked for deletion
-		// and is deleted from the list obtained from S3 bucket
-		if value == "" {
-			klog.V(5).Infof("%s tag will be deleted", key)
-			delete(s3TagSet, key)
-			tagUpdatedCount++
-			continue
-		}
 		val, ok := s3TagSet[key]
 		if !ok || val != value {
 			klog.V(5).Infof("%s tag will be added/updated with value %s", key, value)
@@ -300,7 +290,7 @@ func compareS3InfraTagSet(s3TagSet map[string]string, infraTagSet map[string]str
 			tagUpdatedCount++
 		}
 	}
-	return
+	return tagUpdatedCount
 }
 
 // validateUserTag is for validating the user defined tags in Infrastructure CR
