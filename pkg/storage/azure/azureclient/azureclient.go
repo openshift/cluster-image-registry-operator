@@ -2,6 +2,7 @@ package azureclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,10 +30,9 @@ const (
 )
 
 type Client struct {
-	creds          azcore.TokenCredential
-	clientOpts     *policy.ClientOptions
-	tagset         map[string]*string
-	subscriptionID string
+	creds      azcore.TokenCredential
+	clientOpts *policy.ClientOptions
+	opts       *Options
 }
 
 type Options struct {
@@ -80,50 +80,65 @@ func New(opts *Options) (*Client, error) {
 	}
 	coreOpts.PerCallPolicies = opts.Policies
 	creds := opts.Creds
-	if creds == nil {
-		var err error
-		if strings.TrimSpace(opts.ClientSecret) == "" {
-			options := azidentity.WorkloadIdentityCredentialOptions{
-				ClientOptions: coreOpts,
-				ClientID:      opts.ClientID,
-				TenantID:      opts.TenantID,
-				TokenFilePath: opts.FederatedTokenFile,
-			}
-			creds, err = azidentity.NewWorkloadIdentityCredential(&options)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			options := azidentity.ClientSecretCredentialOptions{
-				ClientOptions: coreOpts,
-			}
-			creds, err = azidentity.NewClientSecretCredential(
-				opts.TenantID,
-				opts.ClientID,
-				opts.ClientSecret,
-				&options,
-			)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-	}
-
 	coreOpts.Retry = policy.RetryOptions{
 		MaxRetries: -1, // try once
 	}
 
 	return &Client{
-		creds:          creds,
-		clientOpts:     &coreOpts,
-		tagset:         opts.TagSet,
-		subscriptionID: opts.SubscriptionID,
+		creds:      creds,
+		clientOpts: &coreOpts,
+		opts:       opts,
 	}, nil
 }
 
+func (c *Client) getCreds() (azcore.TokenCredential, error) {
+	if c.creds != nil {
+		return c.creds, nil
+	}
+
+	var (
+		err   error
+		creds azcore.TokenCredential
+	)
+
+	if strings.TrimSpace(c.opts.ClientSecret) == "" {
+		options := azidentity.WorkloadIdentityCredentialOptions{
+			ClientOptions: *c.clientOpts,
+			ClientID:      c.opts.ClientID,
+			TenantID:      c.opts.TenantID,
+			TokenFilePath: c.opts.FederatedTokenFile,
+		}
+		creds, err = azidentity.NewWorkloadIdentityCredential(&options)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		options := azidentity.ClientSecretCredentialOptions{
+			ClientOptions: *c.clientOpts,
+		}
+		creds, err = azidentity.NewClientSecretCredential(
+			c.opts.TenantID,
+			c.opts.ClientID,
+			c.opts.ClientSecret,
+			&options,
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if creds == nil {
+		return nil, errors.New("Unknown authentication method")
+	}
+	c.creds = creds
+	return c.creds, nil
+}
+
 func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accountName string) (armstorage.Account, error) {
-	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return armstorage.Account{}, fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -137,7 +152,11 @@ func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accou
 }
 
 func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey string, tagValues ...string) (armnetwork.VirtualNetwork, error) {
-	client, err := armnetwork.NewVirtualNetworksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armnetwork.NewVirtualNetworksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -167,7 +186,11 @@ func (c *Client) GetVNetByTag(ctx context.Context, resourceGroupName, tagKey str
 }
 
 func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
-	client, err := armnetwork.NewSubnetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return armnetwork.Subnet{}, fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armnetwork.NewSubnetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -194,7 +217,11 @@ func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetNa
 }
 
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resourceGroupName, accountName string, allowPublicAccess bool) error {
-	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -216,7 +243,11 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resource
 }
 
 func (c *Client) DisableStorageAccountAccessKeyAccess(ctx context.Context, resourceGroupName, accountName string) error {
-	client, err := armstorage.NewAccountsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -254,9 +285,13 @@ func (c *Client) IsStorageAccountPrivate(ctx context.Context, resourceGroupName,
 }
 
 func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, privateEndpointName string) (bool, error) {
+	creds, err := c.getCreds()
+	if err != nil {
+		return false, fmt.Errorf("failed to get credentials: %q", err)
+	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
-		c.subscriptionID,
-		c.creds,
+		c.opts.SubscriptionID,
+		creds,
 		&arm.ClientOptions{
 			ClientOptions: *c.clientOpts,
 		},
@@ -278,9 +313,13 @@ func (c *Client) CreatePrivateEndpoint(
 	ctx context.Context,
 	opts *PrivateEndpointCreateOptions,
 ) (*armnetwork.PrivateEndpoint, error) {
+	creds, err := c.getCreds()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %q", err)
+	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
-		c.subscriptionID,
-		c.creds,
+		c.opts.SubscriptionID,
+		creds,
 		&arm.ClientOptions{
 			ClientOptions: *c.clientOpts,
 		},
@@ -290,7 +329,7 @@ func (c *Client) CreatePrivateEndpoint(
 	}
 
 	privateLinkResourceID := formatPrivateLinkResourceID(
-		c.subscriptionID,
+		c.opts.SubscriptionID,
 		opts.ClusterResourceGroupName,
 		opts.StorageAccountName,
 	)
@@ -298,14 +337,14 @@ func (c *Client) CreatePrivateEndpoint(
 		opts.SubnetName,
 		opts.VNetName,
 		opts.NetworkResourceGroupName,
-		c.subscriptionID,
+		c.opts.SubscriptionID,
 	)
 
 	privateEndpointName := opts.PrivateEndpointName
 
 	params := armnetwork.PrivateEndpoint{
 		Location: to.StringPtr(opts.Location),
-		Tags:     c.tagset,
+		Tags:     c.opts.TagSet,
 		Properties: &armnetwork.PrivateEndpointProperties{
 			CustomNetworkInterfaceName: to.StringPtr(fmt.Sprintf("%s-nic", privateEndpointName)),
 			Subnet:                     &armnetwork.Subnet{ID: to.StringPtr(subnetID)},
@@ -337,9 +376,13 @@ func (c *Client) CreatePrivateEndpoint(
 }
 
 func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, privateEndpointName string) error {
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
-		c.subscriptionID,
-		c.creds,
+		c.opts.SubscriptionID,
+		creds,
 		&arm.ClientOptions{
 			ClientOptions: *c.clientOpts,
 		},
@@ -434,7 +477,11 @@ func (c *Client) DestroyPrivateDNS(ctx context.Context, resourceGroupName, priva
 }
 
 func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, name, location string) error {
-	client, err := armprivatedns.NewPrivateZonesClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armprivatedns.NewPrivateZonesClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -446,7 +493,7 @@ func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, na
 		name,
 		armprivatedns.PrivateZone{
 			Location: to.StringPtr(location),
-			Tags:     c.tagset,
+			Tags:     c.opts.TagSet,
 		},
 		nil,
 	)
@@ -466,7 +513,11 @@ func (c *Client) createRecordSet(
 	privateZoneName,
 	relativeRecordSetName string,
 ) error {
-	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armprivatedns.NewRecordSetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -503,7 +554,11 @@ func (c *Client) createRecordSet(
 }
 
 func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, privateZoneName, relativeRecordSetName string) error {
-	client, err := armprivatedns.NewRecordSetsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armprivatedns.NewRecordSetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -524,13 +579,17 @@ func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, private
 }
 
 func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
 	}
-	privateZoneID := formatPrivateDNSZoneID(c.subscriptionID, resourceGroupName, privateZoneName)
+	privateZoneID := formatPrivateDNSZoneID(c.opts.SubscriptionID, resourceGroupName, privateZoneName)
 	groupName := strings.Replace(privateZoneName, ".", "-", -1)
 	group := armnetwork.PrivateDNSZoneGroup{
 		Name: to.StringPtr(fmt.Sprintf("%s/default", privateZoneName)),
@@ -561,7 +620,11 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 }
 
 func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -593,14 +656,18 @@ func (c *Client) createVirtualNetworkLink(
 	privateZoneName,
 	privateZoneLocation string,
 ) error {
-	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get virtual network links client: %s", err)
 	}
 
-	vnetID := formatVNetID(c.subscriptionID, networkResourceGroupName, vnetName)
+	vnetID := formatVNetID(c.opts.SubscriptionID, networkResourceGroupName, vnetName)
 
 	pollersResp, err := client.BeginCreateOrUpdate(
 		ctx,
@@ -609,7 +676,7 @@ func (c *Client) createVirtualNetworkLink(
 		linkName,
 		armprivatedns.VirtualNetworkLink{
 			Location: to.StringPtr(privateZoneLocation),
-			Tags:     c.tagset,
+			Tags:     c.opts.TagSet,
 			Properties: &armprivatedns.VirtualNetworkLinkProperties{
 				RegistrationEnabled: to.BoolPtr(false),
 				VirtualNetwork:      &armprivatedns.SubResource{ID: to.StringPtr(vnetID)},
@@ -629,7 +696,11 @@ func (c *Client) createVirtualNetworkLink(
 }
 
 func (c *Client) deleteVirtualNetworkLink(ctx context.Context, clusterResourceGroupName, linkName, privateZoneName string) error {
-	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -661,7 +732,11 @@ func (c *Client) is404(err error) bool {
 }
 
 func (c *Client) getNICAddress(ctx context.Context, resourceGroupName string, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
-	client, err := armnetwork.NewInterfacesClient(c.subscriptionID, c.creds, &arm.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return "", fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := armnetwork.NewInterfacesClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
@@ -739,24 +814,12 @@ func validate(opts *Options) error {
 	if opts.Environment.TokenAudience == "" {
 		missingOpts = append(missingOpts, "'Environment.TokenAudience'")
 	}
-	if opts.TenantID == "" {
-		missingOpts = append(missingOpts, "'TenantID'")
-	}
-	if opts.ClientID == "" {
-		missingOpts = append(missingOpts, "'ClientID'")
-	}
-	if opts.ClientSecret == "" && opts.FederatedTokenFile == "" && opts.Creds == nil {
-		missingOpts = append(
-			missingOpts,
-			[]string{"'ClientSecret'", "'FederatedTokenFile'", "'Creds'"}...,
-		)
-	}
-	if opts.SubscriptionID == "" {
-		missingOpts = append(missingOpts, "'SubscriptionID'")
-	}
+	// do not validate auth specific options - different operations might require different auth.
+	// i.e some functions take in an account key, while others will rely on client id or client secret.
+	// better to not try and validate every combination.
 	if len(missingOpts) > 0 {
-		missing := strings.Join(missingOpts, ", ")
-		return fmt.Errorf("client misconfigured, missing %s option(s)", missing)
+		msg := strings.Join(missingOpts, ", ")
+		return fmt.Errorf("client misconfigured, missing %s option(s)", msg)
 	}
 	return nil
 }
@@ -775,7 +838,11 @@ func (c *Client) NewBlobClient(environment autorestazure.Environment, accountNam
 		}, err
 	}
 
-	client, err := azblob.NewClient(blobURL, c.creds, &azblob.ClientOptions{
+	creds, err := c.getCreds()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %q", err)
+	}
+	client, err := azblob.NewClient(blobURL, creds, &azblob.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	return &BlobClient{
