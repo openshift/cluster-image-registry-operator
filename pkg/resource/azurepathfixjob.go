@@ -89,6 +89,9 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 
 	azureStorage := gapfj.cr.Status.Storage.Azure
 	if azureStorage == nil {
+		// TODO: should we return a custom error here, and treat it like a non error in the controller?
+		// this is expected when the operator is set to Removed (after removing check if storage is
+		// configured from the controller).
 		return nil, fmt.Errorf("storage not yet provisioned")
 	}
 

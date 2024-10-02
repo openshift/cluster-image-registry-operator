@@ -162,6 +162,10 @@ func (c *AzurePathFixController) processNextWorkItem() bool {
 }
 
 func (c *AzurePathFixController) sync() error {
+	klog.Info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Azure Path Fix Controller running +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+	defer func() {
+		klog.Info("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ Azure Path Fix Controller finished +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+	}()
 	// this controller was made to run specifically on Azure,
 	// so if we detect a different cloud, skip it.
 	infra, err := util.GetInfrastructure(c.infrastructureLister)
@@ -179,6 +183,7 @@ func (c *AzurePathFixController) sync() error {
 	}
 
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
+	// TODO: remove the two conditions below
 	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
 		return fmt.Errorf("storage account not yet provisioned")
 	}
@@ -188,7 +193,7 @@ func (c *AzurePathFixController) sync() error {
 
 	// the move-blobs cmd does not work on Azure Stack Hub. Users on ASH
 	// will have to copy the blobs on their own using something like az copy.
-	if strings.EqualFold(azureStorage.CloudName, "AZURESTACKCLOUD") {
+	if azureStorage != nil && strings.EqualFold(azureStorage.CloudName, "AZURESTACKCLOUD") {
 		return nil
 	}
 
@@ -290,6 +295,7 @@ func (c *AzurePathFixController) sync() error {
 		}
 	}
 
+	// TODO: handle storage not configured error specially
 	err = resource.ApplyMutator(gen)
 	if err != nil {
 		_, _, updateError := v1helpers.UpdateStatus(

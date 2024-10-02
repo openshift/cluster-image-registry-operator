@@ -240,6 +240,10 @@ func (c *Controller) getRoutes(cr *imageregistryv1.Config) ([]*routev1.Route, er
 }
 
 func (c *Controller) sync() error {
+	klog.Info("================================================================== Controller running =============================================================")
+	defer func() {
+		klog.Info("================================================================== Controller finished =============================================================")
+	}()
 	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -259,6 +263,8 @@ func (c *Controller) sync() error {
 	switch cr.Spec.ManagementState {
 	case operatorv1.Removed:
 		applyError = c.RemoveResources(cr)
+		// sleep here to simulate race between this and azure path fix controller run
+		time.Sleep(10)
 	case operatorv1.Managed:
 		applyError = c.createOrUpdateResources(cr)
 	case operatorv1.Unmanaged:
