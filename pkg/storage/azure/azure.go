@@ -1142,7 +1142,7 @@ func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, 
 	}
 	err = blobClient.DeleteStorageContainer(d.Context, d.Config.Container)
 	if err != nil {
-		if bloberror.HasCode(err, bloberror.AuthorizationPermissionMismatch) {
+		if bloberror.HasCode(err, bloberror.AuthorizationPermissionMismatch) || bloberror.HasCode(err, bloberror.AuthorizationFailure) {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage container due to delete container permission missing, trying account deletion: %s", err))
 			return false, nil
 		} else if bloberror.HasCode(err, "AccountNotFound") {
