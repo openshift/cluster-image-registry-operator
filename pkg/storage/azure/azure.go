@@ -675,8 +675,13 @@ func (d *driver) assurePrivateAccount(cfg *Azure, infra *configv1.Infrastructure
 	}
 
 	if internalConfig.VNetName == "" {
+		upstreamTagKey := fmt.Sprintf("sigs.k8s.io_cluster-api-provider-azure_cluster_%s", infra.Status.InfrastructureName)
 		tagKey := fmt.Sprintf("kubernetes.io_cluster.%s", infra.Status.InfrastructureName)
-		vnet, err := azclient.GetVNetByTag(d.Context, networkResourceGroup, tagKey, "owned", "shared")
+		tagFilter := map[string][]string{
+			upstreamTagKey: {"owned", "shared"},
+			tagKey:         {"owned", "shared"},
+		}
+		vnet, err := azclient.GetVNetByTags(d.Context, networkResourceGroup, tagFilter)
 		if err != nil {
 			return "", fmt.Errorf("failed to discover vnet name, please provide network details manually: %q", err)
 		}
