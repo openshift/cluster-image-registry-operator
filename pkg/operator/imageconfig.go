@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -253,6 +254,9 @@ func (icc *ImageConfigController) getRouteHostnames() ([]string, error) {
 	// ensure a stable order for these values so we don't cause flapping in the
 	// downstream controllers that watch this array
 	sort.Strings(routeNames)
+
+	// remove duplicates
+	routeNames = slices.Compact(routeNames)
 
 	// make sure the default route hostname comes first in the list because the
 	// first entry will be used as the public repository hostname by the cluster
