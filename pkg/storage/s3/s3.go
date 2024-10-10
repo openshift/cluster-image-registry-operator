@@ -773,11 +773,10 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 		// at this stage we are not keeping user tags in sync. as per enhancement proposal
 		// we only set user provided tags when we created the bucket.
-		hasAWSStatus := infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.AWS != nil
-		if hasAWSStatus {
-			klog.Infof("user provided %d tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
+		if infra.Status.PlatformStatus.AWS != nil && len(infra.Status.PlatformStatus.AWS.ResourceTags) != 0 {
+			klog.V(5).Infof("infra.Status has %d user provided tags", len(infra.Status.PlatformStatus.AWS.ResourceTags))
 			for _, tag := range infra.Status.PlatformStatus.AWS.ResourceTags {
-				klog.Infof("user provided bucket tag: %s: %s", tag.Key, tag.Value)
+				klog.Infof("user provided bucket tag in infra.Status: %s: %s", tag.Key, tag.Value)
 				tagset = append(tagset, &s3.Tag{
 					Key:   aws.String(tag.Key),
 					Value: aws.String(tag.Value),
@@ -997,4 +996,77 @@ func sharedCredentialsDataFromStaticCreds(accessKey, accessSecret string) []byte
 	fmt.Fprintf(buf, "aws_secret_access_key = %s\n", accessSecret)
 
 	return buf.Bytes()
+}
+
+// PutStorageTags is for adding/overwriting tags of the S3 bucket
+// which name is obtained using this driver's ID() method.
+func (d *driver) PutStorageTags(tagMap map[string]string) error {
+	if len(tagMap) == 0 {
+		klog.Info("Tags is empty, no action taken")
+		return nil
+	}
+
+	svc, err := d.getS3Service()
+	if err != nil {
+		return err
+	}
+
+	tags := make([]*s3.Tag, 0, len(tagMap))
+	for key, value := range tagMap {
+		tags = append(tags, &s3.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(value),
+		})
+	}
+
+	_, err = svc.PutBucketTaggingWithContext(d.Context, &s3.PutBucketTaggingInput{
+		Bucket: aws.String(d.ID()),
+		Tagging: &s3.Tagging{
+			TagSet: tags,
+		},
+	})
+	if err != nil {
+		errMsg := ""
+		if aerr, ok := err.(awserr.Error); ok {
+			errMsg = fmt.Sprintf("%s: %s", aerr.Code(), aerr.Error())
+		} else {
+			errMsg = fmt.Sprintf("Unknown Error Occurred: %s", err.Error())
+		}
+		return fmt.Errorf("failed to update s3 bucket tags: %s", errMsg)
+	}
+
+	return nil
+}
+
+// GetStorageTags is fetching the tags of the S3 bucket which name
+// is obtained using the ID() method.
+// If no tags are present(NoSuchTagSet error) is considered as
+// successful scenario.
+func (d *driver) GetStorageTags() (map[string]string, error) {
+	svc, err := d.getS3Service()
+	if err != nil {
+		return nil, err
+	}
+
+	output, err := svc.GetBucketTaggingWithContext(d.Context, &s3.GetBucketTaggingInput{
+		Bucket: aws.String(d.ID()),
+	})
+	if err != nil {
+		errMsg := ""
+		if aerr, ok := err.(awserr.Error); ok {
+			if aerr.Code() != "NoSuchTagSet" {
+				errMsg = fmt.Sprintf("%s: %s", aerr.Code(), aerr.Error())
+			}
+		} else {
+			errMsg = fmt.Sprintf("Unknown Error Occurred: %s", err.Error())
+		}
+		return nil, fmt.Errorf("failed to fetch s3 bucket tags: %s", errMsg)
+	}
+
+	tags := make(map[string]string)
+	for _, tag := range output.TagSet {
+		tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+	}
+
+	return tags, nil
 }

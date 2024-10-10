@@ -2,7 +2,7 @@ package operator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
@@ -88,7 +88,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		klog.Infof("FeatureGates initialized: knownFeatureGates=%v", featureGates.KnownFeatures())
 	case <-time.After(1 * time.Minute):
 		klog.Errorf("timed out waiting for FeatureGate detection")
-		return fmt.Errorf("timed out waiting for FeatureGate detection")
+		return errors.New("timed out waiting for FeatureGate detection")
 	}
 
 	controller, err := NewController(
@@ -217,6 +217,22 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
+	awsTagController, err := NewAWSTagController(
+		configClient.ConfigV1().Infrastructures(),
+		imageregistryClient.ImageregistryV1().Configs(),
+		kubeInformers,
+		imageregistryInformers,
+		routeInformers,
+		configInformers,
+		kubeInformersForOpenShiftConfig,
+		kubeInformersForOpenShiftConfigManaged,
+		eventRecorder,
+		featureGateAccessor,
+	)
+	if err != nil {
+		return err
+	}
+
 	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
 
 	kubeInformers.Start(ctx.Done())
@@ -237,6 +253,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go loggingController.Run(ctx, 1)
 	go azureStackCloudController.Run(ctx)
 	go azurePathFixController.Run(ctx.Done())
+	go awsTagController.Run(ctx)
 	go metricsController.Run(ctx)
 
 	<-ctx.Done()
