@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 		if err == nil {
 			t.Fatal("new with no options should fail, but error was nil")
 		}
-		msg := "client misconfigured, missing 'Environment.ResourceManagerEndpoint', 'Environment.ActiveDirectoryEndpoint', 'Environment.TokenAudience', 'TenantID', 'ClientID', 'ClientSecret', 'FederatedTokenFile', 'Creds', 'SubscriptionID' option(s)"
+		msg := "client misconfigured, missing 'Environment.ResourceManagerEndpoint', 'Environment.ActiveDirectoryEndpoint', 'Environment.TokenAudience' option(s)"
 		if err.Error() != msg {
 			t.Error("client failed with wrong error")
 			t.Logf("want %q", msg)
