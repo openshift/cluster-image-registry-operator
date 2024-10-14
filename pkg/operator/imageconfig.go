@@ -64,6 +64,8 @@ func NewImageConfigController(
 		imageStreamImportModeEnabled: imageStreamImportModeEnabled,
 	}
 
+	icc.cachesToSync = append(icc.cachesToSync, operatorClient.Informer().HasSynced)
+
 	if _, err := serviceInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
 		return nil, err
 	}

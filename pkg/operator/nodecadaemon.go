@@ -54,6 +54,8 @@ func NewNodeCADaemonController(
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeCADaemonController"),
 	}
 
+	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)
+
 	if _, err := daemonSetInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
 		return nil, err
 	}
