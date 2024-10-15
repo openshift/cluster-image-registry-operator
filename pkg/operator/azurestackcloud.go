@@ -41,6 +41,8 @@ func NewAzureStackCloudController(
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzureStackCloudController"),
 	}
 
+	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)
+
 	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
 		return nil, err
 	}
