@@ -25,6 +25,8 @@ import (
 	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
+	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	operatorapiv1 "github.com/openshift/api/operator/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
@@ -178,6 +180,44 @@ func (c *AzurePathFixController) sync() error {
 		return err
 	}
 
+	progressing := "AzurePathFixProgressing"
+	degraded := "AzurePathFixControllerDegraded"
+
+	// ensure the operator conditions will not remain progressing or degraded
+	// because the azure path fix job hasn't completed or has failed.
+	// when the operator is set to Removed, it will delete the storage
+	// account that it provisioned (unless .spec.storage.managementState is
+	// Unmanaged). since the storage account is (or will be) removed, there
+	// is no point in reporting the state of the azure path fix job.
+	operatorRemoved := imageRegistryConfig.Spec.ManagementState == operatorapiv1.Removed
+	storageUnmanaged := imageRegistryConfig.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged
+	if operatorRemoved && storageUnmanaged {
+		removeConditionFn := func(conditionType string) v1helpers.UpdateStatusFunc {
+			return func(oldStatus *operatorv1.OperatorStatus) error {
+				v1helpers.RemoveOperatorCondition(&oldStatus.Conditions, conditionType)
+				return nil
+			}
+		}
+		removeConditionFns := []v1helpers.UpdateStatusFunc{}
+		progressingConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, progressing) != nil
+		if progressingConditionFound {
+			removeConditionFns = append(removeConditionFns, removeConditionFn(progressing))
+		}
+		degradedConditionFound := v1helpers.FindOperatorCondition(imageRegistryConfig.Status.Conditions, degraded) != nil
+		if degradedConditionFound {
+			removeConditionFns = append(removeConditionFns, removeConditionFn(degraded))
+		}
+		if len(removeConditionFns) > 0 {
+			if _, _, err := v1helpers.UpdateStatus(
+				context.TODO(),
+				c.operatorClient,
+				removeConditionFns...,
+			); err != nil {
+				return err
+			}
+		}
+	}
+
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
 	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
 		return fmt.Errorf("storage account not yet provisioned")
@@ -204,11 +244,11 @@ func (c *AzurePathFixController) sync() error {
 	)
 
 	progressingCondition := operatorv1.OperatorCondition{
-		Type:   "AzurePathFixProgressing",
+		Type:   progressing,
 		Status: operatorv1.ConditionUnknown,
 	}
 	degradedCondition := operatorv1.OperatorCondition{
-		Type:   "AzurePathFixControllerDegraded",
+		Type:   degraded,
 		Status: operatorv1.ConditionFalse,
 		Reason: "AsExpected",
 	}
