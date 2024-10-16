@@ -220,10 +220,10 @@ func (c *AzurePathFixController) sync() error {
 
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
 	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
-		return fmt.Errorf("storage account not yet provisioned")
+		return nil
 	}
 	if azureStorage == nil || len(azureStorage.Container) == 0 {
-		return fmt.Errorf("storage container not yet provisioned")
+		return nil
 	}
 
 	// the move-blobs cmd does not work on Azure Stack Hub. Users on ASH
