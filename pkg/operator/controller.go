@@ -174,6 +174,17 @@ func NewController(
 			c.listers.Infrastructures = informer.Lister()
 			return informer.Informer()
 		},
+		func() cache.SharedIndexInformer {
+			// here we don't need the lister but we do want to be informed
+			// when jobs change because of the azure-path-fix job.
+			// this isn't so important in OCP >= 4.17 (because the job
+			// is not deployed starting on 4.17), but in OCP 4.14 through
+			// OCP 4.16 it is vital that this controller gets triggered
+			// when the job status changes, speacially in situations where
+			// the operator is set to Removed before the job is finished.
+			informer := kubeInformerFactory.Batch().V1().Jobs()
+			return informer.Informer()
+		},
 	} {
 		informer := ctor()
 		if _, err := informer.AddEventHandler(c.handler()); err != nil {

@@ -393,6 +393,25 @@ func (c *Controller) syncStatus(
 
 	updateCondition(cr, defaults.OperatorStatusTypeRemoved, operatorRemoved)
 
+	// ensure the operator conditions will not remain progressing or degraded
+	// because the azure path fix job hasn't completed or has failed.
+	// when the operator is set to Removed, it will delete the storage
+	// account that it provisioned (unless .spec.storage.managementState is
+	// Unmanaged). since the storage account is (or will be) removed, there
+	// is no point in reporting the state of the azure path fix job.
+	if cr.Spec.ManagementState == operatorapiv1.Removed && cr.Spec.Storage.ManagementState != imageregistryv1.StorageManagementStateUnmanaged {
+		progressing := "AzurePathFixProgressing"
+		degraded := "AzurePathFixControllerDegraded"
+		progressingConditionFound := v1helpers.FindOperatorCondition(cr.Status.Conditions, progressing) != nil
+		if progressingConditionFound {
+			v1helpers.RemoveOperatorCondition(&cr.Status.Conditions, progressing)
+		}
+		degradedConditionFound := v1helpers.FindOperatorCondition(cr.Status.Conditions, degraded) != nil
+		if degradedConditionFound {
+			v1helpers.RemoveOperatorCondition(&cr.Status.Conditions, degraded)
+		}
+	}
+
 	if deploy == nil {
 		cr.Status.ReadyReplicas = 0
 	} else {
