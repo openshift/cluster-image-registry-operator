@@ -370,44 +370,50 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
-	// Managed Identity Override for ARO HCP
-	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
-	if managedIdentityClientID != "" {
-		options := azidentity.ManagedIdentityCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
-			ID: azidentity.ClientID(managedIdentityClientID),
-		}
 
-		var err error
-		cred, err = azidentity.NewManagedIdentityCredential(&options)
-		if err != nil {
-			return storage.AccountsClient{}, err
+	// For each of the following configuration values, if the environment variable is already set, use it over any
+	// configuration value: AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET. Otherwise, set the environment
+	// variable to the configuration value. The Azure SDK for Go function, NewDefaultAzureCredential, checks environment
+	// variables first.
+	if os.Getenv(azureclient.AzureTenantID) == "" {
+		if err = os.Setenv(azureclient.AzureTenantID, strings.TrimSpace(cfg.TenantID)); err != nil {
+			return storage.AccountsClient{}, fmt.Errorf("failed to set environment variable %s: %w", azureclient.AzureTenantID, err)
 		}
-	} else if strings.TrimSpace(cfg.ClientSecret) == "" {
-		options := azidentity.WorkloadIdentityCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
-			ClientID:      cfg.ClientID,
-			TenantID:      cfg.TenantID,
-			TokenFilePath: cfg.FederatedTokenFile,
+	}
+
+	if os.Getenv(azureclient.AzureClientID) == "" {
+		if err = os.Setenv(azureclient.AzureClientID, strings.TrimSpace(cfg.ClientID)); err != nil {
+			return storage.AccountsClient{}, fmt.Errorf("failed to set environment variable %s: %w", azureclient.AzureClientID, err)
 		}
-		cred, err = azidentity.NewWorkloadIdentityCredential(&options)
-		if err != nil {
-			return storage.AccountsClient{}, err
+	}
+
+	if os.Getenv(azureclient.AzureClientSecret) == "" {
+		if err = os.Setenv(azureclient.AzureClientSecret, strings.TrimSpace(cfg.ClientSecret)); err != nil {
+			return storage.AccountsClient{}, fmt.Errorf("failed to set environment variable %s: %w", azureclient.AzureClientSecret, err)
 		}
-	} else {
-		options := azidentity.ClientSecretCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
+	}
+
+	if os.Getenv(azureclient.AzureFederatedTokenFile) == "" {
+		if err := os.Setenv(azureclient.AzureFederatedTokenFile, strings.TrimSpace(cfg.FederatedTokenFile)); err != nil {
+			return storage.AccountsClient{}, fmt.Errorf("failed to set environment variable %s: %w", azureclient.AzureFederatedTokenFile, err)
 		}
-		cred, err = azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
-		if err != nil {
-			return storage.AccountsClient{}, err
+	}
+
+	if os.Getenv(azureclient.AzureClientSecret) == "" && os.Getenv(azureclient.AzureFederatedTokenFile) == "" {
+		if err = os.Setenv(azureclient.AzureFederatedTokenFile, "/var/run/secrets/openshift/serviceaccount/token"); err != nil {
+			return storage.AccountsClient{}, fmt.Errorf("failed to set environment variable %s: %w", azureclient.AzureFederatedTokenFile, err)
 		}
+	}
+
+	options := &azidentity.DefaultAzureCredentialOptions{
+		ClientOptions: azcore.ClientOptions{
+			Cloud: cloudConfig,
+		},
+	}
+
+	cred, err = azureclient.AzureCreds(options)
+	if err != nil {
+		return storage.AccountsClient{}, err
 	}
 
 	scope := environment.TokenAudience
