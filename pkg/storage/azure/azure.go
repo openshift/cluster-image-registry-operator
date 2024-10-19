@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/util/interrupt"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -373,15 +374,44 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 	// Managed Identity Override for ARO HCP
 	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
 	if managedIdentityClientID != "" {
-		options := azidentity.ManagedIdentityCredentialOptions{
+		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
+		options := &azidentity.ClientCertificateCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloudConfig,
 			},
-			ID: azidentity.ClientID(managedIdentityClientID),
+			SendCertificateChain: true,
 		}
 
-		var err error
-		cred, err = azidentity.NewManagedIdentityCredential(&options)
+		tenantID := os.Getenv("ARO_HCP_TENANT_ID")
+		certPath := os.Getenv("ARO_HCP_CLIENT_CERTIFICATE_PATH")
+
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to read certificate file "%s": %v`, certPath, err)
+		}
+
+		certs, key, err := azidentity.ParseCertificates(certData, []byte{})
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
+		}
+
+		// Set up a watch on our config file; if it changes, we should exit -
+		// (we don't have the ability to dynamically reload config changes).
+		stopCh := make(chan struct{})
+		err = interrupt.New(func(s os.Signal) {
+			_, _ = fmt.Fprintf(os.Stderr, "interrupt: Gracefully shutting down ...\n")
+			close(stopCh)
+		}).Run(func() error {
+			if err := azureclient.WatchForChanges(certPath, stopCh); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+
+		cred, err = azidentity.NewClientCertificateCredential(tenantID, managedIdentityClientID, certs, key, options)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}

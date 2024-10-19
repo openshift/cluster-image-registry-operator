@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -21,6 +22,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/fsnotify/fsnotify"
+	"k8s.io/klog/v2"
+	"k8s.io/kubernetes/pkg/util/interrupt"
 )
 
 const (
@@ -105,13 +109,44 @@ func (c *Client) getCreds() (azcore.TokenCredential, error) {
 	// Managed Identity Override for ARO HCP
 	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
 	if managedIdentityClientID != "" {
-		options := azidentity.ManagedIdentityCredentialOptions{
+		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
+		options := &azidentity.ClientCertificateCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: c.clientOpts.Cloud,
 			},
-			ID: azidentity.ClientID(managedIdentityClientID),
+			SendCertificateChain: true,
 		}
-		creds, err = azidentity.NewManagedIdentityCredential(&options)
+
+		tenantID := os.Getenv("ARO_HCP_TENANT_ID")
+		certPath := os.Getenv("ARO_HCP_CLIENT_CERTIFICATE_PATH")
+
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			return nil, fmt.Errorf(`failed to read certificate file "%s": %v`, certPath, err)
+		}
+
+		certs, key, err := azidentity.ParseCertificates(certData, []byte{})
+		if err != nil {
+			return nil, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
+		}
+
+		// Set up a watch on our config file; if it changes, we should exit -
+		// (we don't have the ability to dynamically reload config changes).
+		stopCh := make(chan struct{})
+		err = interrupt.New(func(s os.Signal) {
+			_, _ = fmt.Fprintf(os.Stderr, "interrupt: Gracefully shutting down ...\n")
+			close(stopCh)
+		}).Run(func() error {
+			if err := WatchForChanges(certPath, stopCh); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		creds, err = azidentity.NewClientCertificateCredential(tenantID, managedIdentityClientID, certs, key, options)
 		if err != nil {
 			return nil, err
 		}
@@ -903,4 +938,60 @@ func (client *BlobClient) CreateStorageContainer(ctx context.Context, containerN
 func (client *BlobClient) DeleteStorageContainer(ctx context.Context, containerName string) error {
 	_, err := client.client.DeleteContainer(ctx, containerName, &azblob.DeleteContainerOptions{})
 	return err
+}
+
+// WatchForChanges closes stopCh if the configuration file changed.
+func WatchForChanges(configPath string, stopCh chan struct{}) error {
+	configPath, err := filepath.Abs(configPath)
+	if err != nil {
+		return err
+	}
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+	// Watch all symlinks for changes
+	p := configPath
+	maxDepth := 100
+	for depth := 0; depth < maxDepth; depth++ {
+		if err := watcher.Add(p); err != nil {
+			return err
+		}
+		klog.V(2).Infof("Watching config file %s for changes", p)
+		stat, err := os.Lstat(p)
+		if err != nil {
+			return err
+		}
+		// configmaps are usually symlinks
+		if stat.Mode()&os.ModeSymlink > 0 {
+			p, err = filepath.EvalSymlinks(p)
+			if err != nil {
+				return err
+			}
+		} else {
+			break
+		}
+	}
+	go func() {
+		for {
+			select {
+			case <-stopCh:
+			case event, ok := <-watcher.Events:
+				if !ok {
+					klog.Errorf("failed to watch config file %s", p)
+					return
+				}
+				klog.V(2).Infof("Configuration file %s changed, exiting...", event.Name)
+				close(stopCh)
+				return
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					klog.Errorf("failed to watch config file %s", p)
+					return
+				}
+				klog.Errorf("fsnotify error: %v", err)
+			}
+		}
+	}()
+	return nil
 }
