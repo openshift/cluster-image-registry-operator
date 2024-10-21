@@ -179,11 +179,11 @@ func (c *AzurePathFixController) sync() error {
 	}
 
 	azureStorage := imageRegistryConfig.Status.Storage.Azure
-	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
-		return fmt.Errorf("storage account not yet provisioned")
-	}
-	if azureStorage == nil || len(azureStorage.Container) == 0 {
-		return fmt.Errorf("storage container not yet provisioned")
+	if azureStorage == nil || len(azureStorage.AccountName) == 0 || len(azureStorage.Container) == 0 {
+		// no need to reque when azure storage isn't configured.
+		// this allows customers to use pvc or even emptyDir in azure
+		// without getting error messages in loop in the operator logs.
+		return nil
 	}
 
 	// the move-blobs cmd does not work on Azure Stack Hub. Users on ASH
