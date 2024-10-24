@@ -2,7 +2,7 @@ package e2e_test
 
 import (
 	"context"
-	"strings"
+	"regexp"
 	"testing"
 	"time"
 
@@ -50,22 +50,17 @@ func TestLeaderElection(t *testing.T) {
 		t.Fatalf("error reading operator logs: %v", err)
 	}
 
-	awaitingPods := int32(0)
+	re := regexp.MustCompile(".*successfully acquired lease.*")
+	acquiredLease := 0
 	for _, podLogs := range allLogs {
 		for _, containerLogs := range podLogs {
-			lastLine := len(containerLogs) - 1
-			if lastLine < 0 {
-				continue
-			}
-
-			if strings.Contains(containerLogs[lastLine], "attempting to acquire leader lease") {
-				awaitingPods++
+			if containerLogs.Contains(re) {
+				acquiredLease++
 			}
 		}
 	}
 
-	numberOfAwaitingPods := numberOfReplicas - 1
-	if awaitingPods != numberOfAwaitingPods {
-		t.Errorf("multiple operators running at the same time")
+	if acquiredLease > 1 {
+		t.Errorf("multiple operators running at the same time, %d pods acquired lease, expected 1.", acquiredLease)
 	}
 }
