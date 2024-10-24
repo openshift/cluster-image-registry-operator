@@ -10,3 +10,27 @@ metadata:
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
+spec:
+  groups:
+    - name: pvc-problem-detector.rules
+      rules:
+      - alert: ImageRegistryStorageReadOnly
+        for: 10m
+        expr: imageregistry_storage_errors_total {code="READ_ONLY_FILESYSTEM"}
+        labels:
+           namespace:
+           severity: warning
+        annotations:
+           summary: The image registry storage is read-only and no images will be committed to storage.
+           description: The image registry storage is read-only. Read-only storage affects direct pushes to the image registry, and pull-through proxy caching. In the case of pull-through proxy caching, read-only storage is particularly important because without it the image registry won't be actually caching anything. Please verify your backing storage solution and make sure the volume mounted on the image-registry pods is writable to avoid potential outages.
+           message: The image registry storage is read-only and no images will be committed to storage.
+      - alert: ImageRegistryStorageFull
+        for: 10m
+        expr: imageregistry_storage_errors_total imageregistry_storage_errors_total {code="DEVICE_OUT_OF_SPACE"}
+        labels:
+           namespace:
+           severity: warning
+        annotations:
+           summary: The image registry storage disk is full and no images will be committed to storage.
+           description: The image registry storage disk is full. A full disk affects direct pushes to the image registry, and pull-through proxy caching. In the case of pull-through proxy caching, disk space is particularly important because without it the image registry won't be actually caching anything. Please verify your backing storage solution and make sure the volume mounted on the image-registry pods have enough free disk space to avoid potential outages.
+           message: The image registry storage disk is full and no images will be committed to storage.
