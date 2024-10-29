@@ -265,7 +265,10 @@ func TestRouteConfiguration(t *testing.T) {
 
 func TestOperatorProxyConfiguration(t *testing.T) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
-	defer framework.TeardownImageRegistry(te)
+	// this test sometimes fails during tear down because some components
+	// (unrelated to the image registry) do not recover within the default
+	// timeout.
+	defer framework.TeardownImageRegistryWithTimeoutIncrement(te, 5*time.Minute)
 	defer framework.ResetClusterProxyConfig(te)
 
 	// Get the service network to set as NO_PROXY so that the
