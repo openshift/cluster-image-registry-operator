@@ -17,3 +17,7 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-cli:v4.0
+  - name: must-gather
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-must-gather:v4.0
