@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/util/interrupt"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -39,6 +38,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/filewatcher"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -395,18 +395,8 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 			return storage.AccountsClient{}, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
 		}
 
-		// Set up a watch on our config file; if it changes, we should exit -
-		// (we don't have the ability to dynamically reload config changes).
-		stopCh := make(chan struct{})
-		err = interrupt.New(func(s os.Signal) {
-			_, _ = fmt.Fprintf(os.Stderr, "interrupt: Gracefully shutting down ...\n")
-			close(stopCh)
-		}).Run(func() error {
-			if err := azureclient.WatchForChanges(certPath, stopCh); err != nil {
-				return err
-			}
-			return nil
-		})
+		// Watch the certificate for changes; if the certificate changes, the pod will be restarted
+		err = filewatcher.WatchFileForChanges(certPath)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}
