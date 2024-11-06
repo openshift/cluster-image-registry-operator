@@ -16,6 +16,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -353,6 +354,14 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 
 	if len(d.Config.RegionEndpoint) != 0 {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint})
+	} else {
+		// attempt to bypass validation error in distribution as a means
+		// to support new aws regions without requiring aws-sdk-go upgrades.
+		// regionEndpoint, _ := d.endpointsResolver.EndpointFor("s3", d.Config.Region)
+		regionEndpoint, _ := endpoints.DefaultResolver().EndpointFor("s3", d.Config.Region)
+		if regionEndpoint.URL != "" {
+			envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: regionEndpoint.URL})
+		}
 	}
 
 	if len(d.Config.KeyID) != 0 {
