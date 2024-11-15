@@ -9,6 +9,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -207,7 +208,8 @@ func (c *AzurePathFixController) sync() error {
 	}
 
 	jobObj, err := gen.Get()
-	if errors.IsNotFound(err) {
+	jobExists := !errors.IsNotFound(err)
+	if !jobExists {
 		progressingCondition.Status = operatorv1.ConditionTrue
 		progressingCondition.Reason = "NotFound"
 		progressingCondition.Message = "The job does not exist"
@@ -283,15 +285,51 @@ func (c *AzurePathFixController) sync() error {
 		}
 	}
 
-	err = resource.ApplyMutator(gen)
-	if err != nil {
-		_, _, updateError := v1helpers.UpdateStatus(
-			ctx,
-			c.operatorClient,
-			v1helpers.UpdateConditionFn(progressingCondition),
-			v1helpers.UpdateConditionFn(degradedCondition),
-		)
-		return utilerrors.NewAggregate([]error{err, updateError})
+	switch imageRegistryConfig.Spec.ManagementState {
+	case operatorv1.Removed:
+		progressingCondition.Reason = "Removed"
+		progressingCondition.Message = "The job is removed"
+		progressingCondition.Status = operatorv1.ConditionFalse
+		degradedCondition.Reason = "Removed"
+		degradedCondition.Message = "The job is removed"
+		degradedCondition.Status = operatorv1.ConditionFalse
+
+		if jobExists {
+			gracePeriod := int64(0)
+			propagationPolicy := metaapi.DeletePropagationForeground
+			opts := metaapi.DeleteOptions{
+				GracePeriodSeconds: &gracePeriod,
+				PropagationPolicy:  &propagationPolicy,
+			}
+			if err := gen.Delete(opts); err != nil {
+				// TODO: set condition?
+				// TODO: aggregate error and don't return?
+				return err
+			}
+			progressingCondition.Reason = "Removing"
+			progressingCondition.Status = operatorv1.ConditionTrue
+			degradedCondition.Reason = "Removing"
+			degradedCondition.Status = operatorv1.ConditionFalse
+		}
+	case operatorv1.Managed, operatorv1.Force:
+		if azureStorage == nil || azureStorage.AccountName == "" || azureStorage.Container == "" {
+			// we don't know the storage account details yet, so we can't create the job.
+			// this isn't an error state though - once the CR gets updated with the details
+			// a resync will trigger and we'll get a change to create the job.
+			return nil
+		}
+		err = resource.ApplyMutator(gen)
+		if err != nil {
+			_, _, updateError := v1helpers.UpdateStatus(
+				ctx,
+				c.operatorClient,
+				v1helpers.UpdateConditionFn(progressingCondition),
+				v1helpers.UpdateConditionFn(degradedCondition),
+			)
+			return utilerrors.NewAggregate([]error{err, updateError})
+		}
+	case operatorv1.Unmanaged:
+		// ignore
 	}
 
 	_, _, err = v1helpers.UpdateStatus(
