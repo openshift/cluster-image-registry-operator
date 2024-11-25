@@ -12,11 +12,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchv1informers "k8s.io/client-go/informers/batch/v1"
-	corev1informers "k8s.io/client-go/informers/core/v1"
 	batchv1client "k8s.io/client-go/kubernetes/typed/batch/v1"
 	batchv1listers "k8s.io/client-go/listers/batch/v1"
-	corev1listers "k8s.io/client-go/listers/core/v1"
-	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -26,11 +23,9 @@ import (
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
-	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
@@ -39,31 +34,18 @@ type AzurePathFixController struct {
 	operatorClient            v1helpers.OperatorClient
 	jobLister                 batchv1listers.JobNamespaceLister
 	imageRegistryConfigLister imageregistryv1listers.ConfigLister
-	secretLister              corev1listers.SecretNamespaceLister
-	podLister                 corev1listers.PodNamespaceLister
 	infrastructureLister      configlisters.InfrastructureLister
-	proxyLister               configlisters.ProxyLister
-	openshiftConfigLister     corev1listers.ConfigMapNamespaceLister
-	kubeconfig                *restclient.Config
 
 	cachesToSync []cache.InformerSynced
 	queue        workqueue.RateLimitingInterface
-
-	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 func NewAzurePathFixController(
-	kubeconfig *restclient.Config,
 	batchClient batchv1client.BatchV1Interface,
 	operatorClient v1helpers.OperatorClient,
 	jobInformer batchv1informers.JobInformer,
 	imageRegistryConfigInformer imageregistryv1informers.ConfigInformer,
 	infrastructureInformer configv1informers.InfrastructureInformer,
-	secretInformer corev1informers.SecretInformer,
-	proxyInformer configv1informers.ProxyInformer,
-	openshiftConfigInformer corev1informers.ConfigMapInformer,
-	podInformer corev1informers.PodInformer,
-	featureGateAccessor featuregates.FeatureGateAccess,
 ) (*AzurePathFixController, error) {
 	c := &AzurePathFixController{
 		batchClient:               batchClient,
@@ -71,13 +53,7 @@ func NewAzurePathFixController(
 		jobLister:                 jobInformer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace),
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
 		infrastructureLister:      infrastructureInformer.Lister(),
-		secretLister:              secretInformer.Lister().Secrets(defaults.ImageRegistryOperatorNamespace),
-		podLister:                 podInformer.Lister().Pods(defaults.ImageRegistryOperatorNamespace),
-		proxyLister:               proxyInformer.Lister(),
-		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
-		kubeconfig:                kubeconfig,
 		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
-		featureGateAccessor:       featureGateAccessor,
 	}
 
 	if _, err := jobInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
@@ -90,30 +66,9 @@ func NewAzurePathFixController(
 	}
 	c.cachesToSync = append(c.cachesToSync, imageRegistryConfigInformer.Informer().HasSynced)
 
-	if _, err := infrastructureInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
-		return nil, err
-	}
+	// we need the infra only to check for PlatformStatus.Type, which isn't
+	// expected to change, so we don't need to add an event handler.
 	c.cachesToSync = append(c.cachesToSync, infrastructureInformer.Informer().HasSynced)
-
-	if _, err := secretInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
-		return nil, err
-	}
-	c.cachesToSync = append(c.cachesToSync, secretInformer.Informer().HasSynced)
-
-	if _, err := podInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
-		return nil, err
-	}
-	c.cachesToSync = append(c.cachesToSync, podInformer.Informer().HasSynced)
-
-	if _, err := proxyInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
-		return nil, err
-	}
-	c.cachesToSync = append(c.cachesToSync, proxyInformer.Informer().HasSynced)
-
-	if _, err := openshiftConfigInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
-		return nil, err
-	}
-	c.cachesToSync = append(c.cachesToSync, openshiftConfigInformer.Informer().HasSynced)
 
 	// bootstrap the job if it doesn't exist
 	c.queue.Add("instance")
@@ -163,6 +118,8 @@ func (c *AzurePathFixController) processNextWorkItem() bool {
 }
 
 func (c *AzurePathFixController) sync() error {
+	ctx := context.TODO()
+
 	// this controller was made to run specifically on Azure,
 	// so if we detect a different cloud, skip it.
 	infra, err := util.GetInfrastructure(c.infrastructureLister)
@@ -178,30 +135,12 @@ func (c *AzurePathFixController) sync() error {
 		return err
 	}
 
-	azureStorage := imageRegistryConfig.Status.Storage.Azure
-	if azureStorage == nil || len(azureStorage.AccountName) == 0 {
-		return fmt.Errorf("storage account not yet provisioned")
-	}
-	if azureStorage == nil || len(azureStorage.Container) == 0 {
-		return fmt.Errorf("storage container not yet provisioned")
-	}
-
 	// the move-blobs cmd does not work on Azure Stack Hub. Users on ASH
 	// will have to copy the blobs on their own using something like az copy.
-	if strings.EqualFold(azureStorage.CloudName, "AZURESTACKCLOUD") {
+	azureStorage := imageRegistryConfig.Status.Storage.Azure
+	if azureStorage != nil && strings.EqualFold(azureStorage.CloudName, "AZURESTACKCLOUD") {
 		return nil
 	}
-
-	gen := resource.NewGeneratorAzurePathFixJob(
-		c.jobLister,
-		c.batchClient,
-		c.secretLister,
-		c.infrastructureLister,
-		c.proxyLister,
-		c.openshiftConfigLister,
-		imageRegistryConfig,
-		c.kubeconfig,
-	)
 
 	// this controller was created to aid users migrating from 4.13.z to >=4.14.z.
 	// once users have migrated to an OCP version and have run this job at least once,
@@ -227,7 +166,7 @@ func (c *AzurePathFixController) sync() error {
 	}
 	if len(removeConditionFns) > 0 {
 		if _, _, err := v1helpers.UpdateStatus(
-			context.TODO(),
+			ctx,
 			c.operatorClient,
 			removeConditionFns...,
 		); err != nil {
@@ -235,7 +174,7 @@ func (c *AzurePathFixController) sync() error {
 		}
 	}
 
-	_, err = gen.Get()
+	_, err = c.jobLister.Get(defaults.AzurePathFixJobName)
 	if errors.IsNotFound(err) {
 		return nil
 	} else if err != nil {
@@ -247,11 +186,13 @@ func (c *AzurePathFixController) sync() error {
 			GracePeriodSeconds: &gracePeriod,
 			PropagationPolicy:  &propagationPolicy,
 		}
-		if err := gen.Delete(opts); err != nil {
+		if err := c.batchClient.Jobs(defaults.ImageRegistryOperatorNamespace).Delete(
+			ctx, defaults.AzurePathFixJobName, opts,
+		); err != nil {
 			return err
 		}
 	}
-	return err
+	return nil
 }
 
 func (c *AzurePathFixController) Run(stopCh <-chan struct{}) {

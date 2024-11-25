@@ -201,17 +201,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	}
 
 	azurePathFixController, err := NewAzurePathFixController(
-		kubeconfig,
 		kubeClient.BatchV1(),
 		configOperatorClient,
 		kubeInformers.Batch().V1().Jobs(),
 		imageregistryInformers.Imageregistry().V1().Configs(),
 		configInformers.Config().V1().Infrastructures(),
-		kubeInformers.Core().V1().Secrets(),
-		configInformers.Config().V1().Proxies(),
-		kubeInformersForOpenShiftConfig.Core().V1().ConfigMaps(),
-		kubeInformers.Core().V1().Pods(),
-		featureGateAccessor,
 	)
 	if err != nil {
 		return err

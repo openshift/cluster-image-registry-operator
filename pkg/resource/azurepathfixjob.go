@@ -70,7 +70,7 @@ func (gapfj *generatorAzurePathFixJob) GetNamespace() string {
 }
 
 func (gapfj *generatorAzurePathFixJob) GetName() string {
-	return "azure-path-fix"
+	return defaults.AzurePathFixJobName
 }
 
 func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
