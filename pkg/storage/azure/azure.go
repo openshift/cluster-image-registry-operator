@@ -38,6 +38,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/filewatcher"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -370,17 +371,37 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
-	// MSI Override for ARO HCP
-	msi := os.Getenv("AZURE_MSI_AUTHENTICATION")
-	if msi == "true" {
-		options := azidentity.ManagedIdentityCredentialOptions{
+	// Managed Identity Override for ARO HCP
+	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
+	if managedIdentityClientID != "" {
+		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
+		options := &azidentity.ClientCertificateCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
 				Cloud: cloudConfig,
 			},
+			SendCertificateChain: true,
 		}
 
-		var err error
-		cred, err = azidentity.NewManagedIdentityCredential(&options)
+		tenantID := os.Getenv("ARO_HCP_TENANT_ID")
+		certPath := os.Getenv("ARO_HCP_CLIENT_CERTIFICATE_PATH")
+
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to read certificate file "%s": %v`, certPath, err)
+		}
+
+		certs, key, err := azidentity.ParseCertificates(certData, []byte{})
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
+		}
+
+		// Watch the certificate for changes; if the certificate changes, the pod will be restarted
+		err = filewatcher.WatchFileForChanges(certPath)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+
+		cred, err = azidentity.NewClientCertificateCredential(tenantID, managedIdentityClientID, certs, key, options)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}
