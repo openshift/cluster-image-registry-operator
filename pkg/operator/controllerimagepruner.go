@@ -57,7 +57,7 @@ func NewImagePrunerController(
 	clients := &regopclient.Clients{}
 	c := &ImagePrunerController{
 		generator: resource.NewImagePrunerGenerator(clients, listers),
-		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), imagePrunerWorkQueueKey),
+		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), imagePrunerWorkQueueKey),
 		listers:   listers,
 		clients:   clients,
 	}
@@ -131,7 +131,7 @@ func NewImagePrunerController(
 // ImagePrunerController keeps track of openshift image pruner components.
 type ImagePrunerController struct {
 	generator    *resource.ImagePrunerGenerator
-	workqueue    workqueue.RateLimitingInterface
+	workqueue    workqueue.TypedRateLimitingInterface[any]
 	listers      *regopclient.ImagePrunerControllerListers
 	clients      *regopclient.Clients
 	cachesToSync []cache.InformerSynced
