@@ -124,6 +124,9 @@ const (
 
 	// InfrastructureResourceName is the name of the infrastructure config resource
 	InfrastructureResourceName = "cluster"
+
+	// AzurePathFixJobName is the job name for the azure-path-fix job
+	AzurePathFixJobName = "azure-path-fix"
 )
 
 var (
