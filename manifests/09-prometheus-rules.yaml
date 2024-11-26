@@ -23,6 +23,7 @@ spec:
            summary: The image registry storage is read-only and no images will be committed to storage.
            description: The image registry storage is read-only. Read-only storage affects direct pushes to the image registry, and pull-through proxy caching. In the case of pull-through proxy caching, read-only storage is particularly important because without it the image registry won't be actually caching anything. Please verify your backing storage solution and make sure the volume mounted on the image-registry pods is writable to avoid potential outages.
            message: The image registry storage is read-only and no images will be committed to storage.
+           runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-image-registry-operator/ImageRegistryStorageReadOnly.md
       - alert: ImageRegistryStorageFull
         for: 10m
         expr: sum without(instance, pod, operation) (rate(imageregistry_storage_errors_total{code="DEVICE_OUT_OF_SPACE"}[5m])) > 0
@@ -33,3 +34,4 @@ spec:
            summary: The image registry storage disk is full and no images will be committed to storage.
            description: The image registry storage disk is full. A full disk affects direct pushes to the image registry, and pull-through proxy caching. In the case of pull-through proxy caching, disk space is particularly important because without it the image registry won't be actually caching anything. Please verify your backing storage solution and make sure the volume mounted on the image-registry pods have enough free disk space to avoid potential outages.
            message: The image registry storage disk is full and no images will be committed to storage.
+           runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-image-registry-operator/ImageRegistryStorageFull.md
