@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	kfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/clock"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	imageregistryfake "github.com/openshift/client-go/imageregistry/clientset/versioned/fake"
@@ -53,7 +54,7 @@ func TestNodeCADaemon(t *testing.T) {
 	imageregistryInformers.Start(ctx.Done())
 	imageregistryInformers.WaitForCacheSync(ctx.Done())
 
-	g := NewGeneratorNodeCADaemonSet(events.NewInMemoryRecorder("image-registry-operator"), nil, nil, clientset.AppsV1(), operatorClient)
+	g := NewGeneratorNodeCADaemonSet(events.NewInMemoryRecorder("image-registry-operator", clock.RealClock{}), nil, nil, clientset.AppsV1(), operatorClient)
 	obj, err := g.Create()
 	if err != nil {
 		t.Fatal(err)

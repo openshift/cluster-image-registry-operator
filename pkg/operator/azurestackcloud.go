@@ -28,7 +28,7 @@ type AzureStackCloudController struct {
 	openshiftConfigLister corev1listers.ConfigMapNamespaceLister
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 }
 
 func NewAzureStackCloudController(
@@ -38,7 +38,7 @@ func NewAzureStackCloudController(
 	c := &AzureStackCloudController{
 		operatorClient:        operatorClient,
 		openshiftConfigLister: openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzureStackCloudController"),
+		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "AzureStackCloudController"),
 	}
 
 	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)

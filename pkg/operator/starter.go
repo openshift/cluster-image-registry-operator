@@ -9,6 +9,7 @@ import (
 	kubeclient "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/api/features"
@@ -71,7 +72,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	if err != nil {
 		klog.Warningf("unable to get owner reference (falling back to namespace): %v", err)
 	}
-	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(defaults.ImageRegistryOperatorNamespace), "image-registry-operator", controllerRef)
+	eventRecorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(defaults.ImageRegistryOperatorNamespace), "image-registry-operator", controllerRef, clock.RealClock{})
 
 	desiredVersion := status.VersionForOperatorFromEnv()
 	missingVersion := "0.0.1-snapshot"
@@ -123,6 +124,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		routeInformers.Route().V1().Routes(),
 		kubeInformers.Core().V1().Services(),
 		configInformers.Config().V1().Images(),
+		configInformers.Config().V1().ClusterVersions(),
 		imageStreamImportModeEnabled,
 	)
 	if err != nil {
