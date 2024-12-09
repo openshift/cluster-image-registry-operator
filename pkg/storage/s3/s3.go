@@ -282,6 +282,7 @@ func (d *driver) getS3Service() (*s3.S3, error) {
 			HTTPClient: &http.Client{
 				Transport: tr,
 			},
+			LogLevel: aws.LogLevel(aws.LogDebug),
 		},
 		SharedConfigState: session.SharedConfigEnable,
 		SharedConfigFiles: []string{credentialsFilename},
