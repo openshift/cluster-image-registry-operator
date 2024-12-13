@@ -37,7 +37,7 @@ type AzurePathFixController struct {
 	infrastructureLister      configlisters.InfrastructureLister
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 }
 
 func NewAzurePathFixController(
@@ -53,7 +53,7 @@ func NewAzurePathFixController(
 		jobLister:                 jobInformer.Lister().Jobs(defaults.ImageRegistryOperatorNamespace),
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
 		infrastructureLister:      infrastructureInformer.Lister(),
-		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
+		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "AzurePathFixController"),
 	}
 
 	if _, err := jobInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {

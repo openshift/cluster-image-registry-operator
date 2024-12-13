@@ -22,9 +22,11 @@ import (
 	"k8s.io/klog/v2"
 
 	configapi "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlister "github.com/openshift/client-go/config/listers/config/v1"
 	routev1informers "github.com/openshift/client-go/route/informers/externalversions/route/v1"
 	routev1lister "github.com/openshift/client-go/route/listers/route/v1"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
@@ -42,8 +44,9 @@ type ImageConfigController struct {
 	operatorClient               v1helpers.OperatorClient
 	routeLister                  routev1lister.RouteNamespaceLister
 	serviceLister                corev1listers.ServiceNamespaceLister
+	clusterVersionLister         configlister.ClusterVersionLister
 	cachesToSync                 []cache.InformerSynced
-	queue                        workqueue.RateLimitingInterface
+	queue                        workqueue.TypedRateLimitingInterface[any]
 	imageStreamImportModeEnabled bool
 }
 
@@ -53,6 +56,7 @@ func NewImageConfigController(
 	routeInformer routev1informers.RouteInformer,
 	serviceInformer corev1informers.ServiceInformer,
 	imageConfigInformer configv1informers.ImageInformer,
+	clusterVersionInformer configv1informers.ClusterVersionInformer,
 	imageStreamImportModeEnabled bool,
 ) (*ImageConfigController, error) {
 	icc := &ImageConfigController{
@@ -60,7 +64,8 @@ func NewImageConfigController(
 		operatorClient:               operatorClient,
 		routeLister:                  routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
 		serviceLister:                serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
-		queue:                        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageConfigController"),
+		clusterVersionLister:         clusterVersionInformer.Lister(),
+		queue:                        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "ImageConfigController"),
 		imageStreamImportModeEnabled: imageStreamImportModeEnabled,
 	}
 
@@ -178,9 +183,17 @@ func (icc *ImageConfigController) syncImageStatus() error {
 		if cfg.Spec.ImageStreamImportMode != "" {
 			importmode = cfg.Spec.ImageStreamImportMode
 		} else {
-			// TODO: once clusterversion reports the type of payload in its status, use that to determine what the default will be
-			// i.e, multi payload => PreserveOriginal, single arch payload => Legacy
-			importmode = configapi.ImportModeLegacy
+			cv, err := icc.clusterVersionLister.Get("version")
+			if err != nil {
+				return err
+			}
+			// If the clusterversion reports that the desired architecture (existing or desired) of the
+			// cluster is "Multi", set import mode to PreserveOriginal. Else set it to Legacy
+			if cv.Status.Desired.Architecture == configv1.ClusterVersionArchitectureMulti {
+				importmode = configapi.ImportModePreserveOriginal
+			} else {
+				importmode = configapi.ImportModeLegacy
+			}
 		}
 		if cfg.Status.ImageStreamImportMode != importmode {
 			cfg.Status.ImageStreamImportMode = importmode
