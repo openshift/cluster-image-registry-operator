@@ -33,7 +33,7 @@ type ClusterOperatorStatusController struct {
 	deploymentLister          appsv1listers.DeploymentNamespaceLister
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 }
 
 func NewClusterOperatorStatusController(
@@ -51,7 +51,7 @@ func NewClusterOperatorStatusController(
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
 		imagePrunerLister:         imagePrunerInformer.Lister(),
 		deploymentLister:          deploymentInformer.Lister().Deployments(defaults.ImageRegistryOperatorNamespace),
-		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ClusterOperatorStatusController"),
+		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "ClusterOperatorStatusController"),
 	}
 
 	if _, err := clusterOperatorInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {

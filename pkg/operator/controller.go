@@ -86,7 +86,7 @@ func NewController(
 	c := &Controller{
 		kubeconfig: kubeconfig,
 		generator:  resource.NewGenerator(eventRecorder, kubeconfig, clients, listers, featureGateAccessor),
-		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Changes"),
+		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "Changes"),
 		listers:    listers,
 		clients:    clients,
 	}
@@ -189,7 +189,7 @@ func NewController(
 type Controller struct {
 	kubeconfig   *restclient.Config
 	generator    *resource.Generator
-	workqueue    workqueue.RateLimitingInterface
+	workqueue    workqueue.TypedRateLimitingInterface[any]
 	listers      *regopclient.Listers
 	clients      *regopclient.Clients
 	cachesToSync []cache.InformerSynced

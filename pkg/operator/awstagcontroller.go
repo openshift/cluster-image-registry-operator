@@ -40,7 +40,7 @@ type AWSTagController struct {
 
 	event        events.Recorder
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 }
 
 // tagKeyRegex is used to check that the keys and values of a tag contain only valid characters.
@@ -75,7 +75,7 @@ func NewAWSTagController(
 		featureGateAccessor:       featureGateAccessor,
 		event:                     eventRecorder,
 		queue: workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(),
+			workqueue.DefaultTypedControllerRateLimiter[any](),
 			"AWSTagController"),
 	}
 

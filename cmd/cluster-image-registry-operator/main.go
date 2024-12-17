@@ -11,6 +11,7 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
@@ -67,6 +68,7 @@ func main() {
 					go metrics.RunServer(metricsPort)
 					return operator.RunOperator(ctx, cctx.KubeConfig)
 				},
+				clock.RealClock{},
 			).WithKubeConfigFile(
 				kubeconfig, nil,
 			).WithLeaderElection(

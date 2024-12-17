@@ -47,7 +47,7 @@ type AzurePathFixController struct {
 	kubeconfig                *restclient.Config
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 
 	featureGateAccessor featuregates.FeatureGateAccess
 }
@@ -76,7 +76,7 @@ func NewAzurePathFixController(
 		proxyLister:               proxyInformer.Lister(),
 		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		kubeconfig:                kubeconfig,
-		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AzurePathFixController"),
+		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "AzurePathFixController"),
 		featureGateAccessor:       featureGateAccessor,
 	}
 
