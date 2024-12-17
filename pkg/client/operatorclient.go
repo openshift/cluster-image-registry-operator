@@ -13,6 +13,8 @@ import (
 	imageregistryv1client "github.com/openshift/client-go/imageregistry/clientset/versioned/typed/imageregistry/v1"
 	imageregistryv1informers "github.com/openshift/client-go/imageregistry/informers/externalversions/imageregistry/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
+	"github.com/openshift/library-go/pkg/apiserver/jsonpatch"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 )
 
@@ -94,4 +96,16 @@ func (c *ConfigOperatorClient) UpdateOperatorStatus(ctx context.Context, oldReso
 	}
 
 	return &updatedConfig.Status.OperatorStatus, nil
+}
+
+func (c *ConfigOperatorClient) ApplyOperatorSpec(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorSpecApplyConfiguration) (err error) {
+	return fmt.Errorf("not implemented")
+}
+
+func (c *ConfigOperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
+	return fmt.Errorf("not implemented")
+}
+
+func (c *ConfigOperatorClient) PatchOperatorStatus(ctx context.Context, jsonPatch *jsonpatch.PatchSet) (err error) {
+	return fmt.Errorf("not implemented")
 }

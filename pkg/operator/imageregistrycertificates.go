@@ -41,7 +41,7 @@ type ImageRegistryCertificatesController struct {
 	storageListers            *client.StorageListers
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 
 	featureGateAccessor featuregates.FeatureGateAccess
 }
@@ -69,7 +69,7 @@ func NewImageRegistryCertificatesController(
 		imageConfigLister:         imageConfigInformer.Lister(),
 		openshiftConfigLister:     openshiftConfigInformer.Lister().ConfigMaps(defaults.OpenShiftConfigNamespace),
 		imageRegistryConfigLister: imageRegistryConfigInformer.Lister(),
-		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ImageRegistryCertificatesController"),
+		queue:                     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "ImageRegistryCertificatesController"),
 	}
 
 	if _, err := configMapInformer.Informer().AddEventHandler(c.eventHandler()); err != nil {
