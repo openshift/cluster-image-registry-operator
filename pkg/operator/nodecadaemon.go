@@ -35,7 +35,7 @@ type NodeCADaemonController struct {
 	serviceLister   corev1listers.ServiceNamespaceLister
 
 	cachesToSync []cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
+	queue        workqueue.TypedRateLimitingInterface[any]
 }
 
 func NewNodeCADaemonController(
@@ -51,7 +51,7 @@ func NewNodeCADaemonController(
 		operatorClient:  operatorClient,
 		daemonSetLister: daemonSetInformer.Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace),
 		serviceLister:   serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "NodeCADaemonController"),
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "NodeCADaemonController"),
 	}
 
 	c.cachesToSync = append(c.cachesToSync, operatorClient.Informer().HasSynced)
