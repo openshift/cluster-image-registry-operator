@@ -94,7 +94,7 @@ func New(opts *Options) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) getCreds() (azcore.TokenCredential, error) {
+func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 	if c.creds != nil {
 		return c.creds, nil
 	}
@@ -171,7 +171,7 @@ func (c *Client) getCreds() (azcore.TokenCredential, error) {
 }
 
 func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accountName string) (armstorage.Account, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return armstorage.Account{}, fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -204,7 +204,7 @@ func (c *Client) vnetHasAnyTag(vnet armnetwork.VirtualNetwork, tagFilter map[str
 }
 
 func (c *Client) GetVNetByTags(ctx context.Context, resourceGroupName string, tagFilter map[string][]string) (armnetwork.VirtualNetwork, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -232,7 +232,7 @@ func (c *Client) GetVNetByTags(ctx context.Context, resourceGroupName string, ta
 }
 
 func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return armnetwork.Subnet{}, fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -263,7 +263,7 @@ func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetNa
 }
 
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resourceGroupName, accountName string, allowPublicAccess bool) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -289,7 +289,7 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resource
 }
 
 func (c *Client) DisableStorageAccountAccessKeyAccess(ctx context.Context, resourceGroupName, accountName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -331,7 +331,7 @@ func (c *Client) IsStorageAccountPrivate(ctx context.Context, resourceGroupName,
 }
 
 func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, privateEndpointName string) (bool, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -359,7 +359,7 @@ func (c *Client) CreatePrivateEndpoint(
 	ctx context.Context,
 	opts *PrivateEndpointCreateOptions,
 ) (*armnetwork.PrivateEndpoint, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -422,7 +422,7 @@ func (c *Client) CreatePrivateEndpoint(
 }
 
 func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, privateEndpointName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -523,7 +523,7 @@ func (c *Client) DestroyPrivateDNS(ctx context.Context, resourceGroupName, priva
 }
 
 func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, name, location string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -559,7 +559,7 @@ func (c *Client) createRecordSet(
 	privateZoneName,
 	relativeRecordSetName string,
 ) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -600,7 +600,7 @@ func (c *Client) createRecordSet(
 }
 
 func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, privateZoneName, relativeRecordSetName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -625,7 +625,7 @@ func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, private
 }
 
 func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -666,7 +666,7 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 }
 
 func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -702,7 +702,7 @@ func (c *Client) createVirtualNetworkLink(
 	privateZoneName,
 	privateZoneLocation string,
 ) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -742,7 +742,7 @@ func (c *Client) createVirtualNetworkLink(
 }
 
 func (c *Client) deleteVirtualNetworkLink(ctx context.Context, clusterResourceGroupName, linkName, privateZoneName string) error {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -778,7 +778,7 @@ func (c *Client) is404(err error) bool {
 }
 
 func (c *Client) getNICAddress(ctx context.Context, resourceGroupName string, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get credentials: %q", err)
 	}
@@ -884,7 +884,7 @@ func (c *Client) NewBlobClient(environment autorestazure.Environment, accountNam
 		}, err
 	}
 
-	creds, err := c.getCreds()
+	creds, err := c.getCreds(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credentials: %q", err)
 	}
