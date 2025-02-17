@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/Azure/msi-dataplane/pkg/dataplane"
 	"github.com/openshift/cluster-image-registry-operator/pkg/filewatcher"
 	"k8s.io/klog/v2"
 )
@@ -103,10 +104,20 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 		err   error
 		creds azcore.TokenCredential
 	)
-
-	// Managed Identity Override for ARO HCP
 	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
-	if managedIdentityClientID != "" {
+	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
+	if userAssignedIdentityCredentialsFilePath != "" {
+		// UserAssignedIdentityCredentials for managed Azure HCP
+		klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
+		clientOptions := azcore.ClientOptions{
+			Cloud: c.clientOpts.Cloud,
+		}
+		creds, err = dataplane.NewUserAssignedIdentityCredential(ctx, userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+		if err != nil {
+			return nil, err
+		}
+	} else if managedIdentityClientID != "" {
+		// Managed Identity Override for ARO HCP
 		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
 		options := &azidentity.ClientCertificateCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
