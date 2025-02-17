@@ -88,6 +88,11 @@ func TestGenerateStorageName(t *testing.T) {
 			infraName:      "MY-INFRA",
 			additionalInfo: []string{"test1", "test2"},
 		},
+		{
+			name:           "govcloud region name",
+			infraName:      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+			additionalInfo: []string{"us-gov-west-1"},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			l := regopclient.StorageListers{Infrastructures: MockInfrastructureLister{
@@ -122,6 +127,10 @@ func TestGenerateStorageName(t *testing.T) {
 
 			if n != strings.ToLower(n) {
 				t.Errorf("name should not contain upper case: %s", n)
+			}
+
+			if strings.HasSuffix(n, "-") {
+				t.Errorf("name should not end in a dash: %s", n)
 			}
 		})
 	}
