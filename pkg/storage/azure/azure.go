@@ -22,6 +22,7 @@ import (
 	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/Azure/msi-dataplane/pkg/dataplane"
 	"github.com/jongio/azidext/go/azidext"
 
 	corev1 "k8s.io/api/core/v1"
@@ -371,9 +372,20 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
-	// Managed Identity Override for ARO HCP
 	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
-	if managedIdentityClientID != "" {
+	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
+	if userAssignedIdentityCredentialsFilePath != "" {
+		// UserAssignedIdentityCredentials for managed Azure HCP
+		klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
+		clientOptions := azcore.ClientOptions{
+			Cloud: cloudConfig,
+		}
+		cred, err = dataplane.NewUserAssignedIdentityCredential(context.Background(), userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+	} else if managedIdentityClientID != "" {
+		// Managed Identity Override for ARO HCP
 		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
 		options := &azidentity.ClientCertificateCredentialOptions{
 			ClientOptions: azcore.ClientOptions{
