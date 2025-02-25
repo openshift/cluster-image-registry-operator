@@ -116,6 +116,9 @@ func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...
 
 	// Check the length and pad or truncate as needed
 	switch {
+	case len(name) == 61:
+		// if the name is 61 chars, we don't have room for a dash before the padding
+		name = name + string(byte(97+rand.Intn(25)))
 	case len(name) < 62:
 		padding := 62 - len(name) - 1
 		bytes := make([]byte, padding)
@@ -123,10 +126,10 @@ func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...
 			bytes[i] = byte(97 + rand.Intn(25)) // a=97 and z=97+25
 		}
 		name = fmt.Sprintf("%s-%s", name, string(bytes))
-	case len(name) > 62:
+	case len(name) >= 62:
 		name = name[0:62]
-		if strings.HasSuffix(name, "-") {
-			name = name[0:61] + string(byte(97+rand.Intn(25)))
+		if before, hasDash := strings.CutSuffix(name, "-"); hasDash {
+			name = before + string(byte(97+rand.Intn(25)))
 		}
 	}
 
