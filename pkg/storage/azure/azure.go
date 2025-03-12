@@ -39,6 +39,7 @@ import (
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
+	"github.com/openshift/cluster-image-registry-operator/pkg/filewatcher"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/azure/azureclient"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
@@ -371,6 +372,7 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
+	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
 	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
 	if userAssignedIdentityCredentialsFilePath != "" {
 		// UserAssignedIdentityCredentials for managed Azure HCP
@@ -379,6 +381,39 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 			Cloud: cloudConfig,
 		}
 		cred, err = dataplane.NewUserAssignedIdentityCredential(context.Background(), userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+	} else if managedIdentityClientID != "" {
+		// Managed Identity Override for ARO HCP
+		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
+		options := &azidentity.ClientCertificateCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: cloudConfig,
+			},
+			SendCertificateChain: true,
+		}
+
+		tenantID := os.Getenv("ARO_HCP_TENANT_ID")
+		certPath := os.Getenv("ARO_HCP_CLIENT_CERTIFICATE_PATH")
+
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to read certificate file "%s": %v`, certPath, err)
+		}
+
+		certs, key, err := azidentity.ParseCertificates(certData, []byte{})
+		if err != nil {
+			return storage.AccountsClient{}, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
+		}
+
+		// Watch the certificate for changes; if the certificate changes, the pod will be restarted
+		err = filewatcher.WatchFileForChanges(certPath)
+		if err != nil {
+			return storage.AccountsClient{}, err
+		}
+
+		cred, err = azidentity.NewClientCertificateCredential(tenantID, managedIdentityClientID, certs, key, options)
 		if err != nil {
 			return storage.AccountsClient{}, err
 		}

@@ -22,6 +22,7 @@ import (
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
+	"github.com/openshift/cluster-image-registry-operator/pkg/filewatcher"
 	"k8s.io/klog/v2"
 )
 
@@ -103,6 +104,7 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 		err   error
 		creds azcore.TokenCredential
 	)
+	managedIdentityClientID := os.Getenv("ARO_HCP_MI_CLIENT_ID")
 	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
 	if userAssignedIdentityCredentialsFilePath != "" {
 		// UserAssignedIdentityCredentials for managed Azure HCP
@@ -111,6 +113,39 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 			Cloud: c.clientOpts.Cloud,
 		}
 		creds, err = dataplane.NewUserAssignedIdentityCredential(ctx, userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+		if err != nil {
+			return nil, err
+		}
+	} else if managedIdentityClientID != "" {
+		// Managed Identity Override for ARO HCP
+		klog.V(2).Info("Using client certification Azure authentication for ARO HCP")
+		options := &azidentity.ClientCertificateCredentialOptions{
+			ClientOptions: azcore.ClientOptions{
+				Cloud: c.clientOpts.Cloud,
+			},
+			SendCertificateChain: true,
+		}
+
+		tenantID := os.Getenv("ARO_HCP_TENANT_ID")
+		certPath := os.Getenv("ARO_HCP_CLIENT_CERTIFICATE_PATH")
+
+		certData, err := os.ReadFile(certPath)
+		if err != nil {
+			return nil, fmt.Errorf(`failed to read certificate file "%s": %v`, certPath, err)
+		}
+
+		certs, key, err := azidentity.ParseCertificates(certData, []byte{})
+		if err != nil {
+			return nil, fmt.Errorf(`failed to parse certificate data "%s": %v`, certPath, err)
+		}
+
+		// Watch the certificate for changes; if the certificate changes, the pod will be restarted
+		err = filewatcher.WatchFileForChanges(certPath)
+		if err != nil {
+			return nil, err
+		}
+
+		creds, err = azidentity.NewClientCertificateCredential(tenantID, managedIdentityClientID, certs, key, options)
 		if err != nil {
 			return nil, err
 		}
