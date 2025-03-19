@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -30,12 +31,14 @@ const (
 	defaultPrivateZoneName     = "privatelink.blob.core.windows.net"
 	defaultPrivateZoneLocation = "global"
 	defaultRecordSetTTL        = 10
+	azureCredentialsKey        = "AzureCredentials"
 )
 
 type Client struct {
-	creds      azcore.TokenCredential
-	clientOpts *policy.ClientOptions
-	opts       *Options
+	creds            azcore.TokenCredential
+	clientOpts       *policy.ClientOptions
+	opts             *Options
+	azureCredentials sync.Map
 }
 
 type Options struct {
@@ -105,14 +108,25 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 	)
 	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
 	if userAssignedIdentityCredentialsFilePath != "" {
-		// UserAssignedIdentityCredentials for managed Azure HCP
-		klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
-		clientOptions := azcore.ClientOptions{
-			Cloud: c.clientOpts.Cloud,
-		}
-		creds, err = dataplane.NewUserAssignedIdentityCredential(ctx, userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
-		if err != nil {
-			return nil, err
+		var ok bool
+
+		// We need to only store the Azure credentials once and reuse them after that.
+		storedCreds, found := c.azureCredentials.Load(userAssignedIdentityCredentialsFilePath)
+		if !found {
+			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
+			clientOptions := azcore.ClientOptions{
+				Cloud: c.clientOpts.Cloud,
+			}
+			creds, err = dataplane.NewUserAssignedIdentityCredential(ctx, userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+			if err != nil {
+				return nil, err
+			}
+			c.azureCredentials.Store(azureCredentialsKey, creds)
+		} else {
+			creds, ok = storedCreds.(azcore.TokenCredential)
+			if !ok {
+				return nil, fmt.Errorf("expected %T to be a TokenCredential", storedCreds)
+			}
 		}
 	} else if strings.TrimSpace(c.opts.ClientSecret) == "" {
 		options := azidentity.WorkloadIdentityCredentialOptions{

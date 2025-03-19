@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
@@ -53,6 +54,7 @@ const (
 	storageExistsReasonContainerDeleted  = "ContainerDeleted"
 	storageExistsReasonAccountDeleted    = "AccountDeleted"
 	storageExistsReasonAccountNotFound   = "AccountNotFound"
+	azureCredentialsKey                  = "AzureCredentials"
 )
 
 // storageAccountInvalidCharRe is a regular expression for characters that
@@ -316,6 +318,10 @@ type driver struct {
 	// policies is for new Azure Client Pipeline execution.
 	// Added as a member to the struct to allow injection for testing.
 	policies []policy.Policy
+
+	// azureCredentials keeps track if we have already loaded an Azure
+	// credentials token when using UAMI for managed Azure on HCP.
+	azureCredentials sync.Map
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
@@ -371,16 +377,29 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		cred azcore.TokenCredential
 		err  error
 	)
+
+	// UserAssignedIdentityCredentials is specifically for managed Azure HCP
 	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
 	if userAssignedIdentityCredentialsFilePath != "" {
-		// UserAssignedIdentityCredentials for managed Azure HCP
-		klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
-		clientOptions := azcore.ClientOptions{
-			Cloud: cloudConfig,
-		}
-		cred, err = dataplane.NewUserAssignedIdentityCredential(context.Background(), userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
-		if err != nil {
-			return storage.AccountsClient{}, err
+		var ok bool
+
+		// We need to only store the Azure credentials once and reuse them after that.
+		storedCreds, found := d.azureCredentials.Load(userAssignedIdentityCredentialsFilePath)
+		if !found {
+			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
+			clientOptions := azcore.ClientOptions{
+				Cloud: cloudConfig,
+			}
+			cred, err = dataplane.NewUserAssignedIdentityCredential(context.Background(), userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
+			if err != nil {
+				return storage.AccountsClient{}, err
+			}
+			d.azureCredentials.Store(azureCredentialsKey, cred)
+		} else {
+			cred, ok = storedCreds.(azcore.TokenCredential)
+			if !ok {
+				return storage.AccountsClient{}, fmt.Errorf("expected %T to be a TokenCredential", storedCreds)
+			}
 		}
 	} else if strings.TrimSpace(cfg.ClientSecret) == "" {
 		options := azidentity.WorkloadIdentityCredentialOptions{
