@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -221,7 +222,7 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 // checkRoutesStatus verifies the Admitted condition type for all provided routes,
 // returns an error if any of them was not admitted.
 func (c *Controller) checkRoutesStatus(routes []*routev1.Route) error {
-	var errors []string
+	var errs []string
 	for _, route := range routes {
 		for _, ingress := range route.Status.Ingress {
 			for _, condition := range ingress.Conditions {
@@ -231,8 +232,8 @@ func (c *Controller) checkRoutesStatus(routes []*routev1.Route) error {
 				if condition.Status == corev1.ConditionTrue {
 					continue
 				}
-				errors = append(
-					errors,
+				errs = append(
+					errs,
 					fmt.Sprintf(
 						"route %s (host %s, router %s) not admitted: %s",
 						route.Name,
@@ -244,8 +245,8 @@ func (c *Controller) checkRoutesStatus(routes []*routev1.Route) error {
 			}
 		}
 	}
-	if len(errors) > 0 {
-		return fmt.Errorf(strings.Join(errors, ","))
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, ","))
 	}
 	return nil
 }

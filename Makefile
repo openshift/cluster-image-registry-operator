@@ -4,7 +4,7 @@ PROG  := cluster-image-registry-operator
 
 GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
-GOLANGCI_LINT_VERSION = v1.56.2
+GOLANGCI_LINT_VERSION = v1.64.8
 
 GO_REQUIRED_MIN_VERSION = 1.16
 
