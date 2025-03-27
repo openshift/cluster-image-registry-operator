@@ -80,6 +80,8 @@ spec:
             - name: OPERATOR_IMAGE_VERSION
               value: 0.0.1-snapshot
           terminationMessagePolicy: FallbackToLogsOnError
+          securityContext:
+            readOnlyRootFilesystem: true
           volumeMounts:
             - name: trusted-ca
               mountPath: /var/run/configmaps/trusted-ca/
@@ -88,6 +90,8 @@ spec:
             - name: bound-sa-token
               mountPath: /var/run/secrets/openshift/serviceaccount
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: image-registry-operator-tls
           secret:
@@ -99,6 +103,8 @@ spec:
             items:
             - key: ca-bundle.crt
               path: tls-ca-bundle.pem
+        - name: tmp
+          emptyDir: {}
         # This service account token can be used to provide identity outside the cluster.
         # For example, this token can be used with AssumeRoleWithWebIdentity to authenticate
         # with AWS using an IAM OIDC provider and STS.
