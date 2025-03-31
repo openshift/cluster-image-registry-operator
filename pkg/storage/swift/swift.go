@@ -174,6 +174,24 @@ func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 // CABundle returns either the configured CA bundle or indicates that the
 // system trust bundle should be used instead.
 func (d *driver) CABundle() (string, bool, error) {
+	sec, err := d.Listers.Secrets.Get(defaults.CloudCredentialsName)
+	if err != nil {
+		if !apimachineryerrors.IsNotFound(err) {
+			return "", false, err
+		}
+	} else {
+		caBundle := string(sec.Data["cacert"])
+		if caBundle != "" {
+			return caBundle, false, nil
+		}
+	}
+
+	// Fallback for retrieving CA cert from the CCM config. Starting in
+	// OCP 4.19, cloud-credential-operator provides this in the credential
+	// secret, as seen above, so this is no longer necessary outside of
+	// upgrade scenarios.
+	// TODO(stephenfin): Remove in 4.20
+
 	cm, err := d.Listers.OpenShiftConfig.Get("cloud-provider-config")
 	if apimachineryerrors.IsNotFound(err) {
 		return "", true, nil
@@ -182,10 +200,10 @@ func (d *driver) CABundle() (string, bool, error) {
 		return "", false, err
 	}
 	caBundle := string(cm.Data["ca-bundle.pem"])
-	if caBundle == "" {
-		return "", true, nil
+	if caBundle != "" {
+		return caBundle, false, nil
 	}
-	return caBundle, false, nil
+	return "", true, nil
 }
 
 type ErrContainerEndpointNotFound struct {
