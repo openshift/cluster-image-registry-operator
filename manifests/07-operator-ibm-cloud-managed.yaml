@@ -62,6 +62,8 @@ spec:
           requests:
             cpu: 10m
             memory: 50Mi
+        securityContext:
+          readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /var/run/configmaps/trusted-ca/
@@ -71,6 +73,8 @@ spec:
         - mountPath: /var/run/secrets/openshift/serviceaccount
           name: bound-sa-token
           readOnly: true
+        - mountPath: /tmp
+          name: tmp
       priorityClassName: system-cluster-critical
       serviceAccountName: cluster-image-registry-operator
       shareProcessNamespace: false
@@ -97,6 +101,8 @@ spec:
           name: trusted-ca
           optional: true
         name: trusted-ca
+      - emptyDir: {}
+        name: tmp
       - name: bound-sa-token
         projected:
           sources:
