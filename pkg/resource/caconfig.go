@@ -14,6 +14,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/api/annotations"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
 	imageregistryv1listers "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
@@ -105,6 +106,9 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcac.GetName(),
 			Namespace: gcac.GetNamespace(),
+			Annotations: map[string]string{
+				annotations.OpenShiftComponent: "Image Registry",
+			},
 		},
 		Data:       map[string]string{},
 		BinaryData: map[string][]byte{},
