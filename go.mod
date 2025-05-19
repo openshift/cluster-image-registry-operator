@@ -58,8 +58,7 @@ require (
 
 require (
 	cloud.google.com/go v0.110.2 // indirect
-	cloud.google.com/go/compute v1.19.3 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	cloud.google.com/go/iam v1.1.0 // indirect
 	cloud.google.com/go/longrunning v0.5.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.10.0 // indirect
@@ -181,4 +180,10 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.55.0
+replace (
+	// CVE-2025-22868
+	// This is from tag v0.26.openshift.1
+	golang.org/x/oauth2 => github.com/openshift/golang-oauth2 v0.26.1-0.20250310184649-06a918c6239d
+
+	google.golang.org/grpc => google.golang.org/grpc v1.55.0
+)
