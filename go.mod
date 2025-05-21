@@ -1,6 +1,8 @@
 module github.com/openshift/cluster-image-registry-operator
 
-go 1.22.0
+go 1.23.0
+
+toolchain go1.23.6
 
 require (
 	cloud.google.com/go/resourcemanager v1.9.6
@@ -42,7 +44,7 @@ require (
 	github.com/prometheus/common v0.55.0
 	github.com/spf13/cobra v1.8.1
 	golang.org/x/net v0.35.0
-	golang.org/x/oauth2 v0.21.0
+	golang.org/x/oauth2 v0.30.0
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.172.0
 	gopkg.in/yaml.v2 v2.4.0
