@@ -63,6 +63,8 @@ spec:
             cpu: 10m
             memory: 50Mi
         terminationMessagePolicy: FallbackToLogsOnError
+        securityContext:
+          readOnlyRootFilesystem: true
         volumeMounts:
         - mountPath: /var/run/configmaps/trusted-ca/
           name: trusted-ca
