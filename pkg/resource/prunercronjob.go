@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
 	batchlisters "k8s.io/client-go/listers/batch/v1"
+	"k8s.io/utils/ptr"
 
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	securityv1 "github.com/openshift/api/security/v1"
@@ -165,6 +166,9 @@ done
 											MountPath: "/var/run/configmaps/serviceca",
 											ReadOnly:  true,
 										},
+									},
+									SecurityContext: &kcorev1.SecurityContext{
+										ReadOnlyRootFilesystem: ptr.To(true),
 									},
 								},
 							},
