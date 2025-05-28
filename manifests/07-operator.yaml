@@ -90,7 +90,12 @@ spec:
             - name: bound-sa-token
               mountPath: /var/run/secrets/openshift/serviceaccount
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
+              
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: image-registry-operator-tls
           secret:
             secretName: image-registry-operator-tls
