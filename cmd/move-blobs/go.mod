@@ -29,3 +29,11 @@ require (
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
+
+replace (
+	// CVE-2025-30204
+	// By replacing we can avoid bumping the go version making the backport
+	// possible for old releases.
+	github.com/golang-jwt/jwt/v4 => github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 => github.com/golang-jwt/jwt/v5 v5.2.2
+)
