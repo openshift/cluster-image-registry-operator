@@ -511,6 +511,9 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 						},
 					},
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+					SecurityContext: &corev1.SecurityContext{
+						ReadOnlyRootFilesystem: ptr.To(true),
+					},
 				},
 			},
 			Volumes:                       volumes,

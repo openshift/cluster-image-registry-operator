@@ -166,6 +166,9 @@ done
 											ReadOnly:  true,
 										},
 									},
+									SecurityContext: &kcorev1.SecurityContext{
+										ReadOnlyRootFilesystem: ptr.To(true),
+									},
 								},
 							},
 						},
