@@ -47,6 +47,7 @@ type Swift struct {
 	ApplicationCredentialID     string
 	ApplicationCredentialName   string
 	ApplicationCredentialSecret string
+	Token                       string
 }
 
 type driver struct {
@@ -132,6 +133,7 @@ func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 				cfg.ApplicationCredentialID = cloud.AuthInfo.ApplicationCredentialID
 				cfg.ApplicationCredentialName = cloud.AuthInfo.ApplicationCredentialName
 				cfg.ApplicationCredentialSecret = cloud.AuthInfo.ApplicationCredentialSecret
+				cfg.Token = cloud.AuthInfo.Token
 				cfg.Tenant = cloud.AuthInfo.ProjectName
 				cfg.TenantID = cloud.AuthInfo.ProjectID
 				cfg.Domain = cloud.AuthInfo.DomainName
@@ -158,11 +160,13 @@ func GetConfig(listers *regopclient.StorageListers) (*Swift, error) {
 		cfg.ApplicationCredentialID, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID")
 		cfg.ApplicationCredentialName, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME")
 		cfg.ApplicationCredentialSecret, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET")
+		cfg.Token, _ = util.GetValueFromSecret(sec, "REGISTRY_STORAGE_SWIFT_TOKENID")
 		userPassValid := len(cfg.Username) > 0 && len(cfg.Password) > 0
 		appCredsValid := len(cfg.ApplicationCredentialID) > 0 && len(cfg.ApplicationCredentialName) > 0 && len(cfg.ApplicationCredentialSecret) > 0
-		if !userPassValid && !appCredsValid {
+		tokenValid := len(cfg.Token) > 0
+		if !userPassValid && !appCredsValid && !tokenValid {
 			return nil, fmt.Errorf(
-				"secret %q does not contain required keys 'REGISTRY_STORAGE_SWIFT_USERNAME' and 'REGISTRY_STORAGE_SWIFT_PASSWORD'; or 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID', 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME' and 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET'",
+				"secret %q does not contain required keys 'REGISTRY_STORAGE_SWIFT_USERNAME' and 'REGISTRY_STORAGE_SWIFT_PASSWORD'; or 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID', 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME' and 'REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET'; or 'REGISTRY_STORAGE_SWIFT_TOKENID'",
 				fmt.Sprintf("%s/%s", sec.Namespace, sec.Name),
 			)
 		}
@@ -236,6 +240,7 @@ func (d *driver) getSwiftClient() (*gophercloud.ServiceClient, error) {
 		ApplicationCredentialID:     cfg.ApplicationCredentialID,
 		ApplicationCredentialName:   cfg.ApplicationCredentialName,
 		ApplicationCredentialSecret: cfg.ApplicationCredentialSecret,
+		TokenID:                     cfg.Token,
 		DomainID:                    domainID,
 		DomainName:                  domain,
 		TenantID:                    tenantID,
@@ -351,6 +356,7 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_AUTHURL", Value: authURL},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_USERNAME", Value: cfg.Username, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_PASSWORD", Value: cfg.Password, Secret: true},
+		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_TOKENID", Value: cfg.Token, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALID", Value: cfg.ApplicationCredentialID, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALNAME", Value: cfg.ApplicationCredentialName, Secret: true},
 		envvar.EnvVar{Name: "REGISTRY_STORAGE_SWIFT_APPLICATIONCREDENTIALSECRET", Value: cfg.ApplicationCredentialSecret, Secret: true},
