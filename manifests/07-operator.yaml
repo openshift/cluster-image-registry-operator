@@ -58,7 +58,7 @@ spec:
               memory: 50Mi
           env:
             - name: RELEASE_VERSION
-              value: "0.0.1-snapshot"
+              value: "4.18.19"
             - name: WATCH_NAMESPACE
               valueFrom:
                 fieldRef:
@@ -78,7 +78,7 @@ spec:
             - name: AZURE_ENVIRONMENT_FILEPATH
               value: /tmp/azurestackcloud.json
             - name: OPERATOR_IMAGE_VERSION
-              value: 0.0.1-snapshot
+              value: 4.18.19
           securityContext:
             readOnlyRootFilesystem: true
           terminationMessagePolicy: FallbackToLogsOnError
