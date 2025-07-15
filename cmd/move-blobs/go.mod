@@ -30,7 +30,6 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 )
 
-
 replace (
 	// CVE-2025-30204
 	// By replacing we can avoid bumping the go version making the backport
