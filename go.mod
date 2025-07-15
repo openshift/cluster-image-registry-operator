@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go v1.50.35
 	github.com/davecgh/go-spew v1.1.1
 	github.com/ghodss/yaml v1.0.0
-	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.11.0
@@ -96,7 +96,6 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/cel-go v0.12.6 // indirect
