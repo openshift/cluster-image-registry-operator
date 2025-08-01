@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/utils/ptr"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
@@ -512,9 +511,6 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 						},
 					},
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: ptr.To(true),
-					},
 				},
 			},
 			Volumes:                       volumes,

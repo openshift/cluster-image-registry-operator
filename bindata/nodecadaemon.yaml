@@ -29,7 +29,6 @@ spec:
       containers:
       - name: node-ca
         securityContext:
-          readOnlyRootFilesystem: true
           privileged: true
           runAsUser: 1001
           runAsGroup: 0

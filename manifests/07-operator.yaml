@@ -79,8 +79,6 @@ spec:
               value: /tmp/azurestackcloud.json
             - name: OPERATOR_IMAGE_VERSION
               value: 0.0.1-snapshot
-          securityContext:
-            readOnlyRootFilesystem: true
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - name: trusted-ca
@@ -90,11 +88,7 @@ spec:
             - name: bound-sa-token
               mountPath: /var/run/secrets/openshift/serviceaccount
               readOnly: true
-            - name: tmp
-              mountPath: /tmp
       volumes:
-        - name: tmp
-          emptyDir: {}
         - name: image-registry-operator-tls
           secret:
             secretName: image-registry-operator-tls
