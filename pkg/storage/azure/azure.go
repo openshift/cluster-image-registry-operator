@@ -384,7 +384,7 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		var ok bool
 
 		// We need to only store the Azure credentials once and reuse them after that.
-		storedCreds, found := d.azureCredentials.Load(userAssignedIdentityCredentialsFilePath)
+		storedCreds, found := d.azureCredentials.Load(azureCredentialsKey)
 		if !found {
 			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
 			clientOptions := azcore.ClientOptions{
