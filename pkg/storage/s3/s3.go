@@ -414,11 +414,6 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_KEYID", Value: d.Config.KeyID})
 	}
 
-	if d.Config.ChunkSizeMiB > 4 && d.Config.ChunkSizeMiB < 5121 {
-		chunksize := int64(d.Config.ChunkSizeMiB) * 1024 * 1024
-		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_CHUNKSIZE", Value: chunksize})
-	}
-
 	// virtualHostedStyle tells the registry to use urls in the form of
 	// bucket-name.s3-endpoint.etc.
 	// the forcePathStyle setting was introduced to control the same
