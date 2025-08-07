@@ -92,6 +92,8 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            - name: ca-trust-extracted-pem
+              mountPath: /etc/pki/ca-trust/extracted/pem
       volumes:
         - name: tmp
           emptyDir: {}
@@ -114,3 +116,5 @@ spec:
             - serviceAccountToken:
                 path: token
                 audience: openshift
+        - name: ca-trust-extracted-pem
+          emptyDir: {}

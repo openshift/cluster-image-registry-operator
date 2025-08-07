@@ -75,6 +75,8 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: tmp
+        - mountPath: /etc/pki/ca-trust/extracted/pem
+          name: ca-trust-extracted-pem
       priorityClassName: system-cluster-critical
       serviceAccountName: cluster-image-registry-operator
       shareProcessNamespace: false
@@ -109,3 +111,5 @@ spec:
           - serviceAccountToken:
               audience: openshift
               path: token
+      - emptyDir: {}
+        name: ca-trust-extracted-pem
