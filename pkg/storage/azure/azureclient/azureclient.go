@@ -51,6 +51,7 @@ type Options struct {
 	TagSet             map[string]*string
 	Policies           []policy.Policy
 	Creds              azcore.TokenCredential
+	CredentialCache    *sync.Map // Optional external credential cache to share across instances
 }
 
 type PrivateEndpointCreateOptions struct {
@@ -97,6 +98,13 @@ func New(opts *Options) (*Client, error) {
 	}, nil
 }
 
+func (c *Client) getCredentialCache() *sync.Map {
+	if c.opts.CredentialCache != nil {
+		return c.opts.CredentialCache
+	}
+	return &c.azureCredentials
+}
+
 func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 	if c.creds != nil {
 		return c.creds, nil
@@ -110,9 +118,14 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 	if userAssignedIdentityCredentialsFilePath != "" {
 		var ok bool
 
+		// Use shared credential cache if available
+		credCache := c.getCredentialCache()
+		klog.V(2).Infof("Using credential cache: %p", credCache)
+
 		// We need to only store the Azure credentials once and reuse them after that.
-		storedCreds, found := c.azureCredentials.Load(userAssignedIdentityCredentialsFilePath)
+		storedCreds, found := credCache.Load(azureCredentialsKey)
 		if !found {
+			klog.V(2).Infof("Cache miss - creating new credentials")
 			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
 			clientOptions := azcore.ClientOptions{
 				Cloud: c.clientOpts.Cloud,
@@ -121,8 +134,10 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 			if err != nil {
 				return nil, err
 			}
-			c.azureCredentials.Store(azureCredentialsKey, creds)
+			credCache.Store(azureCredentialsKey, creds)
+			klog.V(2).Infof("Stored credentials in cache: %p", creds)
 		} else {
+			klog.V(2).Infof("Cache hit - reusing existing credentials")
 			creds, ok = storedCreds.(azcore.TokenCredential)
 			if !ok {
 				return nil, fmt.Errorf("expected %T to be a TokenCredential", storedCreds)

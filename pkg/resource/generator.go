@@ -15,14 +15,14 @@ import (
 	"k8s.io/klog/v2"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
-	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
+	"github.com/openshift/library-go/pkg/operator/events"
 )
 
 func ApplyMutator(gen Mutator) error {
@@ -82,6 +82,8 @@ type Generator struct {
 	listers             *client.Listers
 	clients             *client.Clients
 	featureGateAccessor featuregates.FeatureGateAccess
+	driverCache         storage.Driver // Cache the storage driver to avoid repeated credential loading
+	driverCacheKey      string         // Cache key to track when driver needs refresh
 }
 
 func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
@@ -97,12 +99,50 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 	return mutators
 }
 
+// getDriverCacheKey generates a cache key based on credential-related configuration only
+func (g *Generator) getDriverCacheKey(cr *imageregistryv1.Config) string {
+	// Only cache for Azure storage since that's where the credential loading issue occurs
+	if cr.Spec.Storage.Azure != nil {
+		// For Azure, we want to cache the driver to avoid repeated credential loading
+		// The credentials come from secrets/environment variables, not the storage config
+		// So we only care if Azure storage is configured
+		stableConfig := "azure"
+		cacheKey := fmt.Sprintf("%x", hash(stableConfig))
+		klog.V(2).Infof("Cache key generated: %s (Azure storage configured)", cacheKey)
+		return cacheKey
+	}
+
+	// For non-Azure storage, return empty string to indicate no caching needed
+	return ""
+}
+
+// hash creates a simple hash of a string
+func hash(s string) uint32 {
+	h := uint32(0)
+	for i := 0; i < len(s); i++ {
+		h = 31*h + uint32(s[i])
+	}
+	return h
+}
+
 func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
-	if err != nil && err != storage.ErrStorageNotConfigured {
-		return nil, err
-	} else if err == storage.ErrStorageNotConfigured {
-		klog.V(6).Info("storage not configured, some mutators might not work.")
+	// Check if we need to refresh the cached driver (only for Azure)
+	cacheKey := g.getDriverCacheKey(cr)
+	if cacheKey != "" {
+		// Only cache for Azure storage
+		if g.driverCache == nil || g.driverCacheKey != cacheKey {
+			klog.V(2).Infof("Creating new storage driver (cache miss or config changed). Old key: %s, New key: %s", g.driverCacheKey, cacheKey)
+			driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
+			if err != nil && err != storage.ErrStorageNotConfigured {
+				return nil, err
+			} else if err == storage.ErrStorageNotConfigured {
+				klog.V(6).Info("storage not configured, some mutators might not work.")
+			}
+			g.driverCache = driver
+			g.driverCacheKey = cacheKey
+		} else {
+			klog.V(2).Infof("Reusing cached storage driver (cache key: %s)", cacheKey)
+		}
 	}
 
 	var mutators []Mutator
@@ -110,6 +150,21 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
 	mutators = append(mutators, newGeneratorPullSecret(g.clients.Core))
+
+	// Use cached driver for Azure, create new one for others
+	var driver storage.Driver
+	if cacheKey != "" && g.driverCache != nil {
+		driver = g.driverCache
+	} else {
+		var err error
+		driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
+		if err != nil && err != storage.ErrStorageNotConfigured {
+			return nil, err
+		} else if err == storage.ErrStorageNotConfigured {
+			klog.V(6).Info("storage not configured, some mutators might not work.")
+		}
+	}
+
 	mutators = append(mutators, newGeneratorSecret(g.listers.Secrets, g.clients.Core, driver))
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
 	mutators = append(mutators, newGeneratorDeployment(g.eventRecorder, g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
@@ -127,17 +182,48 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 //	b.) see if we need to try to create the new storage
 func (g *Generator) syncStorage(cr *imageregistryv1.Config) error {
 	var runCreate bool
-	// Create a driver with the current configuration
-	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
-	if err == storage.ErrStorageNotConfigured {
-		cr.Spec.Storage, _, err = storage.GetPlatformStorage(&g.listers.StorageListers)
-		if err != nil {
-			return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
+
+	// Check if we need to refresh the cached driver (only for Azure)
+	cacheKey := g.getDriverCacheKey(cr)
+	var driver storage.Driver
+
+	if cacheKey != "" {
+		// Only cache for Azure storage
+		if g.driverCache == nil || g.driverCacheKey != cacheKey {
+			klog.V(2).Infof("Creating new storage driver for syncStorage (cache miss or config changed). Old key: %s, New key: %s", g.driverCacheKey, cacheKey)
+			var err error
+			driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
+			if err == storage.ErrStorageNotConfigured {
+				cr.Spec.Storage, _, err = storage.GetPlatformStorage(&g.listers.StorageListers)
+				if err != nil {
+					return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
+				}
+				driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
+			}
+			if err != nil {
+				return err
+			}
+			g.driverCache = driver
+			g.driverCacheKey = cacheKey
+		} else {
+			klog.V(2).Infof("Reusing cached storage driver for syncStorage (cache key: %s)", cacheKey)
+			driver = g.driverCache
 		}
+	} else {
+		// For non-Azure storage, create new driver (no caching needed)
+		klog.V(2).Infof("Creating new storage driver for syncStorage (non-Azure storage)")
+		var err error
 		driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
-	}
-	if err != nil {
-		return err
+		if err == storage.ErrStorageNotConfigured {
+			cr.Spec.Storage, _, err = storage.GetPlatformStorage(&g.listers.StorageListers)
+			if err != nil {
+				return fmt.Errorf("unable to get storage configuration from cluster install config: %s", err)
+			}
+			driver, err = storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
+		}
+		if err != nil {
+			return err
+		}
 	}
 
 	if driver.StorageChanged(cr) {

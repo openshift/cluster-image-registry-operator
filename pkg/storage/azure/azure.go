@@ -334,6 +334,8 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 }
 
 func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, tagset map[string]*string) (*azureclient.Client, error) {
+	klog.V(2).Infof("Creating new azureclient with shared credential cache: %p", &d.azureCredentials)
+
 	client, err := azureclient.New(&azureclient.Options{
 		Environment:        environment,
 		TenantID:           cfg.TenantID,
@@ -343,6 +345,7 @@ func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, 
 		SubscriptionID:     cfg.SubscriptionID,
 		TagSet:             tagset,
 		Policies:           d.policies,
+		CredentialCache:    &d.azureCredentials, // Share the driver's credential cache
 	})
 	if err != nil {
 		return nil, err
@@ -384,7 +387,7 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 		var ok bool
 
 		// We need to only store the Azure credentials once and reuse them after that.
-		storedCreds, found := d.azureCredentials.Load(userAssignedIdentityCredentialsFilePath)
+		storedCreds, found := d.azureCredentials.Load(azureCredentialsKey)
 		if !found {
 			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
 			clientOptions := azcore.ClientOptions{
