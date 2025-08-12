@@ -12,10 +12,13 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/go-autorest/autorest"
+	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/mocks"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/google/go-cmp/cmp"
@@ -1414,5 +1417,147 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 
 			tt.checkFn(tt.registryConfig)
 		})
+	}
+}
+
+// fakeTokenCredential implements azcore.TokenCredential for testing
+type fakeTokenCredential struct {
+	id string
+}
+
+func (f *fakeTokenCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{
+		Token:     "fake-token-" + f.id,
+		ExpiresOn: time.Now().Add(time.Hour),
+	}, nil
+}
+
+// resetGlobalAzureCredentials clears the global cache between tests
+func resetGlobalAzureCredentials() {
+	globalAzureCredentials.Range(func(key, value any) bool {
+		globalAzureCredentials.Delete(key)
+		return true
+	})
+}
+
+func TestEnsureUAMICredentials(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		envValue     string
+		cacheSetup   func()
+		expectedCred azcore.TokenCredential
+		expectedOk   bool
+		expectedErr  string
+	}{
+		{
+			name:         "environment variable not set",
+			envValue:     "",
+			expectedCred: nil,
+			expectedOk:   false,
+			expectedErr:  "",
+		},
+		{
+			name:     "credential loaded from cache",
+			envValue: "/path/to/creds.json",
+			cacheSetup: func() {
+				resetGlobalAzureCredentials()
+				fakeCred := &fakeTokenCredential{id: "cached"}
+				globalAzureCredentials.Store(azureCredentialsKey, fakeCred)
+			},
+			expectedCred: &fakeTokenCredential{id: "cached"},
+			expectedOk:   true,
+			expectedErr:  "",
+		},
+		{
+			name:     "invalid cached credential type",
+			envValue: "/path/to/creds.json",
+			cacheSetup: func() {
+				resetGlobalAzureCredentials()
+				// Store wrong type in cache
+				globalAzureCredentials.Store(azureCredentialsKey, "not-a-credential")
+			},
+			expectedCred: nil,
+			expectedOk:   false,
+			expectedErr:  "expected cached credential to be azcore.TokenCredential",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set up environment using t.Setenv (Go 1.17+)
+			if tt.envValue != "" {
+				t.Setenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH", tt.envValue)
+			}
+
+			// Set up cache
+			if tt.cacheSetup != nil {
+				tt.cacheSetup()
+			}
+
+			// Create driver and call the function
+			d := &driver{}
+			env := autorestazure.PublicCloud
+			cred, ok, err := d.ensureUAMICredentials(context.Background(), env)
+
+			// Verify error
+			if tt.expectedErr != "" {
+				if err == nil || err.Error() != tt.expectedErr {
+					t.Errorf("expected error %q, got %v", tt.expectedErr, err)
+				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+
+			// Verify ok result
+			if ok != tt.expectedOk {
+				t.Errorf("expected ok=%v, got %v", tt.expectedOk, ok)
+			}
+
+			// Verify credential result
+			if tt.expectedCred != nil {
+				if cred == nil {
+					t.Errorf("expected credential, got nil")
+				} else {
+					// Check that we got the right credential by comparing the token
+					expectedToken, _ := tt.expectedCred.GetToken(context.Background(), policy.TokenRequestOptions{})
+					actualToken, _ := cred.GetToken(context.Background(), policy.TokenRequestOptions{})
+					if expectedToken.Token != actualToken.Token {
+						t.Errorf("expected credential with token %q, got %q", expectedToken.Token, actualToken.Token)
+					}
+				}
+			} else if cred != nil {
+				t.Errorf("expected nil credential, got %v", cred)
+			}
+		})
+	}
+}
+
+func TestEnsureUAMICredentials_CacheUsage(t *testing.T) {
+	// Set up environment using t.Setenv
+	t.Setenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH", "/path/to/creds.json")
+
+	// Reset cache and add a credential
+	resetGlobalAzureCredentials()
+	fakeCred := &fakeTokenCredential{id: "test"}
+	globalAzureCredentials.Store(azureCredentialsKey, fakeCred)
+
+	d := &driver{}
+	env := autorestazure.PublicCloud
+
+	// First call should load from cache
+	cred1, ok1, err1 := d.ensureUAMICredentials(context.Background(), env)
+	if err1 != nil || !ok1 || cred1 == nil {
+		t.Fatalf("first call failed: err=%v ok=%v cred=%v", err1, ok1, cred1)
+	}
+
+	// Second call should also load from cache
+	cred2, ok2, err2 := d.ensureUAMICredentials(context.Background(), env)
+	if err2 != nil || !ok2 || cred2 == nil {
+		t.Fatalf("second call failed: err=%v ok=%v cred=%v", err2, ok2, cred2)
+	}
+
+	// Verify same credential instance returned
+	token1, _ := cred1.GetToken(context.Background(), policy.TokenRequestOptions{})
+	token2, _ := cred2.GetToken(context.Background(), policy.TokenRequestOptions{})
+	if token1.Token != token2.Token {
+		t.Errorf("expected same credential from cache, got different tokens: %q vs %q", token1.Token, token2.Token)
 	}
 }

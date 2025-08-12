@@ -57,6 +57,10 @@ const (
 	azureCredentialsKey                  = "AzureCredentials"
 )
 
+// globalAzureCredentials caches User Assigned Managed Identity (UAMI) credentials across driver instances so that
+// reconciles do not recreate the credential repeatedly.
+var globalAzureCredentials sync.Map
+
 // storageAccountInvalidCharRe is a regular expression for characters that
 // cannot be used in Azure storage accounts names (i.e. that are not
 // numbers nor lower-case letters) and that are not upper-case letters. If
@@ -318,10 +322,6 @@ type driver struct {
 	// policies is for new Azure Client Pipeline execution.
 	// Added as a member to the struct to allow injection for testing.
 	policies []policy.Policy
-
-	// azureCredentials keeps track if we have already loaded an Azure
-	// credentials token when using UAMI for managed Azure on HCP.
-	azureCredentials sync.Map
 }
 
 // NewDriver creates a new storage driver for Azure Blob Storage.
@@ -334,7 +334,7 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 }
 
 func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, tagset map[string]*string) (*azureclient.Client, error) {
-	client, err := azureclient.New(&azureclient.Options{
+	clientOptions := &azureclient.Options{
 		Environment:        environment,
 		TenantID:           cfg.TenantID,
 		ClientID:           cfg.ClientID,
@@ -343,10 +343,19 @@ func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, 
 		SubscriptionID:     cfg.SubscriptionID,
 		TagSet:             tagset,
 		Policies:           d.policies,
-	})
+	}
+
+	if cred, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
+		return nil, err
+	} else if ok {
+		clientOptions.Creds = cred
+	}
+
+	client, err := azureclient.New(clientOptions)
 	if err != nil {
 		return nil, err
 	}
+
 	return client, nil
 }
 
@@ -381,25 +390,10 @@ func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Env
 	// UserAssignedIdentityCredentials is specifically for managed Azure HCP
 	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
 	if userAssignedIdentityCredentialsFilePath != "" {
-		var ok bool
-
-		// We need to only store the Azure credentials once and reuse them after that.
-		storedCreds, found := d.azureCredentials.Load(azureCredentialsKey)
-		if !found {
-			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
-			clientOptions := azcore.ClientOptions{
-				Cloud: cloudConfig,
-			}
-			cred, err = dataplane.NewUserAssignedIdentityCredential(context.Background(), userAssignedIdentityCredentialsFilePath, dataplane.WithClientOpts(clientOptions))
-			if err != nil {
-				return storage.AccountsClient{}, err
-			}
-			d.azureCredentials.Store(azureCredentialsKey, cred)
-		} else {
-			cred, ok = storedCreds.(azcore.TokenCredential)
-			if !ok {
-				return storage.AccountsClient{}, fmt.Errorf("expected %T to be a TokenCredential", storedCreds)
-			}
+		if c, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
+			return storage.AccountsClient{}, err
+		} else if ok {
+			cred = c
 		}
 	} else if strings.TrimSpace(cfg.ClientSecret) == "" {
 		options := azidentity.WorkloadIdentityCredentialOptions{
@@ -1237,14 +1231,30 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 	}
 
 	if d.Config.NetworkAccess != nil && d.Config.NetworkAccess.Internal != nil && d.Config.NetworkAccess.Internal.PrivateEndpointName != "" {
-		azclient, err := azureclient.New(&azureclient.Options{
+		clientOptions := &azureclient.Options{
 			Environment:        environment,
 			TenantID:           cfg.TenantID,
 			ClientID:           cfg.ClientID,
 			ClientSecret:       cfg.ClientSecret,
 			FederatedTokenFile: cfg.FederatedTokenFile,
 			SubscriptionID:     cfg.SubscriptionID,
-		})
+		}
+
+		if cred, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
+			util.UpdateCondition(
+				cr,
+				defaults.StorageExists,
+				operatorapiv1.ConditionUnknown,
+				storageExistsReasonAzureError,
+				fmt.Sprintf("Unable to get azure client: %s", err),
+			)
+			return false, err
+		} else if ok {
+			klog.V(2).Infof("Using cached UAMI credential for RemoveStorage client")
+			clientOptions.Creds = cred
+		}
+
+		azclient, err := azureclient.New(clientOptions)
 		if err != nil {
 			util.UpdateCondition(
 				cr,
@@ -1319,4 +1329,50 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 // container name.
 func (d *driver) ID() string {
 	return d.Config.Container
+}
+
+// ensureUAMICredentials obtains and caches an Azure TokenCredential using a
+// User Assigned Managed Identity (UAMI).
+//
+// If MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH is unset, it returns (nil, false, nil).
+// When set, it loads a credential from a process-wide cache or creates one using the
+// provided Azure environment endpoints, stores it, and returns it.
+//
+// The bool result is true when a UAMI credential is available. An error is returned if
+// credential creation fails or a cached value has an unexpected type.
+//
+// ctx controls cancellation of credential creation. env supplies Azure endpoints.
+func (d *driver) ensureUAMICredentials(ctx context.Context, env autorestazure.Environment) (azcore.TokenCredential, bool, error) {
+	if os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH") == "" {
+		return nil, false, nil
+	}
+	if stored, ok := globalAzureCredentials.Load(azureCredentialsKey); ok {
+		if cred, ok := stored.(azcore.TokenCredential); ok {
+			klog.V(2).Infof("Loaded UAMI credentials from cache")
+			return cred, true, nil
+		}
+		return nil, false, fmt.Errorf("expected cached credential to be azcore.TokenCredential")
+	}
+	cloudConfig := cloud.Configuration{
+		ActiveDirectoryAuthorityHost: env.ActiveDirectoryEndpoint,
+		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
+			cloud.ResourceManager: {
+				Audience: env.TokenAudience,
+				Endpoint: env.ResourceManagerEndpoint,
+			},
+		},
+	}
+	cred, err := dataplane.NewUserAssignedIdentityCredential(
+		ctx,
+		os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH"),
+		dataplane.WithClientOpts(azcore.ClientOptions{Cloud: cloudConfig}),
+	)
+	if err != nil {
+		return nil, false, err
+	}
+	if actual, loaded := globalAzureCredentials.LoadOrStore(azureCredentialsKey, cred); loaded {
+		return actual.(azcore.TokenCredential), true, nil
+	}
+	klog.V(2).Infof("Storing UAMI credentials to global cache")
+	return cred, true, nil
 }
