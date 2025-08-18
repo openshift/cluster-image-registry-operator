@@ -219,9 +219,9 @@ func (gco *generatorClusterOperator) syncConditions(op *configv1.ClusterOperator
 	}
 
 	oldStatus := op.Status.DeepCopy()
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions))
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions))
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions))
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions), nil)
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions), nil)
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions), nil)
 	return !equality.Semantic.DeepEqual(oldStatus, &op.Status)
 }
 
