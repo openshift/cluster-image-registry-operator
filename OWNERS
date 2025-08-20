@@ -1,9 +1,7 @@
 reviewers:
 - flavianmissi
-- dmage
+- ricardomaraschini
 approvers:
-- bparees
-- dmage
-- adambkaplan
 - flavianmissi
+- ricardomaraschini
 component: "Image Registry"
