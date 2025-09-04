@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	imagev1 "github.com/openshift/api/image/v1"
+	apiimagev1 "github.com/openshift/api/image/v1"
 	versioned "github.com/openshift/client-go/image/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/image/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/image/listers/image/v1"
+	imagev1 "github.com/openshift/client-go/image/listers/image/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // Images.
 type ImageInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ImageLister
+	Lister() imagev1.ImageLister
 }
 
 type imageInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredImageInformer(client versioned.Interface, resyncPeriod time.Dura
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageV1().Images().List(context.TODO(), options)
+				return client.ImageV1().Images().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageV1().Images().Watch(context.TODO(), options)
+				return client.ImageV1().Images().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageV1().Images().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageV1().Images().Watch(ctx, options)
 			},
 		},
-		&imagev1.Image{},
+		&apiimagev1.Image{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *imageInformer) defaultInformer(client versioned.Interface, resyncPeriod
 }
 
 func (f *imageInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&imagev1.Image{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiimagev1.Image{}, f.defaultInformer)
 }
 
-func (f *imageInformer) Lister() v1.ImageLister {
-	return v1.NewImageLister(f.Informer().GetIndexer())
+func (f *imageInformer) Lister() imagev1.ImageLister {
+	return imagev1.NewImageLister(f.Informer().GetIndexer())
 }
