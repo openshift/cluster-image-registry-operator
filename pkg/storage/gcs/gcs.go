@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 
@@ -25,12 +26,14 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/envvar"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 )
 
 type GCS struct {
 	KeyfileData string
 	Region      string
 	ProjectID   string
+	Endpoints   []configapiv1.GCPServiceEndpoint
 }
 
 type driver struct {
@@ -38,15 +41,18 @@ type driver struct {
 	Config  *imageregistryv1.ImageRegistryConfigStorageGCS
 	Listers *regopclient.StorageListers
 
+	featureGates featuregates.FeatureGateAccess
+
 	// httpClient is used only during tests.
 	httpClient *http.Client
 }
 
-func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, listers *regopclient.StorageListers) *driver {
+func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorageGCS, listers *regopclient.StorageListers, fg featuregates.FeatureGateAccess) *driver {
 	return &driver{
-		Context: ctx,
-		Config:  c,
-		Listers: listers,
+		Context:      ctx,
+		Config:       c,
+		Listers:      listers,
+		featureGates: fg,
 	}
 }
 
@@ -73,6 +79,30 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		opts = append(opts, goption.WithHTTPClient(d.httpClient))
 	}
 
+	featureGates, err := d.featureGates.CurrentFeatureGates()
+	if err != nil {
+		return nil, err
+	}
+
+	if featureGates.Enabled(configapiv1.FeatureGateName("GCPCustomAPIEndpointsInstall")) {
+		for _, endpoint := range cfg.Endpoints {
+			if endpoint.Name == configapiv1.GCPServiceEndpointNameStorage {
+				// There should be only one endpoint for the storage api, but force
+				// the first instance to be used.
+				urlEndpoint, err := url.Parse(endpoint.URL)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse url %s: %v", endpoint.URL, err)
+				}
+				// Force the endpoint path to be correctly formatted as the api expects.
+				// This will drop any endpoint path that is currently set.
+				urlEndpoint.Path = "storage/v1/"
+
+				opts = append(opts, goption.WithEndpoint(urlEndpoint.String()))
+				break
+			}
+		}
+	}
+
 	gcsClient, err := gstorage.NewClient(d.Context, opts...)
 	if err != nil {
 		return nil, err
@@ -93,6 +123,7 @@ func GetConfig(listers *regopclient.StorageListers) (*GCS, error) {
 	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configapiv1.GCPPlatformType {
 		gcsConfig.Region = infra.Status.PlatformStatus.GCP.Region
 		gcsConfig.ProjectID = infra.Status.PlatformStatus.GCP.ProjectID
+		gcsConfig.Endpoints = infra.Status.PlatformStatus.GCP.ServiceEndpoints
 	}
 
 	// Look for a user defined secret to get the AWS credentials from first
