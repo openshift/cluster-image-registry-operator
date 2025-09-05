@@ -14,9 +14,11 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/util"
 )
 
 // tripper is injected on gcs client to simulate api responses.
@@ -166,7 +168,12 @@ func TestStorageManagementState(t *testing.T) {
 				}
 			}
 
-			drv := NewDriver(context.Background(), tt.config.Spec.Storage.GCS, &listers.StorageListers)
+			TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+				[]configv1.FeatureGateName{util.TestFeatureGateName},
+				[]configv1.FeatureGateName{configv1.FeatureGateName("GCPCustomAPIEndpointsInstall")},
+			)
+
+			drv := NewDriver(context.Background(), tt.config.Spec.Storage.GCS, &listers.StorageListers, TestFeatureGateAccessor)
 			drv.httpClient = &http.Client{Transport: rt}
 
 			if err := drv.CreateStorage(tt.config); err != nil {
