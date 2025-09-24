@@ -243,9 +243,9 @@ func handleAuthentication(t *testing.T, endpointType string) {
 			}
 		  }`)
 
-	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%s", `{
-		"token": {
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprintf(w, "%s", `{
+			"token": {
 				"expires_at": "2030-10-02T13:45:00.000000Z",
 				"catalog": [{
 					"endpoints": [{

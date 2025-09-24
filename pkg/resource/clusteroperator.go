@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	appslisters "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -119,6 +120,7 @@ type generatorClusterOperator struct {
 	deployLister   appslisters.DeploymentNamespaceLister
 	configLister   configlisters.ClusterOperatorLister
 	configClient   configv1client.ClusterOperatorsGetter
+	clock          clock.PassiveClock
 }
 
 func NewGeneratorClusterOperator(
@@ -128,6 +130,7 @@ func NewGeneratorClusterOperator(
 	cr *imageregistryv1.Config,
 	imagePruner *imageregistryv1.ImagePruner,
 	relatedObjects []configv1.ObjectReference,
+	clock clock.PassiveClock,
 ) *generatorClusterOperator {
 	return &generatorClusterOperator{
 		deployLister:   deployLister,
@@ -136,6 +139,7 @@ func NewGeneratorClusterOperator(
 		cr:             cr,
 		imagePruner:    imagePruner,
 		relatedObjects: relatedObjects,
+		clock:          clock,
 	}
 }
 
@@ -219,9 +223,9 @@ func (gco *generatorClusterOperator) syncConditions(op *configv1.ClusterOperator
 	}
 
 	oldStatus := op.Status.DeepCopy()
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions), nil)
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions), nil)
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions), nil)
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions), gco.clock)
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions), gco.clock)
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions), gco.clock)
 	return !equality.Semantic.DeepEqual(oldStatus, &op.Status)
 }
 
