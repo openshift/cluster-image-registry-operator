@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/sirupsen/logrus"
+
 	gstorage "cloud.google.com/go/storage"
 	goauth2 "golang.org/x/oauth2/google"
 	gapi "google.golang.org/api/googleapi"
@@ -98,6 +100,7 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 				urlEndpoint.Path = "storage/v1/"
 
 				opts = append(opts, goption.WithEndpoint(urlEndpoint.String()))
+				logrus.Debugf("GCP storage endpoint has been set to %s", urlEndpoint.String())
 				break
 			}
 		}
