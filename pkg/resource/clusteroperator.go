@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	appslisters "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -219,9 +220,9 @@ func (gco *generatorClusterOperator) syncConditions(op *configv1.ClusterOperator
 	}
 
 	oldStatus := op.Status.DeepCopy()
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions))
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions))
-	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions))
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Available", operatorv1.ConditionTrue, conditions), clock.RealClock{})
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Progressing", operatorv1.ConditionFalse, conditions), clock.RealClock{})
+	configv1helpers.SetStatusCondition(&op.Status.Conditions, unionCondition("Degraded", operatorv1.ConditionFalse, conditions), clock.RealClock{})
 	return !equality.Semantic.DeepEqual(oldStatus, &op.Status)
 }
 

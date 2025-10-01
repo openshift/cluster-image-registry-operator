@@ -111,7 +111,7 @@ func NewDriver(cfg *imageregistryv1.ImageRegistryConfigStorage, kubeconfig *rest
 	if cfg.GCS != nil {
 		names = append(names, "GCS")
 		ctx := context.Background()
-		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, listers))
+		drivers = append(drivers, gcs.NewDriver(ctx, cfg.GCS, listers, fg))
 	}
 
 	if cfg.IBMCOS != nil {
