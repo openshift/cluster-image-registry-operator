@@ -387,31 +387,23 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	hasZoneFailureDomain := len(nodes.Items) >= 1
 
-	// defaults topology spread constraints to both zone, node and workers.
+	// defaults topology spread constraints to both zone and node.
 	// on SNO environments, these constraints will always work, since the
 	// skew will always be 0.
 	// some bare metal cluster nodes will not include the zone labels, in
 	// which case we just omit the related constraint.
-	// we constraint scheduling to workers because we want to reduce the
-	// scope of scheduling to workers only. we need this constraint
-	// because tainted nodes (such as control plane nodes) are not excluded
-	// from skew calculations, so if we don't limit scheduling to workers
-	// the maxSkew won't allow more than one pod to be scheduled per node.
+	// NodeTaintsPolicy is set to Honor to exclude tainted nodes (such as
+	// control plane nodes) from skew calculations. This ensures that pods
+	// are only spread across schedulable worker nodes that the registry
+	// pods can actually run on.
 	// see https://k8s.io/docs/concepts/workloads/pods/pod-topology-spread-constraints
 	// and https://github.com/kubernetes/kubernetes/issues/80921 for details.
 	topologySpreadConstraints := []corev1.TopologySpreadConstraint{
 		{
-			MaxSkew:           1,
+			MaxSkew:           2,
 			TopologyKey:       "kubernetes.io/hostname",
 			WhenUnsatisfiable: corev1.DoNotSchedule,
-			LabelSelector: &metav1.LabelSelector{
-				MatchLabels: defaults.DeploymentLabels,
-			},
-		},
-		{
-			MaxSkew:           1,
-			TopologyKey:       "node-role.kubernetes.io/worker",
-			WhenUnsatisfiable: corev1.DoNotSchedule,
+			NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
 			},
@@ -419,9 +411,10 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	if hasZoneFailureDomain {
 		zoneConstraint := corev1.TopologySpreadConstraint{
-			MaxSkew:           1,
+			MaxSkew:           2,
 			TopologyKey:       "topology.kubernetes.io/zone",
 			WhenUnsatisfiable: corev1.DoNotSchedule,
+			NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 			LabelSelector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
 			},

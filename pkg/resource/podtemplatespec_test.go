@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
@@ -88,25 +89,19 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 			spec:  v1.ImageRegistrySpec{},
 			expected: []corev1.TopologySpreadConstraint{
 				{
-					MaxSkew:           1,
+					MaxSkew:           2,
 					TopologyKey:       "kubernetes.io/hostname",
 					WhenUnsatisfiable: corev1.DoNotSchedule,
+					NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
 				},
 				{
-					MaxSkew:           1,
-					TopologyKey:       "node-role.kubernetes.io/worker",
-					WhenUnsatisfiable: corev1.DoNotSchedule,
-					LabelSelector: &metav1.LabelSelector{
-						MatchLabels: defaults.DeploymentLabels,
-					},
-				},
-				{
-					MaxSkew:           1,
+					MaxSkew:           2,
 					TopologyKey:       "topology.kubernetes.io/zone",
 					WhenUnsatisfiable: corev1.DoNotSchedule,
+					NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
@@ -178,17 +173,104 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 			spec: v1.ImageRegistrySpec{},
 			expected: []corev1.TopologySpreadConstraint{
 				{
-					MaxSkew:           1,
+					MaxSkew:           2,
 					TopologyKey:       "kubernetes.io/hostname",
 					WhenUnsatisfiable: corev1.DoNotSchedule,
+					NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
 				},
+			},
+		},
+		"testNodeTaintsPolicyExcludesTaintedNodes": {
+			nodes: []*corev1.Node{
 				{
-					MaxSkew:           1,
-					TopologyKey:       "node-role.kubernetes.io/worker",
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "worker-a",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "worker-a",
+							"node-role.kubernetes.io/worker": "",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "worker-b",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "worker-b",
+							"node-role.kubernetes.io/worker": "",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "worker-c",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "worker-c",
+							"node-role.kubernetes.io/worker": "",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "master-a",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "master-a",
+							"node-role.kubernetes.io/master": "",
+						},
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							{
+								Key:    "node-role.kubernetes.io/master",
+								Effect: corev1.TaintEffectNoSchedule,
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "master-b",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "master-b",
+							"node-role.kubernetes.io/master": "",
+						},
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							{
+								Key:    "node-role.kubernetes.io/master",
+								Effect: corev1.TaintEffectNoSchedule,
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "master-c",
+						Labels: map[string]string{
+							"kubernetes.io/hostname":         "master-c",
+							"node-role.kubernetes.io/master": "",
+						},
+					},
+					Spec: corev1.NodeSpec{
+						Taints: []corev1.Taint{
+							{
+								Key:    "node-role.kubernetes.io/master",
+								Effect: corev1.TaintEffectNoSchedule,
+							},
+						},
+					},
+				},
+			},
+			spec: v1.ImageRegistrySpec{},
+			expected: []corev1.TopologySpreadConstraint{
+				{
+					MaxSkew:           2,
+					TopologyKey:       "kubernetes.io/hostname",
 					WhenUnsatisfiable: corev1.DoNotSchedule,
+					NodeTaintsPolicy:  ptr.To(corev1.NodeInclusionPolicyHonor),
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
