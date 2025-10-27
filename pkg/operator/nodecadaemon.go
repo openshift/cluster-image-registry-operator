@@ -156,9 +156,13 @@ func (c *NodeCADaemonController) sync() error {
 			progressingCondition.Reason = "Progressing"
 			progressingCondition.Message = "The daemon set node-ca is updating node pods"
 		} else if ds.Status.NumberUnavailable > 0 {
-			progressingCondition.Status = operatorv1.ConditionTrue
-			progressingCondition.Reason = "Unavailable"
-			progressingCondition.Message = "The daemon set node-ca is deploying node pods"
+			// unavailable replicas not accompanied by a generation change indicate
+			// rescheduling was likely caused due to an upgrade or node restart.
+			// in these scenarios, setting the progressing condition to true would
+			// be misleading, as we're not progressing towards a new configuration.
+			progressingCondition.Status = operatorv1.ConditionFalse
+			progressingCondition.Reason = "AsExpected"
+			progressingCondition.Message = "The daemon set node-ca is at the expected configuration, and pods are being rescheduled"
 		} else {
 			progressingCondition.Status = operatorv1.ConditionFalse
 			progressingCondition.Reason = "AsExpected"
