@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -559,4 +561,232 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	for name := range expectedEnvVars {
 		t.Errorf("expected env var %s not found", name)
 	}
+}
+
+func TestMakePodTemplateSpecAffinityWithReplicaChange(t *testing.T) {
+	// This test reproduces the bug where scaling from 2→4 replicas
+	// doesn't clear the pod anti-affinity that was set for replicas=2.
+	// The anti-affinity prevents more than 1 pod per node, limiting
+	// deployment to 3 pods max on a 3-worker cluster.
+
+	nodeWorkerA := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "worker-a",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "us-west-2a",
+				"kubernetes.io/hostname":         "worker-a",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+	nodeWorkerB := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "worker-b",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "us-west-2c",
+				"kubernetes.io/hostname":         "worker-b",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+	nodeWorkerC := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "worker-c",
+			Labels: map[string]string{
+				"topology.kubernetes.io/zone":    "us-west-2c",
+				"kubernetes.io/hostname":         "worker-c",
+				"node-role.kubernetes.io/worker": "",
+			},
+		},
+	}
+
+	t.Run("replicas=2 should have default pod anti-affinity", func(t *testing.T) {
+		config := &v1.Config{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: v1.ImageRegistrySpec{
+				Replicas: 2,
+			},
+		}
+		fixture := buildFakeClient(config, []*corev1.Node{nodeWorkerA, nodeWorkerB, nodeWorkerC})
+		emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{})
+		pod, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template: %v", err)
+		}
+
+		if pod.Spec.Affinity == nil {
+			t.Fatal("expected affinity to be set for replicas=2, got nil")
+		}
+		if pod.Spec.Affinity.PodAntiAffinity == nil {
+			t.Fatal("expected pod anti-affinity to be set for replicas=2, got nil")
+		}
+		if len(pod.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution) == 0 {
+			t.Fatal("expected required pod anti-affinity terms for replicas=2, got none")
+		}
+		term := pod.Spec.Affinity.PodAntiAffinity.RequiredDuringSchedulingIgnoredDuringExecution[0]
+		if term.TopologyKey != "kubernetes.io/hostname" {
+			t.Errorf("expected topology key 'kubernetes.io/hostname', got %q", term.TopologyKey)
+		}
+	})
+
+	t.Run("replicas=4 should have empty affinity", func(t *testing.T) {
+		config := &v1.Config{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: v1.ImageRegistrySpec{
+				Replicas: 4,
+			},
+		}
+		fixture := buildFakeClient(config, []*corev1.Node{nodeWorkerA, nodeWorkerB, nodeWorkerC})
+		emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{})
+		pod, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template: %v", err)
+		}
+
+		// This is the key assertion: when replicas=4, affinity should be an empty struct
+		// to clear any previous affinity via strategic merge patch
+		if pod.Spec.Affinity == nil {
+			t.Error("expected affinity to be an empty struct for replicas=4, got nil")
+		}
+		if pod.Spec.Affinity.PodAntiAffinity != nil {
+			t.Errorf("expected pod anti-affinity to be nil for replicas=4, got: %#v", pod.Spec.Affinity.PodAntiAffinity)
+		}
+		if pod.Spec.Affinity.PodAffinity != nil {
+			t.Errorf("expected pod affinity to be nil for replicas=4, got: %#v", pod.Spec.Affinity.PodAffinity)
+		}
+		if pod.Spec.Affinity.NodeAffinity != nil {
+			t.Errorf("expected node affinity to be nil for replicas=4, got: %#v", pod.Spec.Affinity.NodeAffinity)
+		}
+	})
+
+	// Test the scenario that reproduces the TestScaleUp bug:
+	// Start with replicas=2 (gets affinity), then change to replicas=4 (should clear affinity)
+	t.Run("scaling from 2 to 4 should clear affinity", func(t *testing.T) {
+		// Step 1: Create with replicas=2
+		config := &v1.Config{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: v1.ImageRegistrySpec{
+				Replicas: 2,
+			},
+		}
+		fixture := buildFakeClient(config, []*corev1.Node{nodeWorkerA, nodeWorkerB, nodeWorkerC})
+		emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{})
+
+		// First call with replicas=2
+		pod1, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template with replicas=2: %v", err)
+		}
+		if pod1.Spec.Affinity == nil {
+			t.Fatal("expected affinity for replicas=2")
+		}
+
+		// Step 2: Update to replicas=4 (simulating the test scenario)
+		config.Spec.Replicas = 4
+
+		// Second call with replicas=4 - this should return nil affinity
+		pod2, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template with replicas=4: %v", err)
+		}
+
+		// After scaling to replicas=4, affinity should be an empty struct to clear
+		// the previous anti-affinity rules via strategic merge patch
+		if !cmp.Equal(pod2.Spec.Affinity, &corev1.Affinity{}) {
+			t.Error("expected affinity to be an empty struct after scaling to replicas=4, got nil")
+		}
+	})
+
+	// Test that user-provided affinity is preserved even when changing replicas
+	t.Run("user affinity preserved when scaling from 2 to 4", func(t *testing.T) {
+		// User sets custom node affinity
+		userAffinity := &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{
+							MatchExpressions: []corev1.NodeSelectorRequirement{
+								{
+									Key:      "custom-label",
+									Operator: corev1.NodeSelectorOpIn,
+									Values:   []string{"custom-value"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		config := &v1.Config{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Spec: v1.ImageRegistrySpec{
+				Replicas: 2,
+				Affinity: userAffinity,
+			},
+		}
+		fixture := buildFakeClient(config, []*corev1.Node{nodeWorkerA, nodeWorkerB, nodeWorkerC})
+		emptyDirStorage := emptydir.NewDriver(&v1.ImageRegistryConfigStorageEmptyDir{})
+
+		// First call with replicas=2 and user affinity
+		pod1, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template with replicas=2: %v", err)
+		}
+		if !cmp.Equal(pod1.Spec.Affinity, userAffinity) {
+			t.Fatal("expected user affinity to be preserved for replicas=2")
+		}
+
+		// User changes replicas to 4 but keeps their custom affinity
+		config.Spec.Replicas = 4
+
+		// Second call with replicas=4 and user affinity still set
+		pod2, _, err := makePodTemplateSpec(
+			fixture.KubeClient.CoreV1(),
+			fixture.Listers.ProxyConfigs,
+			emptyDirStorage,
+			config,
+		)
+		if err != nil {
+			t.Fatalf("error creating pod template with replicas=4: %v", err)
+		}
+
+		// User's custom affinity should still be preserved
+		if !cmp.Equal(pod2.Spec.Affinity, userAffinity) {
+			t.Fatal("expected user affinity to be preserved for replicas=2")
+		}
+	})
 }

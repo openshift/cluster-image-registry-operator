@@ -442,9 +442,14 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	// if user has provided an affinity through config spec we use it here, if not
 	// then we fallback to a preferred affinity configuration. we only require a
 	// certain affinity during schedule if the number of replicas is defined to two.
-	affinity := cr.Spec.Affinity
-	if affinity == nil && cr.Spec.Replicas == 2 {
-		affinity = &corev1.Affinity{
+	var podAffinity *corev1.Affinity
+	desiredAffinity := cr.Spec.Affinity
+	if desiredAffinity != nil {
+		// user has explicitly set affinity in the config
+		podAffinity = desiredAffinity
+	} else if cr.Spec.Replicas == 2 {
+		// for 2 replicas, set pod anti-affinity to ensure pods spread across nodes
+		podAffinity = &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
@@ -459,6 +464,11 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 				},
 			},
 		}
+	} else {
+		// for other replica counts, explicitly set to empty struct to clear any
+		// existing affinity via strategic merge patch. setting to nil would cause
+		// the strategic merge patch to ignore the field and leave old affinity in place.
+		podAffinity = &corev1.Affinity{}
 	}
 
 	nodeSelectors := map[string]string{}
@@ -520,7 +530,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			Volumes:                       volumes,
 			ServiceAccountName:            defaults.ServiceAccountName,
 			SecurityContext:               securityContext,
-			Affinity:                      affinity,
+			Affinity:                      podAffinity,
 			TopologySpreadConstraints:     topologySpreadConstraints,
 			TerminationGracePeriodSeconds: &gracePeriod,
 		},
