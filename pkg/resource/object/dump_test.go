@@ -26,7 +26,7 @@ func TestDumpString(t *testing.T) {
 					},
 				},
 			},
-			result: "metadata.creationTimestamp=\"nil\", metadata.name=\"test-pod\", spec.containers.0.image=\"test-image:v1\", spec.containers.0.name=\"container\"",
+			result: "metadata.name=\"test-pod\", spec.containers.0.image=\"test-image:v1\", spec.containers.0.name=\"container\"",
 		},
 		{
 			object: &corev1.ConfigMap{
@@ -34,7 +34,7 @@ func TestDumpString(t *testing.T) {
 					"foo": "aaa",
 				},
 			},
-			result: "data.foo=\"aaa\", metadata.creationTimestamp=\"nil\"",
+			result: "data.foo=\"aaa\"",
 		},
 		{
 			object: &corev1.Secret{
@@ -48,7 +48,7 @@ func TestDumpString(t *testing.T) {
 				},
 				Type: "Opaque",
 			},
-			result: "data.bar=<REDACTED>, data.foo=<REDACTED>, data.xxx=\"\", metadata.creationTimestamp=\"nil\", stringData.write=<REDACTED>, type=\"Opaque\"",
+			result: "data.bar=<REDACTED>, data.foo=<REDACTED>, data.xxx=\"\", stringData.write=<REDACTED>, type=\"Opaque\"",
 		},
 	}
 	for _, tc := range testcases {
