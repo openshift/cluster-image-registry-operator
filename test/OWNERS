@@ -1,0 +1,9 @@
+reviewers:
+- flavianmissi
+- ricardomaraschini
+- xiuwang
+approvers:
+- ricardomaraschini
+- flavianmissi
+- xiuwang
+component: "Image Registry"
