@@ -139,7 +139,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 					Containers: []corev1.Container{
 						{
 							Name:  "minio",
-							Image: "minio/minio:RELEASE.2022-03-26T06-49-28Z",
+							Image: "docker.io/minio/minio:RELEASE.2022-03-26T06-49-28Z",
 							Args: []string{
 								"minio",
 								"--certs-dir=/certs",
@@ -202,6 +202,8 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 	if err != nil {
 		te.Fatalf("failed to create deployment: %s", err)
 	}
+
+	framework.WaitUntilDeploymentIsRolledOut(ctx, te, nsName, "minio")
 
 	_, err = te.Client().Services(nsName).Create(ctx, &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
