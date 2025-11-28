@@ -23,8 +23,8 @@ func isDeploymentRolledOut(deploy *kappsapiv1.Deployment) bool {
 		deploy.Status.ObservedGeneration >= deploy.Generation
 }
 
-func WaitUntilDeploymentIsRolledOut(te TestEnv, namespace, name string) {
-	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+func WaitUntilDeploymentIsRolledOut(ctx context.Context, te TestEnv, namespace, name string) {
+	err := wait.PollUntilContextTimeout(ctx, 1*time.Second, AsyncOperationTimeout, false,
 		func(ctx context.Context) (stop bool, err error) {
 			deploy, err := te.Client().Deployments(namespace).Get(
 				ctx, name, metav1.GetOptions{},
