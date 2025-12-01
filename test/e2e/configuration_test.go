@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -658,6 +659,26 @@ func TestScaleUp(t *testing.T) {
 
 	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
 	if cr.Status.ReadyReplicas != 4 {
+		if pods, err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).List(
+			context.Background(), metav1.ListOptions{},
+		); err == nil {
+			for _, pod := range pods.Items {
+				data, err := json.MarshalIndent(pod, "", "  ")
+				if err == nil {
+					t.Logf("pod %s: %s", pod.Name, string(data))
+				}
+			}
+		}
+
+		if cfg, err := te.Client().Configs().Get(
+			context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
+		); err == nil {
+			data, err := json.MarshalIndent(cfg, "", "  ")
+			if err == nil {
+				t.Logf("image registry config: %s", string(data))
+			}
+		}
+
 		t.Errorf("got %d ready replicas, want 4", cr.Status.ReadyReplicas)
 	}
 }
