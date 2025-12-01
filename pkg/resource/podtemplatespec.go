@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"strings"
@@ -442,9 +443,16 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	// if user has provided an affinity through config spec we use it here, if not
 	// then we fallback to a preferred affinity configuration. we only require a
 	// certain affinity during schedule if the number of replicas is defined to two.
-	affinity := cr.Spec.Affinity
-	if affinity == nil && cr.Spec.Replicas == 2 {
-		affinity = &corev1.Affinity{
+	var podAffinity *corev1.Affinity
+	var affinityHash string
+	desiredAffinity := cr.Spec.Affinity
+	if desiredAffinity != nil {
+		// user has explicitly set affinity in the config
+		podAffinity = desiredAffinity
+		affinityHash = "custom"
+	} else if cr.Spec.Replicas == 2 {
+		// for 2 replicas, set pod anti-affinity to ensure pods spread across nodes
+		podAffinity = &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 					{
@@ -459,6 +467,14 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 				},
 			},
 		}
+		affinityHash = "replicas-2"
+	} else {
+		// for other replica counts, clear affinity by setting to nil.
+		// we also set an annotation to track this state change, since both nil and
+		// &corev1.Affinity{} produce the same JSON (field omitted due to omitempty),
+		// which means the spec hash won't detect the change.
+		podAffinity = nil
+		affinityHash = "none"
 	}
 
 	nodeSelectors := map[string]string{}
@@ -471,10 +487,14 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 
 	gracePeriod := int64(55)
 
+	// add affinity hash annotation to ensure deployment updates when affinity changes
+	annotations := maps.Clone(defaults.DeploymentAnnotations)
+	annotations["imageregistry.operator.openshift.io/affinity-hash"] = affinityHash
+
 	spec := corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels:      defaults.DeploymentLabels,
-			Annotations: defaults.DeploymentAnnotations,
+			Annotations: annotations,
 		},
 		Spec: corev1.PodSpec{
 			Tolerations:       cr.Spec.Tolerations,
@@ -520,7 +540,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 			Volumes:                       volumes,
 			ServiceAccountName:            defaults.ServiceAccountName,
 			SecurityContext:               securityContext,
-			Affinity:                      affinity,
+			Affinity:                      podAffinity,
 			TopologySpreadConstraints:     topologySpreadConstraints,
 			TerminationGracePeriodSeconds: &gracePeriod,
 		},
