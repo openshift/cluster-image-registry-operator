@@ -36,6 +36,7 @@ func TestLeaderElection(t *testing.T) {
 	}
 
 	framework.WaitUntilDeploymentIsRolledOut(
+		context.Background(),
 		te,
 		framework.OperatorDeploymentNamespace,
 		framework.OperatorDeploymentName,
