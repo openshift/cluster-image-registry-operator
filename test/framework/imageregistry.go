@@ -357,6 +357,7 @@ func DumpImageRegistryDeployment(te TestEnv) {
 
 func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Config {
 	var cr *imageregistryapiv1.Config
+	degradedCount := 0
 	err := wait.PollUntilContextTimeout(context.Background(), 5*time.Second, AsyncOperationTimeout, false,
 		func(ctx context.Context) (stop bool, err error) {
 			cr, err = te.Client().Configs().Get(
@@ -376,8 +377,20 @@ func WaitUntilImageRegistryConfigIsProcessed(te TestEnv) *imageregistryapiv1.Con
 			}
 
 			conds := GetImageRegistryConditions(cr)
+			if conds.Degraded.IsTrue() {
+				degradedCount++
+				te.Logf("registry is degraded (%d): %s", degradedCount, conds.Degraded.Reason())
+			}
+
+			stopProgressing := conds.Progressing.IsFalse()
+			isAvailable := conds.Available.IsTrue()
+			isDegraded := degradedCount >= 20
+
 			te.Logf("waiting for the registry: %s", conds)
-			return conds.Progressing.IsFalse() && conds.Available.IsTrue() || conds.Degraded.IsTrue(), nil
+			// we bail out here if the registry isn't progressing
+			// anymore and is available of it has been stuck on
+			// degraded for a while.
+			return (stopProgressing && isAvailable) || isDegraded, nil
 		},
 	)
 	if err != nil {
