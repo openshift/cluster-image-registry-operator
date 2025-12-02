@@ -113,3 +113,36 @@ Is the registry deployed?  Check for a registry deployment + corresponding pod i
 **If the deployment does not exist:**
 
 Something went wrong at the installer/CVO level that it did not deploy the image-registry operator.
+
+## Tests
+
+This repository is compatible with the [OpenShift Tests Extension (OTE)](https://github.com/openshift-eng/openshift-tests-extension) framework.
+
+### Building the test binary
+
+```bash
+make build
+```
+
+### Running test suites and tests
+
+```bash
+# Run a specific test suite or test
+./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/all
+./cluster-image-registry-operator-tests-ext run-test "test-name"
+
+# Run with JUnit output
+./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/all --junit-path /tmp/junit.xml
+```
+
+### Listing available tests and suites
+
+```bash
+# List all test suites
+./cluster-image-registry-operator-tests-ext list suites
+
+# List tests in a suite
+./cluster-image-registry-operator-tests-ext list tests --suite=openshift/cluster-image-registry-operator/all
+```
+
+For more information about the OTE framework, see the [openshift-tests-extension documentation](https://github.com/openshift-eng/openshift-tests-extension).
