@@ -211,6 +211,25 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 		return o, false, err
 	}
 
+	original, expected := o.(*appsapi.Deployment), exp.(*appsapi.Deployment)
+
+	// XXX if we are removing the affinities from the spec we need to do
+	// that on its own api call so not to mess with scheduling logic.
+	// in other words: already scheduled pods have those anti-affinities
+	// in place and we may hit a scenario where new pods will conflict with
+	// those anti-affinities.
+	if original.Spec.Template.Spec.Affinity != nil && expected.Spec.Template.Spec.Affinity == nil {
+		original = original.DeepCopy()
+		original.Spec.Template.Spec.Affinity = nil
+		dep, err := gd.client.Deployments(gd.GetNamespace()).Update(
+			context.TODO(), original, metav1.UpdateOptions{},
+		)
+		if err != nil {
+			return o, false, err
+		}
+		return dep, true, nil
+	}
+
 	dep, updated, err := resourceapply.ApplyDeployment(
 		context.TODO(), gd.client, gd.eventRecorder, exp.(*appsapi.Deployment), gd.LastGeneration(),
 	)
