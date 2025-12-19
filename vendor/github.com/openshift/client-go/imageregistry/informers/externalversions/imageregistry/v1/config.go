@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	apiimageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	versioned "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/imageregistry/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
+	imageregistryv1 "github.com/openshift/client-go/imageregistry/listers/imageregistry/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // Configs.
 type ConfigInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ConfigLister
+	Lister() imageregistryv1.ConfigLister
 }
 
 type configInformer struct {
@@ -45,16 +45,28 @@ func NewFilteredConfigInformer(client versioned.Interface, resyncPeriod time.Dur
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageregistryV1().Configs().List(context.TODO(), options)
+				return client.ImageregistryV1().Configs().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageregistryV1().Configs().Watch(context.TODO(), options)
+				return client.ImageregistryV1().Configs().Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageregistryV1().Configs().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageregistryV1().Configs().Watch(ctx, options)
 			},
 		},
-		&imageregistryv1.Config{},
+		&apiimageregistryv1.Config{},
 		resyncPeriod,
 		indexers,
 	)
@@ -65,9 +77,9 @@ func (f *configInformer) defaultInformer(client versioned.Interface, resyncPerio
 }
 
 func (f *configInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&imageregistryv1.Config{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiimageregistryv1.Config{}, f.defaultInformer)
 }
 
-func (f *configInformer) Lister() v1.ConfigLister {
-	return v1.NewConfigLister(f.Informer().GetIndexer())
+func (f *configInformer) Lister() imageregistryv1.ConfigLister {
+	return imageregistryv1.NewConfigLister(f.Informer().GetIndexer())
 }

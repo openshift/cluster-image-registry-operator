@@ -5,18 +5,18 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-
 	configv1helpers "github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -28,6 +28,8 @@ import (
 type VersionGetter interface {
 	// SetVersion is a way to set the version for an operand.  It must be thread-safe
 	SetVersion(operandName, version string)
+	// UnsetVersion removes a version for an operand if it exists; it is a no-op otherwise.  It must be thread-safe
+	UnsetVersion(operandName string)
 	// GetVersion is way to get the versions for all operands.  It must be thread-safe and return an object that doesn't mutate
 	GetVersions() map[string]string
 	// VersionChangedChannel is a channel that will get an item whenever SetVersion has been called
@@ -40,6 +42,7 @@ type StatusSyncer struct {
 	clusterOperatorName string
 	relatedObjects      []configv1.ObjectReference
 	relatedObjectsFunc  RelatedObjectsFunc
+	clock               clock.PassiveClock
 
 	versionGetter         VersionGetter
 	operatorClient        operatorv1helpers.OperatorClient
@@ -67,10 +70,12 @@ func NewClusterOperatorStatusController(
 	operatorClient operatorv1helpers.OperatorClient,
 	versionGetter VersionGetter,
 	recorder events.Recorder,
+	clock clock.PassiveClock,
 ) *StatusSyncer {
 	return &StatusSyncer{
 		clusterOperatorName:   name,
 		relatedObjects:        relatedObjects,
+		clock:                 clock,
 		versionGetter:         versionGetter,
 		clusterOperatorClient: clusterOperatorClient,
 		clusterOperatorLister: clusterOperatorInformer.Lister(),
@@ -168,11 +173,11 @@ func (c StatusSyncer) Sync(ctx context.Context, syncCtx factory.SyncContext) err
 	clusterOperatorObj := originalClusterOperatorObj.DeepCopy()
 
 	if detailedSpec.ManagementState == operatorv1.Unmanaged && !management.IsOperatorAlwaysManaged() {
-		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionUnknown, Reason: "Unmanaged"})
-		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorProgressing, Status: configv1.ConditionUnknown, Reason: "Unmanaged"})
-		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorDegraded, Status: configv1.ConditionUnknown, Reason: "Unmanaged"})
-		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorUpgradeable, Status: configv1.ConditionUnknown, Reason: "Unmanaged"})
-		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.EvaluationConditionsDetected, Status: configv1.ConditionUnknown, Reason: "Unmanaged"})
+		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionUnknown, Reason: "Unmanaged"}, c.clock)
+		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorProgressing, Status: configv1.ConditionUnknown, Reason: "Unmanaged"}, c.clock)
+		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorDegraded, Status: configv1.ConditionUnknown, Reason: "Unmanaged"}, c.clock)
+		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorUpgradeable, Status: configv1.ConditionUnknown, Reason: "Unmanaged"}, c.clock)
+		configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.EvaluationConditionsDetected, Status: configv1.ConditionUnknown, Reason: "Unmanaged"}, c.clock)
 
 		if equality.Semantic.DeepEqual(clusterOperatorObj, originalClusterOperatorObj) {
 			return nil
@@ -210,11 +215,11 @@ func (c StatusSyncer) Sync(ctx context.Context, syncCtx factory.SyncContext) err
 		clusterOperatorObj.Status.RelatedObjects = c.relatedObjects
 	}
 
-	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorDegraded, operatorv1.ConditionFalse, c.degradedInertia, currentDetailedStatus.Conditions...))
-	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorProgressing, operatorv1.ConditionFalse, nil, currentDetailedStatus.Conditions...))
-	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorAvailable, operatorv1.ConditionTrue, nil, currentDetailedStatus.Conditions...))
-	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorUpgradeable, operatorv1.ConditionTrue, nil, currentDetailedStatus.Conditions...))
-	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.EvaluationConditionsDetected, operatorv1.ConditionFalse, nil, currentDetailedStatus.Conditions...))
+	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorDegraded, operatorv1.ConditionFalse, c.degradedInertia, currentDetailedStatus.Conditions...), c.clock)
+	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorProgressing, operatorv1.ConditionFalse, nil, currentDetailedStatus.Conditions...), c.clock)
+	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorAvailable, operatorv1.ConditionTrue, nil, currentDetailedStatus.Conditions...), c.clock)
+	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.OperatorUpgradeable, operatorv1.ConditionTrue, nil, currentDetailedStatus.Conditions...), c.clock)
+	configv1helpers.SetStatusCondition(&clusterOperatorObj.Status.Conditions, UnionClusterCondition(configv1.EvaluationConditionsDetected, operatorv1.ConditionFalse, nil, currentDetailedStatus.Conditions...), c.clock)
 
 	c.syncStatusVersions(clusterOperatorObj, syncCtx)
 
