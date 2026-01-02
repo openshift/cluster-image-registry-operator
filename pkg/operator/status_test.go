@@ -221,9 +221,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "True",
-					Reason:  "DeploymentNotCompleted",
-					Message: "The deployment has not completed",
+					Status:  "False",
+					Reason:  "MinimumAvailability",
+					Message: "The deployment has minimum availability",
 				},
 				{
 					Type:    "Degraded",
@@ -272,9 +272,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "True",
-					Reason:  "DeploymentNotCompleted",
-					Message: "The deployment has not completed",
+					Status:  "False",
+					Reason:  "MinimumAvailability",
+					Message: "The deployment has minimum availability",
 				},
 				{
 					Type:    "Degraded",
@@ -328,9 +328,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "True",
-					Reason:  "DeploymentNotCompleted",
-					Message: "The deployment has not completed",
+					Status:  "False",
+					Reason:  "MinimumAvailability",
+					Message: "The deployment has minimum availability",
 				},
 				{
 					Type:    "Degraded",
@@ -376,9 +376,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "True",
-					Reason:  "DeploymentNotCompleted",
-					Message: "The deployment has not completed",
+					Status:  "False",
+					Reason:  "MinimumAvailability",
+					Message: "The deployment has minimum availability",
 				},
 				{
 					Type:    "Degraded",
@@ -413,9 +413,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "True",
-					Reason:  "DeploymentNotCompleted",
-					Message: "The deployment has not completed",
+					Status:  "False",
+					Reason:  "MinimumAvailability",
+					Message: "The deployment has minimum availability",
 				},
 				{
 					Type:    "Degraded",
