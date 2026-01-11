@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -131,6 +132,7 @@ func (c *ClusterOperatorStatusController) sync() error {
 		cr,
 		imagepruner,
 		c.relatedObjects,
+		clock.RealClock{},
 	)
 
 	return resource.ApplyMutator(mut)

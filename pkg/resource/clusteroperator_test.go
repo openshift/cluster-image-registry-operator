@@ -9,6 +9,7 @@ import (
 	kerror "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/utils/clock"
 
 	cfgapi "github.com/openshift/api/config/v1"
 	imregv1 "github.com/openshift/api/imageregistry/v1"
@@ -263,7 +264,7 @@ func TestSyncVersions(t *testing.T) {
 
 			lister.deploys, lister.failOnGet = tt.deploys, tt.failOnGet
 			gen := NewGeneratorClusterOperator(
-				lister, nil, nil, tt.config, nil, nil,
+				lister, nil, nil, tt.config, nil, nil, clock.RealClock{},
 			)
 
 			modified, err := gen.syncVersions(co)
