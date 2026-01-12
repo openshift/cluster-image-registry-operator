@@ -3,13 +3,13 @@
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	imagev1 "github.com/openshift/api/image/v1"
+	apiimagev1 "github.com/openshift/api/image/v1"
 	versioned "github.com/openshift/client-go/image/clientset/versioned"
 	internalinterfaces "github.com/openshift/client-go/image/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/client-go/image/listers/image/v1"
+	imagev1 "github.com/openshift/client-go/image/listers/image/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -20,7 +20,7 @@ import (
 // ImageStreams.
 type ImageStreamInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.ImageStreamLister
+	Lister() imagev1.ImageStreamLister
 }
 
 type imageStreamInformer struct {
@@ -46,16 +46,28 @@ func NewFilteredImageStreamInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageV1().ImageStreams(namespace).List(context.TODO(), options)
+				return client.ImageV1().ImageStreams(namespace).List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ImageV1().ImageStreams(namespace).Watch(context.TODO(), options)
+				return client.ImageV1().ImageStreams(namespace).Watch(context.Background(), options)
+			},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageV1().ImageStreams(namespace).List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.ImageV1().ImageStreams(namespace).Watch(ctx, options)
 			},
 		},
-		&imagev1.ImageStream{},
+		&apiimagev1.ImageStream{},
 		resyncPeriod,
 		indexers,
 	)
@@ -66,9 +78,9 @@ func (f *imageStreamInformer) defaultInformer(client versioned.Interface, resync
 }
 
 func (f *imageStreamInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&imagev1.ImageStream{}, f.defaultInformer)
+	return f.factory.InformerFor(&apiimagev1.ImageStream{}, f.defaultInformer)
 }
 
-func (f *imageStreamInformer) Lister() v1.ImageStreamLister {
-	return v1.NewImageStreamLister(f.Informer().GetIndexer())
+func (f *imageStreamInformer) Lister() imagev1.ImageStreamLister {
+	return imagev1.NewImageStreamLister(f.Informer().GetIndexer())
 }
