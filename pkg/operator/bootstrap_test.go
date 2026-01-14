@@ -9,6 +9,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
@@ -17,8 +18,10 @@ import (
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	imageregistryfakeclient "github.com/openshift/client-go/imageregistry/clientset/versioned/fake"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/configobservation"
 )
 
 func TestBootstrapAWS(t *testing.T) {
@@ -36,6 +39,11 @@ func TestBootstrapAWS(t *testing.T) {
 				},
 			},
 		},
+		&configv1.APIServer{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+		},
 	}
 
 	configClient := configfakeclient.NewSimpleClientset(configObjects...)
@@ -43,6 +51,16 @@ func TestBootstrapAWS(t *testing.T) {
 
 	imageregistryClient := imageregistryfakeclient.NewSimpleClientset()
 	imageregistryInformerFactory := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, 0)
+
+	operatorClient := client.NewConfigOperatorClient(
+		imageregistryClient.ImageregistryV1().Configs(),
+		imageregistryInformerFactory.Imageregistry().V1().Configs(),
+	)
+
+	apiLister := configobservation.NewAPIServerConfigListers(
+		configInformerFactory.Config().V1().APIServers(),
+		operatorClient,
+	)
 
 	c := &Controller{
 		listers: &client.Listers{
@@ -54,6 +72,8 @@ func TestBootstrapAWS(t *testing.T) {
 		clients: &client.Clients{
 			RegOp: imageregistryClient,
 		},
+		apiLister:  apiLister,
+		evRecorder: events.NewInMemoryRecorder("bootstrap-test", clock.RealClock{}),
 	}
 
 	configInformerFactory.Start(ctx.Done())
@@ -70,6 +90,12 @@ func TestBootstrapAWS(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Verify ObservedConfig is populated
+	if len(config.Spec.ObservedConfig.Raw) == 0 {
+		t.Error("expected ObservedConfig to be populated")
+	}
+
+	// Compare the rest of the spec (excluding ObservedConfig)
 	expected := imageregistryv1.ImageRegistrySpec{
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			S3: &imageregistryv1.ImageRegistryConfigStorageS3{},
@@ -82,6 +108,8 @@ func TestBootstrapAWS(t *testing.T) {
 		Replicas:        2,
 		RolloutStrategy: "RollingUpdate",
 	}
+	// Copy ObservedConfig from actual to expected for comparison
+	expected.ObservedConfig = config.Spec.ObservedConfig
 	if !reflect.DeepEqual(config.Spec, expected) {
 		t.Errorf("unexpected config: %s", cmp.Diff(expected, config.Spec))
 	}

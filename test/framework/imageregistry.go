@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/google/go-cmp/cmp"
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
@@ -528,7 +529,8 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	if cfg == nil || err != nil {
 		te.Errorf("failed to retrieve registry operator config: %v", err)
 	}
-	oldVersion := cfg.ResourceVersion
+
+	oldConfig := cfg.DeepCopy()
 
 	// wait 15s and then ensure that ResourceVersion is not updated. If it was updated then something
 	// is updating the registry config resource when we should be at steady state.
@@ -548,8 +550,9 @@ func EnsureOperatorIsNotHotLooping(te TestEnv) {
 	if cfg == nil || err != nil {
 		te.Errorf("failed to retrieve registry operator config: %v", err)
 	}
-	if oldVersion != cfg.ResourceVersion {
-		te.Errorf("registry config resource version was updated when it should have been stable, went from %s to %s", oldVersion, cfg.ResourceVersion)
+	if oldConfig.ResourceVersion != cfg.ResourceVersion {
+		te.Errorf("registry config resource version was updated when it should have been stable, went from %s to %s", oldConfig.ResourceVersion, cfg.ResourceVersion)
+		te.Errorf("registry config diff: %s", cmp.Diff(oldConfig, cfg))
 	}
 }
 

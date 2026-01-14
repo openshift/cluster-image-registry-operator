@@ -28,6 +28,7 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/configobserver"
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 
@@ -80,6 +81,7 @@ func NewController(
 	regopInformerFactory imageregistryinformers.SharedInformerFactory,
 	routeInformerFactory routeinformers.SharedInformerFactory,
 	featureGateAccessor featuregates.FeatureGateAccess,
+	observer configobserver.Listers,
 ) (*Controller, error) {
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
@@ -89,6 +91,8 @@ func NewController(
 		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "Changes"),
 		listers:    listers,
 		clients:    clients,
+		apiLister:  observer,
+		evRecorder: eventRecorder,
 	}
 
 	// Initial event to bootstrap CR if it doesn't exist.
@@ -193,6 +197,8 @@ type Controller struct {
 	listers      *regopclient.Listers
 	clients      *regopclient.Clients
 	cachesToSync []cache.InformerSynced
+	apiLister    configobserver.Listers
+	evRecorder   events.Recorder
 }
 
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {

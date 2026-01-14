@@ -9,9 +9,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	cirofake "github.com/openshift/cluster-image-registry-operator/pkg/client/fake"
@@ -558,5 +560,195 @@ func TestMakePodTemplateSpecS3CloudFront(t *testing.T) {
 	}
 	for name := range expectedEnvVars {
 		t.Errorf("expected env var %s not found", name)
+	}
+}
+
+func Test_generateTLSEnvVars(t *testing.T) {
+	tests := []struct {
+		name          string
+		config        *v1.Config
+		expected      []corev1.EnvVar
+		expectedError string
+	}{
+		{
+			name: "empty observedConfig",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{},
+			},
+			expected:      nil,
+			expectedError: "",
+		},
+		{
+			name: "observedConfig with no Raw data",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "",
+		},
+		{
+			name: "valid minTLSVersion only",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS12"}}`),
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "REGISTRY_HTTP_TLS_MINVERSION", Value: "VersionTLS12"},
+			},
+			expectedError: "",
+		},
+		{
+			name: "valid cipherSuites only",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"cipherSuites":["TLS_AES_128_GCM_SHA256","TLS_AES_256_GCM_SHA384"]}}`),
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES", Value: "TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384"},
+			},
+			expectedError: "",
+		},
+		{
+			name: "both minTLSVersion and cipherSuites",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["TLS_AES_128_GCM_SHA256"]}}`),
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "REGISTRY_HTTP_TLS_MINVERSION", Value: "VersionTLS13"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES", Value: "TLS_AES_128_GCM_SHA256"},
+			},
+			expectedError: "",
+		},
+		{
+			name: "unknown TLS version",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS99"}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "unknown tls version",
+		},
+		{
+			name: "empty TLS version string",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":""}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "",
+		},
+		{
+			name: "empty cipherSuites array",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"cipherSuites":[]}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "",
+		},
+		{
+			name: "missing servingInfo",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"otherField":"value"}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "",
+		},
+		{
+			name: "invalid JSON",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{invalid json}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "failed to unmarshal observedConfig",
+		},
+		{
+			name: "invalid cipherSuites type",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["invalid"]}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "unknown cipher name",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := generateTLSEnvVars(tc.config)
+
+			// Validate error
+			if tc.expectedError != "" {
+				if err == nil {
+					t.Errorf("expected error containing %q but got none", tc.expectedError)
+					return
+				}
+				if !strings.Contains(err.Error(), tc.expectedError) {
+					t.Errorf("expected error containing %q, got %q", tc.expectedError, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			if !reflect.DeepEqual(result, tc.expected) {
+				t.Errorf("expected %#v, got %#v", tc.expected, result)
+			}
+		})
 	}
 }
