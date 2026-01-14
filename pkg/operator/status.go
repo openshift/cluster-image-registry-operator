@@ -327,8 +327,16 @@ func (c *Controller) syncStatus(
 		operatorProgressing.Message = "The deployment is being deleted"
 		operatorProgressing.Reason = "FinalizingDeployment"
 	} else if !isDeploymentStatusComplete(deploy) {
-		operatorProgressing.Message = "The deployment has not completed"
-		operatorProgressing.Reason = "DeploymentNotCompleted"
+		if deploy.Generation != deploy.Status.ObservedGeneration {
+			// Actual Deployment update in progress - report Progressing=True
+			operatorProgressing.Message = "The deployment has not completed"
+			operatorProgressing.Reason = "DeploymentNotCompleted"
+		} else {
+			// Deployment reconciling (node reboots, etc.) - don't report Progressing
+			operatorProgressing.Status = operatorapiv1.ConditionFalse
+			operatorProgressing.Message = "The deployment has minimum availability"
+			operatorProgressing.Reason = "MinimumAvailability"
+		}
 	} else {
 		operatorProgressing.Status = operatorapiv1.ConditionFalse
 		operatorProgressing.Message = "The registry is ready"
