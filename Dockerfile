@@ -6,7 +6,7 @@ RUN make build \
 WORKDIR /go/src/github.com/openshift/cluster-image-registry-operator/cmd/move-blobs
 RUN go build -o ../../tmp/_output/bin/move-blobs
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 COPY images/bin/entrypoint.sh /usr/bin/
 COPY manifests/image-references manifests/0* /manifests/
 COPY vendor/github.com/openshift/api/imageregistry/v1/**/*.crd.yaml /manifests/
