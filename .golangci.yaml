@@ -1,13 +1,15 @@
+version: "2"
 linters:
   enable:
-  - contextcheck
-  - errcheck
-  - exhaustive
-  - gofumpt
-  - gosimple
-  - govet
-  - ineffassign
-  - misspell
-  - staticcheck
-  - typecheck
-  - unused
+    - contextcheck
+    - errcheck
+    - exhaustive
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+formatters:
+  enable:
+    - gofumpt
