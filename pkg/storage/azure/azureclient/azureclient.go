@@ -26,6 +26,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 const (
@@ -128,6 +130,9 @@ func New(opts *Options) (*Client, error) {
 	}
 	coreOpts := azcore.ClientOptions{
 		Cloud: cloudConfig,
+		Telemetry: policy.TelemetryOptions{
+			ApplicationID: defaults.UserAgent,
+		},
 	}
 	coreOpts.PerCallPolicies = opts.Policies
 	creds := opts.Creds
