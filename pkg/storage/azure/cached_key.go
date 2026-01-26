@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
-
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
 
@@ -15,6 +13,11 @@ const cacheExpiration time.Duration = 20 * time.Minute
 
 // primaryKey keeps account primary key in a cache.
 var primaryKey cachedKey
+
+// KeyFetcher abstracts storage account key retrieval.
+type KeyFetcher interface {
+	GetPrimaryStorageAccountKey(ctx context.Context, resourceGroup, account string) (string, error)
+}
 
 // cachedKey holds an API access key in memory for five minutes.
 type cachedKey struct {
@@ -26,9 +29,9 @@ type cachedKey struct {
 }
 
 // get returns the cached key if it is not expired yet, if expired fetches the key
-// remotely using provided AccountsClient.
+// remotely using provided KeyFetcher.
 func (k *cachedKey) get(
-	ctx context.Context, cli storage.AccountsClient, resourceGroup, account string,
+	ctx context.Context, fetcher KeyFetcher, resourceGroup, account string,
 ) (string, error) {
 	k.mtx.Lock()
 	defer k.mtx.Unlock()
@@ -39,14 +42,14 @@ func (k *cachedKey) get(
 	}
 	metrics.AzureKeyCacheMiss()
 
-	keysResponse, err := cli.ListKeys(ctx, resourceGroup, account, storage.Kerb)
+	key, err := fetcher.GetPrimaryStorageAccountKey(ctx, resourceGroup, account)
 	if err != nil {
 		return "", err
 	}
 
 	k.resourceGroup = resourceGroup
 	k.account = account
-	k.value = *(*keysResponse.Keys)[0].Value
+	k.value = key
 	k.expire = time.Now().Add(cacheExpiration)
 	return k.value, nil
 }

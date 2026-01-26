@@ -10,21 +10,16 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
-	"github.com/jongio/azidext/go/azidext"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -148,10 +143,6 @@ func GetConfig(secLister kcorelisters.SecretNamespaceLister, infraLister configl
 	}, nil
 }
 
-func isAzureStackCloud(name string) bool {
-	return strings.EqualFold(name, "AZURESTACKCLOUD")
-}
-
 func getEnvironmentByName(name string) (autorestazure.Environment, error) {
 	if name == "" {
 		return autorestazure.PublicCloud, nil
@@ -175,77 +166,35 @@ func getBlobServiceURL(environment autorestazure.Environment, accountName string
 	return url.Parse("https://" + accountName + ".blob." + environment.StorageEndpointSuffix)
 }
 
-func (d *driver) accountExists(storageAccountsClient storage.AccountsClient, accountName string) (storage.CheckNameAvailabilityResult, error) {
-	return storageAccountsClient.CheckNameAvailability(
-		d.Context,
-		storage.AccountCheckNameAvailabilityParameters{
-			Name: to.StringPtr(accountName),
-			Type: to.StringPtr("Microsoft.Storage/storageAccounts"),
-		},
-	)
+func (d *driver) accountExists(azClient *azureclient.Client, accountName string) (bool, error) {
+	result, err := azClient.CheckStorageAccountNameAvailability(d.Context, accountName)
+	if err != nil {
+		return false, fmt.Errorf("failed to check storage account name availability: %w", err)
+	}
+	// Returns true if name is available (i.e. account does NOT exist)
+	if result.NameAvailable != nil && *result.NameAvailable {
+		return false, nil
+	}
+	// Name not available means account already exists
+	return true, nil
 }
 
-func (d *driver) createStorageAccount(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName, location, cloudName string, tagset map[string]*string) error {
-	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", accountName, resourceGroupName, location)
-
-	kind := storage.StorageV2
-	// NOTE: looks like this legacy version of the storage library does not support
-	// disabling public network access at all... either we update the storage
-	// account after creation using the new sdk, or we use the new sdk to create it
-	// outside of azure stack hub, and the old sdk for azure stack hub.
-	// Also doesn't support AccessKey usage disabling
-	params := &storage.AccountPropertiesCreateParameters{
-		EnableHTTPSTrafficOnly: to.BoolPtr(true),
-		AllowBlobPublicAccess:  to.BoolPtr(false),
-		MinimumTLSVersion:      storage.TLS12,
-	}
-
-	if isAzureStackCloud(cloudName) {
-		// It seems Azure Stack Hub does not support new API.
-		kind = storage.Storage
-		params = &storage.AccountPropertiesCreateParameters{}
-	}
-
-	future, err := storageAccountsClient.Create(
-		d.Context,
-		resourceGroupName,
-		accountName,
-		storage.AccountCreateParameters{
-			Kind:     kind,
-			Location: to.StringPtr(location),
-			Sku: &storage.Sku{
-				Name: storage.StandardLRS,
-			},
-			AccountPropertiesCreateParameters: params,
-			Tags:                              tagset,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to start creating storage account: %s", err)
-	}
-
-	// TODO: this may take up to 10 minutes
-	err = future.WaitForCompletionRef(d.Context, storageAccountsClient.Client)
-	if err != nil {
-		return fmt.Errorf("failed to finish creating storage account: %s", err)
-	}
-
-	_, err = future.Result(storageAccountsClient)
-	if err != nil {
-		return fmt.Errorf("failed to create storage account: %s", err)
-	}
-
-	klog.Infof("azure storage account %s has been created", accountName)
-
-	return nil
+func (d *driver) createStorageAccount(azClient *azureclient.Client, resourceGroupName, accountName, location, cloudName string, tagset map[string]*string) error {
+	return azClient.CreateStorageAccount(d.Context, &azureclient.StorageAccountCreateOptions{
+		ResourceGroupName: resourceGroupName,
+		AccountName:       accountName,
+		Location:          location,
+		CloudName:         cloudName,
+		Tags:              tagset,
+	})
 }
 
-func (d *driver) getAccountPrimaryKey(storageAccountsClient storage.AccountsClient, resourceGroupName, accountName string) (string, error) {
-	key, err := primaryKey.get(d.Context, storageAccountsClient, resourceGroupName, accountName)
+func (d *driver) getAccountPrimaryKey(azClient *azureclient.Client, resourceGroupName, accountName string) (string, error) {
+	key, err := primaryKey.get(d.Context, azClient, resourceGroupName, accountName)
 	if err != nil {
 		wrappedErr := fmt.Errorf("failed to get keys for the storage account %s: %s", accountName, err)
-		if e, ok := err.(autorest.DetailedError); ok {
-			if e.StatusCode == http.StatusNotFound {
+		if respErr, ok := err.(*azcore.ResponseError); ok {
+			if respErr.StatusCode == http.StatusNotFound {
 				return "", &errDoesNotExist{Err: wrappedErr}
 			}
 		}
@@ -307,14 +256,6 @@ type driver struct {
 	// additional objects from the cluster.
 	Listers *regopclient.StorageListers
 
-	// authorizer is for Azure autorest generated clients.
-	// Added as a member to the struct to allow injection for testing.
-	authorizer autorest.Authorizer
-
-	// sender is for Azure autorest generated clients.
-	// Added as a member to the struct to allow injection for testing.
-	sender autorest.Sender
-
 	// httpSender is for Azure Pipeline.
 	// Added as a member to the struct to allow injection for testing.
 	httpSender pipeline.Factory
@@ -348,6 +289,7 @@ func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, 
 	if cred, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
 		return nil, err
 	} else if ok {
+		klog.V(2).Infof("Using cached UAMI credential for Azure client")
 		clientOptions.Creds = cred
 	}
 
@@ -359,88 +301,12 @@ func (d *driver) newAzClient(cfg *Azure, environment autorestazure.Environment, 
 	return client, nil
 }
 
-func (d *driver) storageAccountsClient(cfg *Azure, environment autorestazure.Environment) (storage.AccountsClient, error) {
-	storageAccountsClient := storage.NewAccountsClientWithBaseURI(environment.ResourceManagerEndpoint, cfg.SubscriptionID)
-	storageAccountsClient.PollingDelay = 10 * time.Second
-	storageAccountsClient.PollingDuration = 3 * time.Minute
-	storageAccountsClient.RetryAttempts = 1
-	_ = storageAccountsClient.AddToUserAgent(defaults.UserAgent)
-
-	if d.authorizer != nil && d.sender != nil {
-		storageAccountsClient.Authorizer = d.authorizer
-		storageAccountsClient.Sender = d.sender
-		return storageAccountsClient, nil
-	}
-
-	cloudConfig := cloud.Configuration{
-		ActiveDirectoryAuthorityHost: environment.ActiveDirectoryEndpoint,
-		Services: map[cloud.ServiceName]cloud.ServiceConfiguration{
-			cloud.ResourceManager: {
-				Audience: environment.TokenAudience,
-				Endpoint: environment.ResourceManagerEndpoint,
-			},
-		},
-	}
-
-	var (
-		cred azcore.TokenCredential
-		err  error
-	)
-
-	// UserAssignedIdentityCredentials is specifically for managed Azure HCP
-	userAssignedIdentityCredentialsFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
-	if userAssignedIdentityCredentialsFilePath != "" {
-		if c, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
-			return storage.AccountsClient{}, err
-		} else if ok {
-			cred = c
-		}
-	} else if strings.TrimSpace(cfg.ClientSecret) == "" {
-		options := azidentity.WorkloadIdentityCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
-			ClientID:      cfg.ClientID,
-			TenantID:      cfg.TenantID,
-			TokenFilePath: cfg.FederatedTokenFile,
-		}
-		cred, err = azidentity.NewWorkloadIdentityCredential(&options)
-		if err != nil {
-			return storage.AccountsClient{}, err
-		}
-	} else {
-		options := azidentity.ClientSecretCredentialOptions{
-			ClientOptions: azcore.ClientOptions{
-				Cloud: cloudConfig,
-			},
-		}
-		cred, err = azidentity.NewClientSecretCredential(cfg.TenantID, cfg.ClientID, cfg.ClientSecret, &options)
-		if err != nil {
-			return storage.AccountsClient{}, err
-		}
-	}
-
-	scope := environment.TokenAudience
-	if !strings.HasSuffix(scope, "/.default") {
-		scope += "/.default"
-	}
-
-	storageAccountsClient.Authorizer = azidext.NewTokenCredentialAdapter(cred, []string{scope})
-
-	return storageAccountsClient, nil
-}
-
-func (d *driver) getKey(cfg *Azure, environment autorestazure.Environment) (string, error) {
+func (d *driver) getKey(cfg *Azure, azClient *azureclient.Client) (string, error) {
 	if cfg.AccountKey != "" {
 		return cfg.AccountKey, nil
 	}
 
-	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
-	if err != nil {
-		return "", err
-	}
-
-	key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+	key, err := d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 	if err != nil {
 		return "", err
 	}
@@ -468,12 +334,12 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 	key := cfg.AccountKey
 	federated_token := cfg.FederatedTokenFile
 	if key == "" && federated_token == "" {
-		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+		azClient, err := d.newAzClient(cfg, environment, nil)
 		if err != nil {
 			return nil, err
 		}
 
-		key, err = d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		key, err = d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 		if err != nil {
 			return nil, err
 		}
@@ -565,7 +431,7 @@ func (d *driver) storageExistsViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azur
 		return false, err
 	}
 	if key == "" && federated_token == "" {
-		key, err = d.getKey(cfg, environment)
+		key, err = d.getKey(cfg, azClient)
 		if err != nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get storage account key: %s", err))
 			return false, err
@@ -617,11 +483,17 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 		return false, err
 	}
 
-	if !isAzureStackCloud(d.Config.CloudName) {
+	if !azureclient.IsAzureStackCloud(d.Config.CloudName) {
 		return d.storageExistsViaTrack2SDK(cr, cfg, environment)
 	}
 
-	key, err := d.getKey(cfg, environment)
+	azClient, err := d.newAzClient(cfg, environment, nil)
+	if err != nil {
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create azure client: %s", err))
+		return false, err
+	}
+
+	key, err := d.getKey(cfg, azClient)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get storage account key: %s", err))
 		return false, err
@@ -757,7 +629,7 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 		return "", false, err
 	}
 
-	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+	azClient, err := d.newAzClient(cfg, environment, tagset)
 	if err != nil {
 		return "", false, err
 	}
@@ -769,33 +641,29 @@ func (d *driver) assureStorageAccount(cfg *Azure, infra *configv1.Infrastructure
 		accountName = generateAccountName(infra.Status.InfrastructureName)
 	}
 
-	result, err := d.accountExists(storageAccountsClient, accountName)
+	exists, err := d.accountExists(azClient, accountName)
 	if err != nil {
 		return "", false, err
 	}
 
 	// if the generated storage account is not available we return an error.
-	if accountNameGenerated && !*result.NameAvailable {
+	if accountNameGenerated && exists {
 		return "", false, fmt.Errorf("create storage account failed, name not available")
 	}
 
 	// regardless if the storage account name was provided by the user or we generated it,
-	// if it is available, we do attempt to create it.
+	// if it doesn't exist, we do attempt to create it.
 	var storageAccountCreated bool
-	if *result.NameAvailable {
+	if !exists {
 		storageAccountCreated = true
 		if err := d.createStorageAccount(
-			storageAccountsClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName, tagset,
+			azClient, cfg.ResourceGroup, accountName, cfg.Region, d.Config.CloudName, tagset,
 		); err != nil {
 			return "", false, err
 		}
 	}
 
-	if !isAzureStackCloud(d.Config.CloudName) && cfg.FederatedTokenFile != "" {
-		azClient, err := d.newAzClient(cfg, environment, tagset)
-		if err != nil {
-			return "", false, err
-		}
+	if !azureclient.IsAzureStackCloud(d.Config.CloudName) && cfg.FederatedTokenFile != "" {
 		err = azClient.DisableStorageAccountAccessKeyAccess(d.Context, cfg.ResourceGroup, accountName)
 		if err != nil {
 			return "", false, err
@@ -817,13 +685,7 @@ func (d *driver) assureContainerViaTrack2SDK(cfg *Azure) (string, bool, error) {
 		return "", false, err
 	}
 	if key == "" && federated_token == "" {
-		storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
-		if err != nil {
-			return "", false, err
-		}
-		key, err = d.getAccountPrimaryKey(
-			storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName,
-		)
+		key, err = d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 		if err != nil {
 			return "", false, err
 		}
@@ -877,14 +739,12 @@ func (d *driver) assureContainer(cfg *Azure) (string, bool, error) {
 		return "", false, err
 	}
 
-	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+	azClient, err := d.newAzClient(cfg, environment, nil)
 	if err != nil {
 		return "", false, err
 	}
 
-	key, err := d.getAccountPrimaryKey(
-		storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName,
-	)
+	key, err := d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 	if err != nil {
 		return "", false, err
 	}
@@ -1039,7 +899,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	var containerName string
 	var containerCreated bool
-	if isAzureStackCloud(d.Config.CloudName) {
+	if azureclient.IsAzureStackCloud(d.Config.CloudName) {
 		containerName, containerCreated, err = d.assureContainer(cfg)
 	} else {
 		containerName, containerCreated, err = d.assureContainerViaTrack2SDK(cfg)
@@ -1100,16 +960,11 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	return nil
 }
 
-func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
+func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, azClient *azureclient.Client) (accountNotFound bool, err error) {
 	key := cfg.AccountKey
 	federated_token := cfg.FederatedTokenFile
-	azClient, err := d.newAzClient(cfg, environment, nil)
-	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to create azure client: %s", err))
-		return false, err
-	}
 	if key == "" && federated_token == "" {
-		key, err = d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+		key, err = d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 		if _, ok := err.(*errDoesNotExist); ok {
 			d.Config.AccountName = ""
 			cr.Spec.Storage.Azure.AccountName = "" // TODO
@@ -1123,19 +978,19 @@ func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, 
 			return false, err
 		}
 	} else {
-		result, err := d.accountExists(storageAccountsClient, d.Config.AccountName)
+		exists, err := d.accountExists(azClient, d.Config.AccountName)
 		if err != nil {
 			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to check account existence: %s", err))
 			return false, err
 		}
 
-		// if the storage account is not available we return no error.
-		if *result.NameAvailable {
+		// if the storage account doesn't exist we return no error.
+		if !exists {
 			d.Config.AccountName = ""
 			cr.Spec.Storage.Azure.AccountName = ""
 			cr.Status.Storage.Azure.AccountName = ""
 			// TODO: The update condition should suggest Account doesn't exist rather than Container
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, fmt.Sprintf("Container has been already deleted: %s", err))
+			util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonContainerNotFound, "Container has been already deleted")
 			return true, nil
 		}
 	}
@@ -1175,8 +1030,8 @@ func (d *driver) removeStorageContainerViaTrack2SDK(cr *imageregistryv1.Config, 
 	return false, nil
 }
 
-func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, storageAccountsClient storage.AccountsClient) (accountNotFound bool, err error) {
-	key, err := d.getAccountPrimaryKey(storageAccountsClient, cfg.ResourceGroup, d.Config.AccountName)
+func (d *driver) removeStorageContainer(cr *imageregistryv1.Config, cfg *Azure, environment autorestazure.Environment, azClient *azureclient.Client) (accountNotFound bool, err error) {
+	key, err := d.getAccountPrimaryKey(azClient, cfg.ResourceGroup, d.Config.AccountName)
 	if _, ok := err.(*errDoesNotExist); ok {
 		d.Config.AccountName = ""
 		cr.Spec.Storage.Azure.AccountName = "" // TODO
@@ -1224,48 +1079,14 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		return false, err
 	}
 
-	storageAccountsClient, err := d.storageAccountsClient(cfg, environment)
+	azClient, err := d.newAzClient(cfg, environment, nil)
 	if err != nil {
-		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get accounts client: %s", err))
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionUnknown, storageExistsReasonAzureError, fmt.Sprintf("Unable to get azure client: %s", err))
 		return false, err
 	}
 
 	if d.Config.NetworkAccess != nil && d.Config.NetworkAccess.Internal != nil && d.Config.NetworkAccess.Internal.PrivateEndpointName != "" {
-		clientOptions := &azureclient.Options{
-			Environment:        environment,
-			TenantID:           cfg.TenantID,
-			ClientID:           cfg.ClientID,
-			ClientSecret:       cfg.ClientSecret,
-			FederatedTokenFile: cfg.FederatedTokenFile,
-			SubscriptionID:     cfg.SubscriptionID,
-		}
-
-		if cred, ok, err := d.ensureUAMICredentials(d.Context, environment); err != nil {
-			util.UpdateCondition(
-				cr,
-				defaults.StorageExists,
-				operatorapiv1.ConditionUnknown,
-				storageExistsReasonAzureError,
-				fmt.Sprintf("Unable to get azure client: %s", err),
-			)
-			return false, err
-		} else if ok {
-			klog.V(2).Infof("Using cached UAMI credential for RemoveStorage client")
-			clientOptions.Creds = cred
-		}
-
-		azclient, err := azureclient.New(clientOptions)
-		if err != nil {
-			util.UpdateCondition(
-				cr,
-				defaults.StorageExists,
-				operatorapiv1.ConditionUnknown,
-				storageExistsReasonAzureError,
-				fmt.Sprintf("Unable to get azure client: %s", err),
-			)
-			return false, err
-		}
-		if err := azclient.DestroyPrivateDNS(
+		if err := azClient.DestroyPrivateDNS(
 			d.Context,
 			cfg.ResourceGroup,
 			d.Config.NetworkAccess.Internal.PrivateEndpointName,
@@ -1281,7 +1102,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 			)
 			return false, err
 		}
-		if err := azclient.DeletePrivateEndpoint(
+		if err := azClient.DeletePrivateEndpoint(
 			d.Context, cfg.ResourceGroup, d.Config.NetworkAccess.Internal.PrivateEndpointName,
 		); err != nil {
 			util.UpdateCondition(
@@ -1298,10 +1119,10 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 
 	if d.Config.Container != "" {
 		var accountNotFound bool
-		if isAzureStackCloud(d.Config.CloudName) {
-			accountNotFound, err = d.removeStorageContainer(cr, cfg, environment, storageAccountsClient)
+		if azureclient.IsAzureStackCloud(d.Config.CloudName) {
+			accountNotFound, err = d.removeStorageContainer(cr, cfg, environment, azClient)
 		} else {
-			accountNotFound, err = d.removeStorageContainerViaTrack2SDK(cr, cfg, environment, storageAccountsClient)
+			accountNotFound, err = d.removeStorageContainerViaTrack2SDK(cr, cfg, environment, azClient)
 		}
 		if err != nil {
 			return false, err
@@ -1311,7 +1132,7 @@ func (d *driver) RemoveStorage(cr *imageregistryv1.Config) (retry bool, err erro
 		}
 	}
 
-	_, err = storageAccountsClient.Delete(d.Context, cfg.ResourceGroup, d.Config.AccountName)
+	err = azClient.DeleteStorageAccount(d.Context, cfg.ResourceGroup, d.Config.AccountName)
 	if err != nil {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapiv1.ConditionFalse, storageExistsReasonAzureError, fmt.Sprintf("Unable to delete storage account: %s", err))
 		return false, err
@@ -1343,7 +1164,8 @@ func (d *driver) ID() string {
 //
 // ctx controls cancellation of credential creation. env supplies Azure endpoints.
 func (d *driver) ensureUAMICredentials(ctx context.Context, env autorestazure.Environment) (azcore.TokenCredential, bool, error) {
-	if os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH") == "" {
+	credFilePath := os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH")
+	if credFilePath == "" {
 		return nil, false, nil
 	}
 	if stored, ok := globalAzureCredentials.Load(azureCredentialsKey); ok {
@@ -1352,6 +1174,10 @@ func (d *driver) ensureUAMICredentials(ctx context.Context, env autorestazure.En
 			return cred, true, nil
 		}
 		return nil, false, fmt.Errorf("expected cached credential to be azcore.TokenCredential")
+	}
+	// Validate the credential file path before using it
+	if err := azureclient.ValidateCredentialFilePath(credFilePath); err != nil {
+		return nil, false, fmt.Errorf("invalid credential file path: %w", err)
 	}
 	cloudConfig := cloud.Configuration{
 		ActiveDirectoryAuthorityHost: env.ActiveDirectoryEndpoint,
@@ -1364,7 +1190,7 @@ func (d *driver) ensureUAMICredentials(ctx context.Context, env autorestazure.En
 	}
 	cred, err := dataplane.NewUserAssignedIdentityCredential(
 		ctx,
-		os.Getenv("MANAGED_AZURE_HCP_CREDENTIALS_FILE_PATH"),
+		credFilePath,
 		dataplane.WithClientOpts(azcore.ClientOptions{Cloud: cloudConfig}),
 	)
 	if err != nil {
