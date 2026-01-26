@@ -2,13 +2,30 @@ package azure
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
-	"github.com/Azure/go-autorest/autorest/mocks"
 )
+
+// mockKeyFetcher implements KeyFetcher for testing
+type mockKeyFetcher struct {
+	key string
+	err error
+}
+
+func (m *mockKeyFetcher) GetPrimaryStorageAccountKey(ctx context.Context, resourceGroup, account string) (string, error) {
+	if resourceGroup == "" {
+		return "", fmt.Errorf("validation failed: parameter=resourceGroupName constraint=MinLength")
+	}
+	if account == "" {
+		return "", fmt.Errorf("validation failed: parameter=accountName constraint=MinLength")
+	}
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.key, nil
+}
 
 func Test_cachedKey_get(t *testing.T) {
 	for _, tt := range []struct {
@@ -17,7 +34,7 @@ func Test_cachedKey_get(t *testing.T) {
 		resourceGroup string
 		account       string
 		err           string
-		responses     []string
+		mockKey       string
 		expectedKey   string
 	}{
 		{
@@ -36,7 +53,7 @@ func Test_cachedKey_get(t *testing.T) {
 			key:           &cachedKey{},
 			resourceGroup: "resource_group",
 			account:       "account",
-			responses:     []string{`{"keys":[{"value":"firstKey"}]}`},
+			mockKey:       "firstKey",
 			expectedKey:   "firstKey",
 		},
 		{
@@ -49,7 +66,7 @@ func Test_cachedKey_get(t *testing.T) {
 			},
 			resourceGroup: "resource_group",
 			account:       "account",
-			responses:     []string{`{"keys":[{"value":"firstKey"}]}`},
+			mockKey:       "firstKey",
 			expectedKey:   "cachedkey",
 		},
 		{
@@ -62,7 +79,7 @@ func Test_cachedKey_get(t *testing.T) {
 			},
 			resourceGroup: "resource_group",
 			account:       "account",
-			responses:     []string{`{"keys":[{"value":"apikey"}]}`},
+			mockKey:       "apikey",
 			expectedKey:   "apikey",
 		},
 		{
@@ -75,7 +92,7 @@ func Test_cachedKey_get(t *testing.T) {
 			},
 			resourceGroup: "resource_group",
 			account:       "another-account",
-			responses:     []string{`{"keys":[{"value":"another-api-key"}]}`},
+			mockKey:       "another-api-key",
 			expectedKey:   "another-api-key",
 		},
 		{
@@ -88,21 +105,16 @@ func Test_cachedKey_get(t *testing.T) {
 			},
 			resourceGroup: "another-resource_group",
 			account:       "account",
-			responses:     []string{`{"keys":[{"value":"another-api-key"}]}`},
+			mockKey:       "another-api-key",
 			expectedKey:   "another-api-key",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cli := storage.NewAccountsClient("subscription_id")
-			sender := mocks.NewSender()
-			for _, resp := range tt.responses {
-				sender.AppendResponse(mocks.NewResponseWithContent(resp))
-			}
-			cli.Sender = sender
+			fetcher := &mockKeyFetcher{key: tt.mockKey}
 
 			key, err := tt.key.get(
 				context.Background(),
-				cli,
+				fetcher,
 				tt.resourceGroup,
 				tt.account,
 			)
