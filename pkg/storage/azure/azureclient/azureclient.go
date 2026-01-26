@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -32,6 +33,13 @@ const (
 	defaultPrivateZoneLocation = "global"
 	defaultRecordSetTTL        = 10
 	azureCredentialsKey        = "AzureCredentials"
+
+	// Azure API retry configuration.
+	// These values are tuned for handling Azure API rate limiting (HTTP 429 responses).
+	// The SDK automatically handles 429s with exponential backoff.
+	retryMaxRetries    = 2                 // Maximum number of retry attempts
+	retryDelay         = 10 * time.Second  // Initial delay between retries
+	retryMaxRetryDelay = 60 * time.Second  // Maximum delay between retries
 )
 
 type Client struct {
@@ -87,7 +95,9 @@ func New(opts *Options) (*Client, error) {
 	coreOpts.PerCallPolicies = opts.Policies
 	creds := opts.Creds
 	coreOpts.Retry = policy.RetryOptions{
-		MaxRetries: -1, // try once
+		MaxRetries:    retryMaxRetries,
+		RetryDelay:    retryDelay,
+		MaxRetryDelay: retryMaxRetryDelay,
 	}
 
 	return &Client{
