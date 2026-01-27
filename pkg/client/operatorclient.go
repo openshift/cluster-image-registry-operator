@@ -167,8 +167,9 @@ func (c *ConfigOperatorClient) ApplyOperatorStatus(ctx context.Context, fieldMan
 	}
 
 	// apply the status update.
-	_, err = c.client.ApplyStatus(ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager})
-	if err != nil {
+	if _, err = c.client.ApplyStatus(
+		ctx, desired, metav1.ApplyOptions{FieldManager: fieldManager, Force: true},
+	); err != nil {
 		return fmt.Errorf("unable to apply status for operator using fieldManager %q: %w", fieldManager, err)
 	}
 	return nil
