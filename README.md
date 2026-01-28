@@ -127,12 +127,12 @@ make build
 ### Running test suites and tests
 
 ```bash
-# Run a specific test suite or test
-./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/all
+# Run the operator/serial test suite with serial execution
+./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/operator/serial --max-parallel-tests=1
 ./cluster-image-registry-operator-tests-ext run-test "test-name"
 
 # Run with JUnit output
-./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/all --junit-path /tmp/junit.xml
+./cluster-image-registry-operator-tests-ext run-suite openshift/cluster-image-registry-operator/operator/serial --max-parallel-tests=1 --junit-path /tmp/junit.xml
 ```
 
 ### Listing available tests and suites
@@ -142,7 +142,7 @@ make build
 ./cluster-image-registry-operator-tests-ext list suites
 
 # List tests in a suite
-./cluster-image-registry-operator-tests-ext list tests --suite=openshift/cluster-image-registry-operator/all
+./cluster-image-registry-operator-tests-ext list tests --suite=openshift/cluster-image-registry-operator/operator/serial
 ```
 
 For more information about the OTE framework, see the [openshift-tests-extension documentation](https://github.com/openshift-eng/openshift-tests-extension).

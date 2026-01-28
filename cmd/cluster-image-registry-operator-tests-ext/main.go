@@ -8,7 +8,7 @@ https://github.com/openshift-eng/openshift-tests-extension/blob/main/cmd/example
 package main
 
 import (
-	"context"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -16,19 +16,28 @@ import (
 
 	otecmd "github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
 	oteextension "github.com/openshift-eng/openshift-tests-extension/pkg/extension"
+	oteginkgo "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 	"github.com/openshift/cluster-image-registry-operator/pkg/version"
 
 	"k8s.io/klog/v2"
+
+	_ "github.com/openshift/cluster-image-registry-operator/test/e2e"
 )
 
 func main() {
-	command := newOperatorTestCommand(context.Background())
+	command, err := newOperatorTestCommand()
+	if err != nil {
+		klog.Fatal(err)
+	}
 	code := cli.Run(command)
 	os.Exit(code)
 }
 
-func newOperatorTestCommand(ctx context.Context) *cobra.Command {
-	registry := prepareOperatorTestsRegistry()
+func newOperatorTestCommand() (*cobra.Command, error) {
+	registry, err := prepareOperatorTestsRegistry()
+	if err != nil {
+		return nil, err
+	}
 
 	cmd := &cobra.Command{
 		Use:   "cluster-image-registry-operator-tests-ext",
@@ -49,7 +58,7 @@ func newOperatorTestCommand(ctx context.Context) *cobra.Command {
 
 	cmd.AddCommand(otecmd.DefaultExtensionCommands(registry)...)
 
-	return cmd
+	return cmd, nil
 }
 
 // prepareOperatorTestsRegistry creates the OTE registry for this operator.
@@ -57,10 +66,27 @@ func newOperatorTestCommand(ctx context.Context) *cobra.Command {
 // Note:
 //
 // This method must be called before adding the registry to the OTE framework.
-func prepareOperatorTestsRegistry() *oteextension.Registry {
+func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 	registry := oteextension.NewRegistry()
 	extension := oteextension.NewExtension("openshift", "payload", "cluster-image-registry-operator")
 
+	// The following suite runs tests that verify the operator's behaviour.
+	// This suite is executed only on pull requests targeting this repository.
+	// All tests are included in this suite and run serially.
+	extension.AddSuite(oteextension.Suite{
+		Name:        "openshift/cluster-image-registry-operator/operator/serial",
+		Parallelism: 1,
+		Qualifiers: []string{
+			`name.contains("")`, // Include all tests
+		},
+	})
+
+	specs, err := oteginkgo.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't build extension test specs from ginkgo: %w", err)
+	}
+
+	extension.AddSpecs(specs)
 	registry.Register(extension)
-	return registry
+	return registry, nil
 }
