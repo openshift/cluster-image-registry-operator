@@ -96,7 +96,7 @@ func TestBootstrapAWS(t *testing.T) {
 	}
 
 	// Compare the rest of the spec (excluding ObservedConfig)
-	expected := imageregistryv1.ImageRegistrySpec{
+	expectedSpec := imageregistryv1.ImageRegistrySpec{
 		Storage: imageregistryv1.ImageRegistryConfigStorage{
 			S3: &imageregistryv1.ImageRegistryConfigStorageS3{},
 		},
@@ -104,13 +104,12 @@ func TestBootstrapAWS(t *testing.T) {
 			ManagementState:  "Managed",
 			LogLevel:         operatorv1.Normal,
 			OperatorLogLevel: operatorv1.Normal,
+			ObservedConfig:   config.Spec.ObservedConfig,
 		},
 		Replicas:        2,
 		RolloutStrategy: "RollingUpdate",
 	}
-	// Copy ObservedConfig from actual to expected for comparison
-	expected.ObservedConfig = config.Spec.ObservedConfig
-	if !reflect.DeepEqual(config.Spec, expected) {
-		t.Errorf("unexpected config: %s", cmp.Diff(expected, config.Spec))
+	if !reflect.DeepEqual(config.Spec, expectedSpec) {
+		t.Errorf("unexpected config: %s", cmp.Diff(expectedSpec, config.Spec))
 	}
 }
