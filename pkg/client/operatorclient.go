@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/clock"
 
@@ -77,19 +75,11 @@ func (c *ConfigOperatorClient) UpdateOperatorSpec(ctx context.Context, oldResour
 	if err != nil {
 		return nil, "", err
 	}
-	config = config.DeepCopy()
+	configCopy := config.DeepCopy()
+	configCopy.ResourceVersion = oldResourceVersion
+	configCopy.Spec.OperatorSpec = *in
 
-	if config.ResourceVersion != oldResourceVersion {
-		gr := schema.GroupResource{
-			Group:    "imageregistry.operator.openshift.io",
-			Resource: "configs",
-		}
-		return nil, "", errors.NewConflict(gr, config.Name, fmt.Errorf("oldResourceVersion=%s, resourceVersion=%s", oldResourceVersion, config.ResourceVersion))
-	}
-
-	config.Spec.OperatorSpec = *in
-
-	updatedConfig, err := c.client.Update(ctx, config, metav1.UpdateOptions{})
+	updatedConfig, err := c.client.Update(ctx, configCopy, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, "", err
 	}
@@ -102,19 +92,11 @@ func (c *ConfigOperatorClient) UpdateOperatorStatus(ctx context.Context, oldReso
 	if err != nil {
 		return nil, err
 	}
-	config = config.DeepCopy()
+	configCopy := config.DeepCopy()
+	configCopy.ResourceVersion = oldResourceVersion
+	configCopy.Status.OperatorStatus = *in
 
-	if config.ResourceVersion != oldResourceVersion {
-		gr := schema.GroupResource{
-			Group:    "imageregistry.operator.openshift.io",
-			Resource: "configs",
-		}
-		return nil, errors.NewConflict(gr, config.Name, fmt.Errorf("oldResourceVersion=%s, resourceVersion=%s", oldResourceVersion, config.ResourceVersion))
-	}
-
-	config.Status.OperatorStatus = *in
-
-	updatedConfig, err := c.client.UpdateStatus(ctx, config, metav1.UpdateOptions{})
+	updatedConfig, err := c.client.UpdateStatus(ctx, configCopy, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err
 	}
