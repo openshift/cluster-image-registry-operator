@@ -51,10 +51,18 @@ spec:
                 f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
                 reg_dir_path="/etc/docker/certs.d/${f}"
                 if [ -e "${reg_dir_path}" ]; then
-                    cp -u $ca_file_path $reg_dir_path/ca.crt
+                    # Use atomic file replacement to prevent readers from seeing
+                    # empty or partial certificates during update. The mv command
+                    # uses rename(2) syscall which atomically replaces the file.
+                    # See: https://man7.org/linux/man-pages/man2/rename.2.html
+                    cp -u $ca_file_path $reg_dir_path/ca.crt.tmp && mv $reg_dir_path/ca.crt.tmp $reg_dir_path/ca.crt
                 else
                     mkdir $reg_dir_path
-                    cp $ca_file_path $reg_dir_path/ca.crt
+                    # Use atomic file replacement to prevent readers from seeing
+                    # empty or partial certificates during update. The mv command
+                    # uses rename(2) syscall which atomically replaces the file.
+                    # See: https://man7.org/linux/man-pages/man2/rename.2.html
+                    cp $ca_file_path $reg_dir_path/ca.crt.tmp && mv $reg_dir_path/ca.crt.tmp $reg_dir_path/ca.crt
                 fi
             done
             for d in $(ls /etc/docker/certs.d); do
