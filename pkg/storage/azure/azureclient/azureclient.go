@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
@@ -24,6 +26,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/Azure/msi-dataplane/pkg/dataplane"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 const (
@@ -32,7 +36,50 @@ const (
 	defaultPrivateZoneLocation = "global"
 	defaultRecordSetTTL        = 10
 	azureCredentialsKey        = "AzureCredentials"
+
+	// Azure API retry configuration.
+	// These values are tuned for handling Azure API rate limiting (HTTP 429 responses).
+	// The SDK automatically handles 429s with exponential backoff.
+	retryMaxRetries    = 2                // Maximum number of retry attempts
+	retryDelay         = 10 * time.Second // Initial delay between retries
+	retryMaxRetryDelay = 60 * time.Second // Maximum delay between retries
 )
+
+// ValidateCredentialFilePath validates that a credential file path is safe to use.
+// It checks that the path is absolute, doesn't contain path traversal sequences,
+// and that the file exists.
+func ValidateCredentialFilePath(path string) error {
+	if path == "" {
+		return errors.New("credential file path is empty")
+	}
+
+	// Ensure the path is absolute to prevent relative path attacks
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("credential file path must be absolute: %s", path)
+	}
+
+	// Clean the path and check for path traversal attempts
+	cleanPath := filepath.Clean(path)
+	if cleanPath != path && strings.Contains(path, "..") {
+		return fmt.Errorf("credential file path contains invalid sequences: %s", path)
+	}
+
+	// Check that the file exists and is accessible
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("credential file does not exist: %s", cleanPath)
+		}
+		return fmt.Errorf("unable to access credential file: %w", err)
+	}
+
+	// Ensure it's a regular file, not a directory or symlink
+	if info.IsDir() {
+		return fmt.Errorf("credential file path is a directory: %s", cleanPath)
+	}
+
+	return nil
+}
 
 type Client struct {
 	creds            azcore.TokenCredential
@@ -83,11 +130,16 @@ func New(opts *Options) (*Client, error) {
 	}
 	coreOpts := azcore.ClientOptions{
 		Cloud: cloudConfig,
+		Telemetry: policy.TelemetryOptions{
+			ApplicationID: defaults.UserAgent,
+		},
 	}
 	coreOpts.PerCallPolicies = opts.Policies
 	creds := opts.Creds
 	coreOpts.Retry = policy.RetryOptions{
-		MaxRetries: -1, // try once
+		MaxRetries:    retryMaxRetries,
+		RetryDelay:    retryDelay,
+		MaxRetryDelay: retryMaxRetryDelay,
 	}
 
 	return &Client{
@@ -113,6 +165,10 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 		// We need to only store the Azure credentials once and reuse them after that.
 		storedCreds, found := c.azureCredentials.Load(azureCredentialsKey)
 		if !found {
+			// Validate the credential file path before using it
+			if err := ValidateCredentialFilePath(userAssignedIdentityCredentialsFilePath); err != nil {
+				return nil, fmt.Errorf("invalid credential file path: %w", err)
+			}
 			klog.V(2).Info("Using UserAssignedIdentityCredentials for Azure authentication for managed Azure HCP")
 			clientOptions := azcore.ClientOptions{
 				Cloud: c.clientOpts.Cloud,
@@ -163,13 +219,13 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 func (c *Client) getStorageAccount(ctx context.Context, resourceGroupName, accountName string) (armstorage.Account, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return armstorage.Account{}, fmt.Errorf("failed to get credentials: %q", err)
+		return armstorage.Account{}, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return armstorage.Account{}, fmt.Errorf("failed to create accounts client: %q", err)
+		return armstorage.Account{}, fmt.Errorf("failed to create accounts client: %w", err)
 	}
 	resp, err := client.GetProperties(ctx, resourceGroupName, accountName, nil)
 	if err != nil {
@@ -196,13 +252,13 @@ func (c *Client) vnetHasAnyTag(vnet armnetwork.VirtualNetwork, tagFilter map[str
 func (c *Client) GetVNetByTags(ctx context.Context, resourceGroupName string, tagFilter map[string][]string) (armnetwork.VirtualNetwork, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to get credentials: %q", err)
+		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewVirtualNetworksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create accounts client: %q", err)
+		return armnetwork.VirtualNetwork{}, fmt.Errorf("failed to create virtual networks client: %w", err)
 	}
 
 	pager := client.NewListPager(resourceGroupName, nil)
@@ -224,13 +280,13 @@ func (c *Client) GetVNetByTags(ctx context.Context, resourceGroupName string, ta
 func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetName string) (armnetwork.Subnet, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return armnetwork.Subnet{}, fmt.Errorf("failed to get credentials: %q", err)
+		return armnetwork.Subnet{}, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewSubnetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %q", err)
+		return armnetwork.Subnet{}, fmt.Errorf("failed to create subnets client: %w", err)
 	}
 
 	pager := client.NewListPager(resourceGroupName, vnetName, nil)
@@ -255,13 +311,13 @@ func (c *Client) GetSubnetsByVNet(ctx context.Context, resourceGroupName, vnetNa
 func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resourceGroupName, accountName string, allowPublicAccess bool) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create accounts client: %q", err)
+		return fmt.Errorf("failed to create accounts client: %w", err)
 	}
 	publicNetworkAccess := armstorage.PublicNetworkAccessDisabled
 	if allowPublicAccess {
@@ -281,13 +337,13 @@ func (c *Client) UpdateStorageAccountNetworkAccess(ctx context.Context, resource
 func (c *Client) DisableStorageAccountAccessKeyAccess(ctx context.Context, resourceGroupName, accountName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create accounts client: %q", err)
+		return fmt.Errorf("failed to create accounts client: %w", err)
 	}
 
 	params := armstorage.AccountUpdateParameters{
@@ -323,7 +379,7 @@ func (c *Client) IsStorageAccountPrivate(ctx context.Context, resourceGroupName,
 func (c *Client) PrivateEndpointExists(ctx context.Context, resourceGroupName, privateEndpointName string) (bool, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return false, fmt.Errorf("failed to get credentials: %q", err)
+		return false, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.opts.SubscriptionID,
@@ -351,7 +407,7 @@ func (c *Client) CreatePrivateEndpoint(
 ) (*armnetwork.PrivateEndpoint, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get credentials: %q", err)
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.opts.SubscriptionID,
@@ -361,7 +417,7 @@ func (c *Client) CreatePrivateEndpoint(
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get private endpoints client: %q", err)
+		return nil, fmt.Errorf("failed to create private endpoints client: %w", err)
 	}
 
 	privateLinkResourceID := formatPrivateLinkResourceID(
@@ -414,7 +470,7 @@ func (c *Client) CreatePrivateEndpoint(
 func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, privateEndpointName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewPrivateEndpointsClient(
 		c.opts.SubscriptionID,
@@ -424,7 +480,7 @@ func (c *Client) DeletePrivateEndpoint(ctx context.Context, resourceGroupName, p
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to get private endpoints client: %q", err)
+		return fmt.Errorf("failed to create private endpoints client: %w", err)
 	}
 	pollersResp, err := client.BeginDelete(
 		ctx,
@@ -515,7 +571,7 @@ func (c *Client) DestroyPrivateDNS(ctx context.Context, resourceGroupName, priva
 func (c *Client) createPrivateDNSZone(ctx context.Context, resourceGroupName, name, location string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armprivatedns.NewPrivateZonesClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
@@ -551,13 +607,13 @@ func (c *Client) createRecordSet(
 ) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armprivatedns.NewRecordSetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get record sets client: %s", err)
+		return fmt.Errorf("failed to create record sets client: %w", err)
 	}
 
 	nicAddress, err := c.getNICAddress(ctx, resourceGroupName, privateEndpoint)
@@ -592,13 +648,13 @@ func (c *Client) createRecordSet(
 func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, privateZoneName, relativeRecordSetName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armprivatedns.NewRecordSetsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get record sets client: %s", err)
+		return fmt.Errorf("failed to create record sets client: %w", err)
 	}
 	if _, err := client.Delete(
 		ctx,
@@ -617,13 +673,13 @@ func (c *Client) deleteRecordSet(ctx context.Context, resourceGroupName, private
 func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
+		return fmt.Errorf("failed to create private dns zone groups client: %w", err)
 	}
 	privateZoneID := formatPrivateDNSZoneID(c.opts.SubscriptionID, resourceGroupName, privateZoneName)
 	groupName := strings.Replace(privateZoneName, ".", "-", -1)
@@ -658,13 +714,13 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupName, privateEndpointName, privateZoneName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewPrivateDNSZoneGroupsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get private dns zone groups client: %q", err)
+		return fmt.Errorf("failed to create private dns zone groups client: %w", err)
 	}
 	groupName := strings.Replace(privateZoneName, ".", "-", -1)
 	pollersResp, err := client.BeginDelete(
@@ -694,13 +750,13 @@ func (c *Client) createVirtualNetworkLink(
 ) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get virtual network links client: %s", err)
+		return fmt.Errorf("failed to create virtual network links client: %w", err)
 	}
 
 	vnetID := formatVNetID(c.opts.SubscriptionID, networkResourceGroupName, vnetName)
@@ -734,13 +790,13 @@ func (c *Client) createVirtualNetworkLink(
 func (c *Client) deleteVirtualNetworkLink(ctx context.Context, clusterResourceGroupName, linkName, privateZoneName string) error {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get credentials: %q", err)
+		return fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armprivatedns.NewVirtualNetworkLinksClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get virtual network links client: %s", err)
+		return fmt.Errorf("failed to create virtual network links client: %w", err)
 	}
 
 	pollersResp, err := client.BeginDelete(
@@ -770,7 +826,7 @@ func (c *Client) is404(err error) bool {
 func (c *Client) getNICAddress(ctx context.Context, resourceGroupName string, privateEndpoint *armnetwork.PrivateEndpoint) (string, error) {
 	creds, err := c.getCreds(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get credentials: %q", err)
+		return "", fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := armnetwork.NewInterfacesClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
 		ClientOptions: *c.clientOpts,
@@ -876,7 +932,7 @@ func (c *Client) NewBlobClient(environment autorestazure.Environment, accountNam
 
 	creds, err := c.getCreds(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get credentials: %q", err)
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 	client, err := azblob.NewClient(blobURL, creds, &azblob.ClientOptions{
 		ClientOptions: *c.clientOpts,
@@ -916,4 +972,156 @@ func (client *BlobClient) CreateStorageContainer(ctx context.Context, containerN
 func (client *BlobClient) DeleteStorageContainer(ctx context.Context, containerName string) error {
 	_, err := client.client.DeleteContainer(ctx, containerName, &azblob.DeleteContainerOptions{})
 	return err
+}
+
+// StorageAccountCreateOptions contains options for creating a storage account.
+type StorageAccountCreateOptions struct {
+	ResourceGroupName string
+	AccountName       string
+	Location          string
+	CloudName         string // For Azure Stack Hub detection
+	Tags              map[string]*string
+}
+
+// CheckStorageAccountNameAvailability checks if the storage account name is available.
+func (c *Client) CheckStorageAccountNameAvailability(ctx context.Context, accountName string) (*armstorage.CheckNameAvailabilityResult, error) {
+	creds, err := c.getCreds(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create accounts client: %w", err)
+	}
+
+	resp, err := client.CheckNameAvailability(ctx, armstorage.AccountCheckNameAvailabilityParameters{
+		Name: to.StringPtr(accountName),
+		Type: to.StringPtr("Microsoft.Storage/storageAccounts"),
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &resp.CheckNameAvailabilityResult, nil
+}
+
+// IsAzureStackCloud checks if the cloud name indicates Azure Stack Hub.
+func IsAzureStackCloud(name string) bool {
+	return strings.EqualFold(name, "AZURESTACKCLOUD")
+}
+
+// CreateStorageAccount creates a new storage account.
+func (c *Client) CreateStorageAccount(ctx context.Context, opts *StorageAccountCreateOptions) error {
+	creds, err := c.getCreds(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %w", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create accounts client: %w", err)
+	}
+
+	klog.Infof("attempt to create azure storage account %s (resourceGroup=%q, location=%q)...", opts.AccountName, opts.ResourceGroupName, opts.Location)
+
+	kind := armstorage.KindStorageV2
+	skuName := armstorage.SKUNameStandardLRS
+	minTLSVersion := armstorage.MinimumTLSVersionTLS12
+	params := armstorage.AccountCreateParameters{
+		Kind:     &kind,
+		Location: to.StringPtr(opts.Location),
+		SKU: &armstorage.SKU{
+			Name: &skuName,
+		},
+		Properties: &armstorage.AccountPropertiesCreateParameters{
+			EnableHTTPSTrafficOnly: to.BoolPtr(true),
+			AllowBlobPublicAccess:  to.BoolPtr(false),
+			MinimumTLSVersion:      &minTLSVersion,
+		},
+		Tags: opts.Tags,
+	}
+
+	if IsAzureStackCloud(opts.CloudName) {
+		// Azure Stack Hub does not support new API features
+		kind = armstorage.KindStorage
+		params.Kind = &kind
+		params.Properties = &armstorage.AccountPropertiesCreateParameters{}
+	}
+
+	poller, err := client.BeginCreate(ctx, opts.ResourceGroupName, opts.AccountName, params, nil)
+	if err != nil {
+		return fmt.Errorf("failed to start creating storage account: %w", err)
+	}
+
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create storage account: %w", err)
+	}
+
+	klog.Infof("azure storage account %s has been created", opts.AccountName)
+	return nil
+}
+
+// ListStorageAccountKeys lists the access keys for a storage account.
+func (c *Client) ListStorageAccountKeys(ctx context.Context, resourceGroupName, accountName string) ([]*armstorage.AccountKey, error) {
+	creds, err := c.getCreds(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create accounts client: %w", err)
+	}
+
+	expand := "kerb"
+	resp, err := client.ListKeys(ctx, resourceGroupName, accountName, &armstorage.AccountsClientListKeysOptions{
+		Expand: &expand,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list storage account keys: %w", err)
+	}
+	return resp.Keys, nil
+}
+
+// GetPrimaryStorageAccountKey returns the primary key for a storage account.
+func (c *Client) GetPrimaryStorageAccountKey(ctx context.Context, resourceGroupName, accountName string) (string, error) {
+	keys, err := c.ListStorageAccountKeys(ctx, resourceGroupName, accountName)
+	if err != nil {
+		return "", err
+	}
+	if len(keys) == 0 {
+		return "", fmt.Errorf("no keys found for storage account %s", accountName)
+	}
+	if keys[0].Value == nil {
+		return "", fmt.Errorf("primary key value is nil for storage account %s", accountName)
+	}
+	return *keys[0].Value, nil
+}
+
+// DeleteStorageAccount deletes a storage account. Returns nil if the account doesn't exist.
+func (c *Client) DeleteStorageAccount(ctx context.Context, resourceGroupName, accountName string) error {
+	creds, err := c.getCreds(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get credentials: %w", err)
+	}
+	client, err := armstorage.NewAccountsClient(c.opts.SubscriptionID, creds, &arm.ClientOptions{
+		ClientOptions: *c.clientOpts,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create accounts client: %w", err)
+	}
+
+	_, err = client.Delete(ctx, resourceGroupName, accountName, nil)
+	if err != nil {
+		// Ignore 404 errors - account already deleted
+		if c.is404(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
