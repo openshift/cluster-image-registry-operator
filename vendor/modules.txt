@@ -706,11 +706,14 @@ github.com/openshift/client-go/machine/clientset/versioned/scheme
 github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1
 github.com/openshift/client-go/operator/applyconfigurations/internal
 github.com/openshift/client-go/operator/applyconfigurations/operator/v1
+github.com/openshift/client-go/route/applyconfigurations
 github.com/openshift/client-go/route/applyconfigurations/internal
 github.com/openshift/client-go/route/applyconfigurations/route/v1
 github.com/openshift/client-go/route/clientset/versioned
+github.com/openshift/client-go/route/clientset/versioned/fake
 github.com/openshift/client-go/route/clientset/versioned/scheme
 github.com/openshift/client-go/route/clientset/versioned/typed/route/v1
+github.com/openshift/client-go/route/clientset/versioned/typed/route/v1/fake
 github.com/openshift/client-go/route/informers/externalversions
 github.com/openshift/client-go/route/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/route/informers/externalversions/route
@@ -735,6 +738,7 @@ github.com/openshift/library-go/pkg/network
 github.com/openshift/library-go/pkg/operator/certrotation
 github.com/openshift/library-go/pkg/operator/condition
 github.com/openshift/library-go/pkg/operator/configobserver
+github.com/openshift/library-go/pkg/operator/configobserver/apiserver
 github.com/openshift/library-go/pkg/operator/configobserver/featuregates
 github.com/openshift/library-go/pkg/operator/events
 github.com/openshift/library-go/pkg/operator/loglevel

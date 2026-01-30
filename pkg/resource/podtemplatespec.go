@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/utils/ptr"
@@ -19,6 +21,7 @@ import (
 	v1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -39,6 +42,60 @@ func generateLogLevel(cr *v1.Config) string {
 		return "info"
 	}
 	return "debug"
+}
+
+// generateTLSEnvVars extracts TLS configuration from observedConfig and returns
+// environment variables for the registry container.
+func generateTLSEnvVars(cr *v1.Config) ([]corev1.EnvVar, error) {
+	var envVars []corev1.EnvVar
+
+	if len(cr.Spec.ObservedConfig.Raw) == 0 {
+		return envVars, nil
+	}
+
+	observedConfig := map[string]any{}
+	if err := json.Unmarshal(cr.Spec.ObservedConfig.Raw, &observedConfig); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal observedConfig: %w", err)
+	}
+
+	// extract minTLSVersion from servingInfo.minTLSVersion
+	minTLSVersion, found, err := unstructured.NestedString(observedConfig, "servingInfo", "minTLSVersion")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get servingInfo.minTLSVersion: %w", err)
+	}
+	if found && minTLSVersion != "" {
+		if _, err := crypto.TLSVersion(minTLSVersion); err != nil {
+			return nil, fmt.Errorf("invalid TLS version: %w", err)
+		}
+		envVars = append(
+			envVars, corev1.EnvVar{
+				Name:  "REGISTRY_HTTP_TLS_MINVERSION",
+				Value: minTLSVersion,
+			},
+		)
+	}
+
+	// extract cipherSuites from servingInfo.cipherSuites
+	cipherSuites, found, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get servingInfo.cipherSuites: %w", err)
+	}
+
+	if found && len(cipherSuites) > 0 {
+		for _, cs := range cipherSuites {
+			if _, err := crypto.CipherSuite(cs); err != nil {
+				return nil, fmt.Errorf("invalid cipher suite: %w", err)
+			}
+		}
+		envVars = append(
+			envVars, corev1.EnvVar{
+				Name:  "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES",
+				Value: strings.Join(cipherSuites, ","),
+			},
+		)
+	}
+
+	return envVars, nil
 }
 
 // generateLivenessProbeConfig returns an HTTPS liveness probe for the image
@@ -259,6 +316,13 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_KEY", Value: "/etc/secrets/tls.key"},
 	)
+
+	// Add TLS version and cipher suites from observedConfig
+	tlsEnvVars, err := generateTLSEnvVars(cr)
+	if err != nil {
+		return corev1.PodTemplateSpec{}, nil, fmt.Errorf("unable to generate tls config: %w", err)
+	}
+	env = append(env, tlsEnvVars...)
 
 	volumes = append(volumes, corev1.Volume{
 		Name: "ca-trust-extracted",

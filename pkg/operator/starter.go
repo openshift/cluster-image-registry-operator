@@ -21,12 +21,16 @@ import (
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned"
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
+	"github.com/openshift/library-go/pkg/controller/factory"
+	"github.com/openshift/library-go/pkg/operator/configobserver"
+	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/loglevel"
 	"github.com/openshift/library-go/pkg/operator/status"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
+	"github.com/openshift/cluster-image-registry-operator/pkg/configobservation"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
@@ -92,6 +96,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return errors.New("timed out waiting for FeatureGate detection")
 	}
 
+	observer := configobservation.NewAPIServerConfigListers(
+		configInformers.Config().V1().APIServers(),
+		configOperatorClient,
+	)
+
 	controller, err := NewController(
 		eventRecorder,
 		kubeconfig,
@@ -107,6 +116,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		imageregistryInformers,
 		routeInformers,
 		featureGateAccessor,
+		observer,
 	)
 	if err != nil {
 		return err
@@ -231,6 +241,18 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	metricsController := NewMetricsController(imageInformers.Image().V1().ImageStreams())
 
+	configObserverController := configobserver.NewConfigObserver(
+		"ImageRegistryConfigObserver",
+		configOperatorClient,
+		eventRecorder,
+		observer,
+		[]factory.Informer{
+			configInformers.Config().V1().APIServers().Informer(),
+			configOperatorClient.Informer(),
+		},
+		apiserver.ObserveTLSSecurityProfile,
+	)
+
 	kubeInformers.Start(ctx.Done())
 	kubeInformersForOpenShiftConfig.Start(ctx.Done())
 	kubeInformersForOpenShiftConfigManaged.Start(ctx.Done())
@@ -251,6 +273,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	go azurePathFixController.Run(ctx.Done())
 	go awsTagController.Run(ctx)
 	go metricsController.Run(ctx)
+	go configObserverController.Run(ctx, 1)
 
 	<-ctx.Done()
 	return nil

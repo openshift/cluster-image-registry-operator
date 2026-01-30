@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	appsapi "k8s.io/api/apps/v1"
@@ -9,11 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -71,6 +74,20 @@ func (c *Controller) Bootstrap() error {
 		rolloutStrategy = appsapi.RecreateDeploymentStrategyType
 	}
 
+	// Get initial observedConfig with TLS settings from cluster APIServer.
+	// We do this here so that we avoid an unnecessary registry restart once
+	// the ConfigObserver controller starts up.
+	var observedConfig runtime.RawExtension
+	if cfg, errs := apiserver.ObserveTLSSecurityProfile(
+		c.apiLister, c.evRecorder, map[string]any{},
+	); len(errs) != 0 {
+		klog.Warningf("failed to observe initial APIServer TLS security profile: %v", errs)
+	} else if raw, err := json.Marshal(cfg); err != nil {
+		klog.Warningf("failed to marshal observedConfig: %v", err)
+	} else {
+		observedConfig = runtime.RawExtension{Raw: raw}
+	}
+
 	cr = &imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       defaults.ImageRegistryResourceName,
@@ -81,6 +98,7 @@ func (c *Controller) Bootstrap() error {
 				LogLevel:         operatorapi.Normal,
 				OperatorLogLevel: operatorapi.Normal,
 				ManagementState:  mgmtState,
+				ObservedConfig:   observedConfig,
 			},
 			Storage:         platformStorage,
 			Replicas:        replicas,
