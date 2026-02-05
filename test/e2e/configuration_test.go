@@ -643,6 +643,7 @@ func TestScaleUp(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
+	expectedReplicas := 4
 	if _, err := te.Client().Configs().Patch(
 		context.Background(),
 		defaults.ImageRegistryResourceName,
@@ -651,7 +652,7 @@ func TestScaleUp(t *testing.T) {
 			{
 				Op:    "replace",
 				Path:  "/spec/replicas",
-				Value: 4,
+				Value: expectedReplicas,
 			},
 		}),
 		metav1.PatchOptions{},
@@ -659,9 +660,19 @@ func TestScaleUp(t *testing.T) {
 		t.Fatalf("unable update spec.replicas: %s", err)
 	}
 
-	cr := framework.WaitUntilImageRegistryConfigIsProcessed(te)
-	if cr.Status.ReadyReplicas != 4 {
-		t.Errorf("got %d ready replicas, want 4", cr.Status.ReadyReplicas)
+	_ = framework.WaitUntilImageRegistryConfigIsProcessed(te)
+	// scale-up does not set progressing=True anymore, so we have to wait for all replicas to eventually show up manually
+	err := wait.PollUntilContextTimeout(context.Background(), 5*time.Second, 5*time.Minute, false,
+		func(ctx context.Context) (stop bool, err error) {
+			cr, err := te.Client().Configs().Get(ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{})
+			if err != nil {
+				return false, err
+			}
+
+			return cr.Status.ReadyReplicas == int32(expectedReplicas), nil
+		})
+	if err != nil {
+		t.Fatalf("unable to verify spec.replicas in scale-up: %s", err)
 	}
 }
 
