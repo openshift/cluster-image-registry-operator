@@ -31,6 +31,10 @@ cloud.google.com/go/storage/internal/apiv2/storagepb
 # github.com/Azure/azure-pipeline-go v0.2.3
 ## explicit; go 1.14
 github.com/Azure/azure-pipeline-go/pipeline
+# github.com/Azure/azure-sdk-for-go v55.6.0+incompatible
+## explicit
+github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage
+github.com/Azure/azure-sdk-for-go/version
 # github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/azcore
@@ -121,6 +125,9 @@ github.com/Azure/go-autorest/autorest/mocks
 # github.com/Azure/go-autorest/autorest/to v0.4.0
 ## explicit; go 1.12
 github.com/Azure/go-autorest/autorest/to
+# github.com/Azure/go-autorest/autorest/validation v0.3.2
+## explicit; go 1.15
+github.com/Azure/go-autorest/autorest/validation
 # github.com/Azure/go-autorest/logger v0.2.1
 ## explicit; go 1.12
 github.com/Azure/go-autorest/logger
