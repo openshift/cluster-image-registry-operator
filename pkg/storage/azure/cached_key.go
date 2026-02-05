@@ -16,7 +16,7 @@ var primaryKey cachedKey
 
 // KeyFetcher abstracts storage account key retrieval.
 type KeyFetcher interface {
-	GetPrimaryStorageAccountKey(ctx context.Context, resourceGroup, account string) (string, error)
+	GetPrimaryKey(ctx context.Context, resourceGroup, account string) (string, error)
 }
 
 // cachedKey holds an API access key in memory for five minutes.
@@ -42,7 +42,7 @@ func (k *cachedKey) get(
 	}
 	metrics.AzureKeyCacheMiss()
 
-	key, err := fetcher.GetPrimaryStorageAccountKey(ctx, resourceGroup, account)
+	key, err := fetcher.GetPrimaryKey(ctx, resourceGroup, account)
 	if err != nil {
 		return "", err
 	}
