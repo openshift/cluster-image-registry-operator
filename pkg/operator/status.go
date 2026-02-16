@@ -93,19 +93,13 @@ func updatePrunerCondition(cr *imageregistryv1.ImagePruner, condtype string, con
 	cr.Status.Conditions = conditions
 }
 
-func isDeploymentStatusAvailable(deploy *appsapi.Deployment) bool {
-	return deploy.Status.AvailableReplicas > 0
-}
-
 func isDeploymentStatusComplete(deploy *appsapi.Deployment) bool {
-	replicas := int32(1)
-	if deploy.Spec.Replicas != nil {
-		replicas = *(deploy.Spec.Replicas)
+	for _, condition := range deploy.Status.Conditions {
+		if condition.Type == appsapi.DeploymentProgressing && condition.Status == corev1.ConditionTrue && condition.Reason == "NewReplicaSetAvailable" {
+			return true
+		}
 	}
-	return deploy.Status.UpdatedReplicas == replicas &&
-		deploy.Status.Replicas == replicas &&
-		deploy.Status.AvailableReplicas == replicas &&
-		deploy.Status.ObservedGeneration >= deploy.Generation
+	return false
 }
 
 func (c *Controller) setStatusRemoving(cr *imageregistryv1.Config) {
@@ -281,10 +275,10 @@ func (c *Controller) syncStatus(
 	} else if deploy.DeletionTimestamp != nil {
 		operatorAvailable.Message = "The deployment is being deleted"
 		operatorAvailable.Reason = "DeploymentDeleted"
-	} else if !isDeploymentStatusAvailable(deploy) {
+	} else if deploy.Status.AvailableReplicas == 0 {
 		operatorAvailable.Message = "The deployment does not have available replicas"
 		operatorAvailable.Reason = "NoReplicasAvailable"
-	} else if !isDeploymentStatusComplete(deploy) {
+	} else if deploy.Status.AvailableReplicas != deploy.Status.Replicas {
 		operatorAvailable.Status = operatorapiv1.ConditionTrue
 		operatorAvailable.Message = "The registry has minimum availability"
 		operatorAvailable.Reason = "MinimumAvailability"
@@ -327,16 +321,8 @@ func (c *Controller) syncStatus(
 		operatorProgressing.Message = "The deployment is being deleted"
 		operatorProgressing.Reason = "FinalizingDeployment"
 	} else if !isDeploymentStatusComplete(deploy) {
-		if deploy.Generation != deploy.Status.ObservedGeneration {
-			// Actual Deployment update in progress - report Progressing=True
-			operatorProgressing.Message = "The deployment has not completed"
-			operatorProgressing.Reason = "DeploymentNotCompleted"
-		} else {
-			// Deployment reconciling (node reboots, etc.) - don't report Progressing
-			operatorProgressing.Status = operatorapiv1.ConditionFalse
-			operatorProgressing.Message = "The deployment has minimum availability"
-			operatorProgressing.Reason = "MinimumAvailability"
-		}
+		operatorProgressing.Message = "The deployment has not completed"
+		operatorProgressing.Reason = "DeploymentNotCompleted"
 	} else {
 		operatorProgressing.Status = operatorapiv1.ConditionFalse
 		operatorProgressing.Message = "The registry is ready"
