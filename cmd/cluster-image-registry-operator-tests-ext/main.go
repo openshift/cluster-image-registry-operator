@@ -74,7 +74,6 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 	// Tests tagged with [Serial] are included in this suite.
 	extension.AddSuite(oteextension.Suite{
 		Name:        "openshift/cluster-image-registry-operator/operator/serial",
-		Parents:     []string{"openshift/conformance/serial"},
 		Parallelism: 1,
 		Qualifiers: []string{
 			`name.contains("[Serial]")`,
@@ -86,7 +85,6 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 	// Tests not tagged with [Serial] are included in this suite.
 	extension.AddSuite(oteextension.Suite{
 		Name:        "openshift/cluster-image-registry-operator/operator/parallel",
-		Parents:     []string{"openshift/conformance/parallel"},
 		Parallelism: 1,
 		Qualifiers: []string{
 			`!name.contains("[Serial]")`,
