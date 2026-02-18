@@ -33,7 +33,10 @@ func main() {
 }
 
 func newOperatorTestCommand() (*cobra.Command, error) {
-	registry := prepareOperatorTestsRegistry()
+	registry, err := prepareOperatorTestsRegistry()
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare operator tests registry: %w", err)
+	}
 
 	cmd := &cobra.Command{
 		Use:   "cluster-image-registry-operator-tests-ext",
@@ -62,7 +65,7 @@ func newOperatorTestCommand() (*cobra.Command, error) {
 // Note:
 //
 // This method must be called before adding the registry to the OTE framework.
-func prepareOperatorTestsRegistry() *oteextension.Registry {
+func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 	registry := oteextension.NewRegistry()
 	extension := oteextension.NewExtension("openshift", "payload", "cluster-image-registry-operator")
 
@@ -75,6 +78,18 @@ func prepareOperatorTestsRegistry() *oteextension.Registry {
 		Parallelism: 1,
 		Qualifiers: []string{
 			`name.contains("[Serial]")`,
+		},
+	})
+
+	// The following suite runs tests that verify the image-registry operator behaviour.
+	// This suite is executed only on pull requests targeting this repository.
+	// Tests not tagged with [Serial] are included in this suite.
+	extension.AddSuite(oteextension.Suite{
+		Name:        "openshift/cluster-image-registry-operator/operator/parallel",
+		Parents:     []string{"openshift/conformance/parallel"},
+		Parallelism: 1,
+		Qualifiers: []string{
+			`!name.contains("[Serial]")`,
 		},
 	})
 
