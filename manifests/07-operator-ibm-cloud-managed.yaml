@@ -29,6 +29,8 @@ spec:
         - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
         - --files=/etc/secrets/tls.crt
         - --files=/etc/secrets/tls.key
+        - --files=/var/run/configmaps/image-registry-operator-config/config.yaml
+        - --config=/var/run/configmaps/image-registry-operator-config/config.yaml
         env:
         - name: RELEASE_VERSION
           value: 0.0.1-snapshot
@@ -77,6 +79,8 @@ spec:
           name: tmp
         - mountPath: /etc/pki/ca-trust/extracted/pem
           name: ca-trust-extracted-pem
+        - mountPath: /var/run/configmaps/image-registry-operator-config
+          name: image-registry-operator-config
       priorityClassName: system-cluster-critical
       serviceAccountName: cluster-image-registry-operator
       shareProcessNamespace: false
@@ -113,3 +117,6 @@ spec:
               path: token
       - emptyDir: {}
         name: ca-trust-extracted-pem
+      - configMap:
+          name: image-registry-operator-config
+        name: image-registry-operator-config

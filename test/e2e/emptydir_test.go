@@ -51,7 +51,7 @@ func TestBasicEmptyDir(t *testing.T) {
 	if !logs.Contains(regexp.MustCompile(`Cluster Image Registry Operator Version: .+`)) {
 		t.Error("error: the log doesn't contain the operator's version")
 	}
-	if !logs.Contains(regexp.MustCompile(`Watching files \[/var/run/configmaps/trusted-ca/tls-ca-bundle\.pem /etc/secrets/tls\.crt /etc/secrets/tls\.key\]`)) {
+	if !logs.Contains(regexp.MustCompile(`Watching files \[/var/run/configmaps/trusted-ca/tls-ca-bundle\.pem /etc/secrets/tls\.crt /etc/secrets/tls\.key /var/run/configmaps/image-registry-operator-config/config\.yaml\]`)) {
 		t.Error("error: the log doesn't contain correct watch files")
 	}
 	if !logs.Contains(regexp.MustCompile(`object changed`)) {
