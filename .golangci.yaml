@@ -4,17 +4,11 @@ linters:
     staticcheck:
       checks:
         - all
-        # below list makes the verify target pass
-        - '-QF1001' # could apply De Morgan's law
-        - '-QF1004' # could use strings.ReplaceAll instead
-        - '-QF1008' # could remove embedded field
         - '-ST1003' # should not use underscores in Go names
-        - '-ST1005' # error strings should not be capitalized
-        - '-ST1012' # error should have name of the form ErrFoo
         - '-ST1016' # methods on the same type should have the same receiver name
-        - '-ST1019' # package is being imported more than once
   enable:
     - contextcheck
+    - errcheck
     - exhaustive
     - misspell
   exclusions:
