@@ -76,7 +76,7 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		Name:        "openshift/cluster-image-registry-operator/operator/serial",
 		Parallelism: 1,
 		Qualifiers: []string{
-			"[Serial]",
+			`name.contains("[Serial]")`,
 		},
 	})
 
@@ -87,7 +87,7 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		Name:        "openshift/cluster-image-registry-operator/operator/parallel",
 		Parallelism: 4,
 		Qualifiers: []string{
-			"[Parallel]",
+			`!name.contains("[Serial]")`,
 		},
 	})
 
