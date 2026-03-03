@@ -125,8 +125,12 @@ func (c *legacyStorageClient) getAccountsClient(ctx context.Context) (storage.Ac
 		return storage.AccountsClient{}, fmt.Errorf("failed to create OAuth config: %w", err)
 	}
 
-	// Determine the resource based on the environment
-	resource := strings.TrimSuffix(c.base.opts.Environment.ResourceManagerEndpoint, "/")
+	// Use TokenAudience (not ResourceManagerEndpoint) as the OAuth resource.
+	// For Azure Stack Hub, ResourceManagerEndpoint is the ARM API URL
+	// (e.g., https://management.mtcazs.wwtatc.com) which is not registered
+	// as a resource principal in Azure AD. TokenAudience contains the correct
+	// audience for token requests (e.g., https://management.azure.com/).
+	resource := strings.TrimSuffix(c.base.opts.Environment.TokenAudience, "/")
 
 	var authorizer autorest.Authorizer
 	if strings.TrimSpace(c.base.opts.ClientSecret) != "" {
