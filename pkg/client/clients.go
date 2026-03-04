@@ -6,6 +6,7 @@ import (
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
 	jobset "k8s.io/client-go/kubernetes/typed/batch/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
+	networkingset "k8s.io/client-go/kubernetes/typed/networking/v1"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
 
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -14,13 +15,14 @@ import (
 )
 
 type Clients struct {
-	Kube   kubeset.Interface
-	Route  routeset.RouteV1Interface
-	Config configset.ConfigV1Interface
-	RegOp  regopset.Interface
-	Core   coreset.CoreV1Interface
-	Apps   appsset.AppsV1Interface
-	RBAC   rbacset.RbacV1Interface
-	Batch  batchset.BatchV1Interface
-	Job    jobset.BatchV1Interface
+	Kube       kubeset.Interface
+	Route      routeset.RouteV1Interface
+	Config     configset.ConfigV1Interface
+	RegOp      regopset.Interface
+	Core       coreset.CoreV1Interface
+	Apps       appsset.AppsV1Interface
+	RBAC       rbacset.RbacV1Interface
+	Batch      batchset.BatchV1Interface
+	Job        jobset.BatchV1Interface
+	Networking networkingset.NetworkingV1Interface
 }

@@ -106,6 +106,7 @@ func NewController(
 	c.clients.Config = configClient.ConfigV1()
 	c.clients.RegOp = imageregistryClient
 	c.clients.Batch = kubeClient.BatchV1()
+	c.clients.Networking = kubeClient.NetworkingV1()
 
 	for _, ctor := range []func() cache.SharedIndexInformer{
 		func() cache.SharedIndexInformer {
@@ -136,6 +137,11 @@ func NewController(
 		func() cache.SharedIndexInformer {
 			informer := kubeInformerFactory.Policy().V1().PodDisruptionBudgets()
 			c.listers.PodDisruptionBudgets = informer.Lister().PodDisruptionBudgets(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Networking().V1().NetworkPolicies()
+			c.listers.NetworkPolicies = informer.Lister().NetworkPolicies(defaults.ImageRegistryOperatorNamespace)
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {

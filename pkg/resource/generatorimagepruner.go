@@ -25,6 +25,10 @@ type ImagePrunerGenerator struct {
 }
 
 func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator, error) {
+	if g.clients.Core == nil || g.clients.RBAC == nil || g.clients.Batch == nil {
+		return nil, fmt.Errorf("required clients not initialized (Core, RBAC, or Batch is nil)")
+	}
+
 	var mutators []Mutator
 	mutators = append(mutators, newGeneratorPrunerClusterRole(g.listers.ClusterRoles, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
