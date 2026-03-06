@@ -76,6 +76,13 @@ func Test_syncStatus(t *testing.T) {
 					UpdatedReplicas:    3,
 					AvailableReplicas:  3,
 					ObservedGeneration: 8,
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "NewReplicaSetAvailable",
+						},
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -126,6 +133,13 @@ func Test_syncStatus(t *testing.T) {
 					UpdatedReplicas:    3,
 					AvailableReplicas:  3,
 					ObservedGeneration: 8,
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "NewReplicaSetAvailable",
+						},
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -196,7 +210,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "Deployment lagging some replicas",
+			name: "Deployment lagging some replicas, but progressed",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
@@ -210,6 +224,13 @@ func Test_syncStatus(t *testing.T) {
 				},
 				Status: appsapi.DeploymentStatus{
 					AvailableReplicas: 2,
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "NewReplicaSetAvailable",
+						},
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
@@ -222,8 +243,8 @@ func Test_syncStatus(t *testing.T) {
 				{
 					Type:    "Progressing",
 					Status:  "False",
-					Reason:  "MinimumAvailability",
-					Message: "The deployment has minimum availability",
+					Reason:  "Ready",
+					Message: "The registry is ready",
 				},
 				{
 					Type:    "Degraded",
@@ -240,7 +261,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "Deployment lagging some replicas (progressing with random reason)",
+			name: "Deployment lagging some replicas and progressing",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
@@ -257,7 +278,8 @@ func Test_syncStatus(t *testing.T) {
 					Conditions: []appsapi.DeploymentCondition{
 						{
 							Type:    appsapi.DeploymentProgressing,
-							Reason:  "RandomReason",
+							Status:  corev1.ConditionTrue,
+							Reason:  "ReplicaSetUpdated",
 							Message: "Random message",
 						},
 					},
@@ -272,9 +294,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "False",
-					Reason:  "MinimumAvailability",
-					Message: "The deployment has minimum availability",
+					Status:  "True",
+					Reason:  "DeploymentNotCompleted",
+					Message: "The deployment has not completed",
 				},
 				{
 					Type:    "Degraded",
@@ -308,11 +330,13 @@ func Test_syncStatus(t *testing.T) {
 					Conditions: []appsapi.DeploymentCondition{
 						{
 							Type:    appsapi.DeploymentAvailable,
+							Status:  corev1.ConditionFalse,
 							Reason:  "DoesntMatter",
 							Message: "No message",
 						},
 						{
 							Type:    appsapi.DeploymentProgressing,
+							Status:  corev1.ConditionFalse,
 							Reason:  "ProgressDeadlineExceeded",
 							Message: "tired",
 						},
@@ -328,9 +352,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "False",
-					Reason:  "MinimumAvailability",
-					Message: "The deployment has minimum availability",
+					Status:  "True",
+					Reason:  "DeploymentNotCompleted",
+					Message: "The deployment has not completed",
 				},
 				{
 					Type:    "Degraded",
@@ -366,7 +390,17 @@ func Test_syncStatus(t *testing.T) {
 					},
 				},
 			},
-			deploy: &appsapi.Deployment{},
+			deploy: &appsapi.Deployment{
+				Status: appsapi.DeploymentStatus{
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "ReplicaSetUpdated",
+						},
+					},
+				},
+			},
 			expectedConditions: []operatorv1.OperatorCondition{
 				{
 					Type:    "Available",
@@ -376,9 +410,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "False",
-					Reason:  "MinimumAvailability",
-					Message: "The deployment has minimum availability",
+					Status:  "True",
+					Reason:  "DeploymentNotCompleted",
+					Message: "The deployment has not completed",
 				},
 				{
 					Type:    "Degraded",
@@ -403,7 +437,17 @@ func Test_syncStatus(t *testing.T) {
 					},
 				},
 			},
-			deploy: &appsapi.Deployment{},
+			deploy: &appsapi.Deployment{
+				Status: appsapi.DeploymentStatus{
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "ReplicaSetUpdated",
+						},
+					},
+				},
+			},
 			expectedConditions: []operatorv1.OperatorCondition{
 				{
 					Type:    "Available",
@@ -413,9 +457,9 @@ func Test_syncStatus(t *testing.T) {
 				},
 				{
 					Type:    "Progressing",
-					Status:  "False",
-					Reason:  "MinimumAvailability",
-					Message: "The deployment has minimum availability",
+					Status:  "True",
+					Reason:  "DeploymentNotCompleted",
+					Message: "The deployment has not completed",
 				},
 				{
 					Type:    "Degraded",
@@ -724,6 +768,13 @@ func Test_syncStatus(t *testing.T) {
 					UpdatedReplicas:    3,
 					AvailableReplicas:  3,
 					ObservedGeneration: 8,
+					Conditions: []appsapi.DeploymentCondition{
+						{
+							Type:   appsapi.DeploymentProgressing,
+							Status: corev1.ConditionTrue,
+							Reason: "NewReplicaSetAvailable",
+						},
+					},
 				},
 			},
 			expectedConditions: []operatorv1.OperatorCondition{
