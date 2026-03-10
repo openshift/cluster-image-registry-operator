@@ -14,7 +14,7 @@ type mockKeyFetcher struct {
 	err error
 }
 
-func (m *mockKeyFetcher) GetPrimaryStorageAccountKey(ctx context.Context, resourceGroup, account string) (string, error) {
+func (m *mockKeyFetcher) GetPrimaryKey(ctx context.Context, resourceGroup, account string) (string, error) {
 	if resourceGroup == "" {
 		return "", fmt.Errorf("validation failed: parameter=resourceGroupName constraint=MinLength")
 	}

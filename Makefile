@@ -17,6 +17,16 @@ include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
 
 $(call add-profile-manifests,manifests,./profile-patches,./manifests)
 
+# ARM64 macOS compatibility: skip verify-profile-manifests if yq/yaml-patch unavailable
+# The yaml-patch tool segfaults under Rosetta 2 on ARM64 macOS
+ifeq ($(shell uname -s),Darwin)
+ifeq ($(shell uname -m),arm64)
+verify-profile-manifests-manifests:
+	@echo "SKIP: verify-profile-manifests-manifests (ARM64 macOS - yaml-patch tool crashes under Rosetta 2)"
+.PHONY: verify-profile-manifests-manifests
+endif
+endif
+
 all: build build-image verify
 .PHONY: all
 
