@@ -30,7 +30,7 @@ import (
 func (c *Controller) Bootstrap() error {
 	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
 	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("unable to get the registry custom resources: %s", err)
+		return fmt.Errorf("unable to get the registry custom resources: %w", err)
 	}
 
 	// If the registry resource already exists, no bootstrapping is required
@@ -43,7 +43,7 @@ func (c *Controller) Bootstrap() error {
 
 	platformStorage, replicas, err := storage.GetPlatformStorage(&c.listers.StorageListers)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to get platform storage: %w", err)
 	}
 
 	infra, err := util.GetInfrastructure(c.listers.StorageListers.Infrastructures)
@@ -110,7 +110,7 @@ func (c *Controller) Bootstrap() error {
 	if _, err = c.clients.RegOp.ImageregistryV1().Configs().Create(
 		context.TODO(), cr, metav1.CreateOptions{},
 	); err != nil {
-		return err
+		return fmt.Errorf("unable to create registry config: %w", err)
 	}
 
 	return nil

@@ -108,8 +108,8 @@ func registryConfigResourceVersionBumper(t *testing.T, regcli *imageregistryfake
 // newTestControllerSetup creates fake clients and informer factories
 // with the openshift-image-registry namespace. tests can add additional
 // objects using setup.kubeClient.Tracker().Add(obj). after adding
-// objects, call setup.start(ctx) to create the controller and start
-// informers.
+// objects, call setup.start(t, ctx, startRunLoop) to create the controller
+// and start informers.
 func newTestControllerSetup(t *testing.T) *testControllerSetup {
 	kubeClient := kubefakeclient.NewSimpleClientset()
 	configClient := configfakeclient.NewSimpleClientset()
@@ -164,10 +164,12 @@ func newTestControllerSetup(t *testing.T) *testControllerSetup {
 	return setup
 }
 
-// start creates the controller, starts all informers, and launches the
-// controller's Run() loop in a goroutine. the controller will
-// automatically reconcile when changes are detected via its informers.
-func (s *testControllerSetup) start(t *testing.T, ctx context.Context) {
+// start creates the controller and starts all informers. If startRunLoop is
+// true, it also launches the controller's Run() loop in a goroutine for
+// background reconciliation. If false, only informers are started (useful for
+// testing controller methods directly without background reconciliation
+// racing).
+func (s *testControllerSetup) start(t *testing.T, ctx context.Context, startRunLoop bool) {
 	openshiftConfigInformer := kubeinformers.NewSharedInformerFactoryWithOptions(
 		s.kubeClient, 0, kubeinformers.WithNamespace(defaults.OpenShiftConfigNamespace),
 	)
@@ -216,9 +218,10 @@ func (s *testControllerSetup) start(t *testing.T, ctx context.Context) {
 	openshiftConfigManagedInformer.WaitForCacheSync(ctx.Done())
 	kubeSystemInformer.WaitForCacheSync(ctx.Done())
 
-	// start the controller's reconciliation loop in a goroutine. the
-	// controller will automatically process events from its informers
-	// and reconcile.
+	if !startRunLoop {
+		return
+	}
+
 	stopCh := make(chan struct{})
 	go func() {
 		<-ctx.Done()
@@ -276,7 +279,7 @@ func TestGlobalTLSCopy(t *testing.T) {
 		},
 		apiserver.ObserveTLSSecurityProfile,
 	)
-	setup.start(t, ctx)
+	setup.start(t, ctx, true)
 	go configObserverController.Run(ctx, 1)
 
 	// env helps to evaluate a given environment variable value.
