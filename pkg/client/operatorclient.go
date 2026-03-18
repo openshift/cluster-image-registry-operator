@@ -27,7 +27,7 @@ type ConfigOperatorClient struct {
 
 // GetOperatorStateWithQuorum implements v1helpers.OperatorClient.
 func (c *ConfigOperatorClient) GetOperatorStateWithQuorum(ctx context.Context) (spec *operatorv1.OperatorSpec, status *operatorv1.OperatorStatus, resourceVersion string, err error) {
-	config, err := c.lister.Get("cluster")
+	config, err := c.client.Get(ctx, "cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, nil, "", err
 	}
