@@ -17,6 +17,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.4.0
 	github.com/Azure/azure-storage-blob-go v0.7.0
 	github.com/Azure/go-autorest/autorest v0.11.29
+	github.com/Azure/go-autorest/autorest/adal v0.9.23
 	github.com/Azure/go-autorest/autorest/mocks v0.4.2
 	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/Azure/msi-dataplane v0.4.3
@@ -33,7 +34,6 @@ require (
 	github.com/gophercloud/gophercloud/v2 v2.1.0
 	github.com/gophercloud/utils/v2 v2.0.0-20240807081201-990d90b23c70
 	github.com/goware/urlx v0.3.2
-	github.com/jongio/azidext/go/azidext v0.5.0
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251125140340-13f4631a80b0
 	github.com/openshift/api v0.0.0-20241124010541-a09992e80c68
 	github.com/openshift/build-machinery-go v0.0.0-20240613134303-8359781da660
@@ -66,9 +66,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.3.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.1.1 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
-	github.com/Azure/go-autorest/autorest/adal v0.9.23 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/Azure/go-autorest/autorest/validation v0.3.2 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.3.3 // indirect
