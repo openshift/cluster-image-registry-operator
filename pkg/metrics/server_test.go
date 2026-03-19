@@ -1,109 +1,84 @@
 package metrics
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
+	"fmt"
 	"io"
-	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"k8s.io/client-go/util/cert"
 )
 
-func TestMain(m *testing.M) {
-	var err error
-
-	tlsKey, tlsCRT, err = generateTempCertificates()
+func generateTempCertificates(t *testing.T) (string, string) {
+	certPEM, keyPEM, err := cert.GenerateSelfSignedCertKey("localhost", nil, nil)
 	if err != nil {
-		panic(err)
+		t.Fatalf("failed to generate self-signed certificate: %v", err)
 	}
 
-	// sets the default http client to skip certificate check.
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	go RunServer(5000)
-
-	// give http handlers/server some time to process certificates and
-	// get online before running tests.
-	time.Sleep(time.Second)
-
-	code := m.Run()
-	keyErr := os.Remove(tlsKey)
-	crtErr := os.Remove(tlsCRT)
-	if keyErr != nil {
-		log.Fatal(keyErr)
-	}
-	if crtErr != nil {
-		log.Fatal(crtErr)
-	}
-	os.Exit(code)
-}
-
-func generateTempCertificates() (string, string, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	certFile, err := os.CreateTemp("", "testcert-")
 	if err != nil {
-		return "", "", err
+		t.Fatalf("failed to create temp cert file: %v", err)
 	}
-
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, key.Public(), key)
-	if err != nil {
-		return "", "", err
-	}
-
-	cert, err := os.CreateTemp("", "testcert-")
-	if err != nil {
-		return "", "", err
-	}
-	defer cert.Close()
-	err = pem.Encode(cert, &pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: derBytes,
+	certPath := certFile.Name()
+	certFile.Close()
+	t.Cleanup(func() {
+		_ = os.Remove(certPath)
 	})
-	if err != nil {
-		return "", "", err
-	}
 
-	keyPath, err := os.CreateTemp("", "testkey-")
+	keyFile, err := os.CreateTemp("", "testkey-")
 	if err != nil {
-		return "", "", err
+		t.Fatalf("failed to create temp key file: %v", err)
 	}
-	defer keyPath.Close()
-	err = pem.Encode(keyPath, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(key),
+	keyPath := keyFile.Name()
+	keyFile.Close()
+	t.Cleanup(func() {
+		_ = os.Remove(keyPath)
 	})
-	if err != nil {
-		return "", "", err
+
+	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
+		t.Fatalf("failed to write cert file: %v", err)
 	}
 
-	return keyPath.Name(), cert.Name(), nil
-}
-
-func TestRun(t *testing.T) {
-	resp, err := http.Get("https://localhost:5000/metrics")
-	if err != nil {
-		t.Fatalf("error requesting metrics server: %v", err)
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatalf("failed to write key file: %v", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, received %d instead.", resp.StatusCode)
-	}
+	return keyPath, certPath
 }
 
 func TestStorageReconfigured(t *testing.T) {
+	tlsKey, tlsCRT := generateTempCertificates(t)
+	servingInfo := configv1.HTTPServingInfo{
+		ServingInfo: configv1.ServingInfo{BindAddress: "localhost:5000"},
+	}
+
+	server := NewServer(tlsCRT, tlsKey, servingInfo)
+
+	if err := server.Run(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Errorf("failed to stop metrics server: %v", err)
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		Timeout: 100 * time.Millisecond,
+	}
+
 	metricName := "image_registry_operator_storage_reconfigured_total"
 	for _, tt := range []struct {
 		name string
@@ -131,7 +106,7 @@ func TestStorageReconfigured(t *testing.T) {
 				StorageReconfigured()
 			}
 
-			resp, err := http.Get("https://localhost:5000/metrics")
+			resp, err := client.Get("https://localhost:5000/metrics")
 			if err != nil {
 				t.Fatalf("error requesting metrics server: %v", err)
 			}
@@ -150,6 +125,32 @@ func TestStorageReconfigured(t *testing.T) {
 }
 
 func TestImagePrunerInstallStatus(t *testing.T) {
+	tlsKey, tlsCRT := generateTempCertificates(t)
+	servingInfo := configv1.HTTPServingInfo{
+		ServingInfo: configv1.ServingInfo{BindAddress: "localhost:5000"},
+	}
+
+	server := NewServer(tlsCRT, tlsKey, servingInfo)
+
+	if err := server.Run(); err != nil {
+		t.Fatalf("failed to start server: %v", err)
+	}
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Errorf("failed to stop metrics server: %v", err)
+		}
+	}()
+	time.Sleep(100 * time.Millisecond)
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		Timeout: 100 * time.Millisecond,
+	}
+
 	metricName := "image_registry_operator_image_pruner_install_status"
 	testCases := []struct {
 		name      string
@@ -176,7 +177,7 @@ func TestImagePrunerInstallStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ImagePrunerInstallStatus(tc.installed, tc.enabled)
 
-			resp, err := http.Get("https://localhost:5000/metrics")
+			resp, err := client.Get("https://localhost:5000/metrics")
 			if err != nil {
 				t.Fatalf("error requesting metrics server: %v", err)
 			}
@@ -211,4 +212,168 @@ func findMetricsByCounter(buf io.ReadCloser, name string) []*io_prometheus_clien
 		}
 	}
 	return nil
+}
+
+func TestTLSConfiguration(t *testing.T) {
+	tlsKey, tlsCRT := generateTempCertificates(t)
+	for _, tc := range []struct {
+		name              string
+		servingInfo       configv1.HTTPServingInfo
+		clientTLSConfig   *tls.Config
+		expectServerError bool
+		expectSuccess     bool
+	}{
+		{
+			name: "default server config accepts TLS 1.2 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress: "localhost:5000",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "default server config accepts TLS 1.3 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress: "localhost:5000",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS13,
+				MaxVersion:         tls.VersionTLS13,
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "TLS 1.2 server accepts TLS 1.2 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5000",
+					MinTLSVersion: "VersionTLS12",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "TLS 1.2 server accepts TLS 1.3 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5000",
+					MinTLSVersion: "VersionTLS12",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS13,
+				MaxVersion:         tls.VersionTLS13,
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "TLS 1.3 server accepts TLS 1.3 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5000",
+					MinTLSVersion: "VersionTLS13",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS13,
+				MaxVersion:         tls.VersionTLS13,
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "TLS 1.3 server rejects TLS 1.2 client",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5000",
+					MinTLSVersion: "VersionTLS13",
+				},
+			},
+			clientTLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				MaxVersion:         tls.VersionTLS12,
+			},
+			expectSuccess: false,
+		},
+		{
+			name: "invalid MinTLSVersion returns error",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5008",
+					MinTLSVersion: "InvalidTLSVersion",
+				},
+			},
+			expectServerError: true,
+		},
+		{
+			name: "invalid CipherSuites returns error",
+			servingInfo: configv1.HTTPServingInfo{
+				ServingInfo: configv1.ServingInfo{
+					BindAddress:   "localhost:5009",
+					MinTLSVersion: "VersionTLS12",
+					CipherSuites:  []string{"INVALID_CIPHER_SUITE"},
+				},
+			},
+			expectServerError: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := NewServer(tlsCRT, tlsKey, tc.servingInfo)
+
+			err := server.Run()
+			if tc.expectServerError {
+				if err == nil {
+					t.Error("expected server to return error, but it succeeded")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("failed to start server: %v", err)
+				return
+			}
+
+			defer func() {
+				if err := server.Stop(); err != nil {
+					t.Errorf("failed to stop metrics server: %v", err)
+				}
+			}()
+			time.Sleep(100 * time.Millisecond)
+
+			client := &http.Client{
+				Transport: &http.Transport{TLSClientConfig: tc.clientTLSConfig},
+				Timeout:   100 * time.Millisecond,
+			}
+
+			url := fmt.Sprintf("https://%s/metrics", tc.servingInfo.BindAddress)
+			resp, err := client.Get(url)
+			if tc.expectSuccess {
+				if err != nil {
+					t.Errorf("expected successful connection but got error: %v", err)
+					return
+				}
+				resp.Body.Close()
+				return
+			}
+
+			if err == nil {
+				t.Error("expected connection to fail, but it succeeded")
+			}
+		})
+	}
 }

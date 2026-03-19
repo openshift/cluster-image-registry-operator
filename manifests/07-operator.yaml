@@ -47,6 +47,8 @@ spec:
           - --files=/var/run/configmaps/trusted-ca/tls-ca-bundle.pem
           - --files=/etc/secrets/tls.crt
           - --files=/etc/secrets/tls.key
+          - --files=/var/run/configmaps/image-registry-operator-config/config.yaml
+          - --config=/var/run/configmaps/image-registry-operator-config/config.yaml
           image: docker.io/openshift/origin-cluster-image-registry-operator:latest
           ports:
           - containerPort: 60000
@@ -94,6 +96,8 @@ spec:
               mountPath: /tmp
             - name: ca-trust-extracted-pem
               mountPath: /etc/pki/ca-trust/extracted/pem
+            - name: image-registry-operator-config
+              mountPath: /var/run/configmaps/image-registry-operator-config
       volumes:
         - name: tmp
           emptyDir: {}
@@ -118,3 +122,6 @@ spec:
                 audience: openshift
         - name: ca-trust-extracted-pem
           emptyDir: {}
+        - name: image-registry-operator-config
+          configMap:
+            name: image-registry-operator-config

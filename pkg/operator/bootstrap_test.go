@@ -42,8 +42,7 @@ func TestBootstrapAWS(t *testing.T) {
 		t.Fatalf("failed to add api server to tracker: %v", err)
 	}
 
-	// Start the controller
-	setup.start(t, ctx)
+	setup.start(t, ctx, false)
 
 	if err := setup.controller.Bootstrap(); err != nil {
 		t.Fatalf("bootstrap failed: %v", err)
