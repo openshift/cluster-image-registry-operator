@@ -4,9 +4,9 @@ PROG  := cluster-image-registry-operator
 
 GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
-GOLANGCI_LINT_VERSION = v1.64.8
+GOLANGCI_LINT_VERSION = v2.11.3
 
-GO_REQUIRED_MIN_VERSION = 1.16
+GO_REQUIRED_MIN_VERSION = 1.25
 
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
     targets/help.mk \
