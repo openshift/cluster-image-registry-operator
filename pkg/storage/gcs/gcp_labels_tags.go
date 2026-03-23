@@ -58,9 +58,9 @@ const (
 	bucketParentPathFmt = "//storage.googleapis.com/projects/_/buckets/%s"
 )
 
-// UserTagsNotDefined is returned when user defined tags is empty; used for updating
-// status condition.
-var UserTagsNotDefined = errors.New("user did not define any tags")
+// ErrUserTagsNotDefined is returned when user defined tags is empty; used for
+// updating status condition.
+var ErrUserTagsNotDefined = errors.New("user did not define any tags")
 
 // TagService is the interface that wraps methods for resource tag operations.
 type TagService interface {
@@ -229,7 +229,7 @@ func (t *tagServiceManager) getTagsToBind(ctx context.Context, bucketName string
 
 // listEffectiveTags is a method that wraps GAPI ListEffectiveTags.
 func (c *tagBindingsClient) listEffectiveTags(ctx context.Context, resourceName string) *rscmgr.EffectiveTagIterator {
-	return c.TagBindingsClient.ListEffectiveTags(ctx, &rscmgrpb.ListEffectiveTagsRequest{
+	return c.ListEffectiveTags(ctx, &rscmgrpb.ListEffectiveTagsRequest{
 		Parent: resourceName,
 	})
 }
@@ -300,7 +300,7 @@ func (t *tagServiceManager) addTagsToStorageBucket(ctx context.Context, cr *imag
 		return err
 	}
 	if len(tags) <= 0 {
-		return UserTagsNotDefined
+		return ErrUserTagsNotDefined
 	}
 
 	if err := t.tagBindingsClient.CreateTagBindings(ctx, bucketFullName, tags); err != nil {
@@ -378,9 +378,9 @@ func (t *tagServiceManager) AddTagsToStorageBucket(ctx context.Context, cr *imag
 // updateTagCondition will update or add the `StorageTagged` condition.
 func updateTagCondition(cr *imageregistryv1.Config, err error) error {
 	if err != nil {
-		if errors.Is(err, UserTagsNotDefined) {
+		if errors.Is(err, ErrUserTagsNotDefined) {
 			util.UpdateCondition(cr, defaults.StorageTagged, operatorapi.ConditionFalse,
-				gcpTagsSuccessStatusReason, UserTagsNotDefined.Error())
+				gcpTagsSuccessStatusReason, ErrUserTagsNotDefined.Error())
 			return nil
 		}
 		util.UpdateCondition(cr, defaults.StorageTagged, operatorapi.ConditionFalse,

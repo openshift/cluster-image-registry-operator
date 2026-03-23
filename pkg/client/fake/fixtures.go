@@ -213,7 +213,7 @@ func (f *FixturesBuilder) AddInfraConfig(config *configv1.Infrastructure) *Fixtu
 func (f *FixturesBuilder) Build() *Fixtures {
 	fixtures := &Fixtures{
 		Listers:    f.BuildListers(),
-		KubeClient: kfake.NewSimpleClientset(f.kClientSet...),
+		KubeClient: kfake.NewClientset(f.kClientSet...),
 	}
 	return fixtures
 }

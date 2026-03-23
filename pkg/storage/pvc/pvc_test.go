@@ -186,9 +186,9 @@ func TestStorageManagementState(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			cliset := fake.NewSimpleClientset()
+			cliset := fake.NewClientset()
 			if len(tt.objects) > 0 {
-				cliset = fake.NewSimpleClientset(tt.objects...)
+				cliset = fake.NewClientset(tt.objects...)
 			}
 
 			drv := &driver{

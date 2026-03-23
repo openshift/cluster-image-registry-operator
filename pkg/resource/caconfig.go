@@ -131,7 +131,7 @@ func (gcac *generatorCAConfig) expected() (runtime.Object, error) {
 				klog.Infof("unable to get the service name to add service-ca.crt")
 			} else {
 				for _, internalHostname := range internalHostnames {
-					key := strings.Replace(internalHostname, ":", "..", -1)
+					key := strings.ReplaceAll(internalHostname, ":", "..")
 					ownHostnameKeys = append(ownHostnameKeys, key)
 					cm.Data[key] = cert
 				}

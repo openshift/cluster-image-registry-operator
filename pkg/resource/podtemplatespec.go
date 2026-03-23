@@ -310,7 +310,7 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 	volumes = append(volumes, vol)
 	mounts = append(mounts, corev1.VolumeMount{Name: vol.Name, MountPath: "/etc/secrets"})
-	deps.AddSecret(vol.VolumeSource.Projected.Sources[0].Secret.LocalObjectReference.Name)
+	deps.AddSecret(vol.Projected.Sources[0].Secret.LocalObjectReference.Name)
 
 	env = append(env,
 		corev1.EnvVar{Name: "REGISTRY_HTTP_TLS_CERTIFICATE", Value: "/etc/secrets/tls.crt"},

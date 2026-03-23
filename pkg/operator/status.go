@@ -7,7 +7,6 @@ import (
 	"time"
 
 	appsapi "k8s.io/api/apps/v1"
-	batchapi "k8s.io/api/batch/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,7 +129,7 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
-func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, applyError error, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, applyError error, prunerJob *batchv1.CronJob, lastJobConditions []batchv1.JobCondition) {
 	if prunerJob == nil {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,

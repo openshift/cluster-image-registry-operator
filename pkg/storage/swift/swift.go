@@ -400,8 +400,8 @@ func ensureAuthURLHasAPIVersion(authURL, authVersion string) (string, error) {
 	}
 
 	// check that path is empty
-	if !(path == "/" || path == "") {
-		return "", fmt.Errorf("Incorrect Auth URL: %s", path)
+	if path != "/" && path != "" {
+		return "", fmt.Errorf("incorrect auth url: %s", path)
 	}
 
 	// append trailing / to the url

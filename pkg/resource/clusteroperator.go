@@ -18,7 +18,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
-	operatorapi "github.com/openshift/api/operator/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlisters "github.com/openshift/client-go/config/listers/config/v1"
@@ -246,7 +245,7 @@ func (gco *generatorClusterOperator) syncVersions(op *configv1.ClusterOperator) 
 	}
 
 	version := os.Getenv("RELEASE_VERSION")
-	if gco.cr.Spec.ManagementState == operatorapi.Managed {
+	if gco.cr.Spec.ManagementState == operatorv1.Managed {
 		deploy, err := gco.deployLister.Get(defaults.ImageRegistryName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {

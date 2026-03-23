@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
-	configapi "github.com/openshift/api/config/v1"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configset "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -148,7 +147,7 @@ func (icc *ImageConfigController) syncImageStatus() error {
 	if errors.IsNotFound(err) {
 		if cfg, err = icc.configClient.Images().Create(
 			context.TODO(),
-			&configapi.Image{
+			&configv1.Image{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: defaults.ImageConfigName,
 				},
@@ -179,7 +178,7 @@ func (icc *ImageConfigController) syncImageStatus() error {
 		modified = true
 	}
 	if icc.imageStreamImportModeEnabled {
-		var importmode configapi.ImportModeType
+		var importmode configv1.ImportModeType
 		if cfg.Spec.ImageStreamImportMode != "" {
 			importmode = cfg.Spec.ImageStreamImportMode
 		} else {
@@ -190,9 +189,9 @@ func (icc *ImageConfigController) syncImageStatus() error {
 			// If the clusterversion reports that the desired architecture (existing or desired) of the
 			// cluster is "Multi", set import mode to PreserveOriginal. Else set it to Legacy
 			if cv.Status.Desired.Architecture == configv1.ClusterVersionArchitectureMulti {
-				importmode = configapi.ImportModePreserveOriginal
+				importmode = configv1.ImportModePreserveOriginal
 			} else {
-				importmode = configapi.ImportModeLegacy
+				importmode = configv1.ImportModeLegacy
 			}
 		}
 		if cfg.Status.ImageStreamImportMode != importmode {
