@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -14,7 +15,7 @@ import (
 	goption "google.golang.org/api/option"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 
 	configapiv1 "github.com/openshift/api/config/v1"
@@ -97,7 +98,7 @@ func GetConfig(listers *regopclient.StorageListers) (*GCS, error) {
 
 	// Look for a user defined secret to get the AWS credentials from first
 	sec, err := listers.Secrets.Get(defaults.ImageRegistryPrivateConfigurationUser)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && apierrors.IsNotFound(err) {
 		// Fall back to those provided by the credential minter if nothing is provided by the user
 		sec, err = listers.Secrets.Get(defaults.CloudCredentialsName)
 		if err != nil {
@@ -189,7 +190,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	}
 
 	err := d.bucketExists(d.Config.Bucket)
-	if err != nil && err == gstorage.ErrBucketNotExist {
+	if err != nil && errors.Is(err, gstorage.ErrBucketNotExist) {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Bucket does not exist", err.Error())
 		return false, nil
 	} else if err != nil {
@@ -237,7 +238,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	if len(d.Config.Bucket) != 0 {
 		if err := d.bucketExists(d.Config.Bucket); err == nil {
 			bucketExists = true
-		} else if err != gstorage.ErrBucketNotExist {
+		} else if !errors.Is(err, gstorage.ErrBucketNotExist) {
 			util.UpdateCondition(
 				cr,
 				defaults.StorageExists,

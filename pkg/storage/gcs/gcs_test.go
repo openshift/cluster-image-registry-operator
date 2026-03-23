@@ -46,6 +46,7 @@ func TestStorageManagementState(t *testing.T) {
 		"type":           "service_account",
 		"project_id":     "project-id",
 		"private_key_id": "key-id",
+		"private_key":    "test",
 		"client_email":   "service-account-email",
 		"client_id":      "client-id",
 	})
