@@ -286,6 +286,71 @@ func TestConfigEnv(t *testing.T) {
 			t.Errorf("%s: got %#+v, want %#+v", key, e.Value, value)
 		}
 	}
+
+	// Verify AWS_ENDPOINT_URL_STS is NOT set when no STS endpoint is configured
+	e := findEnvVar(envvars, "AWS_ENDPOINT_URL_STS")
+	if e != nil {
+		t.Errorf("AWS_ENDPOINT_URL_STS should not be set when no STS endpoint configured, but got %v", e)
+	}
+}
+
+func TestConfigEnvWithSTSEndpoint(t *testing.T) {
+	ctx := context.Background()
+
+	config := &imageregistryv1.ImageRegistryConfigStorageS3{}
+
+	testBuilder := cirofake.NewFixturesBuilder()
+	testBuilder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: "us-east-1",
+					ServiceEndpoints: []configv1.AWSServiceEndpoint{
+						{
+							Name: "sts",
+							URL:  "https://sts.example.com",
+						},
+					},
+				},
+			},
+		},
+	})
+	testBuilder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access"),
+			"aws_secret_access_key": []byte("secret"),
+		},
+	})
+	listers := testBuilder.BuildListers()
+
+	TestFeatureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{util.TestFeatureGateName},
+		[]configv1.FeatureGateName{},
+	)
+
+	d := NewDriver(ctx, config, &listers.StorageListers, TestFeatureGateAccessor)
+
+	envvars, err := d.ConfigEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify AWS_ENDPOINT_URL_STS is set correctly
+	e := findEnvVar(envvars, "AWS_ENDPOINT_URL_STS")
+	if e == nil {
+		t.Fatal("AWS_ENDPOINT_URL_STS envvar not found")
+	}
+	if e.Value != "https://sts.example.com" {
+		t.Errorf("AWS_ENDPOINT_URL_STS: got %#+v, want %#+v", e.Value, "https://sts.example.com")
+	}
 }
 
 func TestServiceEndpointCanBeOverwritten(t *testing.T) {
