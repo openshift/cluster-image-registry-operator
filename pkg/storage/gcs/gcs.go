@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	gstorage "cloud.google.com/go/storage"
-	goauth2 "golang.org/x/oauth2/google"
 	gapi "google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	goption "google.golang.org/api/option"
@@ -64,12 +63,7 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		d.Config.ProjectID = cfg.ProjectID
 	}
 
-	credentials, err := goauth2.CredentialsFromJSON(d.Context, []byte(cfg.KeyfileData), gstorage.ScopeFullControl)
-	if err != nil {
-		return nil, err
-	}
-
-	opts := []goption.ClientOption{goption.WithCredentials(credentials)}
+	opts := []goption.ClientOption{goption.WithAuthCredentialsJSON(goption.ServiceAccount, []byte(cfg.KeyfileData))}
 	if d.httpClient != nil {
 		opts = append(opts, goption.WithHTTPClient(d.httpClient))
 	}

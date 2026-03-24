@@ -722,7 +722,7 @@ func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 	if err != nil {
 		return fmt.Errorf("failed to create private dns zone groups client: %w", err)
 	}
-	groupName := strings.Replace(privateZoneName, ".", "-", -1)
+	groupName := strings.ReplaceAll(privateZoneName, ".", "-")
 	pollersResp, err := client.BeginDelete(
 		ctx,
 		resourceGroupName,

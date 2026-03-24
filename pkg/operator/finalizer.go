@@ -24,18 +24,18 @@ func (c *Controller) RemoveResources(o *imageregistryv1.Config) error {
 }
 
 func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
-	if o.ObjectMeta.DeletionTimestamp == nil {
+	if o.DeletionTimestamp == nil {
 		return nil
 	}
 
 	finalizers := []string{}
-	for _, v := range o.ObjectMeta.Finalizers {
+	for _, v := range o.Finalizers {
 		if v != defaults.ImageRegistryOperatorResourceFinalizer {
 			finalizers = append(finalizers, v)
 		}
 	}
 
-	if len(finalizers) == len(o.ObjectMeta.Finalizers) {
+	if len(finalizers) == len(o.Finalizers) {
 		return nil
 	}
 
@@ -64,14 +64,14 @@ func (c *Controller) finalizeResources(o *imageregistryv1.Config) error {
 				return fmt.Errorf("failed to get %s: %s", utilObjectInfo(o), err)
 			}
 			finalizers = []string{}
-			for _, v := range cr.ObjectMeta.Finalizers {
+			for _, v := range cr.Finalizers {
 				if v != defaults.ImageRegistryOperatorResourceFinalizer {
 					finalizers = append(finalizers, v)
 				}
 			}
 		}
 
-		cr.ObjectMeta.Finalizers = finalizers
+		cr.Finalizers = finalizers
 
 		_, err := client.Configs().Update(
 			context.TODO(), cr, metav1.UpdateOptions{},

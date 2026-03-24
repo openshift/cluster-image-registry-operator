@@ -179,7 +179,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	deploy.ObjectMeta.Annotations[defaults.ChecksumOperatorAnnotation] = dgst
+	deploy.Annotations[defaults.ChecksumOperatorAnnotation] = dgst
 
 	return deploy, nil
 }
@@ -201,7 +201,7 @@ func (gd *generatorDeployment) Create() (runtime.Object, error) {
 		return nil, err
 	}
 
-	gd.UpdateLastGeneration(dep.ObjectMeta.Generation)
+	gd.UpdateLastGeneration(dep.Generation)
 	return dep, nil
 }
 
@@ -238,7 +238,7 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 	}
 
 	if updated {
-		gd.UpdateLastGeneration(dep.ObjectMeta.Generation)
+		gd.UpdateLastGeneration(dep.Generation)
 	}
 
 	return dep, updated, nil

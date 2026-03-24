@@ -11,7 +11,6 @@ import (
 
 	gstorage "cloud.google.com/go/storage"
 	"github.com/google/uuid"
-	goauth2 "golang.org/x/oauth2/google"
 	goption "google.golang.org/api/option"
 
 	corev1 "k8s.io/api/core/v1"
@@ -48,7 +47,7 @@ func TestGCSDay2(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -79,12 +78,7 @@ func TestGCSDay2(t *testing.T) {
 
 	// create a GCS bucket manually here so we can configure later on the
 	// registry to use it.
-	credentials, err := goauth2.CredentialsFromJSON(ctx, []byte(gcscfg.KeyfileData), gstorage.ScopeFullControl)
-	if err != nil {
-		t.Fatalf("error creating gcs credentials: %v", err)
-	}
-
-	gcli, err := gstorage.NewClient(ctx, goption.WithCredentials(credentials))
+	gcli, err := gstorage.NewClient(ctx, goption.WithAuthCredentialsJSON(goption.ServiceAccount, []byte(gcscfg.KeyfileData)))
 	if err != nil {
 		t.Fatalf("error creating gcs client: %v", err)
 	}

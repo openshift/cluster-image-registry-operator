@@ -236,7 +236,7 @@ func (c *tagBindingsClient) listEffectiveTags(ctx context.Context, resourceName 
 
 // createTagBinding is a method that wraps GAPI CreateTagBinding.
 func (c *tagBindingsClient) createTagBinding(ctx context.Context, resourceName, tag string) (*rscmgr.CreateTagBindingOperation, error) {
-	op, err := c.TagBindingsClient.CreateTagBinding(ctx, &rscmgrpb.CreateTagBindingRequest{
+	op, err := c.CreateTagBinding(ctx, &rscmgrpb.CreateTagBindingRequest{
 		TagBinding: &rscmgrpb.TagBinding{
 			Parent:                 resourceName,
 			TagValueNamespacedName: tag,
@@ -319,7 +319,7 @@ func getTagClientOptions(listers *regopclient.StorageListers, endpoint string) (
 	}
 
 	opts := []option.ClientOption{
-		option.WithCredentialsJSON([]byte(cfg.KeyfileData)),
+		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(cfg.KeyfileData)),
 		option.WithEndpoint(endpoint),
 	}
 

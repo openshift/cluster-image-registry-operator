@@ -53,7 +53,7 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestPrivateStorageAccountVNetSubnetDiscovery(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
