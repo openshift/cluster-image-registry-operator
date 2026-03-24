@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"golang.org/x/net/http/httpproxy"
 	"golang.org/x/net/http2"
 
@@ -406,8 +407,26 @@ func (d *driver) ConfigEnv() (envs envvar.List, err error) {
 		return
 	}
 
+	// Get infrastructure to check for STS endpoint
+	infra, err := util.GetInfrastructure(d.Listers.Infrastructures)
+	if err != nil {
+		return
+	}
+
 	if len(d.Config.RegionEndpoint) != 0 {
 		envs = append(envs, envvar.EnvVar{Name: "REGISTRY_STORAGE_S3_REGIONENDPOINT", Value: d.Config.RegionEndpoint})
+	}
+
+	// Pass through AWS_ENDPOINT_URL_STS if defined in infrastructure to configure the AWS SDK
+	// to use the provided endpoint instead of the default one
+	// Reference: https://docs.aws.amazon.com/sdkref/latest/guide/ss-endpoints-table.html
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == configv1.AWSPlatformType {
+		for _, ep := range infra.Status.PlatformStatus.AWS.ServiceEndpoints {
+			if ep.Name == sts.ServiceName {
+				envs = append(envs, envvar.EnvVar{Name: "AWS_ENDPOINT_URL_STS", Value: ep.URL})
+				break
+			}
+		}
 	}
 
 	if len(d.Config.KeyID) != 0 {
