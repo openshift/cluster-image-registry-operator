@@ -111,13 +111,13 @@ func registryConfigResourceVersionBumper(t *testing.T, regcli *imageregistryfake
 // objects, call setup.start(t, ctx, startRunLoop) to create the controller
 // and start informers.
 func newTestControllerSetup(t *testing.T) *testControllerSetup {
-	kubeClient := kubefakeclient.NewSimpleClientset()
-	configClient := configfakeclient.NewSimpleClientset()
-	routeClient := routefakeclient.NewSimpleClientset()
+	kubeClient := kubefakeclient.NewClientset()
+	configClient := configfakeclient.NewClientset()
+	routeClient := routefakeclient.NewClientset()
 
 	// create the registry config fake client set and make sure we have
 	// a reactor to bump the resource version upon updates.
-	regClient := imageregistryfakeclient.NewSimpleClientset()
+	regClient := imageregistryfakeclient.NewClientset()
 	regClient.PrependReactor("update", "configs", registryConfigResourceVersionBumper(t, regClient))
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, 0)

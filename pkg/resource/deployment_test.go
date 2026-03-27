@@ -80,10 +80,10 @@ func TestChecksum(t *testing.T) {
 				},
 			}
 
-			kubeClient := fake.NewSimpleClientset(test.origSecret, annotatedNamespace, imageRegistryCertificatesConfigMap)
+			kubeClient := fake.NewClientset(test.origSecret, annotatedNamespace, imageRegistryCertificatesConfigMap)
 			kubeInformer := kubeinformers.NewSharedInformerFactory(kubeClient, 0)
 
-			configClient := fakeconfig.NewSimpleClientset()
+			configClient := fakeconfig.NewClientset()
 			configInformer := configinformers.NewSharedInformerFactory(configClient, 0)
 
 			cmLister := kubeInformer.Core().V1().ConfigMaps().Lister().ConfigMaps(defaults.ImageRegistryOperatorNamespace)

@@ -21,10 +21,10 @@ type testSetup struct {
 }
 
 func initTestSetup(imageRegistryObjects ...runtime.Object) *testSetup {
-	configClient := configfake.NewSimpleClientset()
+	configClient := configfake.NewClientset()
 	configInformers := configinformers.NewSharedInformerFactory(configClient, 0)
 
-	imageregistryClient := imageregistryfake.NewSimpleClientset(imageRegistryObjects...)
+	imageregistryClient := imageregistryfake.NewClientset(imageRegistryObjects...)
 	imageregistryInformers := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, 0)
 
 	operatorClient := client.NewConfigOperatorClient(

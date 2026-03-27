@@ -41,8 +41,8 @@ func TestNodeCADaemon(t *testing.T) {
 		},
 	}
 
-	clientset := kfake.NewSimpleClientset()
-	imageregistryClient := imageregistryfake.NewSimpleClientset(imageregistryObjects...)
+	clientset := kfake.NewClientset()
+	imageregistryClient := imageregistryfake.NewClientset(imageregistryObjects...)
 
 	imageregistryInformers := imageregistryinformers.NewSharedInformerFactory(imageregistryClient, time.Minute)
 
