@@ -23,13 +23,15 @@ type generatorImagePrunerNetworkPolicy struct {
 	eventRecorder       events.Recorder
 	networkPolicyLister networkingv1listers.NetworkPolicyNamespaceLister
 	client              networkingv1client.NetworkingV1Interface
+	cache               resourceapply.ResourceCache
 }
 
-func NewGeneratorImagePrunerNetworkPolicy(eventRecorder events.Recorder, networkPolicyLister networkingv1listers.NetworkPolicyNamespaceLister, client networkingv1client.NetworkingV1Interface) Mutator {
+func NewGeneratorImagePrunerNetworkPolicy(eventRecorder events.Recorder, networkPolicyLister networkingv1listers.NetworkPolicyNamespaceLister, client networkingv1client.NetworkingV1Interface, cache resourceapply.ResourceCache) Mutator {
 	return &generatorImagePrunerNetworkPolicy{
 		eventRecorder:       eventRecorder,
 		networkPolicyLister: networkPolicyLister,
 		client:              client,
+		cache:               cache,
 	}
 }
 
@@ -67,7 +69,7 @@ func (np *generatorImagePrunerNetworkPolicy) Update(o runtime.Object) (runtime.O
 		np.client,
 		np.eventRecorder,
 		desiredNetworkPolicy,
-		resourceapply.NewResourceCache(),
+		np.cache,
 	)
 	if err != nil {
 		return o, updated, err
