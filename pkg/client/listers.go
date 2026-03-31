@@ -61,4 +61,5 @@ type ImagePrunerControllerListers struct {
 	ImagePrunerConfigs  regoplisters.ImagePrunerLister
 	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
 	ImageConfigs        configlisters.ImageLister
+	NetworkPolicies     knetworkinglisters.NetworkPolicyNamespaceLister
 }

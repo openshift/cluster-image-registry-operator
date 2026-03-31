@@ -8,20 +8,26 @@ import (
 	"k8s.io/klog/v2"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 )
 
-func NewImagePrunerGenerator(clients *client.Clients, listers *client.ImagePrunerControllerListers) *ImagePrunerGenerator {
+func NewImagePrunerGenerator(eventRecorder events.Recorder, clients *client.Clients, listers *client.ImagePrunerControllerListers, cache resourceapply.ResourceCache) *ImagePrunerGenerator {
 	return &ImagePrunerGenerator{
-		listers: listers,
-		clients: clients,
+		eventRecorder: eventRecorder,
+		listers:       listers,
+		clients:       clients,
+		resourceCache: cache,
 	}
 }
 
 type ImagePrunerGenerator struct {
-	listers *client.ImagePrunerControllerListers
-	clients *client.Clients
+	eventRecorder events.Recorder
+	listers       *client.ImagePrunerControllerListers
+	clients       *client.Clients
+	resourceCache resourceapply.ResourceCache
 }
 
 func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator, error) {
@@ -34,6 +40,7 @@ func (g *ImagePrunerGenerator) List(cr *imageregistryv1.ImagePruner) ([]Mutator,
 	mutators = append(mutators, newGeneratorPrunerClusterRoleBinding(g.listers.ClusterRoleBindings, g.clients.RBAC))
 	mutators = append(mutators, newGeneratorPrunerServiceAccount(g.listers.ServiceAccounts, g.clients.Core))
 	mutators = append(mutators, newGeneratorServiceCA(g.listers.ConfigMaps, g.clients.Core))
+	mutators = append(mutators, newGeneratorImagePrunerNetworkPolicy(g.eventRecorder, g.listers.NetworkPolicies, g.clients.Networking, g.resourceCache))
 	mutators = append(mutators, newGeneratorPrunerCronJob(g.listers.CronJobs, g.clients.Batch, g.listers.ImagePrunerConfigs, g.listers.ImageConfigs))
 
 	return mutators, nil

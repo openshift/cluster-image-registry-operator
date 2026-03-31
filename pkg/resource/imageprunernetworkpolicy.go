@@ -26,7 +26,7 @@ type generatorImagePrunerNetworkPolicy struct {
 	cache               resourceapply.ResourceCache
 }
 
-func NewGeneratorImagePrunerNetworkPolicy(eventRecorder events.Recorder, networkPolicyLister networkingv1listers.NetworkPolicyNamespaceLister, client networkingv1client.NetworkingV1Interface, cache resourceapply.ResourceCache) Mutator {
+func newGeneratorImagePrunerNetworkPolicy(eventRecorder events.Recorder, networkPolicyLister networkingv1listers.NetworkPolicyNamespaceLister, client networkingv1client.NetworkingV1Interface, cache resourceapply.ResourceCache) Mutator {
 	return &generatorImagePrunerNetworkPolicy{
 		eventRecorder:       eventRecorder,
 		networkPolicyLister: networkPolicyLister,

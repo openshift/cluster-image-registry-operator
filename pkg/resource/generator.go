@@ -121,8 +121,7 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
 	mutators = append(mutators, newGeneratorDeployment(g.eventRecorder, g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
 	mutators = append(mutators, newGeneratorPodDisruptionBudget(g.listers.PodDisruptionBudgets, g.clients.Kube.PolicyV1(), cr))
-	mutators = append(mutators, NewGeneratorImageRegistryNetworkPolicy(g.eventRecorder, g.listers.NetworkPolicies, g.clients.Networking, g.resourceCache))
-	mutators = append(mutators, NewGeneratorImagePrunerNetworkPolicy(g.eventRecorder, g.listers.NetworkPolicies, g.clients.Networking, g.resourceCache))
+	mutators = append(mutators, newGeneratorImageRegistryNetworkPolicy(g.eventRecorder, g.listers.NetworkPolicies, g.clients.Networking, g.resourceCache))
 	mutators = append(mutators, g.listRoutes(cr)...)
 
 	return mutators, nil
