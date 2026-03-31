@@ -5,8 +5,8 @@ metadata:
   namespace: openshift-image-registry
 spec:
   podSelector:
-      matchLabels:
-        created-by: image-pruner
+    matchLabels:
+      app: image-pruner
   policyTypes:
     - Egress
   egress:

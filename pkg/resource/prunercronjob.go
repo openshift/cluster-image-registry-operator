@@ -179,6 +179,7 @@ done
 		},
 	}
 	cj.Spec.JobTemplate.Labels = map[string]string{"created-by": gcj.GetName()}
+	cj.Spec.JobTemplate.Spec.Template.Labels = defaults.PrunerPodLabels
 	cj.Spec.JobTemplate.Annotations = map[string]string{securityv1.RequiredSCCAnnotation: "restricted-v2"}
 	return cj, nil
 }
