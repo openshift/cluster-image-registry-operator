@@ -40,9 +40,7 @@ spec:
       protocol: TCP
 
   # Allow ingress from host network pods (nodes, kubelet)
-  - from:
-      - podSelector: {}
-    ports:
+  - ports:
     - port: 5000
       protocol: TCP
 

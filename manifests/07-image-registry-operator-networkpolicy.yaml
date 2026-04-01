@@ -19,11 +19,7 @@ spec:
 
   ingress:
   # allow ingress from monitoring
-  - from:
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: openshift-monitoring
-    ports:
+  - ports:
     - port: 60000
       protocol: TCP
 
