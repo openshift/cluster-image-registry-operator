@@ -39,6 +39,13 @@ spec:
     - port: 5000
       protocol: TCP
 
+  # Allow ingress from host network pods (nodes, kubelet)
+  - from:
+      - podSelector: {}
+    ports:
+    - port: 5000
+      protocol: TCP
+
   egress:
   # Allow all egress traffic
   # required for egress to kube-apiserver pods
