@@ -86,6 +86,7 @@ func NewImageConfigController(
 			return nil, err
 		}
 		icc.cachesToSync = append(icc.cachesToSync, imageConfigInformer.Informer().HasSynced)
+		icc.cachesToSync = append(icc.cachesToSync, clusterVersionInformer.Informer().HasSynced)
 	}
 	return icc, nil
 }
