@@ -63,14 +63,11 @@ spec:
       port: 8443
 
   # Allow egress to DNS
-  # this rule overlaps with the generic egress rule but exists for documentation purposes  
+  # this rule overlaps with the generic egress rule but exists for documentation purposes
   - to:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: openshift-dns
-      podSelector:
-        matchLabels:
-          dns.operator.openshift.io/daemonset-dns: default
     ports:
     - protocol: TCP
       port: 5353

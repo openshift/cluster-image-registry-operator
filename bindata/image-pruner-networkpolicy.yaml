@@ -33,9 +33,6 @@ spec:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: openshift-dns
-      podSelector:
-        matchLabels:
-          dns.operator.openshift.io/daemonset-dns: default
     ports:
     - protocol: TCP
       port: 5353
