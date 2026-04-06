@@ -138,3 +138,36 @@ func GenerateStorageName(listers *regopclient.StorageListers, additionalInfo ...
 
 	return strings.ToLower(name), nil
 }
+
+// GenerateDeterministicStorageName generates a deterministic, non-random name
+// for the storage medium. This is used as the first bucket name attempt,
+// making bucket creation idempotent across controller retries. If this name
+// collides with a bucket owned by another AWS account, the caller should
+// return an error (do not fall back to random names).
+func GenerateDeterministicStorageName(listers *regopclient.StorageListers, additionalInfo ...string) (string, error) {
+	infra, err := GetInfrastructure(listers.Infrastructures)
+	if err != nil {
+		return "", err
+	}
+
+	var parts []string
+	parts = append(parts, infra.Status.InfrastructureName)
+	parts = append(parts, defaults.ImageRegistryName)
+
+	for _, i := range additionalInfo {
+		if len(i) != 0 {
+			parts = append(parts, i)
+		}
+	}
+
+	name := multiDashes.ReplaceAllString(strings.Join(parts, "-"), "-")
+
+	if len(name) > 62 {
+		name = name[0:62]
+	}
+	if before, hasDash := strings.CutSuffix(name, "-"); hasDash {
+		name = before + "s"
+	}
+
+	return strings.ToLower(name), nil
+}
