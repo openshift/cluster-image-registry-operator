@@ -5,6 +5,7 @@ import (
 	kbatchlisters "k8s.io/client-go/listers/batch/v1"
 	kjoblisters "k8s.io/client-go/listers/batch/v1"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
+	knetworkinglisters "k8s.io/client-go/listers/networking/v1"
 	kpolicylisters "k8s.io/client-go/listers/policy/v1"
 	krbaclisters "k8s.io/client-go/listers/rbac/v1"
 
@@ -47,6 +48,7 @@ type Listers struct {
 	ClusterRoleBindings  krbaclisters.ClusterRoleBindingLister
 	RegistryConfigs      regoplisters.ConfigLister
 	ProxyConfigs         configlisters.ProxyLister
+	NetworkPolicies      knetworkinglisters.NetworkPolicyNamespaceLister
 }
 
 type ImagePrunerControllerListers struct {
@@ -59,4 +61,5 @@ type ImagePrunerControllerListers struct {
 	ImagePrunerConfigs  regoplisters.ImagePrunerLister
 	ConfigMaps          kcorelisters.ConfigMapNamespaceLister
 	ImageConfigs        configlisters.ImageLister
+	NetworkPolicies     knetworkinglisters.NetworkPolicyNamespaceLister
 }

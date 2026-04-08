@@ -189,6 +189,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 	}
 
 	imagePrunerController, err := NewImagePrunerController(
+		eventRecorder,
 		kubeClient,
 		imageregistryClient,
 		kubeInformers,

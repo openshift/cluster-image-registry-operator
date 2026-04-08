@@ -134,4 +134,5 @@ var (
 	DeploymentAnnotations = map[string]string{
 		"target.workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
 	}
+	PrunerPodLabels = map[string]string{"app": "image-pruner"}
 )

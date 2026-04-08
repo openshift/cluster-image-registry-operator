@@ -17,6 +17,7 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -73,6 +74,7 @@ func NewGenerator(eventRecorder events.Recorder, kubeconfig *rest.Config, client
 		listers:             listers,
 		clients:             clients,
 		featureGateAccessor: featureGateAccessor,
+		resourceCache:       resourceapply.NewResourceCache(),
 	}
 }
 
@@ -82,6 +84,7 @@ type Generator struct {
 	listers             *client.Listers
 	clients             *client.Clients
 	featureGateAccessor featuregates.FeatureGateAccess
+	resourceCache       resourceapply.ResourceCache
 }
 
 func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
@@ -98,6 +101,10 @@ func (g *Generator) listRoutes(cr *imageregistryv1.Config) []Mutator {
 }
 
 func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
+	if g.clients.Networking == nil {
+		return nil, fmt.Errorf("clients.Networking not initialized")
+	}
+
 	driver, err := storage.NewDriver(&cr.Spec.Storage, g.kubeconfig, &g.listers.StorageListers, g.featureGateAccessor)
 	if err != nil && err != storage.ErrStorageNotConfigured {
 		return nil, err
@@ -114,6 +121,7 @@ func (g *Generator) List(cr *imageregistryv1.Config) ([]Mutator, error) {
 	mutators = append(mutators, newGeneratorService(g.listers.Services, g.clients.Core))
 	mutators = append(mutators, newGeneratorDeployment(g.eventRecorder, g.listers.Deployments, g.listers.ConfigMaps, g.listers.Secrets, g.listers.ProxyConfigs, g.clients.Core, g.clients.Apps, driver, cr))
 	mutators = append(mutators, newGeneratorPodDisruptionBudget(g.listers.PodDisruptionBudgets, g.clients.Kube.PolicyV1(), cr))
+	mutators = append(mutators, newGeneratorImageRegistryNetworkPolicy(g.eventRecorder, g.listers.NetworkPolicies, g.clients.Networking, g.resourceCache))
 	mutators = append(mutators, g.listRoutes(cr)...)
 
 	return mutators, nil

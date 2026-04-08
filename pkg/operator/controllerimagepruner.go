@@ -26,6 +26,8 @@ import (
 	configv1informers "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	imageregistryclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	imageregistryinformers "github.com/openshift/client-go/imageregistry/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 
 	regopclient "github.com/openshift/cluster-image-registry-operator/pkg/client"
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
@@ -47,6 +49,7 @@ var (
 
 // NewImagePrunerController returns a controller for openshift image pruner.
 func NewImagePrunerController(
+	eventRecorder events.Recorder,
 	kubeClient kubeclient.Interface,
 	imageregistryClient imageregistryclient.Interface,
 	kubeInformerFactory kubeinformers.SharedInformerFactory,
@@ -55,11 +58,14 @@ func NewImagePrunerController(
 ) (*ImagePrunerController, error) {
 	listers := &regopclient.ImagePrunerControllerListers{}
 	clients := &regopclient.Clients{}
+	resourceCache := resourceapply.NewResourceCache()
 	c := &ImagePrunerController{
-		generator: resource.NewImagePrunerGenerator(clients, listers),
-		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), imagePrunerWorkQueueKey),
-		listers:   listers,
-		clients:   clients,
+		generator:     resource.NewImagePrunerGenerator(eventRecorder, clients, listers, resourceCache),
+		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), imagePrunerWorkQueueKey),
+		listers:       listers,
+		clients:       clients,
+		eventRecorder: eventRecorder,
+		resourceCache: resourceCache,
 	}
 
 	// Initial event to bootstrap the pruner if it doesn't exist.
@@ -71,6 +77,7 @@ func NewImagePrunerController(
 	c.clients.Kube = kubeClient
 	c.clients.RegOp = imageregistryClient
 	c.clients.Batch = kubeClient.BatchV1()
+	c.clients.Networking = kubeClient.NetworkingV1()
 
 	for _, ctor := range []func() cache.SharedIndexInformer{
 		func() cache.SharedIndexInformer {
@@ -114,6 +121,11 @@ func NewImagePrunerController(
 			return informer.Informer()
 		},
 		func() cache.SharedIndexInformer {
+			informer := kubeInformerFactory.Networking().V1().NetworkPolicies()
+			c.listers.NetworkPolicies = informer.Lister().NetworkPolicies(defaults.ImageRegistryOperatorNamespace)
+			return informer.Informer()
+		},
+		func() cache.SharedIndexInformer {
 			c.listers.ImageConfigs = imageConfigInformer.Lister()
 			return imageConfigInformer.Informer()
 		},
@@ -130,11 +142,13 @@ func NewImagePrunerController(
 
 // ImagePrunerController keeps track of openshift image pruner components.
 type ImagePrunerController struct {
-	generator    *resource.ImagePrunerGenerator
-	workqueue    workqueue.TypedRateLimitingInterface[any]
-	listers      *regopclient.ImagePrunerControllerListers
-	clients      *regopclient.Clients
-	cachesToSync []cache.InformerSynced
+	generator     *resource.ImagePrunerGenerator
+	workqueue     workqueue.TypedRateLimitingInterface[any]
+	listers       *regopclient.ImagePrunerControllerListers
+	clients       *regopclient.Clients
+	cachesToSync  []cache.InformerSynced
+	eventRecorder events.Recorder
+	resourceCache resourceapply.ResourceCache
 }
 
 func (c *ImagePrunerController) createOrUpdateResources(cr *imageregistryv1.ImagePruner) error {
