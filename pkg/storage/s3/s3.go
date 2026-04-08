@@ -668,53 +668,47 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "S3 Bucket Exists", "User supplied S3 bucket exists and is accessible")
 
 	} else {
-		generatedName := false
-		// Retry up to 5000 times if we get a naming conflict
-		const numRetries = 5000
-		for i := 0; i < numRetries; i++ {
-			// If the bucket name is blank, let's generate one
-			if len(d.Config.Bucket) == 0 {
-				if d.Config.Bucket, err = util.GenerateStorageName(d.Listers, d.Config.Region); err != nil {
+		// Use a deterministic bucket name to make creation idempotent across
+		// controller retries. This prevents orphaned buckets when the Config CR
+		// update fails with an optimistic lock conflict (OCPBUGS-81750).
+		if len(d.Config.Bucket) == 0 {
+			d.Config.Bucket, err = util.GenerateDeterministicStorageName(d.Listers, d.Config.Region)
+			if err != nil {
+				return err
+			}
+		}
+		klog.Infof("creating bucket %s", d.Config.Bucket)
+
+		_, err = svc.CreateBucketWithContext(d.Context, &s3.CreateBucketInput{
+			Bucket: aws.String(d.Config.Bucket),
+		})
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case s3.ErrCodeBucketAlreadyOwnedByYou:
+					// We own this bucket from a previous attempt — reuse it.
+					klog.Infof("bucket %s already owned by us, reusing", d.Config.Bucket)
+				case s3.ErrCodeBucketAlreadyExists:
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Access Bucket", fmt.Sprintf("The bucket %s exists, but is owned by another account", d.Config.Bucket))
+					return fmt.Errorf("bucket %s exists but is owned by another account", d.Config.Bucket)
+				default:
+					util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
 					return err
 				}
-				generatedName = true
+			} else {
+				util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionUnknown, "Unknown Error Occurred", err.Error())
+				return err
 			}
-
-			_, err := svc.CreateBucketWithContext(d.Context, &s3.CreateBucketInput{
-				Bucket: aws.String(d.Config.Bucket),
-			})
-			if err != nil {
-				if aerr, ok := err.(awserr.Error); ok {
-					switch aerr.Code() {
-					case s3.ErrCodeBucketAlreadyExists:
-						if d.Config.Bucket != "" && !generatedName {
-							util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Access Bucket", "The bucket exists, but we do not have permission to access it")
-							break
-						}
-						d.Config.Bucket = ""
-						continue
-					default:
-						util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, aerr.Code(), aerr.Error())
-						return err
-					}
-				}
-			}
-			if cr.Spec.Storage.ManagementState == "" {
-				cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
-			}
-			cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-				S3: d.Config.DeepCopy(),
-			}
-			cr.Spec.Storage.S3 = d.Config.DeepCopy()
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created")
-
-			break
 		}
 
-		if len(d.Config.Bucket) == 0 {
-			util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Unable to Generate Unique Bucket Name", "")
-			return fmt.Errorf("unable to generate a unique s3 bucket name")
+		if cr.Spec.Storage.ManagementState == "" {
+			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateManaged
 		}
+		cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
+			S3: d.Config.DeepCopy(),
+		}
+		cr.Spec.Storage.S3 = d.Config.DeepCopy()
+		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionTrue, "Creation Successful", "S3 bucket was successfully created")
 	}
 
 	// Wait until the bucket exists
