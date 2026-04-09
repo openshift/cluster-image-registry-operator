@@ -35,6 +35,10 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
+// imageConfigControllerDegradedInertia is how long sync must keep failing (since the first
+// failure after the last success) before we set ImageConfigControllerDegraded.
+const imageConfigControllerDegradedInertia = 2 * time.Minute
+
 // ImageConfigController controls image.config.openshift.io/cluster.
 //
 // Watches for changes on image registry routes and services, updating
@@ -48,6 +52,9 @@ type ImageConfigController struct {
 	cachesToSync                 []cache.InformerSynced
 	queue                        workqueue.TypedRateLimitingInterface[any]
 	imageStreamImportModeEnabled bool
+
+	// syncFailureSince is when the current streak of sync errors began (zero after a successful sync).
+	syncFailureSince time.Time
 }
 
 func NewImageConfigController(
@@ -215,6 +222,14 @@ func (icc *ImageConfigController) sync() error {
 	ctx := context.TODO()
 	err := icc.syncImageStatus()
 	if err != nil {
+		now := time.Now()
+		if icc.syncFailureSince.IsZero() {
+			icc.syncFailureSince = now
+		}
+		if now.Sub(icc.syncFailureSince) < imageConfigControllerDegradedInertia {
+			klog.V(2).Infof("ImageConfigController: sync error within degraded inertia window (%s), not reporting degraded yet: %v", imageConfigControllerDegradedInertia, err)
+			return err
+		}
 		_, _, updateError := v1helpers.UpdateStatus(
 			ctx,
 			icc.operatorClient,
@@ -227,6 +242,8 @@ func (icc *ImageConfigController) sync() error {
 		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
+	// resetting the failure to zero time means that the next sync error will start from a anew
+	icc.syncFailureSince = time.Time{}
 	_, _, err = v1helpers.UpdateStatus(
 		ctx,
 		icc.operatorClient,
