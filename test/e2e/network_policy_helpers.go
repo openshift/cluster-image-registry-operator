@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"slices"
 	"strings"
 	"time"
 
@@ -58,6 +57,10 @@ func requireDefaultDenyAll(policy *networkingv1.NetworkPolicy) {
 	if !policyTypes.Has(string(networkingv1.PolicyTypeIngress)) || !policyTypes.Has(string(networkingv1.PolicyTypeEgress)) {
 		g.Fail(fmt.Sprintf("%s/%s: expected both Ingress and Egress policyTypes, got %v", policy.Namespace, policy.Name, policy.Spec.PolicyTypes))
 	}
+	if len(policy.Spec.Ingress) != 0 || len(policy.Spec.Egress) != 0 {
+		g.Fail(fmt.Sprintf("%s/%s: expected no ingress/egress rules for default-deny-all, got ingress=%d egress=%d",
+			policy.Namespace, policy.Name, len(policy.Spec.Ingress), len(policy.Spec.Egress)))
+	}
 }
 
 func requirePodSelectorLabel(policy *networkingv1.NetworkPolicy, key, value string) {
@@ -68,79 +71,28 @@ func requirePodSelectorLabel(policy *networkingv1.NetworkPolicy, key, value stri
 	}
 }
 
-func requireIngressPort(policy *networkingv1.NetworkPolicy, protocol corev1.Protocol, port int32) {
+func requirePort(policy *networkingv1.NetworkPolicy, direction string, protocol corev1.Protocol, port int32) {
 	g.GinkgoHelper()
-	if !hasPortInIngress(policy.Spec.Ingress, protocol, port) {
-		g.Fail(fmt.Sprintf("%s/%s: expected ingress port %s/%d", policy.Namespace, policy.Name, protocol, port))
-	}
-}
-
-func requireIngressFromNamespace(policy *networkingv1.NetworkPolicy, port int32, namespace string) {
-	g.GinkgoHelper()
-	if !hasIngressFromNamespace(policy.Spec.Ingress, port, namespace) {
-		g.Fail(fmt.Sprintf("%s/%s: expected ingress from namespace %s on port %d", policy.Namespace, policy.Name, namespace, port))
-	}
-}
-
-func requireIngressFromNamespaceOrPolicyGroup(policy *networkingv1.NetworkPolicy, port int32, namespace, policyGroupLabelKey string) {
-	g.GinkgoHelper()
-	if hasIngressFromNamespace(policy.Spec.Ingress, port, namespace) {
-		return
-	}
-	if hasIngressFromPolicyGroup(policy.Spec.Ingress, port, policyGroupLabelKey) {
-		return
-	}
-	if hasIngressFromAllNamespaces(policy.Spec.Ingress, port) {
-		return
-	}
-	g.Fail(fmt.Sprintf("%s/%s: expected ingress from namespace %s or policy-group %s on port %d", policy.Namespace, policy.Name, namespace, policyGroupLabelKey, port))
-}
-
-func logIngressFromNamespaceOptional(policy *networkingv1.NetworkPolicy, port int32, namespace string) {
-	g.GinkgoHelper()
-	if hasIngressFromNamespace(policy.Spec.Ingress, port, namespace) {
-		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress from namespace %s present on port %d\n", policy.Namespace, policy.Name, namespace, port)
-		return
-	}
-	g.GinkgoWriter.Printf("networkpolicy %s/%s: no ingress from namespace %s on port %d\n", policy.Namespace, policy.Name, namespace, port)
-}
-
-func logIngressHostNetworkOrAllowAll(policy *networkingv1.NetworkPolicy, port int32) {
-	g.GinkgoHelper()
-	if hasIngressAllowAll(policy.Spec.Ingress, port) {
-		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress allow-all present on port %d\n", policy.Namespace, policy.Name, port)
-		return
-	}
-	if hasIngressFromPolicyGroup(policy.Spec.Ingress, port, "policy-group.network.openshift.io/host-network") {
-		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress host-network policy-group present on port %d\n", policy.Namespace, policy.Name, port)
-		return
-	}
-	g.GinkgoWriter.Printf("networkpolicy %s/%s: no ingress allow-all/host-network rule on port %d\n", policy.Namespace, policy.Name, port)
-}
-
-func requireEgressPort(policy *networkingv1.NetworkPolicy, protocol corev1.Protocol, port int32) {
-	g.GinkgoHelper()
-	if !hasPortInEgress(policy.Spec.Egress, protocol, port) {
-		g.Fail(fmt.Sprintf("%s/%s: expected egress port %s/%d", policy.Namespace, policy.Name, protocol, port))
-	}
-}
-
-func hasPortInIngress(rules []networkingv1.NetworkPolicyIngressRule, protocol corev1.Protocol, port int32) bool {
-	for _, rule := range rules {
-		if hasPort(rule.Ports, protocol, port) {
-			return true
+	var found bool
+	switch direction {
+	case "ingress":
+		for _, rule := range policy.Spec.Ingress {
+			if hasPort(rule.Ports, protocol, port) {
+				found = true
+				break
+			}
+		}
+	case "egress":
+		for _, rule := range policy.Spec.Egress {
+			if hasPort(rule.Ports, protocol, port) {
+				found = true
+				break
+			}
 		}
 	}
-	return false
-}
-
-func hasPortInEgress(rules []networkingv1.NetworkPolicyEgressRule, protocol corev1.Protocol, port int32) bool {
-	for _, rule := range rules {
-		if hasPort(rule.Ports, protocol, port) {
-			return true
-		}
+	if !found {
+		g.Fail(fmt.Sprintf("%s/%s: expected %s port %s/%d", policy.Namespace, policy.Name, direction, protocol, port))
 	}
-	return false
 }
 
 func hasPort(ports []networkingv1.NetworkPolicyPort, protocol corev1.Protocol, port int32) bool {
@@ -159,42 +111,49 @@ func hasPort(ports []networkingv1.NetworkPolicyPort, protocol corev1.Protocol, p
 	return false
 }
 
-func hasIngressFromNamespace(rules []networkingv1.NetworkPolicyIngressRule, port int32, namespace string) bool {
-	for _, rule := range rules {
-		if !hasPort(rule.Ports, corev1.ProtocolTCP, port) {
-			continue
-		}
-		for _, peer := range rule.From {
-			if namespaceSelectorMatches(peer.NamespaceSelector, namespace) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasIngressFromAllNamespaces(rules []networkingv1.NetworkPolicyIngressRule, port int32) bool {
-	for _, rule := range rules {
-		if !hasPort(rule.Ports, corev1.ProtocolTCP, port) {
-			continue
-		}
-		for _, peer := range rule.From {
-			if peer.NamespaceSelector != nil &&
-				len(peer.NamespaceSelector.MatchLabels) == 0 &&
-				len(peer.NamespaceSelector.MatchExpressions) == 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasIngressAllowAll(rules []networkingv1.NetworkPolicyIngressRule, port int32) bool {
+func ingressPeersForPort(rules []networkingv1.NetworkPolicyIngressRule, port int32) (peers []networkingv1.NetworkPolicyPeer, allowAll bool) {
 	for _, rule := range rules {
 		if !hasPort(rule.Ports, corev1.ProtocolTCP, port) {
 			continue
 		}
 		if len(rule.From) == 0 {
+			allowAll = true
+		}
+		peers = append(peers, rule.From...)
+	}
+	return peers, allowAll
+}
+
+func hasPeerFromNamespace(peers []networkingv1.NetworkPolicyPeer, namespace string) bool {
+	for _, peer := range peers {
+		if namespaceSelectorMatches(peer.NamespaceSelector, namespace) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPeerFromAllNamespaces(peers []networkingv1.NetworkPolicyPeer) bool {
+	for _, peer := range peers {
+		if peer.NamespaceSelector != nil &&
+			len(peer.NamespaceSelector.MatchLabels) == 0 &&
+			len(peer.NamespaceSelector.MatchExpressions) == 0 &&
+			peer.IPBlock == nil &&
+			(peer.PodSelector == nil ||
+				(len(peer.PodSelector.MatchLabels) == 0 &&
+					len(peer.PodSelector.MatchExpressions) == 0)) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPeerFromPolicyGroup(peers []networkingv1.NetworkPolicyPeer, policyGroupLabelKey string) bool {
+	for _, peer := range peers {
+		if peer.NamespaceSelector == nil || peer.NamespaceSelector.MatchLabels == nil {
+			continue
+		}
+		if _, ok := peer.NamespaceSelector.MatchLabels[policyGroupLabelKey]; ok {
 			return true
 		}
 	}
@@ -226,21 +185,46 @@ func namespaceSelectorMatches(selector *metav1.LabelSelector, namespace string) 
 	return false
 }
 
-func hasIngressFromPolicyGroup(rules []networkingv1.NetworkPolicyIngressRule, port int32, policyGroupLabelKey string) bool {
-	for _, rule := range rules {
-		if !hasPort(rule.Ports, corev1.ProtocolTCP, port) {
-			continue
-		}
-		for _, peer := range rule.From {
-			if peer.NamespaceSelector == nil || peer.NamespaceSelector.MatchLabels == nil {
-				continue
-			}
-			if _, ok := peer.NamespaceSelector.MatchLabels[policyGroupLabelKey]; ok {
-				return true
-			}
-		}
+func requireIngressFromNamespaceOrPolicyGroup(policy *networkingv1.NetworkPolicy, port int32, namespace, policyGroupLabelKey string) {
+	g.GinkgoHelper()
+	peers, allowAll := ingressPeersForPort(policy.Spec.Ingress, port)
+	if allowAll {
+		return
 	}
-	return false
+	if hasPeerFromNamespace(peers, namespace) {
+		return
+	}
+	if hasPeerFromPolicyGroup(peers, policyGroupLabelKey) {
+		return
+	}
+	if hasPeerFromAllNamespaces(peers) {
+		return
+	}
+	g.Fail(fmt.Sprintf("%s/%s: expected ingress from namespace %s or policy-group %s on port %d", policy.Namespace, policy.Name, namespace, policyGroupLabelKey, port))
+}
+
+func logIngressFromNamespaceOptional(policy *networkingv1.NetworkPolicy, port int32, namespace string) {
+	g.GinkgoHelper()
+	peers, _ := ingressPeersForPort(policy.Spec.Ingress, port)
+	if hasPeerFromNamespace(peers, namespace) {
+		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress from namespace %s present on port %d\n", policy.Namespace, policy.Name, namespace, port)
+		return
+	}
+	g.GinkgoWriter.Printf("networkpolicy %s/%s: no ingress from namespace %s on port %d\n", policy.Namespace, policy.Name, namespace, port)
+}
+
+func logIngressHostNetworkOrAllowAll(policy *networkingv1.NetworkPolicy, port int32) {
+	g.GinkgoHelper()
+	peers, allowAll := ingressPeersForPort(policy.Spec.Ingress, port)
+	if allowAll {
+		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress allow-all present on port %d\n", policy.Namespace, policy.Name, port)
+		return
+	}
+	if hasPeerFromPolicyGroup(peers, "policy-group.network.openshift.io/host-network") {
+		g.GinkgoWriter.Printf("networkpolicy %s/%s: ingress host-network policy-group present on port %d\n", policy.Namespace, policy.Name, port)
+		return
+	}
+	g.GinkgoWriter.Printf("networkpolicy %s/%s: no ingress allow-all/host-network rule on port %d\n", policy.Namespace, policy.Name, port)
 }
 
 func requireEgressOnlyPolicyType(policy *networkingv1.NetworkPolicy) {
@@ -275,14 +259,16 @@ func hasEgressAllowAll(rules []networkingv1.NetworkPolicyEgressRule) bool {
 
 func requireIngressFromAllNamespaces(policy *networkingv1.NetworkPolicy, port int32) {
 	g.GinkgoHelper()
-	if !hasIngressFromAllNamespaces(policy.Spec.Ingress, port) {
+	peers, _ := ingressPeersForPort(policy.Spec.Ingress, port)
+	if !hasPeerFromAllNamespaces(peers) {
 		g.Fail(fmt.Sprintf("%s/%s: expected ingress from all namespaces on port %d", policy.Namespace, policy.Name, port))
 	}
 }
 
 func requireIngressAllowAll(policy *networkingv1.NetworkPolicy, port int32) {
 	g.GinkgoHelper()
-	if !hasIngressAllowAll(policy.Spec.Ingress, port) {
+	_, allowAll := ingressPeersForPort(policy.Spec.Ingress, port)
+	if !allowAll {
 		g.Fail(fmt.Sprintf("%s/%s: expected ingress allow-all (no from restriction) on port %d", policy.Namespace, policy.Name, port))
 	}
 }
@@ -321,7 +307,7 @@ func hasAnyTCPPort(ports []networkingv1.NetworkPolicyPort) bool {
 	return false
 }
 
-func restoreNetworkPolicy(ctx context.Context, client kubernetes.Interface, expected *networkingv1.NetworkPolicy) {
+func deleteAndRestoreNetworkPolicy(ctx context.Context, client kubernetes.Interface, expected *networkingv1.NetworkPolicy) {
 	g.GinkgoHelper()
 	namespace := expected.Namespace
 	name := expected.Name
@@ -387,36 +373,29 @@ func isPodReady(pod *corev1.Pod) bool {
 func logNetworkPolicyEvents(ctx context.Context, client kubernetes.Interface, namespaces []string, policyName string) {
 	g.GinkgoHelper()
 	found := false
-	_ = wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
-		for _, namespace := range namespaces {
-			events, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
-			if err != nil {
-				g.GinkgoWriter.Printf("unable to list events in %s: %v\n", namespace, err)
-				continue
+	for _, namespace := range namespaces {
+		events, err := client.CoreV1().Events(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			g.GinkgoWriter.Printf("unable to list events in %s: %v\n", namespace, err)
+			continue
+		}
+		for _, event := range events.Items {
+			isNetworkPolicyEvent := false
+			if event.InvolvedObject.Kind == "NetworkPolicy" && event.InvolvedObject.Name == policyName {
+				isNetworkPolicyEvent = true
 			}
-			for _, event := range events.Items {
-				isNetworkPolicyEvent := false
-				if event.InvolvedObject.Kind == "NetworkPolicy" && event.InvolvedObject.Name == policyName {
-					isNetworkPolicyEvent = true
-				}
-				if strings.Contains(event.Reason, "NetworkPolicy") {
-					isNetworkPolicyEvent = true
-				}
-				if strings.Contains(event.Message, policyName) {
-					isNetworkPolicyEvent = true
-				}
-				if isNetworkPolicyEvent {
-					g.GinkgoWriter.Printf("event in %s: %s %s %s\n", namespace, event.Type, event.Reason, event.Message)
-					found = true
-				}
+			if strings.Contains(event.Reason, "NetworkPolicy") {
+				isNetworkPolicyEvent = true
+			}
+			if strings.Contains(event.Message, policyName) {
+				isNetworkPolicyEvent = true
+			}
+			if isNetworkPolicyEvent {
+				g.GinkgoWriter.Printf("event in %s: %s %s %s\n", namespace, event.Type, event.Reason, event.Message)
+				found = true
 			}
 		}
-		if found {
-			return true, nil
-		}
-		g.GinkgoWriter.Printf("no NetworkPolicy events yet for %s (namespaces: %v)\n", policyName, namespaces)
-		return false, nil
-	})
+	}
 	if !found {
 		g.GinkgoWriter.Printf("no NetworkPolicy events observed for %s (best-effort)\n", policyName)
 	}
@@ -570,31 +549,6 @@ func netexecPod(name, namespace string, labels map[string]string, port int32) *c
 	}
 }
 
-func createServerPod(ctx context.Context, kubeClient kubernetes.Interface, namespace, name string, labels map[string]string, port int32) ([]string, func()) {
-	g.GinkgoHelper()
-	g.GinkgoWriter.Printf("creating server pod %s/%s port=%d labels=%v\n", namespace, name, port, labels)
-	pod := netexecPod(name, namespace, labels, port)
-	_, err := kubeClient.CoreV1().Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
-	o.Expect(err).NotTo(o.HaveOccurred())
-
-	if err := waitForPodReady(ctx, kubeClient, namespace, name); err != nil {
-		logPodDebugInfo(ctx, kubeClient, namespace, name)
-		o.Expect(err).NotTo(o.HaveOccurred(), "server pod %s/%s never became ready", namespace, name)
-	}
-
-	created, err := kubeClient.CoreV1().Pods(namespace).Get(ctx, name, metav1.GetOptions{})
-	o.Expect(err).NotTo(o.HaveOccurred())
-	o.Expect(created.Status.PodIPs).NotTo(o.BeEmpty())
-
-	ips := podIPs(created)
-	g.GinkgoWriter.Printf("server pod %s/%s ips=%v\n", namespace, name, ips)
-
-	return ips, func() {
-		g.GinkgoWriter.Printf("deleting server pod %s/%s\n", namespace, name)
-		_ = kubeClient.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	}
-}
-
 func podIPs(pod *corev1.Pod) []string {
 	var ips []string
 	for _, podIP := range pod.Status.PodIPs {
@@ -625,6 +579,23 @@ func defaultDenyPolicy(name, namespace string) *networkingv1.NetworkPolicy {
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{},
 			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
+		},
+	}
+}
+
+func allowAllIngressPolicy(name, namespace string, podLabels map[string]string, port int32) *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{MatchLabels: podLabels},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: port}, Protocol: protocolPtr(corev1.ProtocolTCP)},
+					},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
 		},
 	}
 }
@@ -685,7 +656,7 @@ func expectConnectivityForIP(ctx context.Context, kubeClient kubernetes.Interfac
 	g.GinkgoHelper()
 	podName, cleanup, err := createConnectivityClientPod(ctx, kubeClient, namespace, clientLabels, serverIP, port)
 	o.Expect(err).NotTo(o.HaveOccurred())
-	g.DeferCleanup(cleanup)
+	defer cleanup()
 
 	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
 		succeeded, err := readConnectivityResult(ctx, kubeClient, namespace, podName)
@@ -831,124 +802,6 @@ func logPodDebugInfo(ctx context.Context, kubeClient kubernetes.Interface, names
 	}
 	for _, event := range events.Items {
 		g.GinkgoWriter.Printf("  event: %s %s %s\n", event.Type, event.Reason, event.Message)
-	}
-}
-
-func ingressAllowsFromNamespace(policy *networkingv1.NetworkPolicy, namespace string, labels map[string]string, port int32) bool {
-	for _, rule := range policy.Spec.Ingress {
-		if !ruleAllowsPort(rule.Ports, port) {
-			continue
-		}
-		if len(rule.From) == 0 {
-			return true
-		}
-		for _, peer := range rule.From {
-			if peer.NamespaceSelector != nil {
-				if nsMatch(peer.NamespaceSelector, namespace) && podMatch(peer.PodSelector, labels) {
-					return true
-				}
-				continue
-			}
-			if podMatch(peer.PodSelector, labels) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func nsMatch(selector *metav1.LabelSelector, namespace string) bool {
-	if selector == nil {
-		return true
-	}
-	if selector.MatchLabels != nil {
-		if selector.MatchLabels["kubernetes.io/metadata.name"] == namespace {
-			return true
-		}
-	}
-	for _, expr := range selector.MatchExpressions {
-		if expr.Key != "kubernetes.io/metadata.name" {
-			continue
-		}
-		if expr.Operator != metav1.LabelSelectorOpIn {
-			continue
-		}
-		if slices.Contains(expr.Values, namespace) {
-			return true
-		}
-	}
-	return false
-}
-
-func podMatch(selector *metav1.LabelSelector, labels map[string]string) bool {
-	if selector == nil {
-		return true
-	}
-	for key, value := range selector.MatchLabels {
-		if labels[key] != value {
-			return false
-		}
-	}
-	return true
-}
-
-func ruleAllowsPort(ports []networkingv1.NetworkPolicyPort, port int32) bool {
-	if len(ports) == 0 {
-		return true
-	}
-	for _, p := range ports {
-		if p.Port == nil {
-			return true
-		}
-		if p.Port.Type == intstr.Int && p.Port.IntVal == port {
-			return true
-		}
-	}
-	return false
-}
-
-func serviceClusterIPs(svc *corev1.Service) []string {
-	if len(svc.Spec.ClusterIPs) > 0 {
-		return svc.Spec.ClusterIPs
-	}
-	if svc.Spec.ClusterIP != "" {
-		return []string{svc.Spec.ClusterIP}
-	}
-	return nil
-}
-
-func logConnectivityBestEffortForIP(ctx context.Context, kubeClient kubernetes.Interface, namespace string, clientLabels map[string]string, serverIP string, port int32, shouldSucceed bool) {
-	g.GinkgoHelper()
-	podName, cleanup, err := createConnectivityClientPod(ctx, kubeClient, namespace, clientLabels, serverIP, port)
-	if err != nil {
-		g.GinkgoWriter.Printf("failed to create client pod for best-effort check: %v\n", err)
-		return
-	}
-	g.DeferCleanup(cleanup)
-
-	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 30*time.Second, true, func(ctx context.Context) (bool, error) {
-		succeeded, err := readConnectivityResult(ctx, kubeClient, namespace, podName)
-		if err != nil {
-			return false, nil
-		}
-		return succeeded == shouldSucceed, nil
-	})
-	if err != nil {
-		g.GinkgoWriter.Printf("connectivity %s/%s expected=%t (best-effort) failed: %v\n", namespace, formatIPPort(serverIP, port), shouldSucceed, err)
-		return
-	}
-	g.GinkgoWriter.Printf("connectivity %s/%s expected=%t (best-effort)\n", namespace, formatIPPort(serverIP, port), shouldSucceed)
-}
-
-func logConnectivityBestEffort(ctx context.Context, kubeClient kubernetes.Interface, namespace string, clientLabels map[string]string, serverIPs []string, port int32, shouldSucceed bool) {
-	g.GinkgoHelper()
-	for _, ip := range serverIPs {
-		family := "IPv4"
-		if isIPv6(ip) {
-			family = "IPv6"
-		}
-		g.GinkgoWriter.Printf("checking %s connectivity (best-effort) %s -> %s expected=%t\n", family, namespace, formatIPPort(ip, port), shouldSucceed)
-		logConnectivityBestEffortForIP(ctx, kubeClient, namespace, clientLabels, ip, port, shouldSucceed)
 	}
 }
 

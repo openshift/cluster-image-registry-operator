@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"context"
-	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
@@ -17,8 +16,6 @@ const (
 	npOperatorPolicyName       = "image-registry-operator-networkpolicy"
 	npImageRegistryPolicyName  = "image-registry-networkpolicy"
 	npImagePrunerPolicyName    = "image-pruner-networkpolicy"
-	npReconcileTimeout         = 10 * time.Minute
-	npReconcilePollInterval    = 5 * time.Second
 )
 
 var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
@@ -48,15 +45,15 @@ func testImageRegistryNetworkPolicies() {
 	logNetworkPolicySummary(npOperatorPolicyName, operatorPolicy)
 	logNetworkPolicyDetails(npOperatorPolicyName, operatorPolicy)
 	requirePodSelectorLabel(operatorPolicy, "name", "cluster-image-registry-operator")
-	requireIngressPort(operatorPolicy, corev1.ProtocolTCP, 60000)
+	requirePort(operatorPolicy, "ingress", corev1.ProtocolTCP, 60000)
 	requireIngressAllowAll(operatorPolicy, 60000)
 	logIngressFromNamespaceOptional(operatorPolicy, 60000, "openshift-monitoring")
 	logIngressHostNetworkOrAllowAll(operatorPolicy, 60000)
 	requireEgressAllowAll(operatorPolicy)
-	requireEgressPort(operatorPolicy, corev1.ProtocolTCP, 6443)
-	requireEgressPort(operatorPolicy, corev1.ProtocolTCP, 5353)
-	requireEgressPort(operatorPolicy, corev1.ProtocolUDP, 5353)
-	requireEgressPort(operatorPolicy, corev1.ProtocolTCP, 443)
+	requirePort(operatorPolicy, "egress", corev1.ProtocolTCP, 6443)
+	requirePort(operatorPolicy, "egress", corev1.ProtocolTCP, 5353)
+	requirePort(operatorPolicy, "egress", corev1.ProtocolUDP, 5353)
+	requirePort(operatorPolicy, "egress", corev1.ProtocolTCP, 443)
 	logEgressAllowAllTCP(operatorPolicy)
 
 	g.By("Validating image-registry-networkpolicy")
@@ -64,16 +61,16 @@ func testImageRegistryNetworkPolicies() {
 	logNetworkPolicySummary(npImageRegistryPolicyName, registryPolicy)
 	logNetworkPolicyDetails(npImageRegistryPolicyName, registryPolicy)
 	requirePodSelectorLabel(registryPolicy, "docker-registry", "default")
-	requireIngressPort(registryPolicy, corev1.ProtocolTCP, 5000)
+	requirePort(registryPolicy, "ingress", corev1.ProtocolTCP, 5000)
 	requireIngressFromAllNamespaces(registryPolicy, 5000)
 	logIngressFromNamespaceOptional(registryPolicy, 5000, "openshift-monitoring")
 	requireIngressFromNamespaceOrPolicyGroup(registryPolicy, 5000, "openshift-ingress", "policy-group.network.openshift.io/ingress")
 	logIngressHostNetworkOrAllowAll(registryPolicy, 5000)
 	requireEgressAllowAll(registryPolicy)
-	requireEgressPort(registryPolicy, corev1.ProtocolTCP, 8443)
-	requireEgressPort(registryPolicy, corev1.ProtocolTCP, 5353)
-	requireEgressPort(registryPolicy, corev1.ProtocolUDP, 5353)
-	requireEgressPort(registryPolicy, corev1.ProtocolTCP, 443)
+	requirePort(registryPolicy, "egress", corev1.ProtocolTCP, 8443)
+	requirePort(registryPolicy, "egress", corev1.ProtocolTCP, 5353)
+	requirePort(registryPolicy, "egress", corev1.ProtocolUDP, 5353)
+	requirePort(registryPolicy, "egress", corev1.ProtocolTCP, 443)
 	logEgressAllowAllTCP(registryPolicy)
 
 	g.By("Validating image-pruner-networkpolicy")
@@ -83,10 +80,10 @@ func testImageRegistryNetworkPolicies() {
 	requirePodSelectorLabel(prunerPolicy, "app", "image-pruner")
 	requireEgressOnlyPolicyType(prunerPolicy)
 	requireEgressAllowAll(prunerPolicy)
-	requireEgressPort(prunerPolicy, corev1.ProtocolTCP, 6443)
-	requireEgressPort(prunerPolicy, corev1.ProtocolTCP, 5353)
-	requireEgressPort(prunerPolicy, corev1.ProtocolUDP, 5353)
-	requireEgressPort(prunerPolicy, corev1.ProtocolTCP, 5000)
+	requirePort(prunerPolicy, "egress", corev1.ProtocolTCP, 6443)
+	requirePort(prunerPolicy, "egress", corev1.ProtocolTCP, 5353)
+	requirePort(prunerPolicy, "egress", corev1.ProtocolUDP, 5353)
+	requirePort(prunerPolicy, "egress", corev1.ProtocolTCP, 5000)
 	logEgressAllowAllTCP(prunerPolicy)
 
 	g.By("Verifying pods are ready in image-registry namespace")
@@ -108,12 +105,12 @@ func testImageRegistryNetworkPolicyReconcile() {
 	expectedPrunerPolicy := getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImagePrunerPolicyName)
 
 	g.By("Deleting main policies and waiting for restoration")
-	restoreNetworkPolicy(ctx, kubeClient, expectedOperatorPolicy)
-	restoreNetworkPolicy(ctx, kubeClient, expectedRegistryPolicy)
-	restoreNetworkPolicy(ctx, kubeClient, expectedPrunerPolicy)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedOperatorPolicy)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedRegistryPolicy)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedPrunerPolicy)
 
 	g.By("Deleting default-deny-all policy and waiting for restoration")
-	restoreNetworkPolicy(ctx, kubeClient, expectedDefaultDeny)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedDefaultDeny)
 
 	g.By("Mutating main policies and waiting for reconciliation")
 	mutateAndRestoreNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npOperatorPolicyName)
