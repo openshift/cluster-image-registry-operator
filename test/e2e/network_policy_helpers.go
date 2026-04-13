@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/utils/ptr"
 )
 
 func newClientConfigForTest() *rest.Config {
@@ -175,10 +177,8 @@ func namespaceSelectorMatches(selector *metav1.LabelSelector, namespace string) 
 		if expr.Operator != metav1.LabelSelectorOpIn {
 			continue
 		}
-		for _, value := range expr.Values {
-			if value == namespace {
-				return true
-			}
+		if slices.Contains(expr.Values, namespace) {
+			return true
 		}
 	}
 	return false
@@ -569,8 +569,8 @@ func createConnectivityClientPod(ctx context.Context, kubeClient kubernetes.Inte
 		Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever,
 			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot:   boolptr(true),
-				RunAsUser:      int64ptr(1001),
+				RunAsNonRoot:   ptr.To(true),
+				RunAsUser:      ptr.To(int64(1001)),
 				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 			},
 			Containers: []corev1.Container{
@@ -578,10 +578,10 @@ func createConnectivityClientPod(ctx context.Context, kubeClient kubernetes.Inte
 					Name:  "connect",
 					Image: agnhostImage,
 					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: boolptr(false),
+						AllowPrivilegeEscalation: ptr.To(false),
 						Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-						RunAsNonRoot:             boolptr(true),
-						RunAsUser:                int64ptr(1001),
+						RunAsNonRoot:             ptr.To(true),
+						RunAsUser:                ptr.To(int64(1001)),
 					},
 					Command: []string{"/bin/sh", "-c"},
 					Args: []string{
@@ -685,12 +685,4 @@ func logPodDebugInfo(ctx context.Context, kubeClient kubernetes.Interface, names
 	for _, event := range events.Items {
 		g.GinkgoWriter.Printf("  event: %s %s %s\n", event.Type, event.Reason, event.Message)
 	}
-}
-
-func boolptr(value bool) *bool {
-	return &value
-}
-
-func int64ptr(value int64) *int64 {
-	return &value
 }

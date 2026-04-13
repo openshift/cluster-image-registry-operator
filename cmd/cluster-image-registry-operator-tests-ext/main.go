@@ -88,7 +88,7 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		Name:        "openshift/cluster-image-registry-operator/operator/parallel",
 		Parallelism: 4,
 		Qualifiers: []string{
-			`!name.contains("[Serial]") || !name.contains("[Disruptive]")`,
+			`!name.contains("[Serial]") && !name.contains("[Disruptive]")`,
 		},
 	})
 
