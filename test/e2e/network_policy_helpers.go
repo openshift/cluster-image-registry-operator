@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -512,56 +511,6 @@ func createTestNamespace(ctx context.Context, kubeClient kubernetes.Interface, n
 	return name
 }
 
-func netexecPod(name, namespace string, labels map[string]string, port int32) *corev1.Pod {
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
-			Annotations: map[string]string{
-				"openshift.io/required-scc": "nonroot-v2",
-			},
-		},
-		Spec: corev1.PodSpec{
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot:   boolptr(true),
-				RunAsUser:      int64ptr(1001),
-				SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-			},
-			Containers: []corev1.Container{
-				{
-					Name:  "netexec",
-					Image: agnhostImage,
-					SecurityContext: &corev1.SecurityContext{
-						AllowPrivilegeEscalation: boolptr(false),
-						Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
-						RunAsNonRoot:             boolptr(true),
-						RunAsUser:                int64ptr(1001),
-					},
-					Command: []string{"/agnhost"},
-					Args:    []string{"netexec", fmt.Sprintf("--http-port=%d", port)},
-					Ports: []corev1.ContainerPort{
-						{ContainerPort: port},
-					},
-				},
-			},
-		},
-	}
-}
-
-func podIPs(pod *corev1.Pod) []string {
-	var ips []string
-	for _, podIP := range pod.Status.PodIPs {
-		if podIP.IP != "" {
-			ips = append(ips, podIP.IP)
-		}
-	}
-	if len(ips) == 0 && pod.Status.PodIP != "" {
-		ips = append(ips, pod.Status.PodIP)
-	}
-	return ips
-}
-
 func isIPv6(ip string) bool {
 	return net.ParseIP(ip) != nil && strings.Contains(ip, ":")
 }
@@ -571,73 +520,6 @@ func formatIPPort(ip string, port int32) string {
 		return fmt.Sprintf("[%s]:%d", ip, port)
 	}
 	return fmt.Sprintf("%s:%d", ip, port)
-}
-
-func defaultDenyPolicy(name, namespace string) *networkingv1.NetworkPolicy {
-	return &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{},
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress, networkingv1.PolicyTypeEgress},
-		},
-	}
-}
-
-func allowAllIngressPolicy(name, namespace string, podLabels map[string]string, port int32) *networkingv1.NetworkPolicy {
-	return &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: podLabels},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{
-					Ports: []networkingv1.NetworkPolicyPort{
-						{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: port}, Protocol: protocolPtr(corev1.ProtocolTCP)},
-					},
-				},
-			},
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
-		},
-	}
-}
-
-func allowIngressPolicy(name, namespace string, podLabels, fromLabels map[string]string, port int32) *networkingv1.NetworkPolicy {
-	return &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: podLabels},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{
-					From: []networkingv1.NetworkPolicyPeer{
-						{PodSelector: &metav1.LabelSelector{MatchLabels: fromLabels}},
-					},
-					Ports: []networkingv1.NetworkPolicyPort{
-						{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: port}, Protocol: protocolPtr(corev1.ProtocolTCP)},
-					},
-				},
-			},
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeIngress},
-		},
-	}
-}
-
-func allowEgressPolicy(name, namespace string, podLabels, toLabels map[string]string, port int32) *networkingv1.NetworkPolicy {
-	return &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{MatchLabels: podLabels},
-			Egress: []networkingv1.NetworkPolicyEgressRule{
-				{
-					To: []networkingv1.NetworkPolicyPeer{
-						{PodSelector: &metav1.LabelSelector{MatchLabels: toLabels}},
-					},
-					Ports: []networkingv1.NetworkPolicyPort{
-						{Port: &intstr.IntOrString{Type: intstr.Int, IntVal: port}, Protocol: protocolPtr(corev1.ProtocolTCP)},
-					},
-				},
-			},
-			PolicyTypes: []networkingv1.PolicyType{networkingv1.PolicyTypeEgress},
-		},
-	}
 }
 
 func expectConnectivity(ctx context.Context, kubeClient kubernetes.Interface, namespace string, clientLabels map[string]string, serverIPs []string, port int32, shouldSucceed bool) {
@@ -803,10 +685,6 @@ func logPodDebugInfo(ctx context.Context, kubeClient kubernetes.Interface, names
 	for _, event := range events.Items {
 		g.GinkgoWriter.Printf("  event: %s %s %s\n", event.Type, event.Reason, event.Message)
 	}
-}
-
-func protocolPtr(protocol corev1.Protocol) *corev1.Protocol {
-	return &protocol
 }
 
 func boolptr(value bool) *bool {
