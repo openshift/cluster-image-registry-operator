@@ -43,7 +43,7 @@ func EnsureDefaultExternalRouteExists(te TestEnv) {
 	}
 }
 
-func EnsureExternalRoutesExist(t *testing.T, client *Clientset, wantedRoutes []string) {
+func EnsureExternalRoutesExist(t testing.TB, client *Clientset, wantedRoutes []string) {
 	var err error
 	var routes *routeapiv1.RouteList
 	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,

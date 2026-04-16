@@ -34,6 +34,59 @@ func DumpOperatorDeployment(te TestEnv) {
 	DumpYAML(te, "the operator deployment", deployment)
 }
 
+func WaitForOperatorPodsToBeDeleted(te TestEnv) {
+	te.Logf("waiting for operator pods to be deleted...")
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (bool, error) {
+			pods, err := te.Client().Pods(OperatorDeploymentNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
+			for _, pod := range pods.Items {
+				if strings.HasPrefix(pod.Name, OperatorDeploymentName+"-") {
+					te.Logf("waiting for operator pod %s to be deleted (age: %s)...", pod.Name, time.Since(pod.CreationTimestamp.Time))
+					return false, nil
+				}
+			}
+			return true, nil
+		},
+	)
+	if err != nil {
+		te.Fatalf("failed to wait for operator pods to be deleted: %v", err)
+	}
+}
+
+func WaitForOperatorPodsToStabilize(te TestEnv, expectedCount int) {
+	te.Logf("waiting for operator pods to stabilize at count %d...", expectedCount)
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (bool, error) {
+			pods, err := te.Client().Pods(OperatorDeploymentNamespace).List(ctx, metav1.ListOptions{})
+			if err != nil {
+				return false, err
+			}
+			runningCount := 0
+			terminatingCount := 0
+			for _, pod := range pods.Items {
+				if strings.HasPrefix(pod.Name, OperatorDeploymentName+"-") {
+					if pod.DeletionTimestamp != nil {
+						terminatingCount++
+					} else {
+						runningCount++
+					}
+				}
+			}
+			if runningCount == expectedCount && terminatingCount == 0 {
+				return true, nil
+			}
+			te.Logf("waiting for pods to stabilize: running=%d (expected=%d), terminating=%d...", runningCount, expectedCount, terminatingCount)
+			return false, nil
+		},
+	)
+	if err != nil {
+		te.Fatalf("failed to wait for operator pods to stabilize: %v", err)
+	}
+}
+
 func CheckAbsenceOfOperatorPods(te TestEnv) {
 	pods, err := te.Client().Pods(OperatorDeploymentNamespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
