@@ -10,7 +10,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	kmeta "k8s.io/apimachinery/pkg/api/meta"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -368,14 +367,14 @@ func (c *ImagePrunerController) handler() cache.ResourceEventHandlerFuncs {
 			c.workqueue.Add(imagePrunerWorkQueueKey)
 		},
 		DeleteFunc: func(o interface{}) {
-			object, ok := o.(metaapi.Object)
+			object, ok := o.(metav1.Object)
 			if !ok {
 				tombstone, ok := o.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					klog.Errorf("error decoding object, invalid type")
 					return
 				}
-				object, ok = tombstone.Obj.(metaapi.Object)
+				object, ok = tombstone.Obj.(metav1.Object)
 				if !ok {
 					klog.Errorf("error decoding object tombstone, invalid type")
 					return

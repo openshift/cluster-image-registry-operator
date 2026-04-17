@@ -46,7 +46,7 @@ func (c *Controller) Bootstrap() error {
 		return fmt.Errorf("unable to get platform storage: %w", err)
 	}
 
-	infra, err := util.GetInfrastructure(c.listers.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(c.listers.Infrastructures)
 	if err != nil {
 		return fmt.Errorf("unable to get infrastructure resource: %w", err)
 	}
@@ -130,7 +130,7 @@ func (c *Controller) createPVC(accessMode corev1.PersistentVolumeAccessMode, cla
 	storageClassName := "standard-csi"
 
 	// This is a Workaround for Bug#1862991 Tracker for removel on Bug#1866240
-	if infra, err := util.GetInfrastructure(c.listers.StorageListers.Infrastructures); err != nil {
+	if infra, err := util.GetInfrastructure(c.listers.Infrastructures); err != nil {
 		return err
 	} else if infra.Status.PlatformStatus.Type == configapiv1.OvirtPlatformType {
 		storageClassName = "ovirt-csi-sc"

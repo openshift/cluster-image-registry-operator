@@ -448,7 +448,7 @@ func TestAddTagsToStorageBucket(t *testing.T) {
 				Type:    defaults.StorageTagged,
 				Status:  operatorapi.ConditionFalse,
 				Reason:  gcpTagsSuccessStatusReason,
-				Message: UserTagsNotDefined.Error(),
+				Message: ErrUserTagsNotDefined.Error(),
 			},
 			expectedError: `user did not define any tags`,
 		},

@@ -3,7 +3,6 @@ package client
 import (
 	kappslisters "k8s.io/client-go/listers/apps/v1"
 	kbatchlisters "k8s.io/client-go/listers/batch/v1"
-	kjoblisters "k8s.io/client-go/listers/batch/v1"
 	kcorelisters "k8s.io/client-go/listers/core/v1"
 	knetworkinglisters "k8s.io/client-go/listers/networking/v1"
 	kpolicylisters "k8s.io/client-go/listers/policy/v1"
@@ -52,7 +51,7 @@ type Listers struct {
 }
 
 type ImagePrunerControllerListers struct {
-	Jobs                kjoblisters.JobNamespaceLister
+	Jobs                kbatchlisters.JobNamespaceLister
 	CronJobs            kbatchlisters.CronJobNamespaceLister
 	ServiceAccounts     kcorelisters.ServiceAccountNamespaceLister
 	ClusterRoles        krbaclisters.ClusterRoleLister

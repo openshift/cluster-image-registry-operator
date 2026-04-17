@@ -264,7 +264,7 @@ func (c *Controller) sync() error {
 	cr = cr.DeepCopy() // we don't want to change the cached version
 	prevCR := cr.DeepCopy()
 
-	if cr.ObjectMeta.DeletionTimestamp != nil {
+	if cr.DeletionTimestamp != nil {
 		err = c.finalizeResources(cr)
 		return err
 	}

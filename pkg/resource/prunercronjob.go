@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	batchapi "k8s.io/api/batch/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,7 +61,7 @@ func newGeneratorPrunerCronJob(lister batchlisters.CronJobNamespaceLister, clien
 }
 
 func (gcj *generatorPrunerCronJob) Type() runtime.Object {
-	return &batchapi.CronJob{}
+	return &batchv1.CronJob{}
 }
 
 func (gcj *generatorPrunerCronJob) GetNamespace() string {
@@ -117,19 +116,19 @@ done
 	}
 
 	backoffLimit := int32(0)
-	cj := &batchapi.CronJob{
+	cj := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      gcj.GetName(),
 			Namespace: gcj.GetNamespace(),
 		},
-		Spec: batchapi.CronJobSpec{
+		Spec: batchv1.CronJobSpec{
 			Suspend:                    gcj.getSuspend(cr),
 			Schedule:                   gcj.getSchedule(cr),
-			ConcurrencyPolicy:          batchapi.ForbidConcurrent,
+			ConcurrencyPolicy:          batchv1.ForbidConcurrent,
 			FailedJobsHistoryLimit:     gcj.getFailedJobsHistoryLimit(cr),
 			SuccessfulJobsHistoryLimit: gcj.getSuccessfulJobsHistoryLimit(cr),
 			StartingDeadlineSeconds:    &defaultStartingDeadlineSeconds,
-			JobTemplate: batchapi.JobTemplateSpec{
+			JobTemplate: batchv1.JobTemplateSpec{
 				Spec: batchv1.JobSpec{
 					BackoffLimit: &backoffLimit,
 					Template: kcorev1.PodTemplateSpec{
@@ -278,7 +277,7 @@ func (gcj *generatorPrunerCronJob) Get() (runtime.Object, error) {
 func (gcj *generatorPrunerCronJob) Create() (runtime.Object, error) {
 	return commonCreate(gcj, func(obj runtime.Object) (runtime.Object, error) {
 		return gcj.client.CronJobs(gcj.GetNamespace()).Create(
-			context.TODO(), obj.(*batchapi.CronJob), metav1.CreateOptions{},
+			context.TODO(), obj.(*batchv1.CronJob), metav1.CreateOptions{},
 		)
 	})
 }
@@ -286,7 +285,7 @@ func (gcj *generatorPrunerCronJob) Create() (runtime.Object, error) {
 func (gcj *generatorPrunerCronJob) Update(o runtime.Object) (runtime.Object, bool, error) {
 	return commonUpdate(gcj, o, func(obj runtime.Object) (runtime.Object, error) {
 		return gcj.client.CronJobs(gcj.GetNamespace()).Update(
-			context.TODO(), obj.(*batchapi.CronJob), metav1.UpdateOptions{},
+			context.TODO(), obj.(*batchv1.CronJob), metav1.UpdateOptions{},
 		)
 	})
 }

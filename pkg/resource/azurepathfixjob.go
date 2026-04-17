@@ -8,7 +8,6 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	kcorev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -224,26 +223,26 @@ func (gapfj *generatorAzurePathFixJob) expected() (runtime.Object, error) {
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit: &backoffLimit,
-			Template: kcorev1.PodTemplateSpec{
+			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
 						securityv1.RequiredSCCAnnotation: "restricted-v2",
 					},
 				},
-				Spec: kcorev1.PodSpec{
-					RestartPolicy:      kcorev1.RestartPolicyNever,
+				Spec: corev1.PodSpec{
+					RestartPolicy:      corev1.RestartPolicyNever,
 					ServiceAccountName: defaults.ServiceAccountName,
 					PriorityClassName:  "system-cluster-critical",
-					Containers: []kcorev1.Container{
+					Containers: []corev1.Container{
 						{
 							Image: os.Getenv("OPERATOR_IMAGE"),
-							Resources: kcorev1.ResourceRequirements{
-								Requests: kcorev1.ResourceList{
-									kcorev1.ResourceCPU:    resource.MustParse("100m"),
-									kcorev1.ResourceMemory: resource.MustParse("256Mi"),
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    resource.MustParse("100m"),
+									corev1.ResourceMemory: resource.MustParse("256Mi"),
 								},
 							},
-							TerminationMessagePolicy: kcorev1.TerminationMessageFallbackToLogsOnError,
+							TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 							Env:                      envs,
 							VolumeMounts: []corev1.VolumeMount{
 								trustedCAMount,

@@ -64,7 +64,7 @@ func TestAWSDefaults(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -341,7 +341,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
@@ -694,7 +694,7 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		t.Fatalf("unable to get listers from mock lister: %v", err)
 	}
 
-	infra, err := util.GetInfrastructure(mockLister.StorageListers.Infrastructures)
+	infra, err := util.GetInfrastructure(mockLister.Infrastructures)
 	if err != nil {
 		t.Fatalf("unable to get install configuration: %v", err)
 	}
