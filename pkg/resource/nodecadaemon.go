@@ -60,7 +60,7 @@ func (ds *generatorNodeCADaemonSet) Get() (runtime.Object, error) {
 
 func (ds *generatorNodeCADaemonSet) expected() *appsv1.DaemonSet {
 	daemonSet := resourceread.ReadDaemonSetV1OrDie(assets.MustAsset("nodecadaemon.yaml"))
-	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("IMAGE")
+	daemonSet.Spec.Template.Spec.Containers[0].Image = os.Getenv("OPERATOR_IMAGE")
 	return daemonSet
 }
 

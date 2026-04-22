@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -20,6 +23,7 @@ import (
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
+	"github.com/openshift/cluster-image-registry-operator/pkg/nodeca"
 	"github.com/openshift/cluster-image-registry-operator/pkg/operator"
 	"github.com/openshift/cluster-image-registry-operator/pkg/signals"
 	"github.com/openshift/cluster-image-registry-operator/pkg/version"
@@ -138,6 +142,37 @@ func main() {
 	cmd.Flags().StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster")
 	cmd.Flags().StringArrayVar(&filesToWatch, "files", []string{}, "List of files to watch")
 	cmd.Flags().StringVar(&controllerConfig, "config", "", "Path to the controller config file")
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "node-ca-sync",
+			Short: "Runs the node-ca certificate syncer",
+			Long:  "Runs a daemon that keeps /etc/docker/certs.d in sync with /tmp/serviceca",
+			Run: func(cmd *cobra.Command, args []string) {
+				ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+				defer stop()
+
+				ticker := time.NewTicker(time.Minute)
+				for {
+					if copied, skipped, trimmed, err := nodeca.SyncCerts(
+						"/tmp/serviceca", "/etc/docker/certs.d",
+					); err != nil {
+						klog.Errorf("syncing certs: %v", err)
+					} else {
+						klog.Infof("copied: %03d skipped: %03d trimmed: %03d", copied, skipped, trimmed)
+					}
+
+					select {
+					case <-ticker.C:
+					case <-ctx.Done():
+						ticker.Stop()
+						klog.Info("shutting down node-ca")
+						return
+					}
+				}
+			},
+		},
+	)
 
 	if err := cmd.Execute(); err != nil {
 		klog.Errorf("%v", err)

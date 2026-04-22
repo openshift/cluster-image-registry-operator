@@ -89,7 +89,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 			// gorgeously die, if we find this it means that the
 			// pod had manage to exit properly so we can end this
 			// test successfully.
-			if strings.HasPrefix(line, "shutting down node-ca") {
+			if strings.Contains(line, "shutting down node-ca") {
 				return
 			}
 		}

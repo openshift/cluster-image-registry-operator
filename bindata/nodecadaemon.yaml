@@ -39,34 +39,9 @@ spec:
             cpu: 10m
             memory: 10Mi
         command:
-        - "/bin/sh"
-        - "-c"
-        - |
-          trap 'jobs -p | xargs -r kill; echo shutting down node-ca; exit 0' TERM
-          while [ true ];
-          do
-            for f in $(ls /tmp/serviceca); do
-                echo $f
-                ca_file_path="/tmp/serviceca/${f}"
-                f=$(echo $f | sed  -r 's/(.*)\.\./\1:/')
-                reg_dir_path="/etc/docker/certs.d/${f}"
-                if [ -e "${reg_dir_path}" ]; then
-                    cp -u $ca_file_path $reg_dir_path/ca.crt
-                else
-                    mkdir $reg_dir_path
-                    cp $ca_file_path $reg_dir_path/ca.crt
-                fi
-            done
-            for d in $(ls /etc/docker/certs.d); do
-                echo $d
-                dp=$(echo $d | sed  -r 's/(.*):/\1\.\./')
-                reg_conf_path="/tmp/serviceca/${dp}"
-                if [ ! -e "${reg_conf_path}" ]; then
-                    rm -rf /etc/docker/certs.d/$d
-                fi
-            done
-            sleep 60 & wait ${!}
-          done
+        - cluster-image-registry-operator
+        args:
+        - node-ca-sync
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: serviceca
