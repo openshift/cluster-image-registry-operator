@@ -1,7 +1,9 @@
 reviewers:
+- control-plane-approvers
 - flavianmissi
 - ricardomaraschini
 approvers:
+- control-plane-approvers
 - ricardomaraschini
 - flavianmissi
 component: "Image Registry"
