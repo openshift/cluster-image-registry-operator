@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	policyclient "k8s.io/client-go/kubernetes/typed/policy/v1"
 	policylisters "k8s.io/client-go/listers/policy/v1"
+	"k8s.io/utils/ptr"
 )
 
 var _ Mutator = &generatorPodDisruptionBudget{}
@@ -57,6 +58,7 @@ func (gpdb *generatorPodDisruptionBudget) expected() (runtime.Object, error) {
 			Selector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
 			},
+			UnhealthyPodEvictionPolicy: ptr.To(policyv1.AlwaysAllow),
 		},
 	}
 
