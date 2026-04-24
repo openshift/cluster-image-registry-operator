@@ -14,13 +14,13 @@ import (
 const randomSecretSize = 64
 
 func appendFinalizer(cr *imageregistryv1.Config) {
-	for i := range cr.ObjectMeta.Finalizers {
-		if cr.ObjectMeta.Finalizers[i] == defaults.ImageRegistryOperatorResourceFinalizer {
+	for i := range cr.Finalizers {
+		if cr.Finalizers[i] == defaults.ImageRegistryOperatorResourceFinalizer {
 			return
 		}
 	}
 
-	cr.ObjectMeta.Finalizers = append(cr.ObjectMeta.Finalizers, defaults.ImageRegistryOperatorResourceFinalizer)
+	cr.Finalizers = append(cr.Finalizers, defaults.ImageRegistryOperatorResourceFinalizer)
 }
 
 func verifyResource(cr *imageregistryv1.Config) error {

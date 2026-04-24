@@ -44,13 +44,13 @@ func (te *testEnv) Client() *Clientset {
 }
 
 func (te *testEnv) Log(a ...interface{}) {
-	te.T.Helper()
+	te.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
 	te.T.Log(args...)
 }
 
 func (te *testEnv) Logf(format string, a ...interface{}) {
-	te.T.Helper()
+	te.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
 	te.T.Logf("%s "+format, args...)
 }

@@ -4,7 +4,6 @@ import (
 	kubeset "k8s.io/client-go/kubernetes"
 	appsset "k8s.io/client-go/kubernetes/typed/apps/v1"
 	batchset "k8s.io/client-go/kubernetes/typed/batch/v1"
-	jobset "k8s.io/client-go/kubernetes/typed/batch/v1"
 	coreset "k8s.io/client-go/kubernetes/typed/core/v1"
 	networkingset "k8s.io/client-go/kubernetes/typed/networking/v1"
 	rbacset "k8s.io/client-go/kubernetes/typed/rbac/v1"
@@ -23,6 +22,6 @@ type Clients struct {
 	Apps       appsset.AppsV1Interface
 	RBAC       rbacset.RbacV1Interface
 	Batch      batchset.BatchV1Interface
-	Job        jobset.BatchV1Interface
+	Job        batchset.BatchV1Interface
 	Networking networkingset.NetworkingV1Interface
 }

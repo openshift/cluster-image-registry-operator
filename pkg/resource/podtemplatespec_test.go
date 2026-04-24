@@ -396,8 +396,8 @@ func TestMakePodTemplateSpecWithVolumeMounts(t *testing.T) {
 
 func verifyVolume(volume corev1.Volume, expected *volumeMount, t *testing.T) {
 	if volume.ConfigMap != nil {
-		if volume.ConfigMap.LocalObjectReference.Name != expected.refName {
-			t.Errorf("expected volume %s to reference ConfigMap %s, got %s", volume.Name, expected.refName, volume.ConfigMap.LocalObjectReference.Name)
+		if volume.ConfigMap.Name != expected.refName {
+			t.Errorf("expected volume %s to reference ConfigMap %s, got %s", volume.Name, expected.refName, volume.ConfigMap.Name)
 		}
 		if expected.optional {
 			if volume.ConfigMap.Optional == nil || *volume.ConfigMap.Optional != expected.optional {
@@ -436,13 +436,13 @@ func verifyVolume(volume corev1.Volume, expected *volumeMount, t *testing.T) {
 	if volume.Projected != nil && len(volume.Projected.Sources) > 0 {
 		for _, src := range volume.Projected.Sources {
 			if src.ConfigMap != nil {
-				if src.ConfigMap.LocalObjectReference.Name != expected.refName {
-					t.Errorf("expected volume %s to reference ConfigMap %s, got %s", volume.Name, expected.refName, src.ConfigMap.LocalObjectReference.Name)
+				if src.ConfigMap.Name != expected.refName {
+					t.Errorf("expected volume %s to reference ConfigMap %s, got %s", volume.Name, expected.refName, src.ConfigMap.Name)
 				}
 			}
 			if src.Secret != nil {
-				if src.Secret.LocalObjectReference.Name != expected.refName {
-					t.Errorf("expected volume %s to reference Secret %s, got %s", volume.Name, expected.refName, src.Secret.LocalObjectReference.Name)
+				if src.Secret.Name != expected.refName {
+					t.Errorf("expected volume %s to reference Secret %s, got %s", volume.Name, expected.refName, src.Secret.Name)
 				}
 			}
 		}

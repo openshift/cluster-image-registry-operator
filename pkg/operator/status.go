@@ -7,10 +7,9 @@ import (
 	"time"
 
 	appsapi "k8s.io/api/apps/v1"
-	batchapi "k8s.io/api/batch/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	metaapi "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapiv1 "github.com/openshift/api/operator/v1"
@@ -32,7 +31,7 @@ func updateCondition(cr *imageregistryv1.Config, condtype string, condstate oper
 		}
 		if c.Status != condstate.Status {
 			c.Status = condstate.Status
-			c.LastTransitionTime = metaapi.Now()
+			c.LastTransitionTime = metav1.Now()
 		}
 		if c.Reason != condstate.Reason {
 			c.Reason = condstate.Reason
@@ -48,7 +47,7 @@ func updateCondition(cr *imageregistryv1.Config, condtype string, condstate oper
 		conditions = append(conditions, operatorapiv1.OperatorCondition{
 			Type:               condtype,
 			Status:             operatorapiv1.ConditionStatus(condstate.Status),
-			LastTransitionTime: metaapi.Now(),
+			LastTransitionTime: metav1.Now(),
 			Reason:             condstate.Reason,
 			Message:            condstate.Message,
 		})
@@ -68,7 +67,7 @@ func updatePrunerCondition(cr *imageregistryv1.ImagePruner, condtype string, con
 		}
 		if c.Status != condstate.Status {
 			c.Status = condstate.Status
-			c.LastTransitionTime = metaapi.Now()
+			c.LastTransitionTime = metav1.Now()
 		}
 		if c.Reason != condstate.Reason {
 			c.Reason = condstate.Reason
@@ -84,7 +83,7 @@ func updatePrunerCondition(cr *imageregistryv1.ImagePruner, condtype string, con
 		conditions = append(conditions, operatorapiv1.OperatorCondition{
 			Type:               condtype,
 			Status:             operatorapiv1.ConditionStatus(condstate.Status),
-			LastTransitionTime: metaapi.Now(),
+			LastTransitionTime: metav1.Now(),
 			Reason:             condstate.Reason,
 			Message:            condstate.Message,
 		})
@@ -130,7 +129,7 @@ func (c *Controller) setStatusRemoveFailed(cr *imageregistryv1.Config, removeErr
 	updateCondition(cr, operatorapiv1.OperatorStatusTypeDegraded, operatorDegraded)
 }
 
-func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, applyError error, prunerJob *batchapi.CronJob, lastJobConditions []batchv1.JobCondition) {
+func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner, applyError error, prunerJob *batchv1.CronJob, lastJobConditions []batchv1.JobCondition) {
 	if prunerJob == nil {
 		prunerAvailable := operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionFalse,

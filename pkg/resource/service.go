@@ -71,7 +71,7 @@ func (gs *generatorService) expected() *corev1.Service {
 		},
 	}
 
-	svc.ObjectMeta.Annotations = map[string]string{
+	svc.Annotations = map[string]string{
 		"service.alpha.openshift.io/serving-cert-secret-name": gs.secretName,
 	}
 

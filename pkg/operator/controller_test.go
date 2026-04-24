@@ -19,7 +19,6 @@ import (
 	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
-	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	configfakeclient "github.com/openshift/client-go/config/clientset/versioned/fake"
@@ -251,15 +250,15 @@ func TestGlobalTLSCopy(t *testing.T) {
 
 	// add an initial registry configuration without populating its
 	// observedConfig.
-	if err := setup.regClient.Tracker().Add(&imageregistryapiv1.Config{
+	if err := setup.regClient.Tracker().Add(&imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-		Spec: imageregistryapiv1.ImageRegistrySpec{
+		Spec: imageregistryv1.ImageRegistrySpec{
 			Replicas: 1,
 			OperatorSpec: operatorv1.OperatorSpec{
 				ManagementState: operatorv1.Managed,
 			},
-			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
-				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			Storage: imageregistryv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryv1.ImageRegistryConfigStorageEmptyDir{},
 			},
 		},
 	}); err != nil {

@@ -210,7 +210,7 @@ func (c *Client) getCreds(ctx context.Context) (azcore.TokenCredential, error) {
 		}
 	}
 	if creds == nil {
-		return nil, errors.New("Unknown authentication method")
+		return nil, errors.New("unknown authentication method")
 	}
 	c.creds = creds
 	return c.creds, nil
@@ -682,7 +682,7 @@ func (c *Client) createPrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 		return fmt.Errorf("failed to create private dns zone groups client: %w", err)
 	}
 	privateZoneID := formatPrivateDNSZoneID(c.opts.SubscriptionID, resourceGroupName, privateZoneName)
-	groupName := strings.Replace(privateZoneName, ".", "-", -1)
+	groupName := strings.ReplaceAll(privateZoneName, ".", "-")
 	group := armnetwork.PrivateDNSZoneGroup{
 		Name: to.StringPtr(fmt.Sprintf("%s/default", privateZoneName)),
 		Properties: &armnetwork.PrivateDNSZoneGroupPropertiesFormat{
@@ -722,7 +722,7 @@ func (c *Client) deletePrivateDNSZoneGroup(ctx context.Context, resourceGroupNam
 	if err != nil {
 		return fmt.Errorf("failed to create private dns zone groups client: %w", err)
 	}
-	groupName := strings.Replace(privateZoneName, ".", "-", -1)
+	groupName := strings.ReplaceAll(privateZoneName, ".", "-")
 	pollersResp, err := client.BeginDelete(
 		ctx,
 		resourceGroupName,
