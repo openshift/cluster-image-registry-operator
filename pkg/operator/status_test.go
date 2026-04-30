@@ -371,7 +371,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "Deployment without replicas for more than one minute",
+			name: "Deployment without replicas for more than two minutes",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
@@ -384,7 +384,7 @@ func Test_syncStatus(t *testing.T) {
 							{
 								Type:               "Available",
 								Status:             "False",
-								LastTransitionTime: metav1.NewTime(time.Now().Add(-1 * time.Minute)),
+								LastTransitionTime: metav1.NewTime(time.Now().Add(-2*time.Minute - time.Second)),
 							},
 						},
 					},
@@ -590,7 +590,7 @@ func Test_syncStatus(t *testing.T) {
 			},
 		},
 		{
-			name: "Deployment not in place after one minute",
+			name: "Deployment not in place after two minutes",
 			cfg: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
@@ -603,7 +603,7 @@ func Test_syncStatus(t *testing.T) {
 							{
 								Type:               "Available",
 								Status:             "False",
-								LastTransitionTime: metav1.NewTime(time.Now().Add(-1 * time.Minute)),
+								LastTransitionTime: metav1.NewTime(time.Now().Add(-2*time.Minute - time.Second)),
 							},
 						},
 					},
