@@ -213,12 +213,32 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 
 	original, expected := o.(*appsapi.Deployment), exp.(*appsapi.Deployment)
 
-	// XXX if we are removing the affinities from the spec we need to do
-	// that on its own api call so not to mess with scheduling logic.
-	// in other words: already scheduled pods have those anti-affinities
-	// in place and we may hit a scenario where new pods will conflict with
-	// those anti-affinities.
+	// OCPBUGS-66203: If removing affinity while INCREASING replicas, use separate call
+	// to avoid scheduling conflicts where new pods can't schedule due to existing pods'
+	// anti-affinity rules.
+	// OCPBUGS-84725: For all other cases (replica decrease, storage changes, etc.),
+	// use atomic update to prevent intermediate ReplicaSets with stale configuration.
+	needsSeparateAffinityCall := false
 	if original.Spec.Template.Spec.Affinity != nil && expected.Spec.Template.Spec.Affinity == nil {
+		// Affinity is being removed - check if replicas are also increasing
+		origReplicas := int32(1)
+		if original.Spec.Replicas != nil {
+			origReplicas = *original.Spec.Replicas
+		}
+		expReplicas := int32(1)
+		if expected.Spec.Replicas != nil {
+			expReplicas = *expected.Spec.Replicas
+		}
+
+		// Only use separate call if replicas are INCREASING (scheduling conflict risk)
+		// For replica decrease or same count, use atomic update to avoid stale ReplicaSets
+		if expReplicas > origReplicas {
+			needsSeparateAffinityCall = true
+		}
+	}
+
+	if needsSeparateAffinityCall {
+		// OCPBUGS-66203: Remove affinity first to avoid scheduling conflicts with new pods
 		original = original.DeepCopy()
 		original.Spec.Template.Spec.Affinity = nil
 		dep, err := gd.client.Deployments(gd.GetNamespace()).Update(
@@ -230,6 +250,8 @@ func (gd *generatorDeployment) Update(o runtime.Object) (runtime.Object, bool, e
 		return dep, true, nil
 	}
 
+	// OCPBUGS-84725: Apply all changes atomically to prevent stale ReplicaSets
+	// This handles replica decrease, storage changes, and other updates safely
 	dep, updated, err := resourceapply.ApplyDeployment(
 		context.TODO(), gd.client, gd.eventRecorder, exp.(*appsapi.Deployment), gd.LastGeneration(),
 	)

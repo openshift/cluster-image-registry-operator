@@ -254,14 +254,23 @@ func (c *Controller) getRoutes(cr *imageregistryv1.Config) ([]*routev1.Route, er
 }
 
 func (c *Controller) sync() error {
-	cr, err := c.listers.RegistryConfigs.Get(defaults.ImageRegistryResourceName)
+	// OCPBUGS-84725: Read config directly from API server to avoid stale cache issues.
+	// The informer cache can be stale when config is patched in rapid succession,
+	// which combined with multiple deployment updates can lead to ReplicaSets being
+	// created with incorrect replica counts and storage configuration.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	cr, err := c.clients.RegOp.ImageregistryV1().Configs().Get(
+		ctx, defaults.ImageRegistryResourceName, metaapi.GetOptions{},
+	)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return c.Bootstrap()
 		}
-		return fmt.Errorf("failed to get %q registry operator resource: %s", defaults.ImageRegistryResourceName, err)
+		return fmt.Errorf("failed to get %q from API server: %w", defaults.ImageRegistryResourceName, err)
 	}
-	cr = cr.DeepCopy() // we don't want to change the cached version
+
 	prevCR := cr.DeepCopy()
 
 	if cr.ObjectMeta.DeletionTimestamp != nil {
