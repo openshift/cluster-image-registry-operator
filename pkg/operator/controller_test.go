@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"testing"
 	"time"
@@ -64,6 +65,24 @@ func registryConfigResourceVersionBumper(t *testing.T, regcli *imageregistryfake
 	return func(action clientgotesting.Action) (bool, runtime.Object, error) {
 		update := action.(clientgotesting.UpdateAction)
 		newcfg := update.GetObject().(*imageregistryv1.Config).DeepCopy()
+
+		// during a real apiserver communication objects are marshaled
+		// and umarshaled when crossing through the wire. when the
+		// unmarshal happen on the server side the RawExtension.Object
+		// isn't unmarshaled (its data remain on the RawExtension.Raw
+		// property). as we are not a real apiserver and this operator
+		// needs the RawExtension.Raw property of the config we have to
+		// marshal and unmarshal. this operation attempts to simulate
+		// the object passing through the wire before hiting the
+		// storage.
+		data, err := json.Marshal(newcfg)
+		if err != nil {
+			t.Fatalf("failed to marshal config: %v", err)
+		}
+		newcfg = &imageregistryv1.Config{}
+		if err := json.Unmarshal(data, newcfg); err != nil {
+			t.Fatalf("failed to unmarshal config: %v", err)
+		}
 
 		gvr := schema.GroupVersionResource{
 			Group:    "imageregistry.operator.openshift.io",
