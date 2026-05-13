@@ -306,37 +306,91 @@ func hasAnyTCPPort(ports []networkingv1.NetworkPolicyPort) bool {
 	return false
 }
 
-func deleteAndRestoreNetworkPolicy(ctx context.Context, client kubernetes.Interface, expected *networkingv1.NetworkPolicy) {
+// deleteAndWaitForAllRestored deletes all given NetworkPolicies at once, then
+// polls until every one is restored by the operator.
+func deleteAndWaitForAllRestored(ctx context.Context, client kubernetes.Interface, policies []*networkingv1.NetworkPolicy) {
 	g.GinkgoHelper()
-	namespace := expected.Namespace
-	name := expected.Name
-	g.GinkgoWriter.Printf("deleting NetworkPolicy %s/%s\n", namespace, name)
-	o.Expect(client.NetworkingV1().NetworkPolicies(namespace).Delete(ctx, name, metav1.DeleteOptions{})).NotTo(o.HaveOccurred())
-	err := wait.PollUntilContextTimeout(ctx, 5*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
-		current, err := client.NetworkingV1().NetworkPolicies(namespace).Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
+
+	type policyState struct {
+		expected    *networkingv1.NetworkPolicy
+		originalUID types.UID
+		sawDeletion bool
+	}
+	states := make([]policyState, len(policies))
+
+	for i, p := range policies {
+		states[i] = policyState{expected: p, originalUID: p.UID}
+		g.GinkgoWriter.Printf("deleting NetworkPolicy %s/%s (UID=%s)\n", p.Namespace, p.Name, p.UID)
+		err := client.NetworkingV1().NetworkPolicies(p.Namespace).Delete(ctx, p.Name, metav1.DeleteOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "failed to delete NetworkPolicy %s/%s", p.Namespace, p.Name)
+	}
+
+	err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		allRestored := true
+		for i := range states {
+			ns := states[i].expected.Namespace
+			name := states[i].expected.Name
+			current, err := client.NetworkingV1().NetworkPolicies(ns).Get(ctx, name, metav1.GetOptions{})
+			if err != nil {
+				states[i].sawDeletion = true
+				allRestored = false
+				continue
+			}
+			if current.UID == states[i].originalUID && !states[i].sawDeletion {
+				allRestored = false
+				continue
+			}
+			if !equality.Semantic.DeepEqual(states[i].expected.Spec, current.Spec) {
+				allRestored = false
+				continue
+			}
+			g.GinkgoWriter.Printf("NetworkPolicy %s/%s restored\n", ns, name)
 		}
-		return equality.Semantic.DeepEqual(expected.Spec, current.Spec), nil
+		return allRestored, nil
 	})
-	o.Expect(err).NotTo(o.HaveOccurred(), "timed out waiting for NetworkPolicy %s/%s spec to be restored", namespace, name)
-	g.GinkgoWriter.Printf("NetworkPolicy %s/%s spec restored after delete\n", namespace, name)
+	o.Expect(err).NotTo(o.HaveOccurred(), "timed out waiting for all NetworkPolicies to be restored after deletion")
 }
 
-func mutateAndRestoreNetworkPolicy(ctx context.Context, client kubernetes.Interface, namespace, name string) {
+// mutateAndWaitForAllReconciled mutates all given NetworkPolicies at once, then
+// polls until the operator reconciles every one back to its original spec.
+func mutateAndWaitForAllReconciled(ctx context.Context, client kubernetes.Interface, policies []struct{ namespace, name string }) {
 	g.GinkgoHelper()
-	original := getNetworkPolicy(ctx, client, namespace, name)
-	g.GinkgoWriter.Printf("mutating NetworkPolicy %s/%s (podSelector override)\n", namespace, name)
-	patch := []byte(`{"spec":{"podSelector":{"matchLabels":{"np-reconcile":"mutated"}}}}`)
-	_, err := client.NetworkingV1().NetworkPolicies(namespace).Patch(ctx, name, types.MergePatchType, patch, metav1.PatchOptions{})
-	o.Expect(err).NotTo(o.HaveOccurred())
 
-	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 10*time.Minute, true, func(ctx context.Context) (bool, error) {
-		current := getNetworkPolicy(ctx, client, namespace, name)
-		return equality.Semantic.DeepEqual(original.Spec, current.Spec), nil
+	type mutationState struct {
+		namespace string
+		name      string
+		original  networkingv1.NetworkPolicySpec
+	}
+	states := make([]mutationState, 0, len(policies))
+
+	patch := []byte(`{"spec":{"podSelector":{"matchLabels":{"np-reconcile":"mutated"}}}}`)
+	for _, p := range policies {
+		original := getNetworkPolicy(ctx, client, p.namespace, p.name)
+		g.GinkgoWriter.Printf("mutating NetworkPolicy %s/%s\n", p.namespace, p.name)
+		_, err := client.NetworkingV1().NetworkPolicies(p.namespace).Patch(ctx, p.name, types.MergePatchType, patch, metav1.PatchOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "failed to patch NetworkPolicy %s/%s", p.namespace, p.name)
+		states = append(states, mutationState{namespace: p.namespace, name: p.name, original: original.Spec})
+	}
+
+	err := wait.PollUntilContextTimeout(ctx, 3*time.Second, 5*time.Minute, true, func(ctx context.Context) (bool, error) {
+		allReconciled := true
+		for i := range states {
+			s := &states[i]
+			current, err := client.NetworkingV1().NetworkPolicies(s.namespace).Get(ctx, s.name, metav1.GetOptions{})
+			if err != nil {
+				g.GinkgoWriter.Printf("waiting for NetworkPolicy %s/%s reconciliation: %v\n", s.namespace, s.name, err)
+				allReconciled = false
+				continue
+			}
+			if !equality.Semantic.DeepEqual(s.original, current.Spec) {
+				allReconciled = false
+				continue
+			}
+			g.GinkgoWriter.Printf("NetworkPolicy %s/%s reconciled\n", s.namespace, s.name)
+		}
+		return allReconciled, nil
 	})
-	o.Expect(err).NotTo(o.HaveOccurred(), "timed out waiting for NetworkPolicy %s/%s spec to be restored", namespace, name)
-	g.GinkgoWriter.Printf("NetworkPolicy %s/%s spec restored\n", namespace, name)
+	o.Expect(err).NotTo(o.HaveOccurred(), "timed out waiting for all NetworkPolicies to be reconciled after mutation")
 }
 
 func waitForPodsReadyByLabel(ctx context.Context, client kubernetes.Interface, namespace, labelSelector string) {

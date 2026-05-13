@@ -14,11 +14,28 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestManagementStateUnmanaged(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestManagementStateUnmanaged", func() {
+		testManagementStateUnmanaged(g.GinkgoTB())
+	})
+	g.It("[Serial] TestManagementStateRemoved", func() {
+		testManagementStateRemoved(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRemovedToManagedTransition", func() {
+		testRemovedToManagedTransition(g.GinkgoTB())
+	})
+	g.It("[Serial] TestStorageManagementState", func() {
+		testStorageManagementState(g.GinkgoTB())
+	})
+})
+
+func testManagementStateUnmanaged(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -59,7 +76,7 @@ func TestManagementStateUnmanaged(t *testing.T) {
 	}
 }
 
-func TestManagementStateRemoved(t *testing.T) {
+func testManagementStateRemoved(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -108,7 +125,7 @@ func TestManagementStateRemoved(t *testing.T) {
 	}
 }
 
-func TestRemovedToManagedTransition(t *testing.T) {
+func testRemovedToManagedTransition(t testing.TB) {
 	var cr *imageregistryv1.Config
 	var err error
 
@@ -169,7 +186,7 @@ func TestRemovedToManagedTransition(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
 
-func TestStorageManagementState(t *testing.T) {
+func testStorageManagementState(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 

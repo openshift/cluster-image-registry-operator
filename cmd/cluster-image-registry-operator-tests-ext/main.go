@@ -92,6 +92,12 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		},
 	})
 
+	extension.RegisterImage(oteextension.Image{
+		Registry: "quay.io",
+		Name:     "minio/minio",
+		Version:  "RELEASE.2025-09-07T16-13-09Z",
+	})
+
 	specs, err := oteginkgo.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build extension test specs from ginkgo: %w", err)

@@ -8,10 +8,18 @@ import (
 
 	configapiv1 "github.com/openshift/api/config/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestBaremetalAndVSphereDefaults(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestBaremetalAndVSphereDefaults", func() {
+		testBaremetalAndVSphereDefaults(g.GinkgoTB())
+	})
+})
+
+func testBaremetalAndVSphereDefaults(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 

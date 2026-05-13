@@ -10,11 +10,19 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestBasicEmptyDir(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestBasicEmptyDir", func() {
+		testBasicEmptyDir(g.GinkgoTB())
+	})
+})
+
+func testBasicEmptyDir(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,

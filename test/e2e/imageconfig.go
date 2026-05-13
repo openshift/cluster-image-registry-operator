@@ -16,11 +16,25 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestAdditionalTrustedCA(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestAdditionalTrustedCA", func() {
+		testAdditionalTrustedCA(g.GinkgoTB())
+	})
+	g.It("[Serial] TestSwapStorage", func() {
+		testSwapStorage(g.GinkgoTB())
+	})
+	g.It("[Serial] TestImageConfigWhenRemoved", func() {
+		testImageConfigWhenRemoved(g.GinkgoTB())
+	})
+})
+
+func testAdditionalTrustedCA(t testing.TB) {
 	const openshiftConfigNamespace = "openshift-config"
 	const imageConfigName = "cluster"
 	const userCAConfigMapName = "test-image-registry-operator-additional-trusted-ca"
@@ -122,7 +136,7 @@ func TestAdditionalTrustedCA(t *testing.T) {
 	}
 }
 
-func TestSwapStorage(t *testing.T) {
+func testSwapStorage(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -171,7 +185,7 @@ func TestSwapStorage(t *testing.T) {
 	}
 }
 
-func TestImageConfigWhenRemoved(t *testing.T) {
+func testImageConfigWhenRemoved(t testing.TB) {
 	hostname := "test.example.com"
 
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{

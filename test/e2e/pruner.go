@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -14,6 +16,21 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
+
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestPruneRegistryFlag", func() {
+		testPruneRegistryFlag(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPruner", func() {
+		testPruner(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPrunerPodCompletes", func() {
+		testPrunerPodCompletes(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPrunerIgnoreInvalidImageReferences", func() {
+		testPrunerIgnoreInvalidImageReferences(g.GinkgoTB())
+	})
+})
 
 func containsString(haystack []string, needle string) bool {
 	for _, v := range haystack {
@@ -24,14 +41,10 @@ func containsString(haystack []string, needle string) bool {
 	return false
 }
 
-// TestPruneRegistry ensures that the value for the --prune-registry flag
-// is set correctly based on the image registry's custom resources
-// Spec.ManagementState field
-func TestPruneRegistryFlag(t *testing.T) {
+func testPruneRegistryFlag(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
-	// TODO: Move these checks to a conformance test run on all providers
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
@@ -43,7 +56,6 @@ func TestPruneRegistryFlag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Check that the cronjob was created
 	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
@@ -51,19 +63,16 @@ func TestPruneRegistryFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check that the image registry is in the Managed state
 	if cr.Spec.ManagementState != operatorapi.Managed {
 		t.Errorf("the image registry Spec.ManagementState should be Managed but was %s instead: %s", cr.Spec.ManagementState, err)
 	}
 
-	// Check that the --prune-registry flag is true on the pruning cronjob
 	if err := framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "true"); err != nil {
 		t.Errorf("%v", err)
 	}
 
 	cr.Spec.ManagementState = operatorapi.Removed
 
-	// Set the image registry to be Removed
 	if _, err := te.Client().Configs().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	); err != nil {
@@ -72,11 +81,9 @@ func TestPruneRegistryFlag(t *testing.T) {
 
 	var errs []error
 
-	// Wait for the cronjob to have an updated --prune-registry flag
 	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
 		func(ctx context.Context) (stop bool, err error) {
 			errs = nil
-			// Get an updated version of the cronjob
 			cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 				ctx, "image-pruner", metav1.GetOptions{},
 			)
@@ -84,7 +91,6 @@ func TestPruneRegistryFlag(t *testing.T) {
 				return true, err
 			}
 
-			// Check if the --prune-registry flag is now false on the pruning cronjob
 			if err = framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "false"); err != nil {
 				errs = append(errs, err)
 				return false, nil
@@ -103,9 +109,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 	}
 }
 
-// TestPruner verifies that the pruner controller installs the cronjob and sets it's
-// conditions appropriately
-func TestPruner(t *testing.T) {
+func testPruner(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -115,13 +119,11 @@ func TestPruner(t *testing.T) {
 		}
 	}()
 
-	// TODO: Move these checks to a conformance test run on all providers
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
-	// Check that the pruner custom resource was created
 	cr, err := te.Client().ImagePruners().Get(
 		context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 	)
@@ -133,7 +135,6 @@ func TestPruner(t *testing.T) {
 		t.Errorf("the default pruner config should have spec.ignoreInvalidImageReferences set to true, but it doesn't")
 	}
 
-	// Check that the cronjob was created
 	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
@@ -141,13 +142,8 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check that the Available condition is set for the pruner
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Available", operatorapi.ConditionTrue, "AsExpected")
-
-	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionTrue, "Scheduled")
-
-	// Check that the Failed condition is set correctly for the last job run
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Failed", operatorapi.ConditionFalse, "Complete")
 
 	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
@@ -160,8 +156,6 @@ func TestPruner(t *testing.T) {
 		t.Fatalf("flag --registry-url is not found")
 	}
 
-	// Check that making changes to the pruner custom resource trickle down to the cronjob
-	// and that the conditions get updated correctly
 	truePtr := true
 	cr.Spec.Suspend = &truePtr
 	cr.Spec.Schedule = "10 10 * * *"
@@ -173,7 +167,6 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		// Reset the CR
 		cr, err := te.Client().ImagePruners().Get(
 			context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 		)
@@ -192,7 +185,6 @@ func TestPruner(t *testing.T) {
 		}
 	}()
 
-	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionFalse, "Suspended")
 
 	cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
@@ -202,7 +194,7 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if *cronjob.Spec.Suspend != true {
+	if !*cronjob.Spec.Suspend {
 		t.Errorf("The cronjob Spec.Suspend field should have been true, but was %v instead", *cronjob.Spec.Suspend)
 	}
 
@@ -215,7 +207,7 @@ func TestPruner(t *testing.T) {
 	}
 }
 
-func TestPrunerPodCompletes(t *testing.T) {
+func testPrunerPodCompletes(t testing.TB) {
 	ctx := context.Background()
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
@@ -275,7 +267,7 @@ func TestPrunerPodCompletes(t *testing.T) {
 	}
 }
 
-func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
+func testPrunerIgnoreInvalidImageReferences(t testing.TB) {
 	ctx := context.Background()
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
@@ -349,7 +341,6 @@ func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
 					continue
 				}
 				if !containsString(pod.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
-					// pod from another test?
 					t.Logf("pod %s has wrong arguments", pod.Name)
 					continue
 				}

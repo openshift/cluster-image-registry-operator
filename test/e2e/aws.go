@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -45,7 +47,25 @@ var fakeAWSCredsData = map[string]string{
 	"REGISTRY_STORAGE_S3_SECRETKEY": "mySecretKey",
 }
 
-func TestAWSDefaults(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestAWSDefaults", func() {
+		testAWSDefaults(g.GinkgoTB())
+	})
+	g.It("[Serial] TestAWSUnableToCreateBucketOnStartup", func() {
+		testAWSUnableToCreateBucketOnStartup(g.GinkgoTB())
+	})
+	g.It("[Serial] TestAWSUpdateCredentials", func() {
+		testAWSUpdateCredentials(g.GinkgoTB())
+	})
+	g.It("[Serial] TestAWSChangeS3Encryption", func() {
+		testAWSChangeS3Encryption(g.GinkgoTB())
+	})
+	g.It("[Serial] TestAWSFinalizerDeleteS3Bucket", func() {
+		testAWSFinalizerDeleteS3Bucket(g.GinkgoTB())
+	})
+})
+
+func testAWSDefaults(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -322,7 +342,7 @@ func TestAWSDefaults(t *testing.T) {
 	}
 }
 
-func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
+func testAWSUnableToCreateBucketOnStartup(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -376,7 +396,7 @@ func TestAWSUnableToCreateBucketOnStartup(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
 
-func TestAWSUpdateCredentials(t *testing.T) {
+func testAWSUpdateCredentials(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -464,7 +484,7 @@ func TestAWSUpdateCredentials(t *testing.T) {
 	framework.EnsureClusterOperatorStatusIsNormal(te)
 }
 
-func TestAWSChangeS3Encryption(t *testing.T) {
+func testAWSChangeS3Encryption(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -675,7 +695,7 @@ func TestAWSChangeS3Encryption(t *testing.T) {
 	}
 }
 
-func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
+func testAWSFinalizerDeleteS3Bucket(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 

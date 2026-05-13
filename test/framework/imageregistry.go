@@ -568,7 +568,7 @@ func PlatformHasDefaultStorage(te TestEnv) bool {
 	})
 }
 
-func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
+func SetupAvailableImageRegistry(t testing.TB, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
 	te := Setup(t)
 
 	noStorage := (spec == nil || spec.Storage == imageregistryapiv1.ImageRegistryConfigStorage{})

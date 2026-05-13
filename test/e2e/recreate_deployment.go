@@ -12,11 +12,22 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestRecreateDeployment(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestRecreateDeployment", func() {
+		testRecreateDeployment(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRestoreDeploymentAfterUserChanges", func() {
+		testRestoreDeploymentAfterUserChanges(g.GinkgoTB())
+	})
+})
+
+func testRecreateDeployment(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -28,7 +39,7 @@ func TestRecreateDeployment(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	t.Logf("deleting the image registry deployment...")
+	t.Log("deleting the image registry deployment...")
 	if err := framework.DeleteCompletely(
 		func() (metav1.Object, error) {
 			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
@@ -44,17 +55,16 @@ func TestRecreateDeployment(t *testing.T) {
 		t.Fatalf("unable to delete the deployment: %s", err)
 	}
 
-	t.Logf("waiting for the operator to recreate the deployment...")
+	t.Log("waiting for the operator to recreate the deployment...")
 	if _, err := framework.WaitForRegistryDeployment(te.Client()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
+func testRestoreDeploymentAfterUserChanges(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
-	// add a new environment variable and a host port to the deployment.
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		defaults.ImageRegistryName,
@@ -76,7 +86,6 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 		t.Fatalf("unable to patch image registry deployment: %v", err)
 	}
 
-	// wait for the Deployment to be ovewritten by the operator.
 	if err := wait.PollUntilContextTimeout(context.Background(), time.Second, time.Minute, false,
 		func(ctx context.Context) (stop bool, err error) {
 			deployment, err := te.Client().Deployments(
@@ -86,14 +95,12 @@ func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
 				return false, err
 			}
 
-			// new environment variable should have been vanished.
 			for _, env := range deployment.Spec.Template.Spec.Containers[0].Env {
 				if env.Name == "FOO" {
 					return false, nil
 				}
 			}
 
-			// new host port should have been vanished.
 			for _, port := range deployment.Spec.Template.Spec.Containers[0].Ports {
 				if port.Name == "foo" {
 					return false, nil
