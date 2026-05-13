@@ -9,6 +9,8 @@ import (
 
 	buildv1 "github.com/openshift/api/build/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -17,10 +19,13 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-// TestImageRegistryRemovedWithImages verifies that we can tear down the image registry if images had been
-// imported or pushed to it.
-// Some cloud providers do not allow storage buckets to be removed unless the bucket is empty.
-func TestImageRegistryRemovedWithImages(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestImageRegistryRemovedWithImages", func() {
+		testImageRegistryRemovedWithImages(g.GinkgoTB())
+	})
+})
+
+func testImageRegistryRemovedWithImages(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -44,7 +49,6 @@ func TestImageRegistryRemovedWithImages(t *testing.T) {
 		}
 	}()
 
-	// wait until the namespace has the authentication secret for running the build pod successfully
 	te.Logf("waiting for build \"builder-dockercfg\" secret to appear in ns %s", nsName)
 	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true,
 		func(ctx context.Context) (bool, error) {
@@ -70,12 +74,9 @@ func TestImageRegistryRemovedWithImages(t *testing.T) {
 		dumpBuildInfo(ctx, te, nsName, buildName)
 	}
 
-	// This ensures that we can remove the image registry
 	framework.RemoveImageRegistry(te)
 }
 
-// runTestBuild runs a build which pushes an image to an imagestream.
-// Returns the name of the build, and an error if any.
 func runTestBuild(ctx context.Context, te framework.TestEnv, nsName string) (string, error) {
 	te.Logf("creating build output imagestream")
 	outputIs := &imagev1.ImageStream{
@@ -156,11 +157,6 @@ func runTestBuild(ctx context.Context, te framework.TestEnv, nsName string) (str
 	return build.Name, nil
 }
 
-// dumpBuildInfo dumps build related information to the log. Includes the following:
-//
-// 1. Build logs
-// 2. Build pod YAML
-// 3. ConfigMaps in the build's namespace
 func dumpBuildInfo(ctx context.Context, te framework.TestEnv, nsName string, buildName string) {
 	if buildName == "" {
 		return

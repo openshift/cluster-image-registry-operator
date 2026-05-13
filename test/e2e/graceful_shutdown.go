@@ -12,11 +12,22 @@ import (
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestNodeCAGracefulShutdown(t *testing.T) {
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestNodeCAGracefulShutdown", func() {
+		testNodeCAGracefulShutdown(g.GinkgoTB())
+	})
+	g.It("[Serial] TestImageRegistryGracefulShutdown", func() {
+		testImageRegistryGracefulShutdown(g.GinkgoTB())
+	})
+})
+
+func testNodeCAGracefulShutdown(t testing.TB) {
 	te := framework.Setup(t)
 
 	framework.DeployImageRegistry(te, &imageregistryapiv1.ImageRegistrySpec{
@@ -61,6 +72,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	}
 	if pod == nil {
 		t.Fatal("unable to attach to any pod log stream")
+		return
 	}
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(
@@ -96,7 +108,7 @@ func TestNodeCAGracefulShutdown(t *testing.T) {
 	}
 }
 
-func TestImageRegistryGracefulShutdown(t *testing.T) {
+func testImageRegistryGracefulShutdown(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -134,6 +146,7 @@ func TestImageRegistryGracefulShutdown(t *testing.T) {
 	}
 	if pod == nil {
 		t.Fatal("unable to attach to any pod log stream")
+		return
 	}
 
 	if err := te.Client().Pods(defaults.ImageRegistryOperatorNamespace).Delete(

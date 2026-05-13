@@ -3,8 +3,10 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
+	g "github.com/onsi/ginkgo/v2"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -13,6 +15,25 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+const minioTestImage = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+
+// minioImage returns the Minio image to use in the test deployment.
+// In CI, openshift-tests mirrors images declared via RegisterImage in the
+// tests-ext binary and can inject the mirrored pull spec via MINIO_IMAGE.
+// Locally, the canonical image from openshift/origin allowedImages is used.
+func minioImage() string {
+	if img := os.Getenv("MINIO_IMAGE"); img != "" {
+		return img
+	}
+	return minioTestImage
+}
+
+var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+	g.It("[Serial] TestS3Minio", func() {
+		testS3Minio(g.GinkgoTB())
+	})
+})
 
 type CleanupFunc func()
 
@@ -139,7 +160,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 					Containers: []corev1.Container{
 						{
 							Name:  "minio",
-							Image: "docker.io/minio/minio:RELEASE.2022-03-26T06-49-28Z",
+							Image: minioImage(),
 							Args: []string{
 								"minio",
 								"--certs-dir=/certs",
@@ -228,7 +249,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 	return "https://" + hostname, accessKey, secretKey, caConfigMapName, cleanup.Func()
 }
 
-func TestS3Minio(t *testing.T) {
+func testS3Minio(t testing.TB) {
 	ctx := context.Background()
 
 	te := framework.Setup(t)

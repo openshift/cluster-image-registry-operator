@@ -1,6 +1,8 @@
 package framework
 
 import (
+	"os"
+	"sync"
 	"testing"
 	"time"
 )
@@ -17,20 +19,41 @@ type TestEnv interface {
 }
 
 type testEnv struct {
-	*testing.T
+	testing.TB
 	client *Clientset
 }
 
-func Setup(t *testing.T) TestEnv {
+var initOnce sync.Once
+
+// initTestEnvironment performs one-time cluster preparation: disables CVO
+// management of the operator and removes the image registry so that tests
+// can control the operator lifecycle directly.
+func initTestEnvironment(te TestEnv) {
+	if os.Getenv("KUBERNETES_CONFIG") == "" {
+		kubeConfig := os.Getenv("KUBECONFIG")
+		if kubeConfig == "" {
+			kubeConfig = os.Getenv("HOME") + "/.kube/config"
+		}
+		os.Setenv("KUBERNETES_CONFIG", kubeConfig)
+	}
+
+	DisableCVOForOperator(te)
+	RemoveImageRegistry(te)
+}
+
+func Setup(t testing.TB) TestEnv {
 	client, err := NewClientset(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	te := &testEnv{
-		T:      t,
+		TB:     t,
 		client: client,
 	}
+	initOnce.Do(func() {
+		initTestEnvironment(te)
+	})
 	CheckAbsenceOfOperatorPods(te)
 	return te
 }
@@ -44,13 +67,13 @@ func (te *testEnv) Client() *Clientset {
 }
 
 func (te *testEnv) Log(a ...interface{}) {
-	te.T.Helper()
+	te.TB.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
-	te.T.Log(args...)
+	te.TB.Log(args...)
 }
 
 func (te *testEnv) Logf(format string, a ...interface{}) {
-	te.T.Helper()
+	te.TB.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
-	te.T.Logf("%s "+format, args...)
+	te.TB.Logf("%s "+format, args...)
 }
