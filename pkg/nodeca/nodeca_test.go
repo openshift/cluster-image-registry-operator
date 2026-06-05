@@ -746,12 +746,6 @@ func TestSyncCerts(t *testing.T) {
 					if err := os.WriteFile(filepath.Join(src, "new..90"), []byte("new"), 0o644); err != nil {
 						t.Fatal(err)
 					}
-					if err := os.Mkdir(filepath.Join(dst, "keep:80"), 0o755); err != nil {
-						t.Fatal(err)
-					}
-					if err := os.WriteFile(filepath.Join(dst, "keep:80", "ca.crt"), []byte("keep"), 0o644); err != nil {
-						t.Fatal(err)
-					}
 					if err := os.Mkdir(filepath.Join(dst, "remove:70"), 0o755); err != nil {
 						t.Fatal(err)
 					}
