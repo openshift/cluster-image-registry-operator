@@ -21,6 +21,8 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 )
 
+const unavailableDegradedInertia = 5 * time.Minute
+
 func updateCondition(cr *imageregistryv1.Config, condtype string, condstate operatorapiv1.OperatorCondition) {
 	found := false
 	conditions := []operatorapiv1.OperatorCondition{}
@@ -349,7 +351,7 @@ func (c *Controller) syncStatus(
 		operatorDegraded.Reason = "Removed"
 	} else if operatorAvailable.Status != operatorapiv1.ConditionTrue {
 		updatedAvailableCondition := v1helpers.FindOperatorCondition(cr.Status.Conditions, operatorapiv1.OperatorStatusTypeAvailable)
-		if updatedAvailableCondition != nil && time.Since(updatedAvailableCondition.LastTransitionTime.Time) > 2*time.Minute {
+		if updatedAvailableCondition != nil && time.Since(updatedAvailableCondition.LastTransitionTime.Time) > unavailableDegradedInertia {
 			operatorDegraded.Status = operatorapiv1.ConditionTrue
 			operatorDegraded.Message = updatedAvailableCondition.Message
 			operatorDegraded.Reason = "Unavailable"
