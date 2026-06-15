@@ -27,6 +27,10 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource"
 )
 
+// nodeCADaemonControllerDegradedInertia is how long sync must keep failing (since the first
+// failure after the last success) before we set NodeCADaemonControllerDegraded.
+const nodeCADaemonControllerDegradedInertia = 2 * time.Minute
+
 type NodeCADaemonController struct {
 	eventRecorder   events.Recorder
 	appsClient      appsv1client.AppsV1Interface
@@ -34,8 +38,9 @@ type NodeCADaemonController struct {
 	daemonSetLister appsv1listers.DaemonSetNamespaceLister
 	serviceLister   corev1listers.ServiceNamespaceLister
 
-	cachesToSync []cache.InformerSynced
-	queue        workqueue.TypedRateLimitingInterface[any]
+	cachesToSync     []cache.InformerSynced
+	queue            workqueue.TypedRateLimitingInterface[any]
+	syncFailureSince time.Time
 }
 
 func NewNodeCADaemonController(
@@ -164,6 +169,21 @@ func (c *NodeCADaemonController) sync() error {
 
 	err = resource.ApplyMutator(gen)
 	if err != nil {
+		now := time.Now()
+		if c.syncFailureSince.IsZero() {
+			c.syncFailureSince = now
+		}
+		if now.Sub(c.syncFailureSince) < nodeCADaemonControllerDegradedInertia {
+			klog.V(2).Infof("NodeCADaemonController: sync error within degraded inertia window (%s), not reporting degraded yet: %v", nodeCADaemonControllerDegradedInertia, err)
+			_, _, updateError := v1helpers.UpdateStatus(
+				ctx,
+				c.operatorClient,
+				v1helpers.UpdateConditionFn(availableCondition),
+				v1helpers.UpdateConditionFn(progressingCondition),
+			)
+			return utilerrors.NewAggregate([]error{err, updateError})
+		}
+
 		_, _, updateError := v1helpers.UpdateStatus(
 			ctx,
 			c.operatorClient,
@@ -179,6 +199,7 @@ func (c *NodeCADaemonController) sync() error {
 		return utilerrors.NewAggregate([]error{err, updateError})
 	}
 
+	c.syncFailureSince = time.Time{}
 	_, _, err = v1helpers.UpdateStatus(
 		ctx,
 		c.operatorClient,
