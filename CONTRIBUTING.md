@@ -1,63 +1,94 @@
-# Contributing to the Openshift Image Registry Operator
+# Contributing to cluster-image-registry-operator
 
-The registry operator manages a singleton instance of the openshift registry.  It manages all configuration of the registry including creating storage.
+The cluster-image-registry-operator manages the singleton OpenShift internal container image registry. It handles registry deployment, multi-cloud storage provisioning, TLS certificates, routes, and image pruning.
 
-## Getting the code
+## Development Workflow
 
-To get started, [fork](https://help.github.com/articles/fork-a-repo) the [openshift/cluster-image-registry-operator](https://github.com/openshift/cluster-image-registry-operator) repo.
+1. Fork the repo and clone your fork.
+2. Create a feature branch from `master`.
+3. Make your changes, add or update tests.
+4. Run verification locally before pushing:
 
-## Developing
+```bash
+make build       # Compile operator binary (output: tmp/_output/bin/)
+make test-unit   # Run unit tests
+make verify      # Run gofmt, golangci-lint, dependency checks
+```
+
+5. If you changed dependencies, update the vendor directory:
+
+```bash
+go mod tidy && go mod vendor
+```
+
+The vendor directory is checked in. CI will fail if vendor is stale.
+
+6. Push your branch and open a PR against `openshift/cluster-image-registry-operator:master`.
+
+## Pull Request Guidelines
+
+- Keep PRs focused. One logical change per PR.
+- Write clear commit messages. Reference Jira tickets where applicable (e.g., `OCPBUGS-12345: fix S3 bucket tagging`).
+- Include unit tests for new functionality.
+- PRs require approval from at least one approver listed in the `OWNERS` file.
+- Do not modify `OWNERS` or `OWNERS_ALIASES` files without explicit direction.
+
+## PR Review Rules
+
+- All PRs require `/lgtm` from a reviewer and `/approve` from an approver (OWNERS file). These are separate roles — the approver confirms the change belongs in the repo, the reviewer confirms correctness.
+- Prow enforces required labels: `lgtm` and `approved` must both be present before merge.
+- CI checks (`make verify`, `make test-unit`) must pass. Do not `/lgtm` a PR with failing CI.
+- Changes to storage drivers (`pkg/storage/`) should be reviewed by someone familiar with the target cloud platform.
+- Changes that affect the main reconciliation loop (`pkg/operator/controller.go`) or controller wiring (`pkg/operator/starter.go`) need careful review — all controllers share a single workqueue and these are high-impact paths.
+- Do not approve PRs that modify vendored files, generated files (`zz_generated.*`), or CRD manifests — these are managed upstream.
+- E2E test changes should be validated on a real OpenShift cluster before approval. Confirm `[Serial]` / `[Parallel]` tags are applied correctly.
+
+## Testing
+
+| Command | What it runs |
+|---------|-------------|
+| `make build` | Compile operator + test binaries |
+| `make test-unit` | Unit tests across `./cmd/...`, `./pkg/...`, and `./test/framework/...` |
+| `make test-e2e` | E2E tests (requires a real OpenShift cluster) |
+| `make verify` | Linters, gofmt, dependency checks |
+
+E2E tests use the OTE (OpenShift Tests Extension) framework and require a running OpenShift cluster. Tests are labeled `[Serial]` or `[Parallel]` — respect these labels. Do not run e2e tests on Kind or Minikube.
 
 ### Testing on an OpenShift Cluster
 
-The easiest way to test your changes is to launch an OpenShift 4.x cluster.
-First, go to [try.openshift.com](https://try.openshift.com) to obtain a pull secret and download the installer.
-Follow the instructions to launch a cluster on AWS.
+To test your operator image on a live cluster:
 
-If you want the latest `openshift-install` and `oc` clients, go to the [openshift-release](https://openshift-release.svc.ci.openshift.org/) 
-page, select the channel and build you wish to install, and download the respective `oc` and `openshift-installer` binaries.
-There are three types of channels you can obtain the installer from:
+1. Patch the cluster version to allow your own image:
 
-1. `4-stable` - these are stable releases of OpenShift 4, corresponding to GA or beta releases.
-2. `4.x.0-nightly` - nightly development releases, with payloads published to quay.io.
-3. `4.x.0-ci` - bleeding-edge releases published to the OpenShift CI imagestreams.
-
-**Note**: Installs from the `4.x.0-ci` channel require a pull secret to `registry.svc.ci.openshift.org`, which is only available to Red Hat OpenShift developers.
-
-After your cluster is installed, you will need to do the following:
-
-1. Patch the cluster version so that you can launch your own image-registry operator image:
-
-```
-$ oc patch clusterversion/version --patch '{"spec":{"overrides":[{"kind":"Deployment", "name":"cluster-image-registry-operator","namespace":"openshift-image-registry","unmanaged":true}]}}' --type=merge
+```bash
+oc patch clusterversion/version --patch '{"spec":{"overrides":[{"kind":"Deployment", "name":"cluster-image-registry-operator","namespace":"openshift-image-registry","unmanaged":true}]}}' --type=merge
 ```
 
-2. Make your code changes and build the binary with `make build`.
-3. Build the image using the `Dockerfile` file, giving it a unique tag:
+2. Build and push your image:
 
-```
-$ make build-image IMAGE=<MYREPO>/<MYIMAGE> TAG=<MYTAG> 
-```
-
-or if you are using `buildah`:
-
-```
-$ buildah bud -t <MYREPO>/<MYIMAGE>:<MYTAG> -f Dockerfile .
+```bash
+make build-image IMAGE=<MYREPO>/<MYIMAGE> TAG=<MYTAG>
 ```
 
-4. Push the image to a registry accessible from the cluster (e.g. your repository on quay.io).
-5. Patch the Deployment in the override above to instruct the cluster to use your builder image:
+3. Patch the Deployment to use your image:
 
-```
-$ oc patch deployment cluster-image-registry-operator -n openshift-image-registry --patch '{"spec":{"template":{"spec":{"containers":[{"name":"cluster-image-registry-operator","image":"<MYREPO>/<MYIMAGE>:<MYTAG>"}]}}}}' --type=strategic
+```bash
+oc patch deployment cluster-image-registry-operator -n openshift-image-registry --patch '{"spec":{"template":{"spec":{"containers":[{"name":"cluster-image-registry-operator","image":"<MYREPO>/<MYIMAGE>:<MYTAG>"}]}}}}' --type=strategic
 ```
 
-6. Watch the openshift cluster image-registry operator replicaset rollout (this can take a few minutes):
+## Code Conventions
 
-```
-$ oc get rs cluster-image-registry-operator-<hash> -n openshift-image-registry -w
-```
-## Submitting a Pull Request
+- Follow standard Go conventions (gofmt, govet).
+- Use existing patterns in the package you are modifying.
+- Storage backends implement the `Driver` interface in `pkg/storage/`. New backends must implement the full interface.
+- Use `retry.RetryOnConflict` when updating the Config CR status — multiple controllers may update it concurrently.
 
-Once you are satisfied with your code changes, you may submit a pull request to the [openshift/cluster-image-registry-operator](https://github.com/openshift/cluster-image-registry-operator) repo.
-A member of the OpenShift Developer Experience team will evaluate your change for approval.
+## Areas Requiring Extra Care
+
+- **Storage drivers** (`pkg/storage/`): Each cloud backend has its own credential handling and error retry logic. Test with real cloud credentials when modifying.
+- **CRD types**: CRD definitions live in the `openshift/api` repo, not here. Do not modify vendored CRD manifests.
+- **Generated files**: Files matching `zz_generated.*` are generated upstream. Do not hand-edit.
+
+## CI
+
+CI runs via OpenShift's CI infrastructure (Prow / ci-operator). All `make verify` and `make test-unit` checks must pass for a PR to merge.
