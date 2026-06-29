@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestRecreateDeployment", func() {
 		testRecreateDeployment(g.GinkgoTB())
 	})
@@ -65,6 +65,7 @@ func testRestoreDeploymentAfterUserChanges(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
+	// add a new environment variable and a host port to the deployment.
 	if _, err := te.Client().Deployments(framework.OperatorDeploymentNamespace).Patch(
 		context.Background(),
 		defaults.ImageRegistryName,
@@ -86,6 +87,7 @@ func testRestoreDeploymentAfterUserChanges(t testing.TB) {
 		t.Fatalf("unable to patch image registry deployment: %v", err)
 	}
 
+	// wait for the Deployment to be ovewritten by the operator.
 	if err := wait.PollUntilContextTimeout(context.Background(), time.Second, time.Minute, false,
 		func(ctx context.Context) (stop bool, err error) {
 			deployment, err := te.Client().Deployments(
@@ -95,12 +97,14 @@ func testRestoreDeploymentAfterUserChanges(t testing.TB) {
 				return false, err
 			}
 
+			// new environment variable should have been vanished.
 			for _, env := range deployment.Spec.Template.Spec.Containers[0].Env {
 				if env.Name == "FOO" {
 					return false, nil
 				}
 			}
 
+			// new host port should have been vanished.
 			for _, port := range deployment.Spec.Template.Spec.Containers[0].Ports {
 				if port.Name == "foo" {
 					return false, nil

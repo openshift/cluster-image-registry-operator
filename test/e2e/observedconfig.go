@@ -17,12 +17,15 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestObservedConfigTLSSecurityProfile", func() {
 		testObservedConfigTLSSecurityProfile(g.GinkgoTB())
 	})
 })
 
+// TestObservedConfigTLSSecurityProfile verifies that the image registry
+// operator correctly populates Config.Spec.ObservedConfig with TLS settings
+// from the cluster's APIServer configuration.
 func testObservedConfigTLSSecurityProfile(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		Replicas: 1,

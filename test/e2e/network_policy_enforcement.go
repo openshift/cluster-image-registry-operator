@@ -10,10 +10,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
-	g.It("[NetworkPolicy] should enforce cross-namespace ingress traffic to image-registry", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[NetworkPolicy][Serial][Disruptive] should enforce cross-namespace ingress traffic to image-registry", func() {
+		te := framework.SetupAvailableImageRegistry(g.GinkgoTB(), nil)
+		defer framework.RemoveImageRegistry(te)
 		testImageRegistryCrossNamespaceIngressEnforcement()
 	})
 })
@@ -25,6 +29,9 @@ func testImageRegistryCrossNamespaceIngressEnforcement() {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	namespace := imageRegistryNamespace
+
+	g.By("Waiting for registry pods to be ready")
+	waitForPodsReadyByLabel(ctx, kubeClient, namespace, "docker-registry=default")
 
 	g.By("Getting actual registry pod IPs")
 	registryPodIPs := getRunningPodIPs(ctx, kubeClient, namespace, "docker-registry=default")

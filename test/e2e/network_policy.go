@@ -2,14 +2,11 @@ package e2e
 
 import (
 	"context"
-	"testing"
-	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -23,20 +20,19 @@ const (
 	npImagePrunerPolicyName    = "image-pruner-networkpolicy"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
-	g.It("[NetworkPolicy][Serial] should ensure image-registry NetworkPolicies are defined", func() {
-		testImageRegistryNetworkPolicies(g.GinkgoTB())
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[NetworkPolicy] should ensure image-registry NetworkPolicies are defined", func() {
+		framework.SetupAvailableImageRegistry(g.GinkgoTB(), nil)
+		testImageRegistryNetworkPolicies()
 	})
-	g.It("[NetworkPolicy][Serial][Disruptive] should restore image-registry NetworkPolicies after delete or mutation", func() {
-		testImageRegistryNetworkPolicyReconcile(g.GinkgoTB())
+	g.It("[NetworkPolicy][Serial][Disruptive] should restore image-registry NetworkPolicies after delete or mutation [Timeout:30m]", func() {
+		te := framework.SetupAvailableImageRegistry(g.GinkgoTB(), nil)
+		defer framework.RemoveImageRegistry(te)
+		testImageRegistryNetworkPolicyReconcile()
 	})
 })
 
-func testImageRegistryNetworkPolicies(t testing.TB) {
-	te := framework.SetupAvailableImageRegistry(t, nil)
-	defer framework.WaitUntilClusterOperatorsAreHealthy(te, 30*time.Second, framework.AsyncOperationTimeout)
-	defer framework.RemoveImageRegistry(te)
-
+func testImageRegistryNetworkPolicies() {
 	ctx := context.Background()
 	g.By("Creating Kubernetes clients")
 	kubeConfig := newClientConfigForTest()
@@ -100,11 +96,7 @@ func testImageRegistryNetworkPolicies(t testing.TB) {
 	waitForPodsReadyByLabel(ctx, kubeClient, imageRegistryNamespace, "name=cluster-image-registry-operator")
 }
 
-func testImageRegistryNetworkPolicyReconcile(t testing.TB) {
-	te := framework.SetupAvailableImageRegistry(t, nil)
-	defer framework.WaitUntilClusterOperatorsAreHealthy(te, 30*time.Second, framework.AsyncOperationTimeout)
-	defer framework.RemoveImageRegistry(te)
-
+func testImageRegistryNetworkPolicyReconcile() {
 	ctx := context.Background()
 	g.By("Creating Kubernetes clients")
 	kubeConfig := newClientConfigForTest()
@@ -112,24 +104,26 @@ func testImageRegistryNetworkPolicyReconcile(t testing.TB) {
 	o.Expect(err).NotTo(o.HaveOccurred())
 
 	g.By("Capturing expected NetworkPolicy specs")
-	policiesToDelete := []*networkingv1.NetworkPolicy{
-		getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npDefaultDenyAllPolicyName),
-		getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npOperatorPolicyName),
-		getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImageRegistryPolicyName),
-		getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImagePrunerPolicyName),
-	}
+	expectedDefaultDeny := getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npDefaultDenyAllPolicyName)
+	expectedOperatorPolicy := getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npOperatorPolicyName)
+	expectedRegistryPolicy := getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImageRegistryPolicyName)
+	expectedPrunerPolicy := getNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImagePrunerPolicyName)
 
-	g.By("Deleting all NetworkPolicies simultaneously and waiting for restoration")
-	deleteAndWaitForAllRestored(ctx, kubeClient, policiesToDelete)
+	g.By("Deleting main policies and waiting for restoration")
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedOperatorPolicy)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedRegistryPolicy)
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedPrunerPolicy)
 
-	g.By("Mutating all NetworkPolicies simultaneously and waiting for reconciliation")
-	policiesToMutate := []struct{ namespace, name string }{
-		{imageRegistryNamespace, npDefaultDenyAllPolicyName},
-		{imageRegistryNamespace, npOperatorPolicyName},
-		{imageRegistryNamespace, npImageRegistryPolicyName},
-		{imageRegistryNamespace, npImagePrunerPolicyName},
-	}
-	mutateAndWaitForAllReconciled(ctx, kubeClient, policiesToMutate)
+	g.By("Deleting default-deny-all policy and waiting for restoration")
+	deleteAndRestoreNetworkPolicy(ctx, kubeClient, expectedDefaultDeny)
+
+	g.By("Mutating main policies and waiting for reconciliation")
+	mutateAndRestoreNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npOperatorPolicyName)
+	mutateAndRestoreNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImageRegistryPolicyName)
+	mutateAndRestoreNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npImagePrunerPolicyName)
+
+	g.By("Mutating default-deny-all policy and waiting for reconciliation")
+	mutateAndRestoreNetworkPolicy(ctx, kubeClient, imageRegistryNamespace, npDefaultDenyAllPolicyName)
 
 	g.By("Checking NetworkPolicy-related events (best-effort)")
 	logNetworkPolicyEvents(ctx, kubeClient, []string{imageRegistryNamespace}, npImageRegistryPolicyName)

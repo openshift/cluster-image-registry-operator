@@ -17,7 +17,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestPruneRegistryFlag", func() {
 		testPruneRegistryFlag(g.GinkgoTB())
 	})
@@ -41,10 +41,14 @@ func containsString(haystack []string, needle string) bool {
 	return false
 }
 
+// TestPruneRegistry ensures that the value for the --prune-registry flag
+// is set correctly based on the image registry's custom resources
+// Spec.ManagementState field
 func testPruneRegistryFlag(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
+	// TODO: Move these checks to a conformance test run on all providers
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
@@ -56,6 +60,7 @@ func testPruneRegistryFlag(t testing.TB) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Check that the cronjob was created
 	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
@@ -63,14 +68,17 @@ func testPruneRegistryFlag(t testing.TB) {
 		t.Fatal(err)
 	}
 
+	// Check that the image registry is in the Managed state
 	if cr.Spec.ManagementState != operatorapi.Managed {
 		t.Errorf("the image registry Spec.ManagementState should be Managed but was %s instead: %s", cr.Spec.ManagementState, err)
 	}
 
+	// Check that the --prune-registry flag is true on the pruning cronjob
 	if err := framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "true"); err != nil {
 		t.Errorf("%v", err)
 	}
 
+	// Set the image registry to be Removed
 	cr.Spec.ManagementState = operatorapi.Removed
 
 	if _, err := te.Client().Configs().Update(
@@ -79,11 +87,13 @@ func testPruneRegistryFlag(t testing.TB) {
 		t.Fatalf("unable to update image registry custom resource: %s", err)
 	}
 
+	// Wait for the cronjob to have an updated --prune-registry flag
 	var errs []error
 
 	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
 		func(ctx context.Context) (stop bool, err error) {
 			errs = nil
+			// Get an updated version of the cronjob
 			cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 				ctx, "image-pruner", metav1.GetOptions{},
 			)
@@ -91,6 +101,7 @@ func testPruneRegistryFlag(t testing.TB) {
 				return true, err
 			}
 
+			// Check if the --prune-registry flag is now false on the pruning cronjob
 			if err = framework.FlagExistsWithValue(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--prune-registry", "false"); err != nil {
 				errs = append(errs, err)
 				return false, nil
@@ -109,6 +120,8 @@ func testPruneRegistryFlag(t testing.TB) {
 	}
 }
 
+// TestPruner verifies that the pruner controller installs the cronjob and sets it's
+// conditions appropriately
 func testPruner(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
@@ -119,11 +132,13 @@ func testPruner(t testing.TB) {
 		}
 	}()
 
+	// TODO: Move these checks to a conformance test run on all providers
 	framework.EnsureInternalRegistryHostnameIsSet(te)
 	framework.EnsureOperatorIsNotHotLooping(te)
 	framework.EnsureServiceCAConfigMap(te)
 	framework.EnsureNodeCADaemonSetIsAvailable(te)
 
+	// Check that the pruner custom resource was created
 	cr, err := te.Client().ImagePruners().Get(
 		context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 	)
@@ -135,6 +150,7 @@ func testPruner(t testing.TB) {
 		t.Errorf("the default pruner config should have spec.ignoreInvalidImageReferences set to true, but it doesn't")
 	}
 
+	// Check that the cronjob was created
 	cronjob, err := te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
 		context.Background(), "image-pruner", metav1.GetOptions{},
 	)
@@ -142,8 +158,11 @@ func testPruner(t testing.TB) {
 		t.Fatal(err)
 	}
 
+	// Check that the Available condition is set for the pruner
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Available", operatorapi.ConditionTrue, "AsExpected")
+	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionTrue, "Scheduled")
+	// Check that the Failed condition is set correctly for the last job run
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Failed", operatorapi.ConditionFalse, "Complete")
 
 	if !containsString(cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
@@ -156,6 +175,8 @@ func testPruner(t testing.TB) {
 		t.Fatalf("flag --registry-url is not found")
 	}
 
+	// Check that making changes to the pruner custom resource trickle down to the cronjob
+	// and that the conditions get updated correctly
 	truePtr := true
 	cr.Spec.Suspend = &truePtr
 	cr.Spec.Schedule = "10 10 * * *"
@@ -167,6 +188,7 @@ func testPruner(t testing.TB) {
 		t.Fatal(err)
 	}
 	defer func() {
+		// Reset the CR
 		cr, err := te.Client().ImagePruners().Get(
 			context.Background(), defaults.ImageRegistryImagePrunerResourceName, metav1.GetOptions{},
 		)
@@ -185,6 +207,7 @@ func testPruner(t testing.TB) {
 		}
 	}()
 
+	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionFalse, "Suspended")
 
 	cronjob, err = te.Client().BatchV1Interface.CronJobs(defaults.ImageRegistryOperatorNamespace).Get(
@@ -341,6 +364,7 @@ func testPrunerIgnoreInvalidImageReferences(t testing.TB) {
 					continue
 				}
 				if !containsString(pod.Spec.Containers[0].Args, "--ignore-invalid-refs=true") {
+					// pod from another test?
 					t.Logf("pod %s has wrong arguments", pod.Name)
 					continue
 				}

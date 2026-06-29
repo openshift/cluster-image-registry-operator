@@ -15,7 +15,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestReadOnly", func() {
 		testReadOnly(g.GinkgoTB())
 	})
