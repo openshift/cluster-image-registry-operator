@@ -76,7 +76,7 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		Name:        "openshift/cluster-image-registry-operator/operator/serial",
 		Parallelism: 1,
 		Qualifiers: []string{
-			`name.contains("[Serial]") || name.contains("[Disruptive]")`,
+			`(name.contains("[Serial]") || name.contains("[Disruptive]")) && name.contains("[Feature:ClusterImageRegistryOperator]")`,
 		},
 		ClusterStability: oteextension.ClusterStabilityDisruptive,
 	})
@@ -88,14 +88,8 @@ func prepareOperatorTestsRegistry() (*oteextension.Registry, error) {
 		Name:        "openshift/cluster-image-registry-operator/operator/parallel",
 		Parallelism: 4,
 		Qualifiers: []string{
-			`!name.contains("[Serial]") && !name.contains("[Disruptive]")`,
+			`!name.contains("[Serial]") && !name.contains("[Disruptive]") && name.contains("[Feature:ClusterImageRegistryOperator]")`,
 		},
-	})
-
-	extension.RegisterImage(oteextension.Image{
-		Registry: "quay.io",
-		Name:     "minio/minio",
-		Version:  "RELEASE.2025-09-07T16-13-09Z",
 	})
 
 	specs, err := oteginkgo.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()

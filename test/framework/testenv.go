@@ -25,9 +25,6 @@ type testEnv struct {
 
 var initOnce sync.Once
 
-// initTestEnvironment performs one-time cluster preparation: disables CVO
-// management of the operator and removes the image registry so that tests
-// can control the operator lifecycle directly.
 func initTestEnvironment(te TestEnv) {
 	if os.Getenv("KUBERNETES_CONFIG") == "" {
 		kubeConfig := os.Getenv("KUBECONFIG")

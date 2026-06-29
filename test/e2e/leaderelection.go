@@ -14,7 +14,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestLeaderElection", func() {
 		testLeaderElection(g.GinkgoTB())
 	})
@@ -50,6 +50,8 @@ func testLeaderElection(t testing.TB) {
 		framework.OperatorDeploymentName,
 	)
 
+	// With the convention of leader election we need to wait a couple of seconds
+	// for the pods to write the logs, so we don't get false positives
 	time.Sleep(time.Second * 2)
 
 	allLogs, err := framework.GetOperatorLogs(context.Background(), te.Client())

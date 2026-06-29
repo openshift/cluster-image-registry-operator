@@ -19,12 +19,15 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestImageRegistryRemovedWithImages", func() {
 		testImageRegistryRemovedWithImages(g.GinkgoTB())
 	})
 })
 
+// TestImageRegistryRemovedWithImages verifies that we can tear down the image registry if images had been
+// imported or pushed to it.
+// Some cloud providers do not allow storage buckets to be removed unless the bucket is empty.
 func testImageRegistryRemovedWithImages(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
@@ -49,6 +52,7 @@ func testImageRegistryRemovedWithImages(t testing.TB) {
 		}
 	}()
 
+	// wait until the namespace has the authentication secret for running the build pod successfully
 	te.Logf("waiting for build \"builder-dockercfg\" secret to appear in ns %s", nsName)
 	err = wait.PollUntilContextTimeout(ctx, 5*time.Second, 5*time.Minute, true,
 		func(ctx context.Context) (bool, error) {
@@ -68,6 +72,7 @@ func testImageRegistryRemovedWithImages(t testing.TB) {
 		te.Errorf("failed to wait for builder-dockercfg to appear in the build namespace: %v", err)
 	}
 
+	// This ensures that we can remove the image registry
 	te.Logf("\"builder-dockercfg\" secret already in ns %s, starting test build", nsName)
 	if buildName, err := runTestBuild(ctx, te, nsName); err != nil {
 		te.Error(err)
@@ -77,6 +82,8 @@ func testImageRegistryRemovedWithImages(t testing.TB) {
 	framework.RemoveImageRegistry(te)
 }
 
+// runTestBuild runs a build which pushes an image to an imagestream.
+// Returns the name of the build, and an error if any.
 func runTestBuild(ctx context.Context, te framework.TestEnv, nsName string) (string, error) {
 	te.Logf("creating build output imagestream")
 	outputIs := &imagev1.ImageStream{
@@ -157,6 +164,11 @@ func runTestBuild(ctx context.Context, te framework.TestEnv, nsName string) (str
 	return build.Name, nil
 }
 
+// dumpBuildInfo dumps build related information to the log. Includes the following:
+//
+// 1. Build logs
+// 2. Build pod YAML
+// 3. ConfigMaps in the build's namespace
 func dumpBuildInfo(ctx context.Context, te framework.TestEnv, nsName string, buildName string) {
 	if buildName == "" {
 		return

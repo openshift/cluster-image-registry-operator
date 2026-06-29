@@ -31,7 +31,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[Serial] TestGCSDay2", func() {
 		testGCSDay2(g.GinkgoTB())
 	})
