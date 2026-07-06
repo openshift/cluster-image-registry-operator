@@ -2,6 +2,8 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -50,6 +52,40 @@ func NewDriver(ctx context.Context, c *imageregistryv1.ImageRegistryConfigStorag
 	}
 }
 
+// credentialType extracts the credential type from raw JSON credentials.
+func credentialType(authJSON []byte) (goption.CredentialsType, error) {
+	var f struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(authJSON, &f); err != nil {
+		return "", fmt.Errorf("failed to parse credentials JSON: %w", err)
+	}
+	return goption.CredentialsType(f.Type), nil
+}
+
+// HasNonDefaultUniverseDomain returns true if the GCS credentials
+// are configured for a non-default universe domain (e.g. sovereign clouds).
+func HasNonDefaultUniverseDomain(listers *regopclient.StorageListers) bool {
+	cfg, err := GetConfig(listers)
+	if err != nil {
+		return false
+	}
+	authJSON := []byte(cfg.KeyfileData)
+	credType, err := credentialType(authJSON)
+	if err != nil {
+		return false
+	}
+	creds, err := goauth2.CredentialsFromJSONWithType(context.Background(), authJSON, goauth2.CredentialsType(credType), gstorage.ScopeFullControl)
+	if err != nil {
+		return false
+	}
+	ud, err := creds.GetUniverseDomain()
+	if err != nil {
+		return false
+	}
+	return ud != "" && ud != "googleapis.com"
+}
+
 // getGCSClient returns a client that allows us to interact
 // with the GCS services
 func (d *driver) getGCSClient() (*gstorage.Client, error) {
@@ -63,12 +99,25 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		d.Config.ProjectID = cfg.ProjectID
 	}
 
-	credentials, err := goauth2.CredentialsFromJSON(d.Context, []byte(cfg.KeyfileData), gstorage.ScopeFullControl)
+	jsonCreds := []byte(cfg.KeyfileData)
+	credType, err := credentialType(jsonCreds)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []goption.ClientOption{goption.WithCredentials(credentials)}
+	creds, err := goauth2.CredentialsFromJSONWithType(d.Context, jsonCreds, goauth2.CredentialsType(credType), gstorage.ScopeFullControl)
+	if err != nil {
+		return nil, err
+	}
+
+	ud, err := creds.GetUniverseDomain()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get universe domain: %w", err)
+	}
+	opts := []goption.ClientOption{
+		goption.WithAuthCredentialsJSON(credType, jsonCreds),
+		goption.WithUniverseDomain(ud),
+	}
 	if d.httpClient != nil {
 		opts = append(opts, goption.WithHTTPClient(d.httpClient))
 	}
@@ -189,7 +238,7 @@ func (d *driver) StorageExists(cr *imageregistryv1.Config) (bool, error) {
 	}
 
 	err := d.bucketExists(d.Config.Bucket)
-	if err != nil && err == gstorage.ErrBucketNotExist {
+	if err != nil && stderrors.Is(err, gstorage.ErrBucketNotExist) {
 		util.UpdateCondition(cr, defaults.StorageExists, operatorapi.ConditionFalse, "Bucket does not exist", err.Error())
 		return false, nil
 	} else if err != nil {
@@ -237,7 +286,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 	if len(d.Config.Bucket) != 0 {
 		if err := d.bucketExists(d.Config.Bucket); err == nil {
 			bucketExists = true
-		} else if err != gstorage.ErrBucketNotExist {
+		} else if !stderrors.Is(err, gstorage.ErrBucketNotExist) {
 			util.UpdateCondition(
 				cr,
 				defaults.StorageExists,

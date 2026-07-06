@@ -46,8 +46,10 @@ func TestStorageManagementState(t *testing.T) {
 		"type":           "service_account",
 		"project_id":     "project-id",
 		"private_key_id": "key-id",
+		"private_key":    testPrivateKey,
 		"client_email":   "service-account-email",
 		"client_id":      "client-id",
+		"token_uri":      "https://oauth2.googleapis.com/token",
 	})
 	if err != nil {
 		t.Fatalf("error marshalling config json: %v", err)
