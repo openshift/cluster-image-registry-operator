@@ -24,6 +24,7 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/metrics"
 	"github.com/openshift/cluster-image-registry-operator/pkg/resource/object"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
+	"github.com/openshift/cluster-image-registry-operator/pkg/storage/gcs"
 )
 
 func ApplyMutator(gen Mutator) error {
@@ -237,6 +238,13 @@ func (g *Generator) Apply(cr *imageregistryv1.Config) error {
 		return err
 	} else if err != nil {
 		return fmt.Errorf("unable to sync storage configuration: %s", err)
+	}
+
+	if cr.Spec.Storage.GCS != nil && !cr.Spec.DisableRedirect {
+		if gcs.HasNonDefaultUniverseDomain(&g.listers.StorageListers) {
+			klog.Infof("disabling storage redirects: GCS credentials use a non-default universe domain")
+			cr.Spec.DisableRedirect = true
+		}
 	}
 
 	// XXX https://bugzilla.redhat.com/show_bug.cgi?id=1833109

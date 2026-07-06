@@ -19,6 +19,7 @@ import (
 	rscmgrpb "cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/googleapis/gax-go/v2/apierror"
+	"golang.org/x/oauth2/google"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -51,11 +52,11 @@ const (
 	// for limiting API requests.
 	gcpTagsRequestTokenBucketSize = 8
 
-	// resourceManagerHostSubPath is the endpoint for tag requests.
-	resourceManagerHostSubPath = "cloudresourcemanager.googleapis.com"
+	// resourceManagerHostFmt is the format string for the Resource Manager endpoint.
+	resourceManagerHostFmt = "cloudresourcemanager.%s"
 
-	// bucketParentPathFmt is the string format for the parent path of a bucket resource
-	bucketParentPathFmt = "//storage.googleapis.com/projects/_/buckets/%s"
+	// bucketParentPathFmt is the string format for the parent path of a bucket resource.
+	bucketParentPathFmt = "//storage.%s/projects/_/buckets/%s"
 )
 
 // UserTagsNotDefined is returned when user defined tags is empty; used for updating
@@ -79,6 +80,7 @@ type TagBindingsService interface {
 type tagServiceManager struct {
 	Listers           *regopclient.StorageListers
 	tagBindingsClient TagBindingsService
+	universeDomain    string
 }
 
 // tagBindingsClient handles resource tag bindings.
@@ -294,7 +296,7 @@ func (c *tagBindingsClient) CreateTagBindings(ctx context.Context, resourceName 
 // addTagsToStorageBucket adds the user-defined tags in the Infrastructure resource
 // to the passed GCP bucket resource.
 func (t *tagServiceManager) addTagsToStorageBucket(ctx context.Context, cr *imageregistryv1.Config) error {
-	bucketFullName := fmt.Sprintf(bucketParentPathFmt, cr.Spec.Storage.GCS.Bucket)
+	bucketFullName := fmt.Sprintf(bucketParentPathFmt, t.universeDomain, cr.Spec.Storage.GCS.Bucket)
 	tags, err := t.getTagsToBind(ctx, bucketFullName)
 	if err != nil {
 		return err
@@ -312,46 +314,63 @@ func (t *tagServiceManager) addTagsToStorageBucket(ctx context.Context, cr *imag
 
 // getTagClientOptions returns the tag client options adding the credentials and
 // the endpoint which will be used by the client.
-func getTagClientOptions(listers *regopclient.StorageListers, endpoint string) ([]option.ClientOption, error) {
+func getTagClientOptions(ctx context.Context, listers *regopclient.StorageListers, location string) ([]option.ClientOption, string, error) {
 	cfg, err := GetConfig(listers)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read GCS configuration for creating tag client: %w", err)
+		return nil, "", fmt.Errorf("failed to read GCS configuration for creating tag client: %w", err)
 	}
 
+	authJSON := []byte(cfg.KeyfileData)
+	credType, err := credentialType(authJSON)
+	if err != nil {
+		return nil, "", err
+	}
+
+	creds, err := google.CredentialsFromJSONWithType(ctx, authJSON, google.CredentialsType(credType))
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to parse credentials: %w", err)
+	}
+	ud, err := creds.GetUniverseDomain()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get universe domain: %w", err)
+	}
+
+	endpoint := fmt.Sprintf("https://%s-%s", location, fmt.Sprintf(resourceManagerHostFmt, ud))
 	opts := []option.ClientOption{
-		option.WithCredentialsJSON([]byte(cfg.KeyfileData)),
+		option.WithAuthCredentialsJSON(option.CredentialsType(credType), authJSON),
 		option.WithEndpoint(endpoint),
+		option.WithUniverseDomain(ud),
 	}
 
-	return opts, nil
+	return opts, ud, nil
 }
 
 // getTagBindingsClient returns the client to be used for creating tag bindings to
 // the resources.
-func getTagBindingsClient(ctx context.Context, listers *regopclient.StorageListers, location string) (TagBindingsService, error) {
-	endpoint := fmt.Sprintf("https://%s-%s", location, resourceManagerHostSubPath)
-	opts, err := getTagClientOptions(listers, endpoint)
+func getTagBindingsClient(ctx context.Context, listers *regopclient.StorageListers, location string) (TagBindingsService, string, error) {
+	opts, ud, err := getTagClientOptions(ctx, listers, location)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tag binding client options: %w", err)
+		return nil, "", fmt.Errorf("failed to create tag binding client options: %w", err)
 	}
 
 	client, err := rscmgr.NewTagBindingsRESTClient(ctx, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tag binding client: %w", err)
+		return nil, "", fmt.Errorf("failed to create tag binding client: %w", err)
 	}
-	return &tagBindingsClient{client}, nil
+	return &tagBindingsClient{client}, ud, nil
 }
 
 // NewTagManager creates a tagServiceManager instance. Explicit Close() must
 // be called when tag service is no longer needed to Close() all clients.
 func NewTagManager(ctx context.Context, listers *regopclient.StorageListers, region string) (TagService, error) {
-	client, err := getTagBindingsClient(ctx, listers, region)
+	client, ud, err := getTagBindingsClient(ctx, listers, region)
 	if err != nil || client == nil {
 		return nil, err
 	}
 	mgr := &tagServiceManager{
 		Listers:           listers,
 		tagBindingsClient: client,
+		universeDomain:    ud,
 	}
 	return mgr, nil
 }
