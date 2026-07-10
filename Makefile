@@ -6,7 +6,7 @@ GOLANGCI_LINT = _output/tools/golangci-lint
 GOLANGCI_LINT_CACHE = $(PWD)/_output/golangci-lint-cache
 GOLANGCI_LINT_VERSION = v2.11.3
 
-GO_REQUIRED_MIN_VERSION = 1.25
+GO_REQUIRED_MIN_VERSION = 1.26
 
 include $(addprefix ./vendor/github.com/openshift/build-machinery-go/make/, \
     targets/help.mk \
