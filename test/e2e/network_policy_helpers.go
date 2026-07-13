@@ -256,14 +256,6 @@ func hasEgressAllowAll(rules []networkingv1.NetworkPolicyEgressRule) bool {
 	return false
 }
 
-func requireIngressFromAllNamespaces(policy *networkingv1.NetworkPolicy, port int32) {
-	g.GinkgoHelper()
-	peers, _ := ingressPeersForPort(policy.Spec.Ingress, port)
-	if !hasPeerFromAllNamespaces(peers) {
-		g.Fail(fmt.Sprintf("%s/%s: expected ingress from all namespaces on port %d", policy.Namespace, policy.Name, port))
-	}
-}
-
 func requireIngressAllowAll(policy *networkingv1.NetworkPolicy, port int32) {
 	g.GinkgoHelper()
 	_, allowAll := ingressPeersForPort(policy.Spec.Ingress, port)

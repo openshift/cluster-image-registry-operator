@@ -32,14 +32,8 @@ spec:
     - port: 5000
       protocol: TCP
 
-  # Allow ingress from all namespaces for image pull/push
-  - from:
-      - namespaceSelector: {}
-    ports:
-    - port: 5000
-      protocol: TCP
-
-  # Allow ingress from host network pods (nodes, kubelet)
+  # Allow ingress from all pod-network and host-network pods for image pull/push.
+  # Side effect: this rule does not restrict traffic by source.
   - ports:
     - port: 5000
       protocol: TCP
