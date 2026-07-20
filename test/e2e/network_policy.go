@@ -62,7 +62,7 @@ func testImageRegistryNetworkPolicies() {
 	logNetworkPolicyDetails(npImageRegistryPolicyName, registryPolicy)
 	requirePodSelectorLabel(registryPolicy, "docker-registry", "default")
 	requirePort(registryPolicy, "ingress", corev1.ProtocolTCP, 5000)
-	requireIngressFromAllNamespaces(registryPolicy, 5000)
+	requireIngressAllowAll(registryPolicy, 5000)
 	logIngressFromNamespaceOptional(registryPolicy, 5000, "openshift-monitoring")
 	requireIngressFromNamespaceOrPolicyGroup(registryPolicy, 5000, "openshift-ingress", "policy-group.network.openshift.io/ingress")
 	logIngressHostNetworkOrAllowAll(registryPolicy, 5000)
