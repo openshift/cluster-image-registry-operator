@@ -4,7 +4,7 @@ COPY . .
 RUN make build \
     && gzip tmp/_output/bin/cluster-image-registry-operator-tests-ext 
 WORKDIR /go/src/github.com/openshift/cluster-image-registry-operator/cmd/move-blobs
-RUN go build -o ../../tmp/_output/bin/move-blobs
+RUN go build -ldflags '-s -w' -o ../../tmp/_output/bin/move-blobs
 
 FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
 COPY images/bin/entrypoint.sh /usr/bin/

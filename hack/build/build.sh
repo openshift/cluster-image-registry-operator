@@ -13,7 +13,7 @@ BIN_DIR="$(pwd)/tmp/_output/bin"
 mkdir -p ${BIN_DIR}
 REPO_PATH="github.com/openshift/cluster-image-registry-operator"
 VERSION="$(git describe --tags --always --dirty)"
-GO_LDFLAGS="-X ${REPO_PATH}/pkg/version.Version=${VERSION}"
+GO_LDFLAGS="-s -w -X ${REPO_PATH}/pkg/version.Version=${VERSION}"
 
 # Build cluster-image-registry-operator
 PROJECT_NAME="cluster-image-registry-operator"
