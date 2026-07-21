@@ -33,11 +33,17 @@
         "apigeeregistry": {
             "component": "apigeeregistry"
         },
+        "apihub": {
+            "component": "apihub"
+        },
         "apikeys": {
             "component": "apikeys"
         },
         "appengine": {
             "component": "appengine"
+        },
+        "apphub": {
+            "component": "apphub"
         },
         "apps": {
             "component": "apps"
@@ -57,6 +63,9 @@
         "automl": {
             "component": "automl"
         },
+        "backupdr": {
+            "component": "backupdr"
+        },
         "baremetalsolution": {
             "component": "baremetalsolution"
         },
@@ -72,14 +81,26 @@
         "binaryauthorization": {
             "component": "binaryauthorization"
         },
+        "capacityplanner": {
+            "component": "capacityplanner"
+        },
         "certificatemanager": {
             "component": "certificatemanager"
         },
         "channel": {
             "component": "channel"
         },
+        "chat": {
+            "component": "chat"
+        },
+        "chronicle": {
+            "component": "chronicle"
+        },
         "cloudbuild": {
             "component": "cloudbuild"
+        },
+        "cloudcontrolspartner": {
+            "component": "cloudcontrolspartner"
         },
         "clouddms": {
             "component": "clouddms"
@@ -107,6 +128,9 @@
         },
         "config": {
             "component": "config"
+        },
+        "configdelivery": {
+            "component": "configdelivery"
         },
         "contactcenterinsights": {
             "component": "contactcenterinsights"
@@ -147,14 +171,17 @@
         "deploy": {
             "component": "deploy"
         },
+        "developerconnect": {
+            "component": "developerconnect"
+        },
+        "devicestreaming": {
+            "component": "devicestreaming"
+        },
         "dialogflow": {
             "component": "dialogflow"
         },
         "discoveryengine": {
             "component": "discoveryengine"
-        },
-        "dlp": {
-            "component": "dlp"
         },
         "documentai": {
             "component": "documentai"
@@ -177,8 +204,14 @@
         "filestore": {
             "component": "filestore"
         },
+        "financialservices": {
+            "component": "financialservices"
+        },
         "functions": {
             "component": "functions"
+        },
+        "geminidataanalytics": {
+            "component": "geminidataanalytics"
         },
         "gkebackup": {
             "component": "gkebackup"
@@ -204,6 +237,9 @@
         "iap": {
             "component": "iap"
         },
+        "identitytoolkit": {
+            "component": "identitytoolkit"
+        },
         "ids": {
             "component": "ids"
         },
@@ -216,14 +252,29 @@
         "language": {
             "component": "language"
         },
+        "licensemanager": {
+            "component": "licensemanager"
+        },
         "lifesciences": {
             "component": "lifesciences"
+        },
+        "locationfinder": {
+            "component": "locationfinder"
         },
         "longrunning": {
             "component": "longrunning"
         },
+        "lustre": {
+            "component": "lustre"
+        },
+        "maintenance": {
+            "component": "maintenance"
+        },
         "managedidentities": {
             "component": "managedidentities"
+        },
+        "managedkafka": {
+            "component": "managedkafka"
         },
         "maps": {
             "component": "maps"
@@ -234,11 +285,17 @@
         "memcache": {
             "component": "memcache"
         },
+        "memorystore": {
+            "component": "memorystore"
+        },
         "metastore": {
             "component": "metastore"
         },
         "migrationcenter": {
             "component": "migrationcenter"
+        },
+        "modelarmor": {
+            "component": "modelarmor"
         },
         "monitoring": {
             "component": "monitoring"
@@ -255,11 +312,17 @@
         "networksecurity": {
             "component": "networksecurity"
         },
+        "networkservices": {
+            "component": "networkservices"
+        },
         "notebooks": {
             "component": "notebooks"
         },
         "optimization": {
             "component": "optimization"
+        },
+        "oracledatabase": {
+            "component": "oracledatabase"
         },
         "orchestration": {
             "component": "orchestration"
@@ -276,6 +339,9 @@
         "parallelstore": {
             "component": "parallelstore"
         },
+        "parametermanager": {
+            "component": "parametermanager"
+        },
         "phishingprotection": {
             "component": "phishingprotection"
         },
@@ -287,6 +353,9 @@
         },
         "privatecatalog": {
             "component": "privatecatalog"
+        },
+        "privilegedaccessmanager": {
+            "component": "privilegedaccessmanager"
         },
         "rapidmigrationassessment": {
             "component": "rapidmigrationassessment"
@@ -305,9 +374,6 @@
         },
         "resourcemanager": {
             "component": "resourcemanager"
-        },
-        "resourcesettings": {
-            "component": "resourcesettings"
         },
         "retail": {
             "component": "retail"
@@ -357,17 +423,23 @@
         "shopping": {
             "component": "shopping"
         },
-        "spanner/test/opentelemetry/test": {
-            "component": "spanner/test/opentelemetry/test"
+        "spanner/benchmarks": {
+            "component": "spanner/benchmarks"
         },
         "speech": {
             "component": "speech"
+        },
+        "storagebatchoperations": {
+            "component": "storagebatchoperations"
         },
         "storageinsights": {
             "component": "storageinsights"
         },
         "storagetransfer": {
             "component": "storagetransfer"
+        },
+        "streetview": {
+            "component": "streetview"
         },
         "support": {
             "component": "support"
