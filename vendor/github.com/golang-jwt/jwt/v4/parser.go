@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -11,26 +12,28 @@ const tokenDelimiter = "."
 
 type Parser struct {
 	// If populated, only these methods will be considered valid.
-	//
-	// Deprecated: In future releases, this field will not be exported anymore and should be set with an option to NewParser instead.
-	ValidMethods []string
+	validMethods []string
 
 	// Use JSON Number format in JSON decoder.
-	//
-	// Deprecated: In future releases, this field will not be exported anymore and should be set with an option to NewParser instead.
-	UseJSONNumber bool
+	useJSONNumber bool
 
 	// Skip claims validation during token parsing.
-	//
-	// Deprecated: In future releases, this field will not be exported anymore and should be set with an option to NewParser instead.
-	SkipClaimsValidation bool
+	skipClaimsValidation bool
+
+	validator *Validator
+
+	decodeStrict bool
+
+	decodePaddingAllowed bool
 }
 
 // NewParser creates a new Parser with the specified options
 func NewParser(options ...ParserOption) *Parser {
-	p := &Parser{}
+	p := &Parser{
+		validator: &Validator{},
+	}
 
-	// loop through our parsing options and apply them
+	// Loop through our parsing options and apply them
 	for _, option := range options {
 		option(p)
 	}
@@ -38,21 +41,19 @@ func NewParser(options ...ParserOption) *Parser {
 	return p
 }
 
-// Parse parses, validates, verifies the signature and returns the parsed token. keyFunc will
-// receive the parsed token and should return the key for validating.
+// Parse parses, validates, verifies the signature and returns the parsed token.
+// keyFunc will receive the parsed token and should return the key for validating.
 func (p *Parser) Parse(tokenString string, keyFunc Keyfunc) (*Token, error) {
 	return p.ParseWithClaims(tokenString, MapClaims{}, keyFunc)
 }
 
-// ParseWithClaims parses, validates, and verifies like Parse, but supplies a default object
-// implementing the Claims interface. This provides default values which can be overridden and
-// allows a caller to use their own type, rather than the default MapClaims implementation of
-// Claims.
+// ParseWithClaims parses, validates, and verifies like Parse, but supplies a default object implementing the Claims
+// interface. This provides default values which can be overridden and allows a caller to use their own type, rather
+// than the default MapClaims implementation of Claims.
 //
-// Note: If you provide a custom claim implementation that embeds one of the standard claims (such
-// as RegisteredClaims), make sure that a) you either embed a non-pointer version of the claims or
-// b) if you are using a pointer, allocate the proper memory for it before passing in the overall
-// claims, otherwise you might run into a panic.
+// Note: If you provide a custom claim implementation that embeds one of the standard claims (such as RegisteredClaims),
+// make sure that a) you either embed a non-pointer version of the claims or b) if you are using a pointer, allocate the
+// proper memory for it before passing in the overall claims, otherwise you might run into a panic.
 func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc) (*Token, error) {
 	token, parts, err := p.ParseUnverified(tokenString, claims)
 	if err != nil {
@@ -60,10 +61,10 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 	}
 
 	// Verify signing method is in the required set
-	if p.ValidMethods != nil {
+	if p.validMethods != nil {
 		var signingMethodValid = false
 		var alg = token.Method.Alg()
-		for _, m := range p.ValidMethods {
+		for _, m := range p.validMethods {
 			if m == alg {
 				signingMethodValid = true
 				break
@@ -71,43 +72,52 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 		}
 		if !signingMethodValid {
 			// signing method is not in the listed set
-			return token, NewValidationError(fmt.Sprintf("signing method %v is invalid", alg), ValidationErrorSignatureInvalid)
+			return token, newError(fmt.Sprintf("signing method %v is invalid", alg), ErrTokenSignatureInvalid)
 		}
 	}
 
-	// Lookup key
-	var key interface{}
+	// Lookup key(s)
 	if keyFunc == nil {
 		// keyFunc was not provided.  short circuiting validation
-		return token, NewValidationError("no Keyfunc was provided.", ValidationErrorUnverifiable)
+		return token, newError("no keyfunc was provided", ErrTokenUnverifiable)
 	}
-	if key, err = keyFunc(token); err != nil {
-		// keyFunc returned an error
-		if ve, ok := err.(*ValidationError); ok {
-			return token, ve
+
+	got, err := keyFunc(token)
+	if err != nil {
+		return token, newError("error while executing keyfunc", ErrTokenUnverifiable, err)
+	}
+
+	// Join together header and claims in order to verify them with the signature
+	text := strings.Join(parts[0:2], ".")
+	switch have := got.(type) {
+	case VerificationKeySet:
+		if len(have.Keys) == 0 {
+			return token, newError("keyfunc returned empty verification key set", ErrTokenUnverifiable)
 		}
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorUnverifiable}
-	}
 
-	// Perform validation
-	token.Signature = parts[2]
-	if err := token.Method.Verify(strings.Join(parts[0:2], "."), token.Signature, key); err != nil {
-		return token, &ValidationError{Inner: err, Errors: ValidationErrorSignatureInvalid}
+		// Iterate through keys and verify signature, skipping the rest when a match is found.
+		// Return the last error if no match is found.
+		for _, key := range have.Keys {
+			if err = token.Method.Verify(text, token.Signature, key); err == nil {
+				break
+			}
+		}
+	default:
+		err = token.Method.Verify(text, token.Signature, have)
 	}
-
-	vErr := &ValidationError{}
+	if err != nil {
+		return token, newError("", ErrTokenSignatureInvalid, err)
+	}
 
 	// Validate Claims
-	if !p.SkipClaimsValidation {
-		if err := token.Claims.Valid(); err != nil {
-			// If the Claims Valid returned an error, check if it is a validation error,
-			// If it was another error type, create a ValidationError with a generic ClaimsInvalid flag set
-			if e, ok := err.(*ValidationError); !ok {
-				vErr = &ValidationError{Inner: err, Errors: ValidationErrorClaimsInvalid}
-			} else {
-				vErr = e
-			}
-			return token, vErr
+	if !p.skipClaimsValidation {
+		// Make sure we have at least a default validator
+		if p.validator == nil {
+			p.validator = NewValidator()
+		}
+
+		if err := p.validator.Validate(claims); err != nil {
+			return token, newError("", ErrTokenInvalidClaims, err)
 		}
 	}
 
@@ -117,62 +127,75 @@ func (p *Parser) ParseWithClaims(tokenString string, claims Claims, keyFunc Keyf
 	return token, nil
 }
 
-// ParseUnverified parses the token but doesn't validate the signature.
+// ParseUnverified parses the token but does not validate the signature.
 //
 // WARNING: Don't use this method unless you know what you're doing.
 //
-// It's only ever useful in cases where you know the signature is valid (because it has
-// been checked previously in the stack) and you want to extract values from it.
+// It's only ever useful in cases where you know the signature is valid (since it has already
+// been or will be checked elsewhere in the stack) and you want to extract values from it.
 func (p *Parser) ParseUnverified(tokenString string, claims Claims) (token *Token, parts []string, err error) {
 	var ok bool
 	parts, ok = splitToken(tokenString)
 	if !ok {
-		return nil, nil, NewValidationError("token contains an invalid number of segments", ValidationErrorMalformed)
+		return nil, nil, newError("token contains an invalid number of segments", ErrTokenMalformed)
 	}
 
 	token = &Token{Raw: tokenString}
 
-	// parse Header
+	// Parse Header
 	var headerBytes []byte
-	if headerBytes, err = DecodeSegment(parts[0]); err != nil {
-		if strings.HasPrefix(strings.ToLower(tokenString), "bearer ") {
-			return token, parts, NewValidationError("tokenstring should not contain 'bearer '", ValidationErrorMalformed)
-		}
-		return token, parts, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+	if headerBytes, err = p.DecodeSegment(parts[0]); err != nil {
+		return token, parts, newError("could not base64 decode header", ErrTokenMalformed, err)
 	}
 	if err = json.Unmarshal(headerBytes, &token.Header); err != nil {
-		return token, parts, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return token, parts, newError("could not JSON decode header", ErrTokenMalformed, err)
 	}
 
-	// parse Claims
-	var claimBytes []byte
+	// Parse Claims
 	token.Claims = claims
 
-	if claimBytes, err = DecodeSegment(parts[1]); err != nil {
-		return token, parts, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
-	}
-	dec := json.NewDecoder(bytes.NewBuffer(claimBytes))
-	if p.UseJSONNumber {
-		dec.UseNumber()
-	}
-	// JSON Decode.  Special case for map type to avoid weird pointer behavior
-	if c, ok := token.Claims.(MapClaims); ok {
-		err = dec.Decode(&c)
-	} else {
-		err = dec.Decode(&claims)
-	}
-	// Handle decode error
+	claimBytes, err := p.DecodeSegment(parts[1])
 	if err != nil {
-		return token, parts, &ValidationError{Inner: err, Errors: ValidationErrorMalformed}
+		return token, parts, newError("could not base64 decode claim", ErrTokenMalformed, err)
+	}
+
+	// If `useJSONNumber` is enabled then we must use *json.Decoder to decode
+	// the claims. However, this comes with a performance penalty so only use
+	// it if we must and, otherwise, simple use json.Unmarshal.
+	if !p.useJSONNumber {
+		// JSON Unmarshal. Special case for map type to avoid weird pointer behavior.
+		if c, ok := token.Claims.(MapClaims); ok {
+			err = json.Unmarshal(claimBytes, &c)
+		} else {
+			err = json.Unmarshal(claimBytes, &claims)
+		}
+	} else {
+		dec := json.NewDecoder(bytes.NewBuffer(claimBytes))
+		dec.UseNumber()
+		// JSON Decode. Special case for map type to avoid weird pointer behavior.
+		if c, ok := token.Claims.(MapClaims); ok {
+			err = dec.Decode(&c)
+		} else {
+			err = dec.Decode(&claims)
+		}
+	}
+	if err != nil {
+		return token, parts, newError("could not JSON decode claim", ErrTokenMalformed, err)
 	}
 
 	// Lookup signature method
 	if method, ok := token.Header["alg"].(string); ok {
 		if token.Method = GetSigningMethod(method); token.Method == nil {
-			return token, parts, NewValidationError("signing method (alg) is unavailable.", ValidationErrorUnverifiable)
+			return token, parts, newError("signing method (alg) is unavailable", ErrTokenUnverifiable)
 		}
 	} else {
-		return token, parts, NewValidationError("signing method (alg) is unspecified.", ValidationErrorUnverifiable)
+		return token, parts, newError("signing method (alg) is unspecified", ErrTokenUnverifiable)
+	}
+
+	// Parse token signature
+	token.Signature, err = p.DecodeSegment(parts[2])
+	if err != nil {
+		return token, parts, newError("could not base64 decode signature", ErrTokenMalformed, err)
 	}
 
 	return token, parts, nil
@@ -195,7 +218,7 @@ func splitToken(token string) ([]string, bool) {
 	parts[1] = claims
 	// One more cut to ensure the signature is the last part of the token and there are no more
 	// delimiters. This avoids an issue where malicious input could contain additional delimiters
-	// causing unecessary overhead parsing tokens.
+	// causing unnecessary overhead parsing tokens.
 	signature, _, unexpected := strings.Cut(remain, tokenDelimiter)
 	if unexpected {
 		return nil, false
@@ -203,4 +226,45 @@ func splitToken(token string) ([]string, bool) {
 	parts[2] = signature
 
 	return parts, true
+}
+
+// DecodeSegment decodes a JWT specific base64url encoding. This function will
+// take into account whether the [Parser] is configured with additional options,
+// such as [WithStrictDecoding] or [WithPaddingAllowed].
+func (p *Parser) DecodeSegment(seg string) ([]byte, error) {
+	encoding := base64.RawURLEncoding
+
+	if p.decodePaddingAllowed {
+		if l := len(seg) % 4; l > 0 {
+			seg += strings.Repeat("=", 4-l)
+		}
+		encoding = base64.URLEncoding
+	}
+
+	if p.decodeStrict {
+		encoding = encoding.Strict()
+	}
+	return encoding.DecodeString(seg)
+}
+
+// Parse parses, validates, verifies the signature and returns the parsed token.
+// keyFunc will receive the parsed token and should return the cryptographic key
+// for verifying the signature. The caller is strongly encouraged to set the
+// WithValidMethods option to validate the 'alg' claim in the token matches the
+// expected algorithm. For more details about the importance of validating the
+// 'alg' claim, see
+// https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
+func Parse(tokenString string, keyFunc Keyfunc, options ...ParserOption) (*Token, error) {
+	return NewParser(options...).Parse(tokenString, keyFunc)
+}
+
+// ParseWithClaims is a shortcut for NewParser().ParseWithClaims().
+//
+// Note: If you provide a custom claim implementation that embeds one of the
+// standard claims (such as RegisteredClaims), make sure that a) you either
+// embed a non-pointer version of the claims or b) if you are using a pointer,
+// allocate the proper memory for it before passing in the overall claims,
+// otherwise you might run into a panic.
+func ParseWithClaims(tokenString string, claims Claims, keyFunc Keyfunc, options ...ParserOption) (*Token, error) {
+	return NewParser(options...).ParseWithClaims(tokenString, claims, keyFunc)
 }
