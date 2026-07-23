@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -318,9 +319,22 @@ func getTagClientOptions(listers *regopclient.StorageListers, endpoint string) (
 		return nil, fmt.Errorf("failed to read GCS configuration for creating tag client: %w", err)
 	}
 
+	// WithAuthCredentialsJSON takes a credentials type argument to allow
+	// restricting which credential types are accepted from external sources.
+	// In this case, there are no restrictions so we simply pass the type through.
+	var f struct {
+		Type           string `json:"type"`
+		UniverseDomain string `json:"universe_domain"`
+	}
+	if err := json.Unmarshal([]byte(cfg.KeyfileData), &f); err != nil {
+		return nil, fmt.Errorf("failed to parse credentials JSON: %w", err)
+	}
 	opts := []option.ClientOption{
-		option.WithCredentialsJSON([]byte(cfg.KeyfileData)),
+		option.WithAuthCredentialsJSON(option.CredentialsType(f.Type), []byte(cfg.KeyfileData)),
 		option.WithEndpoint(endpoint),
+	}
+	if f.UniverseDomain != "" {
+		opts = append(opts, option.WithUniverseDomain(f.UniverseDomain))
 	}
 
 	return opts, nil

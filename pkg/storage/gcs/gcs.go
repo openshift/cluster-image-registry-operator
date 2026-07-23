@@ -2,6 +2,7 @@ package gcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -63,12 +64,31 @@ func (d *driver) getGCSClient() (*gstorage.Client, error) {
 		d.Config.ProjectID = cfg.ProjectID
 	}
 
-	credentials, err := goauth2.CredentialsFromJSON(d.Context, []byte(cfg.KeyfileData), gstorage.ScopeFullControl)
+	jsonCreds := []byte(cfg.KeyfileData)
+
+	// Parse the credential type to allow restricting which credential types are
+	// accepted from external sources. In this case, there are no restrictions
+	// so we simply pass the type through.
+	var f struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(jsonCreds, &f); err != nil {
+		return nil, fmt.Errorf("failed to parse credentials JSON: %w", err)
+	}
+
+	creds, err := goauth2.CredentialsFromJSONWithType(d.Context, jsonCreds, goauth2.CredentialsType(f.Type), gstorage.ScopeFullControl)
 	if err != nil {
 		return nil, err
 	}
 
-	opts := []goption.ClientOption{goption.WithCredentials(credentials)}
+	ud, err := creds.GetUniverseDomain()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get universe domain: %w", err)
+	}
+	opts := []goption.ClientOption{
+		goption.WithAuthCredentialsJSON(goption.CredentialsType(f.Type), jsonCreds),
+		goption.WithUniverseDomain(ud),
+	}
 	if d.httpClient != nil {
 		opts = append(opts, goption.WithHTTPClient(d.httpClient))
 	}
