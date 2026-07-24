@@ -16,11 +16,22 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestNodeCADaemonAlwaysDeployed", func() {
+		testNodeCADaemonAlwaysDeployed(g.GinkgoTB())
+	})
+	g.It("[Serial] TestNodeCADaemonChangesReverted", func() {
+		testNodeCADaemonChangesReverted(g.GinkgoTB())
+	})
+})
+
+func testNodeCADaemonAlwaysDeployed(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -58,7 +69,7 @@ func TestNodeCADaemonAlwaysDeployed(t *testing.T) {
 	}
 }
 
-func TestNodeCADaemonChangesReverted(t *testing.T) {
+func testNodeCADaemonChangesReverted(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -14,6 +16,21 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
+
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestPruneRegistryFlag", func() {
+		testPruneRegistryFlag(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPruner", func() {
+		testPruner(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPrunerPodCompletes", func() {
+		testPrunerPodCompletes(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPrunerIgnoreInvalidImageReferences", func() {
+		testPrunerIgnoreInvalidImageReferences(g.GinkgoTB())
+	})
+})
 
 func containsString(haystack []string, needle string) bool {
 	for _, v := range haystack {
@@ -27,7 +44,7 @@ func containsString(haystack []string, needle string) bool {
 // TestPruneRegistry ensures that the value for the --prune-registry flag
 // is set correctly based on the image registry's custom resources
 // Spec.ManagementState field
-func TestPruneRegistryFlag(t *testing.T) {
+func testPruneRegistryFlag(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -61,18 +78,18 @@ func TestPruneRegistryFlag(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 
+	// Set the image registry to be Removed
 	cr.Spec.ManagementState = operatorapi.Removed
 
-	// Set the image registry to be Removed
 	if _, err := te.Client().Configs().Update(
 		context.Background(), cr, metav1.UpdateOptions{},
 	); err != nil {
 		t.Fatalf("unable to update image registry custom resource: %s", err)
 	}
 
+	// Wait for the cronjob to have an updated --prune-registry flag
 	var errs []error
 
-	// Wait for the cronjob to have an updated --prune-registry flag
 	err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, framework.AsyncOperationTimeout, false,
 		func(ctx context.Context) (stop bool, err error) {
 			errs = nil
@@ -105,7 +122,7 @@ func TestPruneRegistryFlag(t *testing.T) {
 
 // TestPruner verifies that the pruner controller installs the cronjob and sets it's
 // conditions appropriately
-func TestPruner(t *testing.T) {
+func testPruner(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -143,10 +160,8 @@ func TestPruner(t *testing.T) {
 
 	// Check that the Available condition is set for the pruner
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Available", operatorapi.ConditionTrue, "AsExpected")
-
 	// Check that the Scheduled condition is set for the cronjob
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Scheduled", operatorapi.ConditionTrue, "Scheduled")
-
 	// Check that the Failed condition is set correctly for the last job run
 	framework.PrunerConditionExistsWithStatusAndReason(te, "Failed", operatorapi.ConditionFalse, "Complete")
 
@@ -202,7 +217,7 @@ func TestPruner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if *cronjob.Spec.Suspend != true {
+	if !*cronjob.Spec.Suspend {
 		t.Errorf("The cronjob Spec.Suspend field should have been true, but was %v instead", *cronjob.Spec.Suspend)
 	}
 
@@ -215,7 +230,7 @@ func TestPruner(t *testing.T) {
 	}
 }
 
-func TestPrunerPodCompletes(t *testing.T) {
+func testPrunerPodCompletes(t testing.TB) {
 	ctx := context.Background()
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
@@ -275,7 +290,7 @@ func TestPrunerPodCompletes(t *testing.T) {
 	}
 }
 
-func TestPrunerIgnoreInvalidImageReferences(t *testing.T) {
+func testPrunerIgnoreInvalidImageReferences(t testing.TB) {
 	ctx := context.Background()
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)

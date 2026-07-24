@@ -12,11 +12,22 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestRecreateDeployment(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestRecreateDeployment", func() {
+		testRecreateDeployment(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRestoreDeploymentAfterUserChanges", func() {
+		testRestoreDeploymentAfterUserChanges(g.GinkgoTB())
+	})
+})
+
+func testRecreateDeployment(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -28,7 +39,7 @@ func TestRecreateDeployment(t *testing.T) {
 	})
 	defer framework.TeardownImageRegistry(te)
 
-	t.Logf("deleting the image registry deployment...")
+	t.Log("deleting the image registry deployment...")
 	if err := framework.DeleteCompletely(
 		func() (metav1.Object, error) {
 			return te.Client().Deployments(defaults.ImageRegistryOperatorNamespace).Get(
@@ -44,13 +55,13 @@ func TestRecreateDeployment(t *testing.T) {
 		t.Fatalf("unable to delete the deployment: %s", err)
 	}
 
-	t.Logf("waiting for the operator to recreate the deployment...")
+	t.Log("waiting for the operator to recreate the deployment...")
 	if _, err := framework.WaitForRegistryDeployment(te.Client()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestRestoreDeploymentAfterUserChanges(t *testing.T) {
+func testRestoreDeploymentAfterUserChanges(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 

@@ -5,10 +5,18 @@ import (
 	"strings"
 	"testing"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestBootstrapFailToUpdateSpec(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestBootstrapFailToUpdateSpec", func() {
+		testBootstrapFailToUpdateSpec(g.GinkgoTB())
+	})
+})
+
+func testBootstrapFailToUpdateSpec(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 

@@ -1,4 +1,4 @@
-package e2e_test
+package e2e
 
 import (
 	"context"
@@ -19,9 +19,23 @@ import (
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
+
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestDefaultPVC", func() {
+		testDefaultPVC(g.GinkgoTB())
+	})
+	g.It("[Serial] TestCustomRWXPVC", func() {
+		testCustomRWXPVC(g.GinkgoTB())
+	})
+	g.It("[Serial] TestCustomRWOPVC", func() {
+		testCustomRWOPVC(g.GinkgoTB())
+	})
+})
 
 func dumpResourcesOnFailure(te framework.TestEnv) {
 	if te.Failed() {
@@ -173,7 +187,7 @@ func checkTestResult(te framework.TestEnv) {
 	}
 }
 
-func TestDefaultPVC(t *testing.T) {
+func testDefaultPVC(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 	defer dumpResourcesOnFailure(te)
@@ -194,7 +208,7 @@ func TestDefaultPVC(t *testing.T) {
 	checkTestResult(te)
 }
 
-func TestCustomRWXPVC(t *testing.T) {
+func testCustomRWXPVC(t testing.TB) {
 	claimName := "test-custom-rwx-" + uuid.New().String()
 
 	te := framework.Setup(t)
@@ -220,7 +234,7 @@ func TestCustomRWXPVC(t *testing.T) {
 	checkTestResult(te)
 }
 
-func TestCustomRWOPVC(t *testing.T) {
+func testCustomRWOPVC(t testing.TB) {
 	claimName := "test-custom-rwo-" + uuid.New().String()
 
 	te := framework.Setup(t)

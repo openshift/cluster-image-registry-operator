@@ -11,6 +11,7 @@ import (
 
 	gstorage "cloud.google.com/go/storage"
 	"github.com/google/uuid"
+	g "github.com/onsi/ginkgo/v2"
 	goauth2 "golang.org/x/oauth2/google"
 	goption "google.golang.org/api/option"
 
@@ -30,7 +31,13 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework/mock/listers"
 )
 
-func TestGCSDay2(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestGCSDay2", func() {
+		testGCSDay2(g.GinkgoTB())
+	})
+})
+
+func testGCSDay2(t testing.TB) {
 	ctx := context.Background()
 
 	kcfg, err := regopclient.GetConfig()

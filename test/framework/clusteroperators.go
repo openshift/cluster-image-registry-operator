@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 )
 
 func IsClusterOperatorHealthy(co *configv1.ClusterOperator) error {
@@ -29,6 +31,9 @@ func IsClusterOperatorHealthy(co *configv1.ClusterOperator) error {
 func AreClusterOperatorsHealthy(cos []configv1.ClusterOperator) error {
 	var errs []error
 	for _, co := range cos {
+		if co.Name == defaults.ImageRegistryClusterOperatorResourceName {
+			continue
+		}
 		errs = append(errs, IsClusterOperatorHealthy(&co))
 	}
 	return utilerrors.NewAggregate(errs)

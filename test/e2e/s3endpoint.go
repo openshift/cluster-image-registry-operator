@@ -2,9 +2,14 @@ package e2e
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
 
+	g "github.com/onsi/ginkgo/v2"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
@@ -13,6 +18,47 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+const (
+	minioTestImage         = "quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"
+	communityE2EImagesRepo = "quay.io/openshift/community-e2e-images"
+)
+
+// minioImage returns the Minio image to use in the test deployment.
+// In CI, openshift-tests mirrors images to quay.io/openshift/community-e2e-images.
+// The image is registered in openshift/origin's allowedImages and mirrored using
+// the pattern: e2e-{safe-name}-{hash} where hash is first 16 chars of base64(sha256(pullspec)).
+func minioImage() string {
+	if img := os.Getenv("MINIO_IMAGE"); img != "" {
+		return img
+	}
+	// Construct the mirrored image location using origin's tag generation algorithm
+	return getMirroredImage(minioTestImage, communityE2EImagesRepo)
+}
+
+// getMirroredImage constructs the mirrored image tag following openshift/origin's algorithm.
+// See: openshift/origin/test/extended/util/image/image.go GetMappedImages()
+func getMirroredImage(originalImage, repo string) string {
+	// Convert image pullspec to safe name (replace special chars with dashes)
+	safeName := strings.ReplaceAll(originalImage, "/", "-")
+	safeName = strings.ReplaceAll(safeName, ":", "-")
+	safeName = strings.ReplaceAll(safeName, ".", "-")
+
+	// Calculate hash: first 16 chars of base64-encoded SHA256
+	h := sha256.New()
+	h.Write([]byte(originalImage))
+	hash := base64.RawURLEncoding.EncodeToString(h.Sum(nil))[:16]
+
+	// Construct tag: e2e-{safeName}-{hash}
+	tag := fmt.Sprintf("e2e-%s-%s", safeName, hash)
+	return fmt.Sprintf("%s:%s", repo, tag)
+}
+
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestS3Minio", func() {
+		testS3Minio(g.GinkgoTB())
+	})
+})
 
 type CleanupFunc func()
 
@@ -139,7 +185,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 					Containers: []corev1.Container{
 						{
 							Name:  "minio",
-							Image: "docker.io/minio/minio:RELEASE.2022-03-26T06-49-28Z",
+							Image: minioImage(),
 							Args: []string{
 								"minio",
 								"--certs-dir=/certs",
@@ -228,7 +274,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 	return "https://" + hostname, accessKey, secretKey, caConfigMapName, cleanup.Func()
 }
 
-func TestS3Minio(t *testing.T) {
+func testS3Minio(t testing.TB) {
 	ctx := context.Background()
 
 	te := framework.Setup(t)
