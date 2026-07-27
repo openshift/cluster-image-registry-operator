@@ -115,7 +115,7 @@ func removeImageRegistry(te TestEnv) {
 		}
 		conds := GetImageRegistryConditions(config)
 		if !conds.Removed.IsTrue() {
-			te.Fatalf("unable to uninstall the image registry: the operator is shutted down, but the image registry is not removed: %s", config.Spec.ManagementState, conds)
+			te.Fatalf("unable to uninstall the image registry: the operator is shut down, but the image registry is not removed: management state=%s, conditions=%v", config.Spec.ManagementState, conds)
 		}
 		return
 	}

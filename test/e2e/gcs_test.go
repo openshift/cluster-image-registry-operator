@@ -79,7 +79,7 @@ func TestGCSDay2(t *testing.T) {
 
 	// create a GCS bucket manually here so we can configure later on the
 	// registry to use it.
-	credentials, err := goauth2.CredentialsFromJSON(ctx, []byte(gcscfg.KeyfileData), gstorage.ScopeFullControl)
+	credentials, err := goauth2.CredentialsFromJSONWithType(ctx, []byte(gcscfg.KeyfileData), goauth2.ServiceAccount, gstorage.ScopeFullControl)
 	if err != nil {
 		t.Fatalf("error creating gcs credentials: %v", err)
 	}

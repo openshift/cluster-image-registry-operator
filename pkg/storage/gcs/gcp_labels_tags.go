@@ -19,6 +19,7 @@ import (
 	rscmgrpb "cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/googleapis/gax-go/v2/apierror"
+	goauth2 "golang.org/x/oauth2/google"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -312,14 +313,19 @@ func (t *tagServiceManager) addTagsToStorageBucket(ctx context.Context, cr *imag
 
 // getTagClientOptions returns the tag client options adding the credentials and
 // the endpoint which will be used by the client.
-func getTagClientOptions(listers *regopclient.StorageListers, endpoint string) ([]option.ClientOption, error) {
+func getTagClientOptions(ctx context.Context, listers *regopclient.StorageListers, endpoint string) ([]option.ClientOption, error) {
 	cfg, err := GetConfig(listers)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read GCS configuration for creating tag client: %w", err)
 	}
 
+	credentials, err := goauth2.CredentialsFromJSONWithType(ctx, []byte(cfg.KeyfileData), goauth2.ServiceAccount, rscmgr.DefaultAuthScopes()...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse GCS credentials for tag client: %w", err)
+	}
+
 	opts := []option.ClientOption{
-		option.WithCredentialsJSON([]byte(cfg.KeyfileData)),
+		option.WithCredentials(credentials),
 		option.WithEndpoint(endpoint),
 	}
 
@@ -330,7 +336,7 @@ func getTagClientOptions(listers *regopclient.StorageListers, endpoint string) (
 // the resources.
 func getTagBindingsClient(ctx context.Context, listers *regopclient.StorageListers, location string) (TagBindingsService, error) {
 	endpoint := fmt.Sprintf("https://%s-%s", location, resourceManagerHostSubPath)
-	opts, err := getTagClientOptions(listers, endpoint)
+	opts, err := getTagClientOptions(ctx, listers, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tag binding client options: %w", err)
 	}

@@ -96,7 +96,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 	cleanup.Add(func() {
 		te.Logf("deleting config map %s...", caConfigMapName)
 		if err := te.Client().ConfigMaps("openshift-config").Delete(ctx, caConfigMapName, metav1.DeleteOptions{}); err != nil {
-			te.Errorf("failed to delete config map %s: %w", caConfigMapName, err)
+			te.Errorf("failed to delete config map %s: %v", caConfigMapName, err)
 		}
 	})
 
