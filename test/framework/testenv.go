@@ -17,18 +17,18 @@ type TestEnv interface {
 }
 
 type testEnv struct {
-	*testing.T
+	testing.TB
 	client *Clientset
 }
 
-func Setup(t *testing.T) TestEnv {
+func Setup(t testing.TB) TestEnv {
 	client, err := NewClientset(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	te := &testEnv{
-		T:      t,
+		TB:     t,
 		client: client,
 	}
 	CheckAbsenceOfOperatorPods(te)
@@ -44,13 +44,13 @@ func (te *testEnv) Client() *Clientset {
 }
 
 func (te *testEnv) Log(a ...interface{}) {
-	te.T.Helper()
+	te.TB.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
-	te.T.Log(args...)
+	te.TB.Log(args...)
 }
 
 func (te *testEnv) Logf(format string, a ...interface{}) {
-	te.T.Helper()
+	te.TB.Helper()
 	args := append([]interface{}{te.timestamp()}, a...)
-	te.T.Logf("%s "+format, args...)
+	te.TB.Logf("%s "+format, args...)
 }

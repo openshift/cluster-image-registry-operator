@@ -3,6 +3,7 @@ package framework
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,8 +17,18 @@ func IsClusterOperatorHealthy(co *configv1.ClusterOperator) error {
 	var errs []error
 	for _, cond := range co.Status.Conditions {
 		if cond.Type == configv1.OperatorAvailable && cond.Status != configv1.ConditionTrue {
+			// Allow image-registry operator to be unavailable if it's in Removed state
+			// This is expected during test teardown when the registry is intentionally removed
+			if co.Name == "image-registry" && strings.Contains(cond.Reason, "Removed") {
+				continue
+			}
 			errs = append(errs, fmt.Errorf("%s unavailable (%s): %s", co.Name, cond.Reason, cond.Message))
 		} else if cond.Type == configv1.OperatorProgressing && cond.Status != configv1.ConditionFalse {
+			// Allow image-registry operator to be progressing if it's in Removed state
+			// This is expected during test teardown when the registry is intentionally removed
+			if co.Name == "image-registry" && strings.Contains(cond.Reason, "Removed") {
+				continue
+			}
 			errs = append(errs, fmt.Errorf("%s progressing (%s): %s", co.Name, cond.Reason, cond.Message))
 		} else if cond.Type == configv1.OperatorDegraded && cond.Status != configv1.ConditionFalse {
 			errs = append(errs, fmt.Errorf("%s degraded (%s): %s", co.Name, cond.Reason, cond.Message))

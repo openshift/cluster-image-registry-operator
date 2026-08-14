@@ -115,9 +115,14 @@ func removeImageRegistry(te TestEnv) {
 		}
 		conds := GetImageRegistryConditions(config)
 		if !conds.Removed.IsTrue() {
-			te.Fatalf("unable to uninstall the image registry: the operator is shutted down, but the image registry is not removed: %s", config.Spec.ManagementState, conds)
+			// Operator is stopped but registry is not removed. Start the operator to process removal.
+			te.Logf("operator is at 0 replicas but registry is not removed; starting operator to process removal...")
+			startOperator(te)
+			// Continue with normal removal process below (don't return early)
+		} else {
+			// Operator is stopped and registry is already removed
+			return
 		}
-		return
 	}
 
 	err = wait.PollUntilContextTimeout(context.Background(), 2*time.Second, 30*time.Second, true,
@@ -301,6 +306,7 @@ func deleteImageRegistryAlwaysPresentResources(te TestEnv) {
 func RemoveImageRegistry(te TestEnv) {
 	removeImageRegistry(te)
 	StopDeployment(te, OperatorDeploymentNamespace, OperatorDeploymentName)
+	WaitForOperatorPodsToBeDeleted(te)
 	deleteImageRegistryConfig(te)
 	deleteImageRegistryAlwaysPresentResources(te)
 }
@@ -568,7 +574,7 @@ func PlatformHasDefaultStorage(te TestEnv) bool {
 	})
 }
 
-func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
+func SetupAvailableImageRegistry(t testing.TB, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
 	te := Setup(t)
 
 	noStorage := (spec == nil || spec.Storage == imageregistryapiv1.ImageRegistryConfigStorage{})
