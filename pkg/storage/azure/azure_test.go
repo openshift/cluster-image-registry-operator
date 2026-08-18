@@ -11,13 +11,13 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-pipeline-go/pipeline"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/go-autorest/autorest"
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/mocks"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -63,6 +63,114 @@ func (td *testDoer) Do(r *policy.Request) (resp *http.Response, err error) {
 	}
 	td.response = resp
 	return resp, nil
+}
+
+// mockResponse defines a single mock HTTP response
+type mockResponse struct {
+	statusCode int
+	body       string
+	header     http.Header
+}
+
+// mockSequentialDoer provides sequential responses for multiple Azure API calls
+type mockSequentialDoer struct {
+	mu        sync.Mutex
+	responses []mockResponse
+	index     int
+}
+
+func (m *mockSequentialDoer) Do(r *policy.Request) (*http.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.index >= len(m.responses) {
+		// Default response if we run out of mocked responses
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Request:    r.Raw(),
+			Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	resp := m.responses[m.index]
+	m.index++
+
+	header := resp.header
+	if header == nil {
+		header = http.Header{}
+	}
+
+	return &http.Response{
+		StatusCode: resp.statusCode,
+		Request:    r.Raw(),
+		Body:       io.NopCloser(bytes.NewBufferString(resp.body)),
+		Header:     header,
+	}, nil
+}
+
+// readResponseBody reads the body from an http.Response and returns it as a string
+func readResponseBody(resp *http.Response) string {
+	if resp == nil || resp.Body == nil {
+		return ""
+	}
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Reset body for reuse
+	return string(bodyBytes)
+}
+
+// tagCapturingDoer captures the request body to extract tags while providing mock responses
+type tagCapturingDoer struct {
+	mu           sync.Mutex
+	responses    []mockResponse
+	index        int
+	capturedTags map[string]*string
+}
+
+func (m *tagCapturingDoer) Do(r *policy.Request) (*http.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Try to capture tags from the request body
+	if r.Raw().Body != nil {
+		bodyBytes, _ := io.ReadAll(r.Raw().Body)
+		r.Raw().Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+		var reqBody map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &reqBody); err == nil {
+			if tags, ok := reqBody["tags"].(map[string]interface{}); ok {
+				m.capturedTags = make(map[string]*string)
+				for k, v := range tags {
+					val := fmt.Sprintf("%v", v)
+					m.capturedTags[k] = &val
+				}
+			}
+		}
+	}
+
+	if m.index >= len(m.responses) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Request:    r.Raw(),
+			Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
+			Header:     http.Header{},
+		}, nil
+	}
+
+	resp := m.responses[m.index]
+	m.index++
+
+	header := resp.header
+	if header == nil {
+		header = http.Header{}
+	}
+
+	return &http.Response{
+		StatusCode: resp.statusCode,
+		Request:    r.Raw(),
+		Body:       io.NopCloser(bytes.NewBufferString(resp.body)),
+		Header:     header,
+	}, nil
 }
 
 func TestGetConfig(t *testing.T) {
@@ -328,20 +436,22 @@ func TestConfigEnvNonAzureStackHub(t *testing.T) {
 
 	listers := testBuilder.BuildListers()
 
-	authorizer := autorest.NullAuthorizer{}
-	sender := mocks.NewSender()
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`?`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
+	// mockSequentialDoer provides sequential responses for different Azure API calls
+	mockDoer := &mockSequentialDoer{
+		responses: []mockResponse{
+			// CheckNameAvailability
+			{statusCode: http.StatusOK, body: `{"nameAvailable":true}`},
+			// CreateStorageAccount (BeginCreate) - use 200 with complete response to skip polling
+			{statusCode: http.StatusOK, body: `{"name":"account","properties":{"provisioningState":"Succeeded"}}`},
+			// ListKeys (for assureContainer)
+			{statusCode: http.StatusOK, body: `{"keys":[{"keyName":"key1","value":"firstKey","permissions":"Full"}]}`},
+			// Container create/check
+			{statusCode: http.StatusCreated, body: `{}`},
+		},
+	}
 
 	d := NewDriver(ctx, config, &listers.StorageListers)
-	d.authorizer = authorizer
-	d.sender = sender
-	d.policies = []policy.Policy{
-		&testDoer{statusCode: http.StatusCreated},
-	}
+	d.policies = []policy.Policy{mockDoer}
 	err := d.CreateStorage(cr)
 	if err != nil {
 		t.Fatal(err)
@@ -403,21 +513,10 @@ func TestConfigEnvWorkloadIdentityNonAzureStackHub(t *testing.T) {
 
 	listers := testBuilder.BuildListers()
 
-	authorizer := autorest.NullAuthorizer{}
-	sender := mocks.NewSender()
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`?`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
-	sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
-
 	d := NewDriver(ctx, config, &listers.StorageListers)
-	d.authorizer = authorizer
-	d.sender = sender
+	// Workload identity uses federated token - no account key needed
 	d.policies = []policy.Policy{
-		&testDoer{
-			statusCode: http.StatusAccepted,
-		},
+		&testDoer{statusCode: http.StatusAccepted},
 	}
 
 	envvars, err := d.ConfigEnv()
@@ -489,24 +588,6 @@ func TestConfigEnvWithUserKey(t *testing.T) {
 	}
 }
 
-// custom sender for mocking
-type sender struct {
-	response []*http.Response
-	body     string
-}
-
-// Do implements the Sender interface for mocking
-// Do accepts the passed request and body, then appends the response and emits it.
-func (s *sender) Do(r *http.Request) (*http.Response, error) {
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Request:    r,
-		Body:       io.NopCloser(bytes.NewBufferString(s.body)),
-	}
-	s.response = append(s.response, resp)
-	return resp, nil
-}
-
 func TestUserProvidedTags(t *testing.T) {
 	for _, tt := range []struct {
 		name         string
@@ -547,20 +628,30 @@ func TestUserProvidedTags(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := &sender{
-				body: tt.responseBody,
+			// tagCapture captures request bodies to verify tags
+			tagCapture := &tagCapturingDoer{
+				responses: []mockResponse{
+					// CheckNameAvailability
+					{statusCode: http.StatusOK, body: tt.responseBody},
+					// CreateStorageAccount (BeginCreate)
+					{statusCode: http.StatusAccepted, body: `{"name":"account"}`, header: http.Header{"Azure-Asyncoperation": []string{"https://fake.azure.com/poll"}}},
+					// Poll for create completion
+					{statusCode: http.StatusOK, body: `{"status":"Succeeded"}`},
+				},
 			}
 
 			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
 
 			drv := NewDriver(context.Background(), storageConfig, nil)
-			drv.authorizer = autorest.NullAuthorizer{}
-			drv.sender = sender
+			drv.policies = []policy.Policy{tagCapture}
 
 			_, _, err := drv.assureStorageAccount(
 				&Azure{
 					SubscriptionID: "subscription-id",
 					ResourceGroup:  "resource-group",
+					TenantID:       mockTenantID,
+					ClientID:       "client_id",
+					ClientSecret:   "client_secret",
 				},
 				&configv1.Infrastructure{
 					Status: configv1.InfrastructureStatus{
@@ -580,43 +671,17 @@ func TestUserProvidedTags(t *testing.T) {
 				t.Errorf("unexpected error %q", err)
 			}
 
-			// flag to confirm presence of tags
-			foundTags := false
-
-			for _, resp := range sender.response {
-				if resp != nil && resp.Request != nil && resp.Request.Body != nil {
-
-					reqBody := make(map[string]interface{})
-					if err := json.NewDecoder(resp.Request.Body).Decode(&reqBody); err != nil {
-						t.Fatalf("error decoding request: %q", err)
-					}
-
-					// ignore request without tags
-					if _, ok := reqBody["tags"]; ok {
-						foundTags = true
-
-						tags, ok := reqBody["tags"].(map[string]interface{})
-						if !ok {
-							t.Fatal("unable to type assert tags field")
-						}
-						// convert into correct type
-						receivedTags := make(map[string]*string)
-						for k, v := range tags {
-							receivedTags[k] = to.StringPtr(fmt.Sprintf("%+v", v))
-						}
-
-						// compare the tags
-						if !reflect.DeepEqual(tt.expectedTags, receivedTags) {
-							t.Fatalf(
-								"unexpected tags: %s",
-								cmp.Diff(tt.expectedTags, receivedTags),
-							)
-						}
-					}
-				}
-			}
-			if !foundTags {
+			// Check that tags were captured correctly
+			if len(tagCapture.capturedTags) == 0 {
 				t.Fatal("no tags present in the request")
+			}
+
+			// compare the tags from the captured request
+			if !reflect.DeepEqual(tt.expectedTags, tagCapture.capturedTags) {
+				t.Fatalf(
+					"unexpected tags: %s",
+					cmp.Diff(tt.expectedTags, tagCapture.capturedTags),
+				)
 			}
 		})
 	}
@@ -626,7 +691,7 @@ func Test_assureStorageAccount(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		storageConfig *imageregistryv1.ImageRegistryConfigStorageAzure
-		mockResponses []*http.Response
+		policyDoer    *mockSequentialDoer
 		generated     bool
 		err           string
 		accountName   string
@@ -634,30 +699,40 @@ func Test_assureStorageAccount(t *testing.T) {
 		{
 			name:      "generate account name with success",
 			generated: true,
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":true}`),
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"nameAvailable":true}`},
+					{statusCode: http.StatusAccepted, body: `{"name":"account"}`, header: http.Header{"Azure-Asyncoperation": []string{"https://fake.azure.com/poll"}}},
+					{statusCode: http.StatusOK, body: `{"status":"Succeeded"}`},
+				},
 			},
 		},
 		{
 			name: "fail to generate account name",
 			err:  "create storage account failed, name not available",
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"nameAvailable":false}`},
+				},
 			},
 		},
 		{
 			name: "error checking if account exists",
-			err:  "storage.AccountsClient#CheckNameAvailability: Failure",
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithStatus("NotFound", http.StatusNotFound),
+			err:  "NotFound",
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusNotFound, body: `{"error":{"code":"NotFound","message":"Resource not found"}}`},
+				},
 			},
 		},
 		{
 			name: "error creating account remotely",
 			err:  "failed to start creating storage account",
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":true}`),
-				mocks.NewResponseWithStatus("not found", http.StatusNotFound),
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"nameAvailable":true}`},
+					{statusCode: http.StatusNotFound, body: `{"error":{"code":"NotFound"}}`},
+				},
 			},
 		},
 		{
@@ -667,8 +742,12 @@ func Test_assureStorageAccount(t *testing.T) {
 			storageConfig: &imageregistryv1.ImageRegistryConfigStorageAzure{
 				AccountName: "myaccountname",
 			},
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":true}`),
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"nameAvailable":true}`},
+					{statusCode: http.StatusAccepted, body: `{"name":"myaccountname"}`, header: http.Header{"Azure-Asyncoperation": []string{"https://fake.azure.com/poll"}}},
+					{statusCode: http.StatusOK, body: `{"status":"Succeeded"}`},
+				},
 			},
 		},
 		{
@@ -678,8 +757,10 @@ func Test_assureStorageAccount(t *testing.T) {
 			storageConfig: &imageregistryv1.ImageRegistryConfigStorageAzure{
 				AccountName: "myotheraccountname",
 			},
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
+			policyDoer: &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"nameAvailable":false}`},
+				},
 			},
 		},
 		{
@@ -691,24 +772,23 @@ func Test_assureStorageAccount(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocks.NewSender()
-			for _, response := range tt.mockResponses {
-				sender.AppendResponse(response)
-			}
-
 			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{}
 			if tt.storageConfig != nil {
 				storageConfig = tt.storageConfig
 			}
 
 			drv := NewDriver(context.Background(), storageConfig, nil)
-			drv.authorizer = autorest.NullAuthorizer{}
-			drv.sender = sender
+			if tt.policyDoer != nil {
+				drv.policies = []policy.Policy{tt.policyDoer}
+			}
 
 			name, generated, err := drv.assureStorageAccount(
 				&Azure{
 					SubscriptionID: "subscription_id",
 					ResourceGroup:  "resource_group",
+					TenantID:       mockTenantID,
+					ClientID:       "client_id",
+					ClientSecret:   "client_secret",
 				},
 				&configv1.Infrastructure{},
 				map[string]*string{},
@@ -1001,11 +1081,6 @@ func Test_assureContainer(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocks.NewSender()
-			for _, response := range tt.mockResponses {
-				sender.AppendResponse(response)
-			}
-
 			storageConfig := &imageregistryv1.ImageRegistryConfigStorageAzure{
 				AccountName: "account_name",
 			}
@@ -1014,8 +1089,22 @@ func Test_assureContainer(t *testing.T) {
 			}
 
 			drv := NewDriver(context.Background(), storageConfig, &listers.StorageListers)
-			drv.authorizer = autorest.NullAuthorizer{}
-			drv.sender = sender
+
+			// Mock the ListKeys call for azureclient
+			policyDoer := &mockSequentialDoer{
+				responses: []mockResponse{
+					{statusCode: http.StatusOK, body: `{"keys":[{"value":"Zmlyc3RLZXk="}]}`}, // base64 encoded "firstKey"
+				},
+			}
+			if len(tt.mockResponses) > 0 && strings.Contains(tt.err, "failed to get keys") {
+				// If we expect a key fetch error, simulate it
+				policyDoer = &mockSequentialDoer{
+					responses: []mockResponse{
+						{statusCode: http.StatusBadRequest, body: `{"error":{"message":"invalid"}}`},
+					},
+				}
+			}
+			drv.policies = []policy.Policy{policyDoer}
 			primaryKey = cachedKey{}
 
 			var requestCounter int
@@ -1039,6 +1128,9 @@ func Test_assureContainer(t *testing.T) {
 				&Azure{
 					SubscriptionID: "subscription_id",
 					ResourceGroup:  "resource_group",
+					TenantID:       mockTenantID,
+					ClientID:       "client_id",
+					ClientSecret:   "client_secret",
 				},
 			)
 
@@ -1141,8 +1233,6 @@ func Test_containerExists(t *testing.T) {
 			}
 
 			drv := NewDriver(context.Background(), nil, nil)
-			drv.authorizer = autorest.NullAuthorizer{}
-			drv.sender = mocks.NewSender()
 			drv.httpSender = pipeline.FactoryFunc(
 				func(_ pipeline.Policy, _ *pipeline.PolicyOptions) pipeline.PolicyFunc {
 					if tt.httpSenderFn != nil {
@@ -1220,7 +1310,6 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 		name           string
 		registryConfig *imageregistryv1.Config
 		mockResponses  []*http.Response
-		policies       []policy.Policy
 		err            string
 		checkFn        func(*imageregistryv1.Config)
 	}{
@@ -1238,17 +1327,14 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 					t.Error("unexpected empty container")
 				}
 			},
-			policies: []policy.Policy{
-				&testDoer{
-					statusCode: http.StatusCreated,
-				},
-			},
+			// Uses default mockResponses
 		},
 		{
 			name: "user providing container and account name (both already exist)",
 			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
-				mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`),
+				mocks.NewResponseWithContent(`{"nameAvailable":false}`),                                               // CheckNameAvailability - account exists
+				mocks.NewResponseWithContent(`{"keys":[{"keyName":"key1","value":"firstKey","permissions":"Full"}]}`), // ListKeys
+				mocks.NewResponseWithStatus("OK", http.StatusOK),                                                      // Container check - exists
 			},
 			registryConfig: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
@@ -1271,14 +1357,20 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
 			},
-			policies: []policy.Policy{
-				&testDoer{
-					statusCode: http.StatusOK,
-				},
-			},
 		},
 		{
 			name: "user providing container and account name (both don't exist)",
+			mockResponses: func() []*http.Response {
+				containerNotFoundResp := mocks.NewResponseWithStatus("Not Found", http.StatusNotFound)
+				containerNotFoundResp.Header = containerNotFoundHeader
+				return []*http.Response{
+					mocks.NewResponseWithContent(`{"nameAvailable":true}`),                                                // CheckNameAvailability - account available
+					mocks.NewResponseWithContent(`{"name":"foo_account","properties":{"provisioningState":"Succeeded"}}`), // CreateStorageAccount
+					mocks.NewResponseWithContent(`{"keys":[{"keyName":"key1","value":"firstKey","permissions":"Full"}]}`), // ListKeys
+					containerNotFoundResp, // Container check - not found
+					mocks.NewResponseWithStatus("Created", http.StatusCreated), // Container create
+				}
+			}(),
 			registryConfig: &imageregistryv1.Config{
 				Spec: imageregistryv1.ImageRegistrySpec{
 					Storage: imageregistryv1.ImageRegistryConfigStorage{
@@ -1299,15 +1391,6 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 				if cr.Spec.Storage.Azure.Container != "foo_container" {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
-			},
-			policies: []policy.Policy{
-				&testDoer{
-					statusCode: http.StatusNotFound,
-					header:     containerNotFoundHeader,
-				},
-				&testDoer{
-					statusCode: http.StatusCreated,
-				},
 			},
 		},
 		{
@@ -1333,19 +1416,16 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 					t.Errorf("container has changed to %s", cr.Spec.Storage.Azure.Container)
 				}
 			},
-			mockResponses: []*http.Response{
-				mocks.NewResponseWithContent(`{"nameAvailable":false}`),
-				mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`),
-			},
-			policies: []policy.Policy{
-				&testDoer{
-					statusCode: http.StatusNotFound,
-					header:     containerNotFoundHeader,
-				},
-				&testDoer{
-					statusCode: http.StatusCreated,
-				},
-			},
+			mockResponses: func() []*http.Response {
+				containerNotFoundResp := mocks.NewResponseWithStatus("Not Found", http.StatusNotFound)
+				containerNotFoundResp.Header = containerNotFoundHeader
+				return []*http.Response{
+					mocks.NewResponseWithContent(`{"nameAvailable":false}`),                                               // CheckNameAvailability - account exists
+					mocks.NewResponseWithContent(`{"keys":[{"keyName":"key1","value":"firstKey","permissions":"Full"}]}`), // ListKeys
+					containerNotFoundResp, // Container check - not found
+					mocks.NewResponseWithStatus("Created", http.StatusCreated), // Container create
+				}
+			}(),
 		},
 		{
 			name: "do not overwrite management state already set by user",
@@ -1367,24 +1447,10 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 					t.Error("unexpected empty container")
 				}
 			},
-			policies: []policy.Policy{
-				&testDoer{statusCode: http.StatusCreated},
-			},
+			// Uses default mockResponses
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocks.NewSender()
-			if len(tt.mockResponses) > 0 {
-				for _, resp := range tt.mockResponses {
-					sender.AppendResponse(resp)
-				}
-			} else {
-				sender.AppendResponse(mocks.NewResponseWithContent(`{"nameAvailable":true}`))
-				sender.AppendResponse(mocks.NewResponseWithContent(`?`))
-				sender.AppendResponse(mocks.NewResponseWithContent(`{"name":"account"}`))
-				sender.AppendResponse(mocks.NewResponseWithContent(`{"keys":[{"value":"firstKey"}]}`))
-			}
-
 			storageConfig := tt.registryConfig.Spec.Storage.Azure
 			if tt.registryConfig.Spec.Storage.Azure == nil {
 				storageConfig = &imageregistryv1.ImageRegistryConfigStorageAzure{}
@@ -1395,11 +1461,33 @@ func Test_storageManagementStateNonAzureStackHub(t *testing.T) {
 				storageConfig,
 				&listers.StorageListers,
 			)
-			drv.authorizer = autorest.NullAuthorizer{}
-			drv.sender = sender
-			if tt.policies != nil {
-				drv.policies = tt.policies
+
+			// Build policies for ARM SDK operations (storage account management)
+			var policies []policy.Policy
+			if len(tt.mockResponses) > 0 {
+				// Convert old-style mock responses to policy-based mocking
+				mockDoer := &mockSequentialDoer{}
+				for _, resp := range tt.mockResponses {
+					mockDoer.responses = append(mockDoer.responses, mockResponse{
+						statusCode: resp.StatusCode,
+						body:       readResponseBody(resp),
+						header:     resp.Header,
+					})
+				}
+				policies = append(policies, mockDoer)
+			} else {
+				// Default storage account operation mocks (ARM SDK) + container operations (blob SDK)
+				mockDoer := &mockSequentialDoer{
+					responses: []mockResponse{
+						{statusCode: http.StatusOK, body: `{"nameAvailable":true}`},                                                // CheckNameAvailability
+						{statusCode: http.StatusOK, body: `{"name":"account","properties":{"provisioningState":"Succeeded"}}`},     // CreateStorageAccount
+						{statusCode: http.StatusOK, body: `{"keys":[{"keyName":"key1","value":"firstKey","permissions":"Full"}]}`}, // ListKeys
+						{statusCode: http.StatusCreated, body: `{}`},                                                               // Container create
+					},
+				}
+				policies = append(policies, mockDoer)
 			}
+			drv.policies = policies
 
 			if err := drv.CreateStorage(tt.registryConfig); err != nil {
 				if len(tt.err) == 0 {
