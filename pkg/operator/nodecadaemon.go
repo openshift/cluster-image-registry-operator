@@ -41,6 +41,13 @@ type NodeCADaemonController struct {
 	cachesToSync     []cache.InformerSynced
 	queue            workqueue.TypedRateLimitingInterface[any]
 	syncFailureSince time.Time
+
+	// lastSettledObservedGeneration is used to detect when a rollout is
+	// being caused by a change in the DaemonSet configuration. Once a
+	// given generation settles down (progressing = false) we don't want
+	// to report "progressing" anymore until the daemon set configuration
+	// changes or we have misscheduled pods.
+	lastSettledObservedGeneration int64
 }
 
 func NewNodeCADaemonController(
@@ -131,6 +138,7 @@ func (c *NodeCADaemonController) sync() error {
 
 	dsObj, err := gen.Get()
 	if errors.IsNotFound(err) {
+		c.lastSettledObservedGeneration = 0
 		availableCondition.Status = operatorv1.ConditionFalse
 		availableCondition.Reason = "NotFound"
 		availableCondition.Message = "The daemon set node-ca does not exist"
@@ -156,11 +164,21 @@ func (c *NodeCADaemonController) sync() error {
 			availableCondition.Message = "The daemon set node-ca does not have available replicas"
 		}
 
-		if ds.Status.UpdatedNumberScheduled < ds.Status.DesiredNumberScheduled || ds.Status.NumberMisscheduled > 0 {
+		// We are only "progressing" if we have something erroneously
+		// running on a node or if we have caused a new daemonset
+		// rollout by updating it somehow. i.e. we deliberately don't
+		// want to report "progressing" when the daemonset is scaling
+		// up.
+		unsettledObservedGeneration := c.lastSettledObservedGeneration != ds.Status.ObservedGeneration
+		stillToBeScheduled := ds.Status.UpdatedNumberScheduled < ds.Status.DesiredNumberScheduled
+		misScheduled := ds.Status.NumberMisscheduled > 0
+		waitingOnDSController := ds.Generation > ds.Status.ObservedGeneration
+		if waitingOnDSController || misScheduled || (unsettledObservedGeneration && stillToBeScheduled) {
 			progressingCondition.Status = operatorv1.ConditionTrue
 			progressingCondition.Reason = "Progressing"
 			progressingCondition.Message = "The daemon set node-ca is updating node pods"
 		} else {
+			c.lastSettledObservedGeneration = ds.Status.ObservedGeneration
 			progressingCondition.Status = operatorv1.ConditionFalse
 			progressingCondition.Reason = "AsExpected"
 			progressingCondition.Message = "The daemon set node-ca is deployed"

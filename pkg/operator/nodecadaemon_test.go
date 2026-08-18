@@ -140,7 +140,7 @@ func TestNodeCADaemonControllerConditionsDuringInertia(t *testing.T) {
 func newNodeCATestSetup(t *testing.T, applyError error) (*NodeCADaemonController, *imageregistryfakeclient.Clientset) {
 	t.Helper()
 
-	kubeClient := kubefakeclient.NewClientset(&appsv1.DaemonSet{
+	ds := &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "node-ca",
 			Namespace: defaults.ImageRegistryOperatorNamespace,
@@ -150,7 +150,22 @@ func newNodeCATestSetup(t *testing.T, applyError error) (*NodeCADaemonController
 			DesiredNumberScheduled: 3,
 			UpdatedNumberScheduled: 3,
 		},
-	})
+	}
+	controller, kubeClient, regClient := newNodeCATestSetupWithCustomDaemonset(t, ds)
+	if applyError != nil {
+		failDaemonSetWrite := func(action clientgotesting.Action) (bool, runtime.Object, error) {
+			return true, nil, applyError
+		}
+		kubeClient.PrependReactor("create", "daemonsets", failDaemonSetWrite)
+		kubeClient.PrependReactor("update", "daemonsets", failDaemonSetWrite)
+	}
+	return controller, regClient
+}
+
+func newNodeCATestSetupWithCustomDaemonset(t *testing.T, ds *appsv1.DaemonSet) (*NodeCADaemonController, *kubefakeclient.Clientset, *imageregistryfakeclient.Clientset) {
+	t.Helper()
+
+	kubeClient := kubefakeclient.NewClientset(ds)
 	regClient := imageregistryfakeclient.NewClientset(&imageregistryv1.Config{
 		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
 	})
@@ -167,14 +182,6 @@ func newNodeCATestSetup(t *testing.T, applyError error) (*NodeCADaemonController
 	daemonSetLister := kubeInformers.Apps().V1().DaemonSets().Lister().DaemonSets(defaults.ImageRegistryOperatorNamespace)
 	serviceLister := kubeInformers.Core().V1().Services().Lister().Services(defaults.ImageRegistryOperatorNamespace)
 
-	if applyError != nil {
-		failDaemonSetWrite := func(action clientgotesting.Action) (bool, runtime.Object, error) {
-			return true, nil, applyError
-		}
-		kubeClient.PrependReactor("create", "daemonsets", failDaemonSetWrite)
-		kubeClient.PrependReactor("update", "daemonsets", failDaemonSetWrite)
-	}
-
 	ctx := t.Context()
 	kubeInformers.Start(ctx.Done())
 	regInformers.Start(ctx.Done())
@@ -189,7 +196,134 @@ func newNodeCATestSetup(t *testing.T, applyError error) (*NodeCADaemonController
 		serviceLister:   serviceLister,
 	}
 
-	return controller, regClient
+	return controller, kubeClient, regClient
+}
+
+func TestNodeCADaemonControllerProgressing(t *testing.T) {
+	tests := []struct {
+		name                          string
+		dsStatus                      appsv1.DaemonSetStatus
+		metadataGeneration            int64
+		lastSettledObservedGeneration int64
+		expectProgressing             operatorv1.ConditionStatus
+		expectSettledGeneration       int64
+	}{
+		{
+			name: "operator starting with progressing daemonset",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     1,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 1,
+				UpdatedNumberScheduled: 1,
+				NumberAvailable:        1,
+			},
+			metadataGeneration:            1,
+			lastSettledObservedGeneration: 0,
+			expectProgressing:             operatorv1.ConditionTrue,
+			expectSettledGeneration:       0,
+		},
+		{
+			name: "operator starting with settled daemonset",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     5,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 3,
+				UpdatedNumberScheduled: 3,
+				NumberAvailable:        3,
+			},
+			metadataGeneration:            5,
+			lastSettledObservedGeneration: 0,
+			expectProgressing:             operatorv1.ConditionFalse,
+			expectSettledGeneration:       5,
+		},
+		{
+			name: "slow daemonset controller",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     5,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 3,
+				UpdatedNumberScheduled: 3,
+				NumberAvailable:        3,
+			},
+			metadataGeneration:            6,
+			lastSettledObservedGeneration: 5,
+			expectProgressing:             operatorv1.ConditionTrue,
+			expectSettledGeneration:       5,
+		},
+		{
+			name: "progressing after spec change",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     2,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 3,
+				UpdatedNumberScheduled: 1,
+				NumberAvailable:        3,
+			},
+			metadataGeneration:            2,
+			lastSettledObservedGeneration: 1,
+			expectProgressing:             operatorv1.ConditionTrue,
+			expectSettledGeneration:       1,
+		},
+		{
+			name: "operator finds a new settled generation",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     8,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 3,
+				UpdatedNumberScheduled: 3,
+				NumberAvailable:        3,
+			},
+			metadataGeneration:            8,
+			lastSettledObservedGeneration: 1,
+			expectProgressing:             operatorv1.ConditionFalse,
+			expectSettledGeneration:       8,
+		},
+		{
+			name: "operator finds misscheduled pod",
+			dsStatus: appsv1.DaemonSetStatus{
+				ObservedGeneration:     8,
+				DesiredNumberScheduled: 3,
+				CurrentNumberScheduled: 3,
+				UpdatedNumberScheduled: 3,
+				NumberAvailable:        3,
+				NumberMisscheduled:     1,
+			},
+			metadataGeneration:            8,
+			lastSettledObservedGeneration: 8,
+			expectProgressing:             operatorv1.ConditionTrue,
+			expectSettledGeneration:       8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := &appsv1.DaemonSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "node-ca",
+					Namespace:  defaults.ImageRegistryOperatorNamespace,
+					Generation: tt.metadataGeneration,
+				},
+				Status: tt.dsStatus,
+			}
+			controller, _, regClient := newNodeCATestSetupWithCustomDaemonset(t, ds)
+			controller.lastSettledObservedGeneration = tt.lastSettledObservedGeneration
+
+			if err := controller.sync(); err != nil {
+				t.Fatalf("unexpected sync error: %v", err)
+			}
+
+			progressing := getNodeCACondition(t, regClient, "NodeCADaemonProgressing")
+			if progressing == nil {
+				t.Fatal("expected NodeCADaemonProgressing condition to exist")
+			}
+			if progressing.Status != tt.expectProgressing {
+				t.Errorf("expected NodeCADaemonProgressing=%s, got %s", tt.expectProgressing, progressing.Status)
+			}
+			if controller.lastSettledObservedGeneration != tt.expectSettledGeneration {
+				t.Errorf("expected lastSettledObservedGeneration=%d, got %d", tt.expectSettledGeneration, controller.lastSettledObservedGeneration)
+			}
+		})
+	}
 }
 
 func getNodeCACondition(t *testing.T, regClient *imageregistryfakeclient.Clientset, condType string) *operatorv1.OperatorCondition {
