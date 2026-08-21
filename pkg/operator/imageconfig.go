@@ -187,22 +187,11 @@ func (icc *ImageConfigController) syncImageStatus() error {
 		modified = true
 	}
 	if icc.imageStreamImportModeEnabled {
-		var importmode configapi.ImportModeType
-		if cfg.Spec.ImageStreamImportMode != "" {
-			importmode = cfg.Spec.ImageStreamImportMode
-		} else {
-			cv, err := icc.clusterVersionLister.Get("version")
-			if err != nil {
-				return err
-			}
-			// If the clusterversion reports that the desired architecture (existing or desired) of the
-			// cluster is "Multi", set import mode to PreserveOriginal. Else set it to Legacy
-			if cv.Status.Desired.Architecture == configv1.ClusterVersionArchitectureMulti {
-				importmode = configapi.ImportModePreserveOriginal
-			} else {
-				importmode = configapi.ImportModeLegacy
-			}
+		cv, err := icc.clusterVersionLister.Get("version")
+		if err != nil {
+			return err
 		}
+		importmode := imageStreamImportMode(cfg.Spec.ImageStreamImportMode, cfg.Status.ImageStreamImportMode, cv.Status.Desired.Architecture)
 		if cfg.Status.ImageStreamImportMode != importmode {
 			cfg.Status.ImageStreamImportMode = importmode
 			modified = true
@@ -216,6 +205,38 @@ func (icc *ImageConfigController) syncImageStatus() error {
 	}
 
 	return nil
+}
+
+// imageStreamImportMode returns the import mode that should be written to
+// image.config.openshift.io/cluster status.
+//
+// specMode takes precedence when set by the administrator. Otherwise, the mode
+// is derived from the cluster's desired architecture:
+//   - "Multi" → PreserveOriginal
+//   - anything else → Legacy
+//   - "" (not yet populated) → preserve the existing status value
+//
+// The empty-architecture case arises during upgrades from pre-5.x releases: the
+// CVO only writes Status.Desired.Architecture when its internal
+// StatusReleaseArchitecture gate is on, which is itself enabled by the
+// ImageStreamImportMode feature gate. On any settled 5.x cluster the gate is
+// always on and Architecture is always populated. The "" branch is only
+// reachable during the brief window at upgrade start where the config-operator
+// has already enabled the gate in featuregate/cluster but the CVO has not yet
+// reconciled. Preserving the existing value lets the ClusterVersion informer
+// re-trigger the sync once the correct architecture is written.
+func imageStreamImportMode(specMode, currentMode configapi.ImportModeType, architecture configv1.ClusterVersionArchitecture) configapi.ImportModeType {
+	if specMode != "" {
+		return specMode
+	}
+	switch architecture {
+	case configv1.ClusterVersionArchitectureMulti:
+		return configapi.ImportModePreserveOriginal
+	case "":
+		return currentMode
+	default:
+		return configapi.ImportModeLegacy
+	}
 }
 
 func (icc *ImageConfigController) sync() error {
