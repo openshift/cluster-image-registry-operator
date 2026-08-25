@@ -473,26 +473,53 @@ func EnsureClusterOperatorStatusIsSet(te TestEnv) *configapiv1.ClusterOperator {
 	return status
 }
 
-func EnsureClusterOperatorStatusIsNormal(te TestEnv) {
-	clusterOperator := EnsureClusterOperatorStatusIsSet(te)
-
+func clusterOperatorConditionsAreNormal(clusterOperator *configapiv1.ClusterOperator) bool {
 	for _, cond := range clusterOperator.Status.Conditions {
 		switch cond.Type {
 		case configapiv1.OperatorAvailable:
 			if cond.Status != configapiv1.ConditionTrue {
-				te.Errorf("Expected clusteroperator Available=%s, got %s", configapiv1.ConditionTrue, cond.Status)
+				return false
 			}
 		case configapiv1.OperatorProgressing:
 			if cond.Status != configapiv1.ConditionFalse {
-				te.Errorf("Expected clusteroperator Progressing=%s, got %s", configapiv1.ConditionFalse, cond.Status)
+				return false
 			}
 		case configapiv1.OperatorDegraded:
 			if cond.Status != configapiv1.ConditionFalse {
-				te.Errorf("Expected clusteroperator Degraded=%s, got %s", configapiv1.ConditionFalse, cond.Status)
+				return false
 			}
 		case configapiv1.OperatorUpgradeable, configapiv1.EvaluationConditionsDetected, configapiv1.RetrievedUpdates:
 			// we don't use these conditions
 		}
+	}
+	return true
+}
+
+func EnsureClusterOperatorStatusIsNormal(te TestEnv) {
+	var clusterOperator *configapiv1.ClusterOperator
+	err := wait.PollUntilContextTimeout(context.Background(), 1*time.Second, AsyncOperationTimeout, false,
+		func(ctx context.Context) (stop bool, err error) {
+			clusterOperator, err = te.Client().ClusterOperators().Get(
+				ctx, defaults.ImageRegistryClusterOperatorResourceName, metav1.GetOptions{},
+			)
+			if err != nil {
+				return false, err
+			}
+			if !hasExpectedClusterOperatorConditions(clusterOperator) {
+				return false, nil
+			}
+			if !clusterOperatorConditionsAreNormal(clusterOperator) {
+				te.Logf("waiting for clusteroperator status to become normal: %#v", clusterOperator.Status.Conditions)
+				return false, nil
+			}
+			return true, nil
+		},
+	)
+	if err != nil {
+		if clusterOperator != nil {
+			te.Logf("clusteroperator conditions are: %#v", clusterOperator.Status.Conditions)
+		}
+		te.Fatalf("clusteroperator status did not become normal: %v", err)
 	}
 
 	namespaceFound := false
@@ -568,7 +595,7 @@ func PlatformHasDefaultStorage(te TestEnv) bool {
 	})
 }
 
-func SetupAvailableImageRegistry(t *testing.T, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
+func SetupAvailableImageRegistry(t testing.TB, spec *imageregistryapiv1.ImageRegistrySpec) TestEnv {
 	te := Setup(t)
 
 	noStorage := (spec == nil || spec.Storage == imageregistryapiv1.ImageRegistryConfigStorage{})

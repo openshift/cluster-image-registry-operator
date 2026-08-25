@@ -8,6 +8,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
 const (
@@ -18,11 +20,14 @@ const (
 	npImagePrunerPolicyName    = "image-pruner-networkpolicy"
 )
 
-var _ = g.Describe("[sig-imageregistry] image-registry operator", func() {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
 	g.It("[NetworkPolicy] should ensure image-registry NetworkPolicies are defined", func() {
+		framework.SetupAvailableImageRegistry(g.GinkgoTB(), nil)
 		testImageRegistryNetworkPolicies()
 	})
 	g.It("[NetworkPolicy][Serial][Disruptive] should restore image-registry NetworkPolicies after delete or mutation [Timeout:30m]", func() {
+		te := framework.SetupAvailableImageRegistry(g.GinkgoTB(), nil)
+		defer framework.RemoveImageRegistry(te)
 		testImageRegistryNetworkPolicyReconcile()
 	})
 })

@@ -9,6 +9,8 @@ import (
 
 	buildv1 "github.com/openshift/api/build/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -17,10 +19,16 @@ import (
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestImageRegistryRemovedWithImages", func() {
+		testImageRegistryRemovedWithImages(g.GinkgoTB())
+	})
+})
+
 // TestImageRegistryRemovedWithImages verifies that we can tear down the image registry if images had been
 // imported or pushed to it.
 // Some cloud providers do not allow storage buckets to be removed unless the bucket is empty.
-func TestImageRegistryRemovedWithImages(t *testing.T) {
+func testImageRegistryRemovedWithImages(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	defer framework.TeardownImageRegistry(te)
 
@@ -64,13 +72,13 @@ func TestImageRegistryRemovedWithImages(t *testing.T) {
 		te.Errorf("failed to wait for builder-dockercfg to appear in the build namespace: %v", err)
 	}
 
+	// This ensures that we can remove the image registry
 	te.Logf("\"builder-dockercfg\" secret already in ns %s, starting test build", nsName)
 	if buildName, err := runTestBuild(ctx, te, nsName); err != nil {
 		te.Error(err)
 		dumpBuildInfo(ctx, te, nsName, buildName)
 	}
 
-	// This ensures that we can remove the image registry
 	framework.RemoveImageRegistry(te)
 }
 

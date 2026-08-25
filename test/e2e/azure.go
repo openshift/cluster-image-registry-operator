@@ -8,6 +8,7 @@ import (
 	"time"
 
 	autorestazure "github.com/Azure/go-autorest/autorest/azure"
+	g "github.com/onsi/ginkgo/v2"
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -23,6 +24,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestAzurePrivateStorageAccount", func() {
+		testAzurePrivateStorageAccount(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPrivateStorageAccountVNetSubnetDiscovery", func() {
+		testPrivateStorageAccountVNetSubnetDiscovery(g.GinkgoTB())
+	})
+})
+
 // TestAzurePrivateStorageAccount ensures that the operator configures the storage
 // as "internal". In simplistic terms, this means to: 1. configure a private endpoint
 // for the storage account; and 2. turn off public network access for the storage
@@ -35,7 +45,7 @@ import (
 //     account network is *not* publicly accessible
 //  3. set management state to "Removed"
 //  4. verify that the private endpoint was removed in Azure
-func TestAzurePrivateStorageAccount(t *testing.T) {
+func testAzurePrivateStorageAccount(t testing.TB) {
 	ctx := context.Background()
 
 	kcfg, err := regopclient.GetConfig()
@@ -235,7 +245,7 @@ func TestAzurePrivateStorageAccount(t *testing.T) {
 	}
 }
 
-func TestPrivateStorageAccountVNetSubnetDiscovery(t *testing.T) {
+func testPrivateStorageAccountVNetSubnetDiscovery(t testing.TB) {
 	ctx := context.Background()
 
 	kcfg, err := regopclient.GetConfig()

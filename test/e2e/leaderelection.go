@@ -1,4 +1,4 @@
-package e2e_test
+package e2e
 
 import (
 	"context"
@@ -9,10 +9,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestLeaderElection(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestLeaderElection", func() {
+		testLeaderElection(g.GinkgoTB())
+	})
+})
+
+func testLeaderElection(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 

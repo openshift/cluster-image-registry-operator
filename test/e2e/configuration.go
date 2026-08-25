@@ -19,11 +19,58 @@ import (
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
+	g "github.com/onsi/ginkgo/v2"
+
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/test/framework"
 )
 
-func TestHTTPSecretDefaulter(t *testing.T) {
+var _ = g.Describe("[Feature:ClusterImageRegistryOperator] image-registry operator", func() {
+	g.It("[Serial] TestHTTPSecretDefaulter", func() {
+		testHTTPSecretDefaulter(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPodResourceConfiguration", func() {
+		testPodResourceConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRolloutStrategyConfiguration", func() {
+		testRolloutStrategyConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPodTolerationsConfiguration", func() {
+		testPodTolerationsConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestPodAffinityConfiguration", func() {
+		testPodAffinityConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRouteConfiguration", func() {
+		testRouteConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial][Disruptive] TestOperatorProxyConfiguration", func() {
+		testOperatorProxyConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestOperandProxyConfiguration", func() {
+		testOperandProxyConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial] TestSecureRouteConfiguration", func() {
+		testSecureRouteConfiguration(g.GinkgoTB())
+	})
+	g.It("[Serial][Disruptive] TestVersionReporting", func() {
+		testVersionReporting(g.GinkgoTB())
+	})
+	g.It("[Serial] TestRequests", func() {
+		testRequests(g.GinkgoTB())
+	})
+	g.It("[Serial] TestDisableRedirect", func() {
+		testDisableRedirect(g.GinkgoTB())
+	})
+	g.It("[Serial] TestScaleUp", func() {
+		testScaleUp(g.GinkgoTB())
+	})
+	g.It("[Serial] TestScaleDown", func() {
+		testScaleDown(g.GinkgoTB())
+	})
+})
+
+func testHTTPSecretDefaulter(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -71,7 +118,7 @@ func TestHTTPSecretDefaulter(t *testing.T) {
 	}
 }
 
-func TestPodResourceConfiguration(t *testing.T) {
+func testPodResourceConfiguration(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -116,7 +163,7 @@ func TestPodResourceConfiguration(t *testing.T) {
 	}
 }
 
-func TestRolloutStrategyConfiguration(t *testing.T) {
+func testRolloutStrategyConfiguration(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -156,7 +203,7 @@ func TestRolloutStrategyConfiguration(t *testing.T) {
 	}
 }
 
-func TestPodTolerationsConfiguration(t *testing.T) {
+func testPodTolerationsConfiguration(t testing.TB) {
 	tolerations := []corev1.Toleration{
 		{
 			Key:      "mykey",
@@ -190,7 +237,7 @@ func TestPodTolerationsConfiguration(t *testing.T) {
 	}
 }
 
-func TestPodAffinityConfiguration(t *testing.T) {
+func testPodAffinityConfiguration(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -236,7 +283,7 @@ func TestPodAffinityConfiguration(t *testing.T) {
 	}
 }
 
-func TestRouteConfiguration(t *testing.T) {
+func testRouteConfiguration(t testing.TB) {
 	hostname := "test.example.com"
 
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
@@ -263,7 +310,7 @@ func TestRouteConfiguration(t *testing.T) {
 	framework.EnsureExternalRoutesExist(t, te.Client(), []string{hostname})
 }
 
-func TestOperatorProxyConfiguration(t *testing.T) {
+func testOperatorProxyConfiguration(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, nil)
 	// this test sometimes fails during tear down because some components
 	// (unrelated to the image registry) do not recover within the default
@@ -366,7 +413,7 @@ func TestOperatorProxyConfiguration(t *testing.T) {
 	framework.ConditionExistsWithStatusAndReason(te, defaults.StorageExists, operatorv1.ConditionTrue, "")
 }
 
-func TestOperandProxyConfiguration(t *testing.T) {
+func testOperandProxyConfiguration(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -439,7 +486,7 @@ func TestOperandProxyConfiguration(t *testing.T) {
 	framework.CheckEnvVars(te, resourceVars, registryDeployment.Spec.Template.Spec.Containers[0].Env, true)
 }
 
-func TestSecureRouteConfiguration(t *testing.T) {
+func testSecureRouteConfiguration(t testing.TB) {
 	te := framework.Setup(t)
 	defer framework.TeardownImageRegistry(te)
 
@@ -505,7 +552,7 @@ func TestSecureRouteConfiguration(t *testing.T) {
 	}
 }
 
-func TestVersionReporting(t *testing.T) {
+func testVersionReporting(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -556,7 +603,7 @@ func TestVersionReporting(t *testing.T) {
 	}
 }
 
-func TestRequests(t *testing.T) {
+func testRequests(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -602,7 +649,7 @@ func TestRequests(t *testing.T) {
 	framework.CheckEnvVars(te, expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false)
 }
 
-func TestDisableRedirect(t *testing.T) {
+func testDisableRedirect(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -628,7 +675,7 @@ func TestDisableRedirect(t *testing.T) {
 	framework.CheckEnvVars(te, expectedEnvVars, deploy.Spec.Template.Spec.Containers[0].Env, false)
 }
 
-func TestScaleUp(t *testing.T) {
+func testScaleUp(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
@@ -673,7 +720,7 @@ func TestScaleUp(t *testing.T) {
 	}
 }
 
-func TestScaleDown(t *testing.T) {
+func testScaleDown(t testing.TB) {
 	te := framework.SetupAvailableImageRegistry(t, &imageregistryapiv1.ImageRegistrySpec{
 		OperatorSpec: operatorv1.OperatorSpec{
 			ManagementState: operatorv1.Managed,
