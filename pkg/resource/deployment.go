@@ -145,7 +145,7 @@ func (gd *generatorDeployment) expected() (runtime.Object, error) {
 			},
 		},
 		Spec: appsapi.DeploymentSpec{
-			ProgressDeadlineSeconds: ptr.To[int32](60),
+			ProgressDeadlineSeconds: ptr.To[int32](120),
 			Replicas:                &gd.cr.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: defaults.DeploymentLabels,
