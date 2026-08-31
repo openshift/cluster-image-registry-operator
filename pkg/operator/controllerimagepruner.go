@@ -38,6 +38,10 @@ import (
 
 const (
 	imagePrunerWorkQueueKey = "imageprunerchanges"
+
+	// imagePrunerDegradedInertia is how long transient sync errors must persist
+	// before the image pruner reports Degraded=True.
+	imagePrunerDegradedInertia = 2 * time.Minute
 )
 
 var (
@@ -149,6 +153,8 @@ type ImagePrunerController struct {
 	cachesToSync  []cache.InformerSynced
 	eventRecorder events.Recorder
 	resourceCache resourceapply.ResourceCache
+
+	syncFailureSince time.Time
 }
 
 func (c *ImagePrunerController) createOrUpdateResources(cr *imageregistryv1.ImagePruner) error {
