@@ -33,6 +33,8 @@ import (
 const (
 	testInfraName            = "test-3748h"
 	defaultInfraResourceName = "cluster"
+
+	testPrivateKey = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA21mvd0ngi1hbs3AV3CrtEkD/bnramqHWMiyVwiCIASyz8TEk\n/1ZBTH/ikDrXWi4x3gbGZNJx3zu6cqRQKa6qLg322S+O20UigPnOaMyW8PeDQ3J2\ng/utGlIq72v6SVeq5itOjZFZl6yIlVrvTdrRxMPq+oh3hzxc7FeC/z9nhiAmOyMA\nCtZcpKcykBbCbm+mDtwMmTyByE0cGMpFfBK63S8kjSTq6OnXtWx1EjSt5XjRqszB\nNTiFgPD0svN/BeSVvcUg243DKERdirrSenm4AHFA7Oss8zmZWWpSkROv9Rw0WhYL\nlWq2m4FlkGlwLVjimMDNkaRHQ6IIUBuMviKhGwIDAQABAoIBAACwR2q0mNAus4/v\nfxzlFyHYNs2I9IzJEt0JSGIDIMdZV30IuoyfPckPT7cmQRRnEhMukDQ6w12iAc8n\n6U6DA9QpmEuUbGAtjB4nATGNrPu/FQzoeisuE5SY1lHYJrn2gnZGdJZZtqqcfdcJ\n9F1c8FhKHBoOH1KkkNazVWStj5nIkPo3rLTNeaDOWDXvvH5gaPeNKPVYmNR34BLs\nkK7qP1Umw5/KPEJR3wQ/bJivFesRKS59r5Ijzqt2/ooow3h2vYuBS0Y8xKu88TeW\n3WE4u/NxWPzabQIeM/kPRB0jidEZkJiQ02hmkMX35ghlgkV8Z8kAKg6K5Y4SnAIE\neo15XdUCgYEA7DGjQNho+kWaInKIWyrWOK6a6h56f8cub6yJ4QAlOLaTF4/FGv+T\nA458Ec6h5LjwJCmI7jfB2QXuYCvI9y++Z53gCx4NMc0ls+0km3JggMW1Xb84NdIy\nptEPH3Pj5WIOKSSGIArVj05ceQQyK5CADZZj13/twTZHIwLtb7jCv+UCgYEA7b53\nwPICbCizc4fdbmgPgKyfNwDRrBC2D9C4xlWDbuqm8XllKuXGCGARe5z5bLi2xipv\n/mRhkv/WjDZY69S3KziBfBCGkv63cKFmmngzkiMfe5O7Ha9ZLclitLbtPSwktc+g\nIQ7Xw6P++IzuvgNklxffSW/vts027glrCMSfzP8CgYBBO2RPIHW9yUNMiD1IkIgh\nl3eJeWlzqNsWVJyv245sH2B4fWh+kF9V+CAj+uGTfdA07JO41wVenti7DtyuCC2a\nCGw8JcyXGIV1L+WQWQJ2DiSNA6bOloMOt2Zp1WP3kiE/E6tHZjadIZNAiPwiNAJp\nvkNM3TQYzJjQ/pn85RZEUQKBgQCantiFrR/0NhhX2BIkXxtOBXbbL/YtoQS3jnjN\nzQnZFlWTEO/CEYRVKB3WtkXl9tAwW6NQ4Powv6FKuYHlhwfF3U8hYCIV8gFeCCqR\n5gEsVxl/ppn4eXVXePVwMNRkh5QshqdPOLcNL1iBUC9pdw1x0v3OZjWSPy8tawSo\nxDBmAwKBgQC1ud9eQJnqWrVRwVL8IGIskf6K8PZ9QuHYWZHq3xQxcSjR1R6HW3w5\n7IjR68/8WQBzCI8J3kRM6UET5aPo/IpVelRY0LUidEfQdYLNRvSYzSrRX+jQ5hi6\ntk+R7gVS11kwfuIV460bUXXw1fN69uUQKDAK7Vz+ErzVU2IHnbUbsA==\n-----END RSA PRIVATE KEY-----\n"
 )
 
 var fakeResourceTags = map[string]string{
@@ -217,8 +219,10 @@ func getCredJSON(t *testing.T) []byte {
 		"type":           "service_account",
 		"project_id":     "project-id",
 		"private_key_id": "key-id",
+		"private_key":    testPrivateKey,
 		"client_email":   "service-account-email",
 		"client_id":      "client-id",
+		"token_uri":      "https://oauth2.googleapis.com/token",
 	})
 	if err != nil {
 		t.Fatalf("error marshalling config json: %v", err)
@@ -386,6 +390,7 @@ func TestAddTagsToStorageBucket(t *testing.T) {
 	)
 
 	tagMgr := &tagServiceManager{
+		universeDomain: "googleapis.com",
 		tagBindingsClient: &fakeTagBindingsClient{
 			t: t,
 			MockDeduplicateTags: func(parent string, tagList []string) []string {
@@ -637,7 +642,7 @@ func TestCreateTagBindings(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			parent := fmt.Sprintf(bucketParentPathFmt, "test-bucket")
+			parent := fmt.Sprintf(bucketParentPathFmt, "googleapis.com", "test-bucket")
 			err := tagClient.CreateTagBindings(ctx, parent, tt.tagsList)
 			if !errorAsExpected(tt.expectedError, err) {
 				t.Errorf("CreateTagBindings(): error: want: %v, got: %v", tt.expectedError, err)
@@ -650,7 +655,7 @@ func TestDeduplicateTags(t *testing.T) {
 	ctx := context.Background()
 
 	server := NewFakeGAPIServer(map[string]int{
-		fmt.Sprintf(bucketParentPathFmt, "test-bucket3"): http.StatusForbidden,
+		fmt.Sprintf(bucketParentPathFmt, "googleapis.com", "test-bucket3"): http.StatusForbidden,
 	})
 	defer server.Close()
 
@@ -700,7 +705,7 @@ func TestDeduplicateTags(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			parent := fmt.Sprintf(bucketParentPathFmt, tt.bucketName)
+			parent := fmt.Sprintf(bucketParentPathFmt, "googleapis.com", tt.bucketName)
 			tags := tagClient.DeduplicateTags(ctx, parent, tt.tagsList)
 			if !slicesEqual(tt.expectedTags, tags) {
 				t.Errorf("CreateTagBindings(): error: want: %v, got: %v", tt.expectedTags, tags)
