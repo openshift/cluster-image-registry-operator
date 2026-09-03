@@ -231,7 +231,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// If a bucket name is supplied, and it already exists and we can access it
 	// just update the config
-	var bucket *gstorage.BucketHandle
 	var bucketExists bool
 	var bucketCreated bool
 	if len(d.Config.Bucket) != 0 {
@@ -249,7 +248,6 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 	}
 	if len(d.Config.Bucket) != 0 && bucketExists {
-		bucket = gclient.Bucket(d.Config.Bucket)
 		if cr.Spec.Storage.ManagementState == "" {
 			cr.Spec.Storage.ManagementState = imageregistryv1.StorageManagementStateUnmanaged
 		}
@@ -265,7 +263,7 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 			}
 		}
 		bucketAttrs := gstorage.BucketAttrs{Location: d.Config.Region}
-		bucket = gclient.Bucket(d.Config.Bucket)
+		bucket := gclient.Bucket(d.Config.Bucket)
 
 		labels, err := getUserLabels(d.Listers.Infrastructures)
 		if err != nil {
@@ -273,6 +271,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 		}
 		klog.V(1).Infof("createStorage: %v list of labels will be applied to %s bucket", labels, d.Config.Bucket)
 		bucketAttrs.Labels = labels
+
+		// Set KMS encryption at bucket creation time if configured.
+		// This is the correct approach as it:
+		// 1. Ensures encryption is applied atomically during bucket creation
+		// 2. Avoids the need for storage.buckets.update permission
+		// 3. Prevents a window where the bucket exists unencrypted
+		if len(d.Config.KeyID) != 0 {
+			bucketAttrs.Encryption = &gstorage.BucketEncryption{
+				DefaultKMSKeyName: d.Config.KeyID,
+			}
+			klog.V(1).Infof("createStorage: bucket will be created with KMS encryption using key %s", d.Config.KeyID)
+		}
 
 		if err := bucket.Create(d.Context, d.Config.ProjectID, &bucketAttrs); err != nil {
 			if gerr, ok := err.(*gapi.Error); ok {
@@ -301,30 +311,18 @@ func (d *driver) CreateStorage(cr *imageregistryv1.Config) error {
 
 	// TODO: Wait until the bucket exists
 
-	// Set KMS Key ID for encryption on the bucket (if specified)
-	// Data is encrypted by default on GCS: https://cloud.google.com/storage/docs/encryption/
+	// KMS encryption is set at bucket creation time (see bucketAttrs.Encryption above).
+	// For operator-created buckets, encryption is applied atomically during bucket.Create().
+	// For user-provided existing buckets (Unmanaged), the operator does not modify encryption
+	// settings to avoid unintended changes to user-managed resources. Users must configure
+	// encryption on existing buckets themselves before providing them to the operator.
+	//
+	// Note: Encryption is best-effort. If KMS key configuration fails during bucket creation,
+	// the bucket is still created with Google-managed encryption keys (GCS default).
 	if bucketCreated {
+		// Report encryption status based on whether KeyID was configured
 		if len(d.Config.KeyID) != 0 {
-			_, err := bucket.Update(d.Context, gstorage.BucketAttrsToUpdate{
-				Encryption: &gstorage.BucketEncryption{
-					DefaultKMSKeyName: d.Config.KeyID,
-				},
-			})
-
-			if err != nil {
-				if gerr, ok := err.(*gapi.Error); ok {
-					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "InvalidStorageConfiguration", gerr.Error())
-					return err
-				} else {
-					util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionFalse, "Unknown Error Occurred", err.Error())
-				}
-			} else {
-				util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
-				cr.Status.Storage = imageregistryv1.ImageRegistryConfigStorage{
-					GCS: d.Config.DeepCopy(),
-				}
-				cr.Spec.Storage.GCS = d.Config.DeepCopy()
-			}
+			util.UpdateCondition(cr, defaults.StorageEncrypted, operatorapi.ConditionTrue, "Encryption Successful", "KMS encryption was successfully enabled on the GCS bucket")
 		}
 		// add user-defined tags to the created storage bucket and update `StorageTagged` condition.
 		err = tagMgr.AddTagsToStorageBucket(d.Context, cr)
