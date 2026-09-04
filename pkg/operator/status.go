@@ -196,18 +196,38 @@ func (c *ImagePrunerController) syncPrunerStatus(cr *imageregistryv1.ImagePruner
 	}
 
 	if applyError != nil {
+		if _, permanent := applyError.(permanentError); !permanent {
+			now := time.Now()
+			if c.syncFailureSince.IsZero() {
+				c.syncFailureSince = now
+			}
+			if now.Sub(c.syncFailureSince) < imagePrunerDegradedInertia {
+				if foundFailed {
+					updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
+						Status:  operatorapiv1.ConditionTrue,
+						Reason:  "JobFailed",
+						Message: failedMessage,
+					})
+				}
+				return
+			}
+		} else {
+			c.syncFailureSince = time.Time{}
+		}
 		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
 			Reason:  "SyncError",
 			Message: fmt.Sprintf("Error: %v", applyError),
 		})
 	} else if foundFailed {
+		c.syncFailureSince = time.Time{}
 		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
 			Status:  operatorapiv1.ConditionTrue,
 			Reason:  "JobFailed",
 			Message: failedMessage,
 		})
 	} else {
+		c.syncFailureSince = time.Time{}
 		updatePrunerCondition(cr, "Degraded", operatorapiv1.OperatorCondition{
 			Status: operatorapiv1.ConditionFalse,
 			Reason: "AsExpected",
