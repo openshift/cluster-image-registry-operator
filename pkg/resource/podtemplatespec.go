@@ -457,40 +457,16 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	// some bare metal cluster nodes will not include the zone labels, in
 	// which case we just omit the related constraint.
 	// we constraint scheduling to workers because we want to reduce the
-	// scope of scheduling to workers only. we need this constraint
-	// because tainted nodes (such as control plane nodes) are not excluded
-	// from skew calculations, so if we don't limit scheduling to workers
-	// the maxSkew won't allow more than one pod to be scheduled per node.
+	// scope of scheduling to workers only.
 	// see https://k8s.io/docs/concepts/workloads/pods/pod-topology-spread-constraints
 	// and https://github.com/kubernetes/kubernetes/issues/80921 for details.
 	topologySpreadConstraints := []corev1.TopologySpreadConstraint{
-		{
-			MaxSkew:           1,
-			TopologyKey:       "kubernetes.io/hostname",
-			WhenUnsatisfiable: corev1.DoNotSchedule,
-			LabelSelector: &metav1.LabelSelector{
-				MatchLabels: defaults.DeploymentLabels,
-			},
-		},
-		{
-			MaxSkew:           1,
-			TopologyKey:       "node-role.kubernetes.io/worker",
-			WhenUnsatisfiable: corev1.DoNotSchedule,
-			LabelSelector: &metav1.LabelSelector{
-				MatchLabels: defaults.DeploymentLabels,
-			},
-		},
+		topologySpreadConstraintForTopologyKey("kubernetes.io/hostname"),
+		topologySpreadConstraintForTopologyKey("node-role.kubernetes.io/worker"),
 	}
+
 	if hasZoneFailureDomain {
-		zoneConstraint := corev1.TopologySpreadConstraint{
-			MaxSkew:           1,
-			TopologyKey:       "topology.kubernetes.io/zone",
-			WhenUnsatisfiable: corev1.DoNotSchedule,
-			LabelSelector: &metav1.LabelSelector{
-				MatchLabels: defaults.DeploymentLabels,
-			},
-		}
-		topologySpreadConstraints = append(topologySpreadConstraints, zoneConstraint)
+		topologySpreadConstraints = append(topologySpreadConstraints, topologySpreadConstraintForTopologyKey("topology.kubernetes.io/zone"))
 	}
 
 	// topology spread constraints might conflict with node selectors, so we
@@ -591,4 +567,39 @@ func makePodTemplateSpec(coreClient coreset.CoreV1Interface, proxyLister configl
 	}
 
 	return spec, deps, nil
+}
+
+// topologySpreadConstraintForTopologyKey creates a corev1.TopologySpreadConstraint
+// for the given topology key.
+// It creates a standardized spread constraint that attempts to ensure High Availability
+// where possible for the provided topology key.
+func topologySpreadConstraintForTopologyKey(key string) corev1.TopologySpreadConstraint {
+	return corev1.TopologySpreadConstraint{
+		// using a maxSkew of 1 ensures that we will evenly distribute
+		// the pods across the nodes that have this topology key.
+		MaxSkew:           1,
+		TopologyKey:       key,
+		WhenUnsatisfiable: corev1.DoNotSchedule,
+		LabelSelector: &metav1.LabelSelector{
+			MatchLabels: defaults.DeploymentLabels,
+		},
+		// using the pod-template-hash as a match label key ensures
+		// that this topology spread constraint only applies to the
+		// current deployment revision, preventing a deadlock
+		// during rollouts of deployment changes.
+		MatchLabelKeys: []string{
+			"pod-template-hash",
+		},
+		// using the "Honor" mode for both NodeAffinityPolicy and
+		// NodeTaintsPolicy ensures that the topology spread constraint
+		// calculations takes into account the schedulability of the
+		// pod on the nodes when calculated the spread/skew and will
+		// ignore nodes that are tainted in a way that makes the image-registry
+		// pods unschedulable on them.
+		// While this means that we may sacrifice high-availability under certain circumstances,
+		// it ensures that we won't enter a degraded state for cluster topologies
+		// like 'aws-ovn-edge-zones' that causes installation failures.
+		NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+		NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
+	}
 }
