@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appsapi "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -42,6 +43,137 @@ func validateCondition(t *testing.T, expcond, cond operatorv1.OperatorCondition)
 			cond.Message,
 		)
 	}
+}
+
+func TestSyncPrunerStatusDegradedInertia(t *testing.T) {
+	transientError := fmt.Errorf("simulated API server error")
+	jobFailure := batchv1.JobCondition{
+		Type:    batchv1.JobFailed,
+		Reason:  "BackoffLimitExceeded",
+		Message: "Job has reached the specified backoff limit",
+	}
+
+	tests := []struct {
+		name                    string
+		applyError              error
+		lastJobConditions       []batchv1.JobCondition
+		existingConditions      []operatorv1.OperatorCondition
+		syncFailureSince        time.Time
+		expectDegraded          *operatorv1.OperatorCondition
+		expectFailureSinceIsSet bool
+	}{
+		{
+			name:                    "first transient sync error starts inertia without reporting degraded",
+			applyError:              transientError,
+			expectFailureSinceIsSet: true,
+		},
+		{
+			name:       "transient sync error within inertia preserves existing condition",
+			applyError: transientError,
+			existingConditions: []operatorv1.OperatorCondition{
+				{Type: "Degraded", Status: operatorv1.ConditionFalse, Reason: "AsExpected"},
+			},
+			syncFailureSince: time.Now(),
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type: "Degraded", Status: operatorv1.ConditionFalse, Reason: "AsExpected",
+			},
+			expectFailureSinceIsSet: true,
+		},
+		{
+			name:             "persistent transient sync error reports degraded",
+			applyError:       transientError,
+			syncFailureSince: time.Now().Add(-imagePrunerDegradedInertia - time.Second),
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type:    "Degraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "SyncError",
+				Message: "Error: simulated API server error",
+			},
+			expectFailureSinceIsSet: true,
+		},
+		{
+			name: "successful sync clears degraded and resets inertia",
+			existingConditions: []operatorv1.OperatorCondition{
+				{Type: "Degraded", Status: operatorv1.ConditionTrue, Reason: "SyncError"},
+			},
+			syncFailureSince: time.Now().Add(-time.Minute),
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type: "Degraded", Status: operatorv1.ConditionFalse, Reason: "AsExpected",
+			},
+		},
+		{
+			name:             "permanent sync error reports degraded immediately",
+			applyError:       newPermanentError("InvalidConfiguration", transientError),
+			syncFailureSince: time.Now().Add(-time.Minute),
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type:    "Degraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "SyncError",
+				Message: "Error: simulated API server error",
+			},
+		},
+		{
+			name:              "failed job reports degraded immediately",
+			lastJobConditions: []batchv1.JobCondition{jobFailure},
+			syncFailureSince:  time.Now().Add(-time.Minute),
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type:    "Degraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "JobFailed",
+				Message: jobFailure.Message,
+			},
+		},
+		{
+			name:                    "failed job reports degraded during sync error inertia",
+			applyError:              transientError,
+			lastJobConditions:       []batchv1.JobCondition{jobFailure},
+			expectFailureSinceIsSet: true,
+			expectDegraded: &operatorv1.OperatorCondition{
+				Type:    "Degraded",
+				Status:  operatorv1.ConditionTrue,
+				Reason:  "JobFailed",
+				Message: jobFailure.Message,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			controller := &ImagePrunerController{syncFailureSince: tt.syncFailureSince}
+			pruner := &imageregistryv1.ImagePruner{}
+			pruner.Status.Conditions = tt.existingConditions
+
+			controller.syncPrunerStatus(pruner, tt.applyError, nil, tt.lastJobConditions)
+
+			degraded := findPrunerCondition(pruner, "Degraded")
+			if tt.expectDegraded == nil {
+				if degraded != nil {
+					t.Fatalf("expected no Degraded condition, got: %+v", degraded)
+				}
+			} else {
+				if degraded == nil {
+					t.Fatal("expected Degraded condition")
+				}
+				validateCondition(t, *tt.expectDegraded, *degraded)
+			}
+
+			if tt.expectFailureSinceIsSet && controller.syncFailureSince.IsZero() {
+				t.Error("expected syncFailureSince to be set")
+			}
+			if !tt.expectFailureSinceIsSet && !controller.syncFailureSince.IsZero() {
+				t.Errorf("expected syncFailureSince to be reset, got %s", controller.syncFailureSince)
+			}
+		})
+	}
+}
+
+func findPrunerCondition(pruner *imageregistryv1.ImagePruner, conditionType string) *operatorv1.OperatorCondition {
+	for i := range pruner.Status.Conditions {
+		if pruner.Status.Conditions[i].Type == conditionType {
+			return &pruner.Status.Conditions[i]
+		}
+	}
+	return nil
 }
 
 func Test_syncStatus(t *testing.T) {
