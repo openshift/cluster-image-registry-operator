@@ -62,6 +62,11 @@ func (s *Server) Run() error {
 		suites = append(suites, tmp)
 	}
 
+	curves := make([]tls.CurveID, len(s.servingInfo.CurvePreferences))
+	for i, group := range s.servingInfo.CurvePreferences {
+		curves[i] = tls.CurveID(group)
+	}
+
 	cert, err := tls.LoadX509KeyPair(s.tlsCRT, s.tlsKey)
 	if err != nil {
 		return fmt.Errorf("failed to load TLS certificate: %w", err)
@@ -74,9 +79,10 @@ func (s *Server) Run() error {
 
 	go func() {
 		tlsConfig := &tls.Config{
-			MinVersion:   minTLSVersion,
-			CipherSuites: suites,
-			Certificates: []tls.Certificate{cert},
+			MinVersion:       minTLSVersion,
+			CipherSuites:     suites,
+			Certificates:     []tls.Certificate{cert},
+			CurvePreferences: curves,
 		}
 		if err := s.httpServer.Serve(tls.NewListener(listener, tlsConfig)); err != nil {
 			if err != http.ErrServerClosed {
