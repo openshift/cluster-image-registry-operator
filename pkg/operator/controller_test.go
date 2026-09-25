@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 	imageregistryapiv1 "github.com/openshift/api/imageregistry/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -31,7 +32,7 @@ import (
 	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/configobserver"
-	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/client"
@@ -55,6 +56,7 @@ type testControllerSetup struct {
 	routeInformerFactory         routeinformers.SharedInformerFactory
 	operatorClient               *client.ConfigOperatorClient
 	apiLister                    configobserver.Listers
+	featureGateAcessor           featuregates.FeatureGateAccess
 }
 
 // registryConfigResourceVersionBumper returns a reaction function that
@@ -154,6 +156,13 @@ func newTestControllerSetup(t *testing.T) *testControllerSetup {
 		operatorClient,
 	)
 
+	// for test purposes the TLS Groups preferences start as disabled.
+	// before calling start() a caller may chose to replace the feature
+	// gate acessor for better suit what is being tested.
+	featureGateAcessor := featuregates.NewHardcodedFeatureGateAccess(
+		nil, []configv1.FeatureGateName{features.FeatureGateTLSGroupPreferences},
+	)
+
 	setup := &testControllerSetup{
 		kubeClient:                   kubeClient,
 		configClient:                 configClient,
@@ -165,6 +174,7 @@ func newTestControllerSetup(t *testing.T) *testControllerSetup {
 		routeInformerFactory:         routeInformerFactory,
 		operatorClient:               operatorClient,
 		apiLister:                    apiLister,
+		featureGateAcessor:           featureGateAcessor,
 	}
 
 	// add the operator namespace with required scc annotations. without
@@ -199,7 +209,11 @@ func (s *testControllerSetup) start(t *testing.T, ctx context.Context, startRunL
 		s.kubeClient, 0, kubeinformers.WithNamespace("kube-system"),
 	)
 
-	var err error
+	featureGates, err := s.featureGateAcessor.CurrentFeatureGates()
+	if err != nil {
+		t.Fatalf("harcoded feature gates acessor returned an error: %s", err)
+	}
+
 	s.controller, err = NewController(
 		events.NewInMemoryRecorder("test", clock.RealClock{}),
 		&restclient.Config{},
@@ -214,8 +228,9 @@ func (s *testControllerSetup) start(t *testing.T, ctx context.Context, startRunL
 		s.configInformerFactory,
 		s.imageregistryInformerFactory,
 		s.routeInformerFactory,
-		nil,
+		s.featureGateAcessor,
 		s.apiLister,
+		APIServerTLSObserveConfigFuncFor(featureGates),
 	)
 	if err != nil {
 		t.Fatalf("failed creating controller: %v", err)
@@ -285,6 +300,13 @@ func TestGlobalTLSCopy(t *testing.T) {
 		t.Fatalf("failed to add registry config to tracker: %v", err)
 	}
 
+	// read the feature gates so we can create the observer using the right
+	// observer function.
+	featureGates, err := setup.featureGateAcessor.CurrentFeatureGates()
+	if err != nil {
+		t.Fatalf("failed to read current feature gates: %v", err)
+	}
+
 	// start the controller and informers. both the ir controller and the
 	// tls observer controller are started.
 	configObserverController := configobserver.NewConfigObserver(
@@ -296,7 +318,7 @@ func TestGlobalTLSCopy(t *testing.T) {
 			setup.configInformerFactory.Config().V1().APIServers().Informer(),
 			setup.operatorClient.Informer(),
 		},
-		apiserver.ObserveTLSSecurityProfile,
+		APIServerTLSObserveConfigFuncFor(featureGates),
 	)
 	setup.start(t, ctx, true)
 	go configObserverController.Run(ctx, 1)
@@ -371,5 +393,123 @@ func TestGlobalTLSCopy(t *testing.T) {
 		},
 	); err != nil {
 		t.Fatalf("expected REGISTRY_HTTP_TLS_MINVERSION to be updated: %v", err)
+	}
+
+	// as the TLSGroupsPreferences feature gate is disabled by default in
+	// our test environment we need to guarantee the current code isn't
+	// passing it down to the registry deployment.
+	deployment, err := setup.kubeClient.AppsV1().Deployments(
+		defaults.ImageRegistryOperatorNamespace,
+	).Get(ctx, "image-registry", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get the image registry deployment: %s", err)
+	}
+
+	if _, exists := envValue(
+		deployment.Spec.Template.Spec.Containers[0].Env, "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
+	); exists {
+		t.Error("OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS should not be set with TLSGroupsPreferences disabled")
+	}
+}
+
+func TestTLSGroupsCopy(t *testing.T) {
+	ctx := t.Context()
+	setup := newTestControllerSetup(t)
+
+	// replace the feature gates on our test environment, TLS groups are
+	// only observed when TLSGroupsPreferences feature gate is enabled.
+	setup.featureGateAcessor = featuregates.NewHardcodedFeatureGateAccess(
+		[]configv1.FeatureGateName{features.FeatureGateTLSGroupPreferences}, nil,
+	)
+
+	// apiServerConfig is the initial apiserver configuration using the
+	// intermediate tls configuration set. add it to the client.
+	apiServerConfig := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		Spec: configv1.APIServerSpec{
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type:         configv1.TLSProfileIntermediateType,
+				Intermediate: &configv1.IntermediateTLSProfile{},
+			},
+		},
+	}
+	if err := setup.configClient.Tracker().Add(apiServerConfig); err != nil {
+		t.Fatalf("failed to add api server to tracker: %v", err)
+	}
+
+	// add an initial registry configuration without populating its
+	// observedConfig.
+	if err := setup.regClient.Tracker().Add(&imageregistryapiv1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		Spec: imageregistryapiv1.ImageRegistrySpec{
+			Replicas: 1,
+			OperatorSpec: operatorv1.OperatorSpec{
+				ManagementState: operatorv1.Managed,
+			},
+			Storage: imageregistryapiv1.ImageRegistryConfigStorage{
+				EmptyDir: &imageregistryapiv1.ImageRegistryConfigStorageEmptyDir{},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("failed to add registry config to tracker: %v", err)
+	}
+
+	// read the current feature gates and then create a proper config
+	// observer function based on them.
+	featureGates, err := setup.featureGateAcessor.CurrentFeatureGates()
+	if err != nil {
+		t.Fatalf("failed to read current feature flags: %s", err)
+	}
+
+	// start the controller and informers. both the ir controller and the
+	// tls observer controller are started.
+	configObserverController := configobserver.NewConfigObserver(
+		"ImageRegistryConfigObserver",
+		setup.operatorClient,
+		events.NewInMemoryRecorder("test", clock.RealClock{}),
+		setup.apiLister,
+		[]factory.Informer{
+			setup.configInformerFactory.Config().V1().APIServers().Informer(),
+			setup.operatorClient.Informer(),
+		},
+		APIServerTLSObserveConfigFuncFor(featureGates),
+	)
+	setup.start(t, ctx, true)
+	go configObserverController.Run(ctx, 1)
+
+	// env helps to evaluate a given environment variable value.
+	envValue := func(where []corev1.EnvVar, name string) (string, bool) {
+		for _, env := range where {
+			if env.Name == name {
+				return env.Value, true
+			}
+		}
+		return "", false
+	}
+
+	// wait until the environment variable for the TLS groups is set in the
+	// image registry deployment.
+	if err := wait.PollUntilContextTimeout(
+		ctx, 100*time.Millisecond, time.Second, true,
+		func(ctx context.Context) (bool, error) {
+			deploy, err := setup.kubeClient.AppsV1().Deployments(
+				defaults.ImageRegistryOperatorNamespace,
+			).Get(ctx, "image-registry", metav1.GetOptions{})
+			if err != nil {
+				if !errors.IsNotFound(err) {
+					return false, err
+				}
+				t.Logf("image-registry deployment not found")
+				return false, nil
+			}
+			val, exists := envValue(
+				deploy.Spec.Template.Spec.Containers[0].Env,
+				"OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
+			)
+			t.Logf("OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS found: %v, value: %q ", exists, val)
+			return exists, nil
+		},
+	); err != nil {
+		t.Fatalf("expected deployment to have OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS: %v", err)
 	}
 }

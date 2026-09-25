@@ -95,6 +95,24 @@ func generateTLSEnvVars(cr *v1.Config) ([]corev1.EnvVar, error) {
 		)
 	}
 
+	// extract groups from servingInfo.groups
+	groups, found, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "groups")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get servingInfo.groups: %w", err)
+	}
+
+	if found && len(groups) > 0 {
+		if _, unknown := crypto.TLSGroupsToCurvePreferences(groups); len(unknown) > 0 {
+			return nil, fmt.Errorf("invalid tls groups found: %s", strings.Join(unknown, ","))
+		}
+		envVars = append(
+			envVars, corev1.EnvVar{
+				Name:  "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
+				Value: strings.Join(groups, ","),
+			},
+		)
+	}
+
 	return envVars, nil
 }
 
