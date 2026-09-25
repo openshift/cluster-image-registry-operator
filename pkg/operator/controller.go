@@ -82,17 +82,19 @@ func NewController(
 	routeInformerFactory routeinformers.SharedInformerFactory,
 	featureGateAccessor featuregates.FeatureGateAccess,
 	observer configobserver.Listers,
+	tlsObserver configobserver.ObserveConfigFunc,
 ) (*Controller, error) {
 	listers := &regopclient.Listers{}
 	clients := &regopclient.Clients{}
 	c := &Controller{
-		kubeconfig: kubeconfig,
-		generator:  resource.NewGenerator(eventRecorder, kubeconfig, clients, listers, featureGateAccessor),
-		workqueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "Changes"),
-		listers:    listers,
-		clients:    clients,
-		apiLister:  observer,
-		evRecorder: eventRecorder,
+		kubeconfig:  kubeconfig,
+		generator:   resource.NewGenerator(eventRecorder, kubeconfig, clients, listers, featureGateAccessor),
+		workqueue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "Changes"),
+		listers:     listers,
+		clients:     clients,
+		apiLister:   observer,
+		evRecorder:  eventRecorder,
+		tlsObserver: tlsObserver,
 	}
 
 	// Initial event to bootstrap CR if it doesn't exist.
@@ -205,6 +207,7 @@ type Controller struct {
 	cachesToSync []cache.InformerSynced
 	apiLister    configobserver.Listers
 	evRecorder   events.Recorder
+	tlsObserver  configobserver.ObserveConfigFunc
 }
 
 func (c *Controller) createOrUpdateResources(cr *imageregistryv1.Config) error {

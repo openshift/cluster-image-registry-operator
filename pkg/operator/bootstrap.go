@@ -16,7 +16,6 @@ import (
 	configapiv1 "github.com/openshift/api/config/v1"
 	imageregistryv1 "github.com/openshift/api/imageregistry/v1"
 	operatorapi "github.com/openshift/api/operator/v1"
-	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
 
 	"github.com/openshift/cluster-image-registry-operator/pkg/defaults"
 	"github.com/openshift/cluster-image-registry-operator/pkg/storage"
@@ -78,7 +77,7 @@ func (c *Controller) Bootstrap() error {
 	// We do this here so that we avoid an unnecessary registry restart once
 	// the ConfigObserver controller starts up.
 	var observedConfig runtime.RawExtension
-	if cfg, errs := apiserver.ObserveTLSSecurityProfile(
+	if cfg, errs := c.tlsObserver(
 		c.apiLister, c.evRecorder, map[string]any{},
 	); len(errs) != 0 {
 		klog.Warningf("failed to observe initial APIServer TLS security profile: %v", errs)
