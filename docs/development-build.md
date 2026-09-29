@@ -86,3 +86,44 @@ If you want to edit other objects that are managed by CVO (for example, CustomRe
     ```
 
 6. Your operator is deployed.
+
+## Publishing the tests extension as an OCI referrer (POC)
+
+The runtime image built from `Dockerfile` does not contain
+`cluster-image-registry-operator-tests-ext.gz`. The compressed test binary is
+published as a separate OCI artifact whose subject is the pushed image digest.
+This POC builds one image for the local architecture.
+
+Log in to the builder registry and Quay, and install `docker`, `oras`, and `jq`.
+Then run the publish script with a unique tag:
+
+```bash
+image="quay.io/sdodsonrht/cluster-image-registry-operator:referrers-poc-$(git rev-parse --short=12 HEAD)-$(date -u +%Y%m%d%H%M%S)"
+./hack/publish-tests-ext-referrer.sh "$image"
+```
+
+The script extracts the gzip from the Dockerfile's builder stage, builds and
+pushes the runtime image, and attaches the gzip using the OCI 1.1 referrers
+API. It checks that the file is absent from the runtime image and that the
+downloaded referrer matches the built file. It prints the image and referrer
+digests. To discover and retrieve the artifact later, use those digests:
+
+```bash
+oras discover --distribution-spec v1.1-referrers-api \
+  --artifact-type application/vnd.openshift.tests-extension.v1+gzip \
+  quay.io/sdodsonrht/cluster-image-registry-operator@<image-digest>
+oras pull -o ./tests-extension \
+  quay.io/sdodsonrht/cluster-image-registry-operator@<referrer-digest>
+gzip -dc ./tests-extension/cluster-image-registry-operator-tests-ext.gz > ./tests-extension/cluster-image-registry-operator-tests-ext
+chmod +x ./tests-extension/cluster-image-registry-operator-tests-ext
+./tests-extension/cluster-image-registry-operator-tests-ext list suites
+```
+
+If the Quay repository is private, use a login with pull access for these
+commands. The publish script uses a namespace-specific login from
+`~/.docker/config.json` when one is available.
+
+The corresponding `openshift-tests` consumer change discovers this artifact
+before trying the legacy path inside the operator image. Release promotion
+and mirroring must copy the referrer alongside the image for this to work in
+release payloads.
