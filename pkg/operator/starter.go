@@ -12,7 +12,6 @@ import (
 	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/api/features"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	imageclient "github.com/openshift/client-go/image/clientset/versioned"
@@ -122,12 +121,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
-	featureGates, err := featureGateAccessor.CurrentFeatureGates()
-	if err != nil {
-		return err
-	}
-	imageStreamImportModeEnabled := featureGates.Enabled(features.FeatureGateImageStreamImportMode)
-
 	imageConfigStatusController, err := NewImageConfigController(
 		configClient.ConfigV1(),
 		configOperatorClient,
@@ -135,7 +128,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		kubeInformers.Core().V1().Services(),
 		configInformers.Config().V1().Images(),
 		configInformers.Config().V1().ClusterVersions(),
-		imageStreamImportModeEnabled,
 	)
 	if err != nil {
 		return err
