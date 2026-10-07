@@ -44,14 +44,13 @@ const imageConfigControllerDegradedInertia = 2 * time.Minute
 // Watches for changes on image registry routes and services, updating
 // the resource status appropriately.
 type ImageConfigController struct {
-	configClient                 configset.ConfigV1Interface
-	operatorClient               v1helpers.OperatorClient
-	routeLister                  routev1lister.RouteNamespaceLister
-	serviceLister                corev1listers.ServiceNamespaceLister
-	clusterVersionLister         configlister.ClusterVersionLister
-	cachesToSync                 []cache.InformerSynced
-	queue                        workqueue.TypedRateLimitingInterface[any]
-	imageStreamImportModeEnabled bool
+	configClient         configset.ConfigV1Interface
+	operatorClient       v1helpers.OperatorClient
+	routeLister          routev1lister.RouteNamespaceLister
+	serviceLister        corev1listers.ServiceNamespaceLister
+	clusterVersionLister configlister.ClusterVersionLister
+	cachesToSync         []cache.InformerSynced
+	queue                workqueue.TypedRateLimitingInterface[any]
 
 	// syncFailureSince is when the current streak of sync errors began (zero after a successful sync).
 	syncFailureSince time.Time
@@ -64,16 +63,14 @@ func NewImageConfigController(
 	serviceInformer corev1informers.ServiceInformer,
 	imageConfigInformer configv1informers.ImageInformer,
 	clusterVersionInformer configv1informers.ClusterVersionInformer,
-	imageStreamImportModeEnabled bool,
 ) (*ImageConfigController, error) {
 	icc := &ImageConfigController{
-		configClient:                 configClient,
-		operatorClient:               operatorClient,
-		routeLister:                  routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
-		serviceLister:                serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
-		clusterVersionLister:         clusterVersionInformer.Lister(),
-		queue:                        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "ImageConfigController"),
-		imageStreamImportModeEnabled: imageStreamImportModeEnabled,
+		configClient:         configClient,
+		operatorClient:       operatorClient,
+		routeLister:          routeInformer.Lister().Routes(defaults.ImageRegistryOperatorNamespace),
+		serviceLister:        serviceInformer.Lister().Services(defaults.ImageRegistryOperatorNamespace),
+		clusterVersionLister: clusterVersionInformer.Lister(),
+		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any](), "ImageConfigController"),
 	}
 
 	icc.cachesToSync = append(icc.cachesToSync, operatorClient.Informer().HasSynced)
@@ -88,13 +85,11 @@ func NewImageConfigController(
 	}
 	icc.cachesToSync = append(icc.cachesToSync, routeInformer.Informer().HasSynced)
 
-	if imageStreamImportModeEnabled {
-		if _, err := imageConfigInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
-			return nil, err
-		}
-		icc.cachesToSync = append(icc.cachesToSync, imageConfigInformer.Informer().HasSynced)
-		icc.cachesToSync = append(icc.cachesToSync, clusterVersionInformer.Informer().HasSynced)
+	if _, err := imageConfigInformer.Informer().AddEventHandler(icc.eventHandler()); err != nil {
+		return nil, err
 	}
+	icc.cachesToSync = append(icc.cachesToSync, imageConfigInformer.Informer().HasSynced)
+	icc.cachesToSync = append(icc.cachesToSync, clusterVersionInformer.Informer().HasSynced)
 	return icc, nil
 }
 
@@ -186,16 +181,14 @@ func (icc *ImageConfigController) syncImageStatus() error {
 		cfg.Status.InternalRegistryHostname = internalHostname
 		modified = true
 	}
-	if icc.imageStreamImportModeEnabled {
-		cv, err := icc.clusterVersionLister.Get("version")
-		if err != nil {
-			return err
-		}
-		importmode := imageStreamImportMode(cfg.Spec.ImageStreamImportMode, cfg.Status.ImageStreamImportMode, cv.Status.Desired.Architecture)
-		if cfg.Status.ImageStreamImportMode != importmode {
-			cfg.Status.ImageStreamImportMode = importmode
-			modified = true
-		}
+	cv, err := icc.clusterVersionLister.Get("version")
+	if err != nil {
+		return err
+	}
+	importmode := imageStreamImportMode(cfg.Spec.ImageStreamImportMode, cfg.Status.ImageStreamImportMode, cv.Status.Desired.Architecture)
+	if cfg.Status.ImageStreamImportMode != importmode {
+		cfg.Status.ImageStreamImportMode = importmode
+		modified = true
 	}
 
 	if modified {
@@ -216,15 +209,9 @@ func (icc *ImageConfigController) syncImageStatus() error {
 //   - anything else → Legacy
 //   - "" (not yet populated) → preserve the existing status value
 //
-// The empty-architecture case arises during upgrades from pre-5.x releases: the
-// CVO only writes Status.Desired.Architecture when its internal
-// StatusReleaseArchitecture gate is on, which is itself enabled by the
-// ImageStreamImportMode feature gate. On any settled 5.x cluster the gate is
-// always on and Architecture is always populated. The "" branch is only
-// reachable during the brief window at upgrade start where the config-operator
-// has already enabled the gate in featuregate/cluster but the CVO has not yet
-// reconciled. Preserving the existing value lets the ClusterVersion informer
-// re-trigger the sync once the correct architecture is written.
+// The desired architecture can be temporarily empty while ClusterVersion status
+// is being populated during an upgrade. Preserve the existing value until the
+// architecture is available.
 func imageStreamImportMode(specMode, currentMode configapi.ImportModeType, architecture configv1.ClusterVersionArchitecture) configapi.ImportModeType {
 	if specMode != "" {
 		return specMode
