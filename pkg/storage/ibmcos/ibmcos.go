@@ -491,6 +491,8 @@ func (d *driver) setServiceEndpointOverrides(infra *configapiv1.Infrastructure) 
 						d.rmServiceEndpoint = endpoint.URL
 					case configapiv1.IBMCloudServiceCIS, configapiv1.IBMCloudServiceDNSServices, configapiv1.IBMCloudServiceGlobalSearch, configapiv1.IBMCloudServiceGlobalTagging, configapiv1.IBMCloudServiceHyperProtect, configapiv1.IBMCloudServiceKeyProtect, configapiv1.IBMCloudServiceVPC, configapiv1.IBMCloudServiceCOSConfig, configapiv1.IBMCloudServiceGlobalCatalog:
 						klog.Infof("ignoring unused service endpoint: %s", endpoint.Name)
+					case configapiv1.IBMCloudServiceTransitGateway, configapiv1.IBMCloudServicePowerVS:
+						fallthrough
 					default:
 						klog.Infof("ignoring unknown service: %s", endpoint.Name)
 					}

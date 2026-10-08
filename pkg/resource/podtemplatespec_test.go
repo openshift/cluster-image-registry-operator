@@ -749,6 +749,52 @@ func Test_generateTLSEnvVars(t *testing.T) {
 			expected:      nil,
 			expectedError: "unknown cipher name",
 		},
+		{
+			name: "minTLSVersion, cipherSuites, and groups",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["TLS_AES_128_GCM_SHA256"], "groups": ["X25519"]}}`),
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "REGISTRY_HTTP_TLS_MINVERSION", Value: "VersionTLS13"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES", Value: "TLS_AES_128_GCM_SHA256"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS", Value: "X25519"},
+			},
+			expectedError: "",
+		},
+		{
+			name: "unknown TLS group",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"groups":["UNKNOWN"]}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "invalid tls groups found",
+		},
+		{
+			name: "invalid TLS type",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"groups":"should be an array"}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "should be an array is of the type string",
+		},
 	}
 
 	for _, tc := range tests {
