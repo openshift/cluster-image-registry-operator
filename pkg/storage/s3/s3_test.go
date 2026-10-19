@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -795,6 +796,193 @@ func TestUserProvidedTags(t *testing.T) {
 				return
 			}
 			t.Fatal("no request for tagging bucket found")
+		})
+	}
+}
+
+// s3ErrorTripper is an http.RoundTripper that can return S3 XML error responses
+// for specific request paths, allowing tests to simulate BucketAlreadyOwnedByYou,
+// BucketAlreadyExists, and other S3 error codes.
+type s3ErrorTripper struct {
+	// responses maps request index to a response. If a request index is not
+	// in the map, a 200 OK with empty body is returned.
+	responses []s3ErrorResponse
+	req       int
+}
+
+type s3ErrorResponse struct {
+	code    int
+	errCode string // S3 error code, e.g. "BucketAlreadyOwnedByYou"
+}
+
+func (r *s3ErrorTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	defer func() { r.req++ }()
+
+	if r.req < len(r.responses) {
+		resp := r.responses[r.req]
+		if resp.errCode != "" {
+			body := fmt.Sprintf(
+				`<?xml version="1.0" encoding="UTF-8"?><Error><Code>%s</Code><Message>error</Message></Error>`,
+				resp.errCode,
+			)
+			return &http.Response{
+				StatusCode: resp.code,
+				Body:       io.NopCloser(bytes.NewBufferString(body)),
+				Header:     http.Header{"Content-Type": []string{"application/xml"}},
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: resp.code,
+			Body:       io.NopCloser(bytes.NewBufferString("")),
+		}, nil
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString("")),
+	}, nil
+}
+
+func TestCreateStorageDeterministicNaming(t *testing.T) {
+	infraName := "test-cluster-abc12"
+	expectedBucket := infraName + "-" + defaults.ImageRegistryName + "-us-east-1"
+
+	builder := cirofake.NewFixturesBuilder()
+	builder.AddInfraConfig(&configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: infraName,
+			PlatformStatus: &configv1.PlatformStatus{
+				Type: configv1.AWSPlatformType,
+				AWS: &configv1.AWSPlatformStatus{
+					Region: "us-east-1",
+				},
+			},
+		},
+	})
+	builder.AddSecrets(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaults.CloudCredentialsName,
+			Namespace: defaults.ImageRegistryOperatorNamespace,
+		},
+		Data: map[string][]byte{
+			"aws_access_key_id":     []byte("access"),
+			"aws_secret_access_key": []byte("secret"),
+		},
+	})
+	listers := builder.BuildListers()
+
+	newDriver := func(bucket string) *driver {
+		fg := featuregates.NewHardcodedFeatureGateAccess(
+			[]configv1.FeatureGateName{util.TestFeatureGateName},
+			[]configv1.FeatureGateName{},
+		)
+		return NewDriver(
+			context.Background(),
+			&imageregistryv1.ImageRegistryConfigStorageS3{
+				Bucket: bucket,
+				Region: "us-east-1",
+			},
+			&listers.StorageListers,
+			fg,
+		)
+	}
+
+	newConfig := func() *imageregistryv1.Config {
+		return &imageregistryv1.Config{
+			Spec: imageregistryv1.ImageRegistrySpec{
+				Storage: imageregistryv1.ImageRegistryConfigStorage{
+					S3: &imageregistryv1.ImageRegistryConfigStorageS3{
+						Region: "us-east-1",
+					},
+				},
+			},
+		}
+	}
+
+	for _, tt := range []struct {
+		name       string
+		bucket     string
+		responses  []s3ErrorResponse
+		wantErr    bool
+		wantErrMsg string
+		wantBucket string
+	}{
+		{
+			name:       "When bucket name is empty, it should generate a deterministic name and create the bucket",
+			bucket:     "",
+			responses:  nil, // all 200 OK
+			wantBucket: expectedBucket,
+		},
+		{
+			name:   "When bucket already owned by us, it should reuse it without error",
+			bucket: "",
+			responses: []s3ErrorResponse{
+				// CreateBucket returns BucketAlreadyOwnedByYou
+				{code: http.StatusConflict, errCode: "BucketAlreadyOwnedByYou"},
+			},
+			wantBucket: expectedBucket,
+		},
+		{
+			name:   "When bucket owned by another account, it should fail with an error",
+			bucket: "",
+			responses: []s3ErrorResponse{
+				// CreateBucket returns BucketAlreadyExists
+				{code: http.StatusConflict, errCode: "BucketAlreadyExists"},
+			},
+			wantErr:    true,
+			wantErrMsg: "owned by another account",
+		},
+		{
+			name:       "When bucket name is pre-configured, it should use the configured name",
+			bucket:     "my-custom-bucket",
+			responses:  nil, // all 200 OK (HeadBucket succeeds)
+			wantBucket: "my-custom-bucket",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			drv := newDriver(tt.bucket)
+			drv.roundTripper = &s3ErrorTripper{responses: tt.responses}
+
+			config := newConfig()
+			if tt.bucket != "" {
+				config.Spec.Storage.S3.Bucket = tt.bucket
+			}
+
+			err := drv.CreateStorage(config)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected an error but got nil")
+				}
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("expected error containing %q, got %q", tt.wantErrMsg, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.wantBucket != "" && config.Spec.Storage.S3.Bucket != tt.wantBucket {
+				t.Errorf("expected bucket %q in spec, got %q", tt.wantBucket, config.Spec.Storage.S3.Bucket)
+			}
+
+			if tt.wantBucket != "" {
+				if config.Status.Storage.S3 == nil {
+					t.Fatalf("expected status.storage.s3 to be set")
+				}
+				if config.Status.Storage.S3.Bucket != tt.wantBucket {
+					t.Errorf("expected bucket %q in status, got %q", tt.wantBucket, config.Status.Storage.S3.Bucket)
+				}
+			}
+
+			if config.Spec.Storage.ManagementState == "" {
+				t.Error("expected ManagementState to be set, got empty")
+			}
 		})
 	}
 }
