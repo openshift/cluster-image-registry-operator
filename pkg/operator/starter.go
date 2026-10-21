@@ -129,8 +129,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		return err
 	}
 
-	imageStreamImportModeEnabled := featureGates.Enabled(features.FeatureGateImageStreamImportMode)
-
 	imageConfigStatusController, err := NewImageConfigController(
 		configClient.ConfigV1(),
 		configOperatorClient,
@@ -138,7 +136,6 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		kubeInformers.Core().V1().Services(),
 		configInformers.Config().V1().Images(),
 		configInformers.Config().V1().ClusterVersions(),
-		imageStreamImportModeEnabled,
 	)
 	if err != nil {
 		return err
