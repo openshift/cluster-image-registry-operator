@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
@@ -101,6 +102,11 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		configOperatorClient,
 	)
 
+	featureGates, err := featureGateAccessor.CurrentFeatureGates()
+	if err != nil {
+		return fmt.Errorf("failed to read current feature flags: %w", err)
+	}
+
 	controller, err := NewController(
 		eventRecorder,
 		kubeconfig,
@@ -117,15 +123,12 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 		routeInformers,
 		featureGateAccessor,
 		observer,
+		APIServerTLSObserveConfigFuncFor(featureGates),
 	)
 	if err != nil {
 		return err
 	}
 
-	featureGates, err := featureGateAccessor.CurrentFeatureGates()
-	if err != nil {
-		return err
-	}
 	imageStreamImportModeEnabled := featureGates.Enabled(features.FeatureGateImageStreamImportMode)
 
 	imageConfigStatusController, err := NewImageConfigController(
@@ -251,7 +254,7 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 			configInformers.Config().V1().APIServers().Informer(),
 			configOperatorClient.Informer(),
 		},
-		apiserver.ObserveTLSSecurityProfile,
+		APIServerTLSObserveConfigFuncFor(featureGates),
 	)
 
 	kubeInformers.Start(ctx.Done())
@@ -278,4 +281,29 @@ func RunOperator(ctx context.Context, kubeconfig *restclient.Config) error {
 
 	<-ctx.Done()
 	return nil
+}
+
+// APIServerTLSObserveConfigFuncFor returns a config observer function that
+// configures TLS-related paths for observation in the API server. This function
+// wraps the default apiserver observer config function but modifies the paths
+// being observed based on the enabled feature gates.
+func APIServerTLSObserveConfigFuncFor(gates featuregates.FeatureGate) configobserver.ObserveConfigFunc {
+	return func(
+		listers configobserver.Listers,
+		recorder events.Recorder,
+		existing map[string]interface{},
+	) (map[string]interface{}, []error) {
+		var groupsPath []string
+		if gates.Enabled(features.FeatureGateTLSGroupPreferences) {
+			groupsPath = []string{"servingInfo", "groups"}
+		}
+		return apiserver.ObserveTLSSecurityProfileWithGroupPaths(
+			listers,
+			recorder,
+			existing,
+			[]string{"servingInfo", "minTLSVersion"},
+			[]string{"servingInfo", "cipherSuites"},
+			groupsPath,
+		)
+	}
 }
