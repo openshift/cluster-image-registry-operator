@@ -142,7 +142,7 @@ func deepDiffEqual(expected, actual reflect.Value, visited map[visit]bool, path 
 		}
 		deepDiffEqual(expected.Elem(), actual.Elem(), visited, path, logDifference)
 		return
-	case reflect.Ptr:
+	case reflect.Pointer:
 		deepDiffEqual(expected.Elem(), actual.Elem(), visited, path, logDifference)
 		return
 	case reflect.Struct:
@@ -229,6 +229,73 @@ func CheckEquals(t *testing.T, expected, actual any) {
 
 	if expected != actual {
 		logError(t, fmt.Sprintf("expected %s but got %s", green(expected), yellow(actual)))
+	}
+}
+
+// AssertEqualsIgnoreCase compares two strings case-insensitively. If they
+// are not equal ignoring case, a fatal error is raised.
+func AssertEqualsIgnoreCase(t *testing.T, expected, actual string) {
+	t.Helper()
+
+	if !strings.EqualFold(expected, actual) {
+		logFatal(t, fmt.Sprintf("expected %s but got %s", green(expected), yellow(actual)))
+	}
+}
+
+// CheckEqualsIgnoreCase is similar to AssertEqualsIgnoreCase, except with a non-fatal error
+func CheckEqualsIgnoreCase(t *testing.T, expected, actual string) {
+	t.Helper()
+
+	if !strings.EqualFold(expected, actual) {
+		logError(t, fmt.Sprintf("expected %s but got %s", green(expected), yellow(actual)))
+	}
+}
+
+// AssertTrue checks whether the provided boolean value is true. If it is not,
+// a fatal error is raised.
+func AssertTrue(t *testing.T, v bool) {
+	t.Helper()
+
+	if !v {
+		logFatal(t, "expected true, got false")
+	}
+}
+
+// AssertFalse checks whether the provided boolean value is false. If it is not,
+// a fatal error is raised.
+func AssertFalse(t *testing.T, v bool) {
+	t.Helper()
+
+	if v {
+		logFatal(t, "expected false, got true")
+	}
+}
+
+// CheckTrue is similar to AssertTrue, except with a non-fatal error
+func CheckTrue(t *testing.T, v bool) {
+	t.Helper()
+
+	if !v {
+		logError(t, "expected true, got false")
+	}
+}
+
+// CheckFalse is similar to AssertFalse, except with a non-fatal error
+func CheckFalse(t *testing.T, v bool) {
+	t.Helper()
+
+	if v {
+		logError(t, "expected false, got true")
+	}
+}
+
+// AssertDeepEquals - like Equals - performs a comparison - but on more complex
+// structures that requires deeper inspection
+func AssertTypeEquals(t *testing.T, expected, actual any) {
+	t.Helper()
+
+	if reflect.TypeOf(expected) != reflect.TypeOf(actual) {
+		logFatal(t, fmt.Sprintf("expected %s but got %s", green(expected), yellow(actual)))
 	}
 }
 
@@ -423,7 +490,7 @@ func CheckErr(t *testing.T, e error, expected ...any) {
 func AssertIntLesserOrEqual(t *testing.T, v1 int, v2 int) {
 	t.Helper()
 
-	if !(v1 <= v2) {
+	if v1 > v2 {
 		logFatal(t, fmt.Sprintf("The first value \"%v\" is greater than the second value \"%v\"", v1, v2))
 	}
 }
@@ -432,7 +499,7 @@ func AssertIntLesserOrEqual(t *testing.T, v1 int, v2 int) {
 func AssertIntGreaterOrEqual(t *testing.T, v1 int, v2 int) {
 	t.Helper()
 
-	if !(v1 >= v2) {
+	if v1 < v2 {
 		logFatal(t, fmt.Sprintf("The first value \"%v\" is lesser than the second value \"%v\"", v1, v2))
 	}
 }
