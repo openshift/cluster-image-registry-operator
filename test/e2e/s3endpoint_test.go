@@ -139,7 +139,7 @@ func deployMinio(ctx context.Context, te framework.TestEnv) (minioEndpoint strin
 					Containers: []corev1.Container{
 						{
 							Name:  "minio",
-							Image: "docker.io/minio/minio:RELEASE.2022-03-26T06-49-28Z",
+							Image: "quay.io/minio/minio:RELEASE.2022-03-26T06-49-28Z",
 							Args: []string{
 								"minio",
 								"--certs-dir=/certs",
