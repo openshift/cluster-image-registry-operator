@@ -9,6 +9,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/imageregistry/v1"
@@ -94,6 +95,11 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
+					MatchLabelKeys: []string{
+						"pod-template-hash",
+					},
+					NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+					NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
 				},
 				{
 					MaxSkew:           1,
@@ -102,6 +108,11 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
+					MatchLabelKeys: []string{
+						"pod-template-hash",
+					},
+					NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+					NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
 				},
 				{
 					MaxSkew:           1,
@@ -110,6 +121,11 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
+					MatchLabelKeys: []string{
+						"pod-template-hash",
+					},
+					NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+					NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
 				},
 			},
 		},
@@ -184,6 +200,11 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
+					MatchLabelKeys: []string{
+						"pod-template-hash",
+					},
+					NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+					NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
 				},
 				{
 					MaxSkew:           1,
@@ -192,6 +213,11 @@ func TestMakePodTemplateSpecWithTopologySpread(t *testing.T) {
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: defaults.DeploymentLabels,
 					},
+					MatchLabelKeys: []string{
+						"pod-template-hash",
+					},
+					NodeAffinityPolicy: ptr.To(corev1.NodeInclusionPolicyHonor),
+					NodeTaintsPolicy:   ptr.To(corev1.NodeInclusionPolicyHonor),
 				},
 			},
 		},

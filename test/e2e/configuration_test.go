@@ -376,7 +376,10 @@ func TestOperandProxyConfiguration(t *testing.T) {
 		},
 		Replicas: 1,
 	})
-	defer framework.TeardownImageRegistry(te)
+	// Setting a fake cluster proxy causes unrelated operators (console, MCO,
+	// kube-controller-manager) to roll. Give them extra time to recover on
+	// teardown, matching TestOperatorProxyConfiguration.
+	defer framework.TeardownImageRegistryWithTimeoutIncrement(te, 5*time.Minute)
 
 	defer framework.ResetClusterProxyConfig(te)
 	defer func() {
