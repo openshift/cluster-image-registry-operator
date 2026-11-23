@@ -21,7 +21,7 @@ func startOperator(te TestEnv) {
 		te.Fatalf("unable to start the operator: %s", err)
 	}
 
-	WaitUntilDeploymentIsRolledOut(te, OperatorDeploymentNamespace, OperatorDeploymentName)
+	WaitUntilDeploymentIsRolledOut(context.Background(), te, OperatorDeploymentNamespace, OperatorDeploymentName)
 }
 
 func DumpOperatorDeployment(te TestEnv) {
@@ -73,7 +73,7 @@ func StopDeployment(te TestEnv, namespace, name string) {
 		te.Fatalf("unable to patch deployment %s/%s to zero replicas: %v (last error: %v)", namespace, name, err, realErr)
 	}
 
-	WaitUntilDeploymentIsRolledOut(te, namespace, name)
+	WaitUntilDeploymentIsRolledOut(context.Background(), te, namespace, name)
 }
 
 func GetOperatorLogs(ctx context.Context, client *Clientset) (PodSetLogs, error) {
