@@ -3,11 +3,12 @@ package controllercmd
 import (
 	"context"
 	"fmt"
-	"k8s.io/utils/clock"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
@@ -106,6 +107,10 @@ type ControllerBuilder struct {
 	enableHTTP2 bool
 
 	skipInClusterAuthLookup bool
+
+	// userAgentSuffix is appended to the default UserAgent string on REST
+	// clients created by this builder. Set via WithUserAgentSuffix.
+	userAgentSuffix string
 }
 
 type TopologyDetector interface {
@@ -251,6 +256,13 @@ func (b *ControllerBuilder) WithEventRecorderOptions(options record.CorrelatorOp
 	return b
 }
 
+// WithUserAgentSuffix appends the given suffix to the default UserAgent on REST
+// clients created by this builder, making requests distinguishable by component.
+func (b *ControllerBuilder) WithUserAgentSuffix(suffix string) *ControllerBuilder {
+	b.userAgentSuffix = suffix
+	return b
+}
+
 // WithComponentOwnerReference overrides controller reference resolution for event recording
 func (b *ControllerBuilder) WithComponentOwnerReference(reference *corev1.ObjectReference) *ControllerBuilder {
 	b.componentOwnerReference = reference
@@ -262,6 +274,10 @@ func (b *ControllerBuilder) Run(ctx context.Context, config *unstructured.Unstru
 	clientConfig, err := b.getClientConfig()
 	if err != nil {
 		return err
+	}
+
+	if len(b.userAgentSuffix) > 0 {
+		rest.AddUserAgent(clientConfig, b.userAgentSuffix)
 	}
 
 	if b.fileObserver != nil {
@@ -324,12 +340,15 @@ func (b *ControllerBuilder) Run(ctx context.Context, config *unstructured.Unstru
 		if err != nil {
 			return err
 		}
-		serverConfig.Authorization.Authorizer = union.New(
+		serverConfig.Authorization.Authorizer, err = union.New(
 			// prefix the authorizer with the permissions for metrics scraping which are well known.
 			// openshift RBAC policy will always allow this user to read metrics.
-			hardcodedauthorizer.NewHardCodedMetricsAuthorizer(),
-			serverConfig.Authorization.Authorizer,
+			union.NamedAuthorizer{AuthorizerName: "hardcoded-metrics", Authorizer: hardcodedauthorizer.NewHardCodedMetricsAuthorizer()},
+			union.NamedAuthorizer{AuthorizerName: "default", Authorizer: serverConfig.Authorization.Authorizer},
 		)
+		if err != nil {
+			return err
+		}
 		serverConfig.HealthzChecks = append(serverConfig.HealthzChecks, b.healthChecks...)
 
 		server, err = serverConfig.Complete(nil).New(b.componentName, genericapiserver.NewEmptyDelegate())
