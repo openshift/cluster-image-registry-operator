@@ -52,7 +52,7 @@ func TestDiffObject(t *testing.T) {
 					"bar": "bbb",
 				},
 			},
-			diff: "added:data.bar=\"bbb\", removed:data.foo=\"aaa\"",
+			diff: "added:data.bar=<REDACTED>, removed:data.foo=<REDACTED>",
 		},
 		{
 			oldObject: &corev1.Secret{
