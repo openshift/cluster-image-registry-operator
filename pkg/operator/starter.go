@@ -290,17 +290,11 @@ func APIServerTLSObserveConfigFuncFor(gates featuregates.FeatureGate) configobse
 		recorder events.Recorder,
 		existing map[string]interface{},
 	) (map[string]interface{}, []error) {
-		var groupsPath []string
-		if gates.Enabled(features.FeatureGateTLSGroupPreferences) {
-			groupsPath = []string{"servingInfo", "groups"}
+		if !gates.Enabled(features.FeatureGateTLSGroupPreferences) {
+			return apiserver.ObserveTLSSecurityProfile(listers, recorder, existing)
 		}
-		return apiserver.ObserveTLSSecurityProfileWithGroupPaths(
-			listers,
-			recorder,
-			existing,
-			[]string{"servingInfo", "minTLSVersion"},
-			[]string{"servingInfo", "cipherSuites"},
-			groupsPath,
+		return apiserver.ObserveTLSSecurityProfileWithGroupsConversion(
+			listers, recorder, existing,
 		)
 	}
 }

@@ -750,12 +750,12 @@ func Test_generateTLSEnvVars(t *testing.T) {
 			expectedError: "unknown cipher name",
 		},
 		{
-			name: "minTLSVersion, cipherSuites, and groups",
+			name: "minTLSVersion, cipherSuites, and curvePreferences",
 			config: &v1.Config{
 				Spec: v1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
 						ObservedConfig: runtime.RawExtension{
-							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["TLS_AES_128_GCM_SHA256"], "groups": ["X25519"]}}`),
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["TLS_AES_128_GCM_SHA256"], "curvePreferences": [23]}}`),
 						},
 					},
 				},
@@ -763,37 +763,68 @@ func Test_generateTLSEnvVars(t *testing.T) {
 			expected: []corev1.EnvVar{
 				{Name: "REGISTRY_HTTP_TLS_MINVERSION", Value: "VersionTLS13"},
 				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES", Value: "TLS_AES_128_GCM_SHA256"},
-				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS", Value: "X25519"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES", Value: "23"},
 			},
 			expectedError: "",
 		},
 		{
-			name: "unknown TLS group",
+			name: "invalid curvePreferences item type",
 			config: &v1.Config{
 				Spec: v1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
 						ObservedConfig: runtime.RawExtension{
-							Raw: []byte(`{"servingInfo":{"groups":["UNKNOWN"]}}`),
+							Raw: []byte(`{"servingInfo":{"curvePreferences":["invalid"]}}`),
 						},
 					},
 				},
 			},
 			expected:      nil,
-			expectedError: "invalid tls groups found",
+			expectedError: "invalid curvePreference type found",
 		},
 		{
-			name: "invalid TLS type",
+			name: "invalid curvePreferences property type",
 			config: &v1.Config{
 				Spec: v1.ImageRegistrySpec{
 					OperatorSpec: operatorv1.OperatorSpec{
 						ObservedConfig: runtime.RawExtension{
-							Raw: []byte(`{"servingInfo":{"groups":"should be an array"}}`),
+							Raw: []byte(`{"servingInfo":{"curvePreferences":"should be an array"}}`),
 						},
 					},
 				},
 			},
 			expected:      nil,
 			expectedError: "should be an array is of the type string",
+		},
+		{
+			name: "out of bounds curvePreference",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"curvePreferences": [23, 24, 65536]}}`),
+						},
+					},
+				},
+			},
+			expected:      nil,
+			expectedError: "out of bounds curvePreference",
+		},
+		{
+			name: "curvePreferences as slice of float64",
+			config: &v1.Config{
+				Spec: v1.ImageRegistrySpec{
+					OperatorSpec: operatorv1.OperatorSpec{
+						ObservedConfig: runtime.RawExtension{
+							Raw: []byte(`{"servingInfo":{"minTLSVersion":"VersionTLS13","cipherSuites":["TLS_AES_128_GCM_SHA256"], "curvePreferences": [23.0]}}`),
+						},
+					},
+				},
+			},
+			expected: []corev1.EnvVar{
+				{Name: "REGISTRY_HTTP_TLS_MINVERSION", Value: "VersionTLS13"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CIPHERSUITES", Value: "TLS_AES_128_GCM_SHA256"},
+				{Name: "OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES", Value: "23"},
+			},
 		},
 	}
 
@@ -970,6 +1001,69 @@ func TestMakePodTemplateSpecWithTLSConfig(t *testing.T) {
 			// When no TLS config, verify TLS env vars are absent
 			if len(tc.expectedTLSVars) == 0 && len(foundVars) > 0 {
 				t.Errorf("expected no TLS env vars but found: %v", foundVars)
+			}
+		})
+	}
+}
+
+func Test_curvePreferencesToString(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		raw      []any
+		err      string
+		expected []string
+	}{
+		{
+			name:     "converting from int",
+			raw:      []any{23, 24, 25},
+			expected: []string{"23", "24", "25"},
+		},
+		{
+			name:     "converting from int64",
+			raw:      []any{int64(23), int64(24), int64(25)},
+			expected: []string{"23", "24", "25"},
+		},
+		{
+			name:     "converting from float64",
+			raw:      []any{float64(23), float64(24), float64(25)},
+			expected: []string{"23", "24", "25"},
+		},
+		{
+			name: "converting from non integral float64",
+			raw:  []any{float64(23), float64(24.4), float64(25)},
+			err:  "non-integral float64",
+		},
+		{
+			name: "out of bounds error",
+			raw:  []any{float64(23), float64(24), float64(999999999)},
+			err:  "out of bounds",
+		},
+		{
+			name: "invalid type",
+			raw:  []any{"invalid"},
+			err:  "invalid curvePreference type found: invalid (string)",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := curvePreferencesToString(tt.raw)
+			if err != nil {
+				if len(tt.err) == 0 {
+					t.Errorf("unexpected error: %v", err)
+					return
+				}
+				if !strings.Contains(err.Error(), tt.err) {
+					t.Errorf("expected error to contain %q: %v", tt.err, err)
+				}
+				return
+			}
+
+			if len(tt.err) > 0 {
+				t.Errorf("expected error, nil received instead")
+				return
+			}
+
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("expected %v, found %v", tt.expected, result)
 			}
 		})
 	}

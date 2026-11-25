@@ -406,9 +406,9 @@ func TestGlobalTLSCopy(t *testing.T) {
 	}
 
 	if _, exists := envValue(
-		deployment.Spec.Template.Spec.Containers[0].Env, "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
+		deployment.Spec.Template.Spec.Containers[0].Env, "OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES",
 	); exists {
-		t.Error("OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS should not be set with TLSGroupsPreferences disabled")
+		t.Error("OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES should not be set with TLSGroupsPreferences disabled")
 	}
 }
 
@@ -504,12 +504,12 @@ func TestTLSGroupsCopy(t *testing.T) {
 			}
 			val, exists := envValue(
 				deploy.Spec.Template.Spec.Containers[0].Env,
-				"OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
+				"OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES",
 			)
-			t.Logf("OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS found: %v, value: %q ", exists, val)
+			t.Logf("OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES found: %v, value: %q ", exists, val)
 			return exists, nil
 		},
 	); err != nil {
-		t.Fatalf("expected deployment to have OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS: %v", err)
+		t.Fatalf("expected deployment to have OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES: %v", err)
 	}
 }
