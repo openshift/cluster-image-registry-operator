@@ -95,25 +95,54 @@ func generateTLSEnvVars(cr *v1.Config) ([]corev1.EnvVar, error) {
 		)
 	}
 
-	// extract groups from servingInfo.groups
-	groups, found, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "groups")
+	rawCurveIDs, found, err := unstructured.NestedSlice(observedConfig, "servingInfo", "curvePreferences")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get servingInfo.groups: %w", err)
+		return nil, fmt.Errorf("failed to get servingInfo.curvePreferences: %w", err)
 	}
 
-	if found && len(groups) > 0 {
-		if _, unknown := crypto.TLSGroupsToCurvePreferences(groups); len(unknown) > 0 {
-			return nil, fmt.Errorf("invalid tls groups found: %s", strings.Join(unknown, ","))
+	if found && len(rawCurveIDs) > 0 {
+		curves, err := curvePreferencesToString(rawCurveIDs)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert curvePreferences: %w", err)
 		}
+
 		envVars = append(
 			envVars, corev1.EnvVar{
-				Name:  "OPENSHIFT_REGISTRY_HTTP_TLS_GROUPS",
-				Value: strings.Join(groups, ","),
+				Name:  "OPENSHIFT_REGISTRY_HTTP_TLS_CURVE_PREFERENCES",
+				Value: strings.Join(curves, ","),
 			},
 		)
 	}
 
 	return envVars, nil
+}
+
+func curvePreferencesToString(raw []any) ([]string, error) {
+	var curves []string
+	for _, rawCurveID := range raw {
+		var curve int64
+		switch val := rawCurveID.(type) {
+		case int64:
+			curve = val
+		case int:
+			curve = int64(val)
+		case float64:
+			if val != float64(int64(val)) {
+				return nil, fmt.Errorf("invalid curve preference: non-integral float64 value %v", val)
+			}
+			curve = int64(val)
+		default:
+			return nil, fmt.Errorf("invalid curvePreference type found: %v (%T)", rawCurveID, rawCurveID)
+		}
+
+		if curve < 0 || curve > 65535 {
+			return nil, fmt.Errorf("out of bounds curvePreference %v", curve)
+		}
+
+		curves = append(curves, fmt.Sprintf("%d", curve))
+	}
+
+	return curves, nil
 }
 
 // generateLivenessProbeConfig returns an HTTPS liveness probe for the image
