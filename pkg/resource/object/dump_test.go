@@ -34,7 +34,7 @@ func TestDumpString(t *testing.T) {
 					"foo": "aaa",
 				},
 			},
-			result: "data.foo=\"aaa\"",
+			result: "data.foo=<REDACTED>",
 		},
 		{
 			object: &corev1.Secret{

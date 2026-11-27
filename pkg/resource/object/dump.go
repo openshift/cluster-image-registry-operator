@@ -9,8 +9,15 @@ import (
 )
 
 func printValue(obj interface{}, key string, value string) string {
-	if _, ok := obj.(*corev1.Secret); ok {
+	switch obj.(type) {
+	case *corev1.Secret:
 		if value != "" && (strings.HasPrefix(key, "data.") || strings.HasPrefix(key, "stringData.")) {
+			return "<REDACTED>"
+		}
+	case *corev1.ConfigMap:
+		// ConfigMap data can contain certificate bundles (e.g. the
+		// image-registry-certificates ConfigMap); don't print it verbatim.
+		if value != "" && (strings.HasPrefix(key, "data.") || strings.HasPrefix(key, "binaryData.")) {
 			return "<REDACTED>"
 		}
 	}
