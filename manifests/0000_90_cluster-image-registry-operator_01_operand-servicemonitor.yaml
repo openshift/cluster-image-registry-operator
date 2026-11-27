@@ -25,3 +25,4 @@ spec:
     matchNames:
     - openshift-image-registry
   selector: {}
+  serviceDiscoveryRole: EndpointSlice
