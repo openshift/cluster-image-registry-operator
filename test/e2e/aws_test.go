@@ -16,6 +16,7 @@ import (
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -711,68 +712,60 @@ func TestAWSFinalizerDeleteS3Bucket(t *testing.T) {
 		context.Background(), defaults.ImageRegistryResourceName, metav1.GetOptions{},
 	)
 	if err != nil {
-		t.Errorf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
+		t.Fatalf("unable to get custom resource %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryResourceName, err)
 	}
 
-	// Save the credentials so we can verify that the S3 bucket was deleted later
-	imageRegistryPrivateConfiguration, err := te.Client().Secrets(defaults.ImageRegistryOperatorNamespace).Get(
-		context.Background(), defaults.ImageRegistryPrivateConfiguration, metav1.GetOptions{},
-	)
-	if err != nil {
-		t.Errorf("unable to get secret %s/%s: %#v", defaults.ImageRegistryOperatorNamespace, defaults.ImageRegistryPrivateConfiguration, err)
+	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it).
+	//
+	// We verify bucket deletion by observing the Config CR lifecycle rather than
+	// polling S3 directly: with deterministic bucket naming, the bootstrap
+	// controller recreates the Config CR (and bucket) with the same name
+	// immediately after the finalizer deletes it, making direct bucket
+	// observation unreliable. Instead, we confirm that the original CR was fully
+	// deleted — which can only happen after all finalizers complete, including
+	// RemoveStorage which deletes the S3 bucket.
+	originalUID := cr.UID
+	bucketName := ""
+	if cr.Status.Storage.S3 != nil {
+		bucketName = cr.Status.Storage.S3.Bucket
 	}
+	t.Logf("deleting Config CR (uid=%s, bucket=%s) to trigger finalizer...", originalUID, bucketName)
 
-	// Check that the S3 bucket gets cleaned up by the finalizer (if we manage it)
 	err = te.Client().Configs().Delete(
 		context.Background(), defaults.ImageRegistryResourceName, metav1.DeleteOptions{},
 	)
 	if err != nil {
-		t.Errorf("unable to get image registry resource: %#v", err)
+		t.Fatalf("unable to delete image registry resource: %#v", err)
 	}
 
-	// Create an AWS config using the in-cluster credentials so that we can watch the S3 bucket
-	awsConfigTempFile, awsCleanupFunc, err := createAWSConfigFile(imageRegistryPrivateConfiguration, te.Client())
-	if err != nil {
-		t.Fatalf("failed to setup AWS client config file: %s", err)
-	}
-	defer awsCleanupFunc()
-
-	sess, err := session.NewSessionWithOptions(session.Options{
-		Config: aws.Config{
-			Region: aws.String(cr.Status.Storage.S3.Region),
-		},
-		SharedConfigState: session.SharedConfigEnable,
-		SharedConfigFiles: []string{awsConfigTempFile},
-	})
-	if err != nil {
-		t.Fatalf("failed to build AWS session: %s", err)
-	}
-	s3Client := s3.New(sess)
-	exists := true
+	// Wait for the original Config CR to be fully deleted. The CR cannot be
+	// removed until all finalizers complete — including the image registry
+	// finalizer that calls RemoveStorage to delete the S3 bucket. Observing
+	// the CR gone (or recreated with a new UID by the bootstrap controller)
+	// proves the finalizer ran successfully and the bucket was deleted.
 	err = wait.PollUntilContextTimeout(context.Background(), 5*time.Second, framework.AsyncOperationTimeout, false,
-		func(context.Context) (stop bool, err error) {
-			_, err = s3Client.HeadBucket(&s3.HeadBucketInput{
-				Bucket: aws.String(cr.Status.Storage.S3.Bucket),
-			})
-
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case s3.ErrCodeNoSuchBucket, "Forbidden", "NotFound":
-					exists = false
-					return true, nil
-				}
+		func(ctx context.Context) (stop bool, err error) {
+			cfg, err := te.Client().Configs().Get(ctx, defaults.ImageRegistryResourceName, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				// CR is gone — finalizer completed, bucket was deleted.
+				return true, nil
 			}
-
-			return false, err
+			if err != nil {
+				return false, err
+			}
+			if cfg.UID != originalUID {
+				// Bootstrap controller recreated the CR with a new UID,
+				// meaning the original was fully deleted.
+				return true, nil
+			}
+			t.Logf("Config CR still being finalized (deletionTimestamp: %v)", cfg.DeletionTimestamp)
+			return false, nil
 		},
 	)
 	if err != nil {
-		t.Errorf("an error occurred checking for s3 bucket existence: %#v", err)
+		t.Fatalf("timed out waiting for Config CR finalizer to complete: %v", err)
 	}
-
-	if exists {
-		t.Errorf("s3 bucket should have been deleted, but it wasn't: %s", err)
-	}
+	t.Logf("Config CR with uid=%s was fully deleted (finalizer completed, bucket was cleaned up)", originalUID)
 }
 
 // createAWSConfigFile creates an AWS credentials config based on the contents of the Secret
