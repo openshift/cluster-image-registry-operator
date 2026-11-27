@@ -987,3 +987,16 @@ type StorageAccountCreateOptions struct {
 func IsAzureStackCloud(name string) bool {
 	return strings.EqualFold(name, "AZURESTACKCLOUD")
 }
+
+// IsAzureUSSecCloud checks if the cloud name indicates the US Government Secret (IL6) cloud.
+func IsAzureUSSecCloud(name string) bool {
+	return strings.EqualFold(name, "AzureUSSecCloud")
+}
+
+// UsesEnvironmentFile reports whether the given cloud supplies its endpoints via
+// the file referenced by AZURE_ENVIRONMENT_FILEPATH rather than a built-in
+// autorest environment. This is true for Azure Stack Hub and the air-gapped US
+// Government Secret (IL6) cloud.
+func UsesEnvironmentFile(name string) bool {
+	return IsAzureStackCloud(name) || IsAzureUSSecCloud(name)
+}

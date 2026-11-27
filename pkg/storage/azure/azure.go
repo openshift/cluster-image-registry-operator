@@ -147,6 +147,15 @@ func getEnvironmentByName(name string) (autorestazure.Environment, error) {
 	if name == "" {
 		return autorestazure.PublicCloud, nil
 	}
+	// Azure Stack and the air-gapped US Government Secret (IL6) cloud both ship
+	// their endpoints in the file referenced by AZURE_ENVIRONMENT_FILEPATH. Load
+	// it directly rather than relying on autorest's EnvironmentFromName, which
+	// only auto-dispatches to the file for the literal "AZURESTACKCLOUD" name.
+	// This matches the direction autorest itself documents as correct (have the
+	// provider call EnvironmentFromFile rather than depend on name matching).
+	if azureclient.UsesEnvironmentFile(name) {
+		return autorestazure.EnvironmentFromFile(os.Getenv(autorestazure.EnvironmentFilepathName))
+	}
 	return autorestazure.EnvironmentFromName(name)
 }
 
